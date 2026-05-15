@@ -17,6 +17,10 @@ pub struct MeshConfig {
     pub texture_v_scale: f32,
     /// Enable Pivot Painter data encoding
     pub pivot_painter: bool,
+    /// Branch collar swelling factor (1.0 = no swelling, 1.5 = 50% larger at joints)
+    pub branch_collar_swell: f32,
+    /// How far the swelling extends (0.0-1.0, as fraction of branch length)
+    pub collar_falloff: f32,
 }
 
 impl Default for MeshConfig {
@@ -27,6 +31,8 @@ impl Default for MeshConfig {
             ring_resolution: [24, 16, 10, 6],
             texture_v_scale: 1.0,
             pivot_painter: true,
+            branch_collar_swell: 1.35,
+            collar_falloff: 0.15,
         }
     }
 }
@@ -110,17 +116,36 @@ impl<'a> MeshBuilder<'a> {
             return; // Too few vertices to make a cylinder
         }
 
+        // Collect child attachment positions for branch collar swelling
+        let child_offsets: Vec<f32> = stem.child_ids.iter()
+            .filter_map(|&child_id| {
+                self.tree.stems.iter()
+                    .find(|s| s.id == child_id)
+                    .map(|child| child.parent_offset)
+            })
+            .collect();
+
+        // Calculate total stem length for position calculations
+        let total_length: f32 = stem.segments.iter()
+            .map(|s| (s.end - s.start).length())
+            .sum();
+
         // Generate ring vertices for each segment joint
         let mut rings: Vec<Vec<u32>> = Vec::new();
         let mut v_coord = 0.0; // Accumulated V coordinate
+        let mut accumulated_length = 0.0;
 
         for (seg_idx, seg) in stem.segments.iter().enumerate() {
+            let seg_length = (seg.end - seg.start).length();
+
             // Create ring at segment start
             if seg_idx == 0 {
+                let t = 0.0;
+                let swell = self.calculate_collar_swell(t, &child_offsets);
                 let ring = self.create_ring(
                     seg.start,
                     seg.direction,
-                    seg.start_radius,
+                    seg.start_radius * swell,
                     ring_res,
                     v_coord,
                     stem,
@@ -129,7 +154,8 @@ impl<'a> MeshBuilder<'a> {
             }
 
             // Advance V coordinate by segment length
-            v_coord += (seg.end - seg.start).length() * self.config.texture_v_scale;
+            v_coord += seg_length * self.config.texture_v_scale;
+            accumulated_length += seg_length;
 
             // Create ring at segment end
             let direction = if seg_idx + 1 < stem.segments.len() {
@@ -140,8 +166,18 @@ impl<'a> MeshBuilder<'a> {
                 seg.direction
             };
 
-            let ring =
-                self.create_ring(seg.end, direction, seg.end_radius, ring_res, v_coord, stem);
+            // Calculate position along stem (0-1)
+            let t = if total_length > 0.0 { accumulated_length / total_length } else { 1.0 };
+            let swell = self.calculate_collar_swell(t, &child_offsets);
+
+            let ring = self.create_ring(
+                seg.end,
+                direction,
+                seg.end_radius * swell,
+                ring_res,
+                v_coord,
+                stem,
+            );
             rings.push(ring);
         }
 
@@ -154,6 +190,30 @@ impl<'a> MeshBuilder<'a> {
         if stem.child_ids.is_empty() && !rings.is_empty() {
             self.cap_ring(rings.last().unwrap());
         }
+    }
+
+    /// Calculate branch collar swelling at a position along the stem
+    fn calculate_collar_swell(&self, t: f32, child_offsets: &[f32]) -> f32 {
+        if child_offsets.is_empty() || self.config.branch_collar_swell <= 1.0 {
+            return 1.0;
+        }
+
+        let falloff = self.config.collar_falloff;
+        let max_swell = self.config.branch_collar_swell;
+
+        // Find the maximum swelling contribution from all child attachments
+        let mut swell = 1.0f32;
+        for &child_t in child_offsets {
+            let dist = (t - child_t).abs();
+            if dist < falloff {
+                // Smooth falloff using cosine interpolation
+                let factor = (1.0 - dist / falloff).powi(2);
+                let local_swell = 1.0 + (max_swell - 1.0) * factor;
+                swell = swell.max(local_swell);
+            }
+        }
+
+        swell
     }
 
     fn create_ring(

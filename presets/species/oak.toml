@@ -30,31 +30,32 @@ curve_variance = 10.0
 segments = 6
 
 [branches.level2]
-count = 4
-count_variance = 1
-length = 2.2
+count = 5
+count_variance = 2
+length = 2.0
 length_variance = 0.3
 radius_ratio = 0.5
 angle = 50.0
-angle_variance = 15.0
+angle_variance = 18.0
 rotation = 137.5
-gravity = -0.25
-curve = 35.0
-curve_variance = 12.0
-segments = 4
+gravity = -0.2
+curve = 30.0
+curve_variance = 15.0
+segments = 5
 
 [branches.level3]
-count = 3
-count_variance = 1
-length = 0.9
-length_variance = 0.35
-radius_ratio = 0.4
-angle = 55.0
-angle_variance = 20.0
+count = 4
+count_variance = 2
+length = 0.8
+length_variance = 0.4
+radius_ratio = 0.35
+angle = 60.0
+angle_variance = 25.0
 rotation = 137.5
-gravity = -0.4
-curve = 40.0
-segments = 2
+gravity = -0.35
+curve = 45.0
+curve_variance = 20.0
+segments = 3
 
 [crown]
 shape = "spherical"
@@ -63,14 +64,14 @@ density = 1.0
 width_ratio = 1.2
 
 [leaves]
-count = 2000
+count = 3000
 min_level = 2
-size = 0.15
-size_variance = 0.25
+size = 0.12
+size_variance = 0.3
 distribution = "both"
 geometry = "polygon"
 shape = "oak_lobed"
-up_influence = 0.25
+up_influence = 0.3
 
 [textures]
 bark_prompt = "English oak tree bark, deep fissures, grey-brown, coarse texture"

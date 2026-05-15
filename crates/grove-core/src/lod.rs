@@ -525,6 +525,8 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
         ring_resolution: level.ring_resolution,
         texture_v_scale: 1.0,
         pivot_painter: true,
+        branch_collar_swell: 1.35,
+        collar_falloff: 0.15,
     };
 
     // Generate branch mesh with level filtering
