@@ -13,6 +13,14 @@
  */
 
 import * as THREE from 'three';
+import {
+  createWindyBarkMaterial,
+  createWindyLeafMaterial,
+  updateCameraPosition
+} from './WindShader';
+
+// Re-export wind shader utilities
+export { updateWindTime, setWindParams, updateCameraPosition } from './WindShader';
 
 /**
  * Material types for tree submeshes
@@ -136,33 +144,17 @@ export function createTreeGeometry(meshData: TreeMeshData): THREE.BufferGeometry
 }
 
 /**
- * Create bark material
+ * Create bark material with wind animation and procedural texture
  */
-export function createBarkMaterial(wireframe: boolean = false): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: 0x5c4033,
-    roughness: 0.9,
-    metalness: 0.0,
-    side: THREE.DoubleSide,
-    vertexColors: true,
-    wireframe
-  });
+export function createBarkMaterial(wireframe: boolean = false): THREE.Material {
+  return createWindyBarkMaterial(wireframe);
 }
 
 /**
- * Create leaf material
+ * Create leaf material with wind animation and subsurface scattering
  */
-export function createLeafMaterial(wireframe: boolean = false): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: 0x228b22,
-    roughness: 0.6,
-    metalness: 0.0,
-    side: THREE.DoubleSide,
-    vertexColors: true,
-    transparent: true,
-    alphaTest: 0.5,
-    wireframe
-  });
+export function createLeafMaterial(wireframe: boolean = false): THREE.Material {
+  return createWindyLeafMaterial(wireframe);
 }
 
 /**
@@ -279,6 +271,8 @@ export function createTreeMesh(
 export function setWireframeMode(materials: THREE.Material[], wireframe: boolean): void {
   for (const material of materials) {
     if (material instanceof THREE.MeshStandardMaterial) {
+      material.wireframe = wireframe;
+    } else if (material instanceof THREE.ShaderMaterial) {
       material.wireframe = wireframe;
     }
   }

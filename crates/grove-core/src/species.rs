@@ -188,6 +188,45 @@ pub enum LeafGeometry {
     None,
 }
 
+/// Leaf shape for polygon generation using SDF.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeafShape {
+    /// Elliptical leaf shape (common in many trees)
+    Oval,
+    /// Egg-shaped leaf, narrower at tip (default)
+    #[default]
+    Pointed,
+    /// Long thin needle (pine, spruce, fir)
+    Needle,
+    /// Oak-style with 7 rounded lobes
+    OakLobed,
+    /// 5-point maple leaf
+    Maple,
+    /// Serrated oval (birch, elm)
+    Serrated,
+    /// Long narrow willow-style leaf
+    Willow,
+    /// Heart-shaped leaf (linden, redbud)
+    Heart,
+    /// Compound palmate (horse chestnut style)
+    Palmate,
+}
+
+impl LeafShape {
+    /// Get the recommended polygon resolution for this shape
+    pub fn recommended_resolution(&self) -> u32 {
+        match self {
+            LeafShape::Oval | LeafShape::Pointed | LeafShape::Heart => 12,
+            LeafShape::Needle | LeafShape::Willow => 8,
+            LeafShape::Serrated => 24,
+            LeafShape::OakLobed => 20,
+            LeafShape::Maple => 30,
+            LeafShape::Palmate => 36,
+        }
+    }
+}
+
 /// Leaf rendering parameters.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LeafParams {
@@ -209,6 +248,9 @@ pub struct LeafParams {
     /// Rendering geometry type
     #[serde(default = "default_leaf_geometry")]
     pub geometry: LeafGeometry,
+    /// Leaf shape for polygon generation
+    #[serde(default)]
+    pub shape: LeafShape,
     /// Influence of upward direction on leaf orientation (0.0 - 1.0)
     #[serde(default)]
     pub up_influence: f32,
@@ -239,6 +281,10 @@ pub enum LodPreset {
     Mobile,
     /// Minimal LOD for low-end devices
     Minimal,
+    /// Optimized for open-world forests (10-50 trees on screen)
+    OpenWorld,
+    /// High detail for single prominent/hero trees
+    HeroTree,
     /// Custom LOD configuration
     Custom,
 }
@@ -402,6 +448,7 @@ impl Default for LeafParams {
             size_variance: 0.0,
             distribution: default_distribution(),
             geometry: default_leaf_geometry(),
+            shape: LeafShape::default(),
             up_influence: 0.0,
         }
     }
@@ -537,6 +584,8 @@ impl Species {
             LodPreset::Balanced => generate_balanced_lods(),
             LodPreset::Mobile => generate_mobile_lods(),
             LodPreset::Minimal => generate_minimal_lods(),
+            LodPreset::OpenWorld => generate_open_world_lods(),
+            LodPreset::HeroTree => generate_hero_tree_lods(),
             LodPreset::Custom => Vec::new(), // Custom but no levels defined
         }
     }
@@ -772,6 +821,90 @@ fn generate_minimal_lods() -> Vec<LodLevel> {
             ring_resolution: Some([3, 3, 3, 3]),
             screen_height: 0.02,
             crown_impostor: true,
+        },
+    ]
+}
+
+/// Generate open-world forest optimized LOD levels.
+fn generate_open_world_lods() -> Vec<LodLevel> {
+    vec![
+        LodLevel {
+            index: 0,
+            name: "Near".to_string(),
+            target_triangles: 8000,
+            max_triangles: Some(10000),
+            branch_levels: 4,
+            leaf_geometry: LeafGeometry::CrossBillboard,
+            leaf_reduction: 1.0,
+            ring_resolution: Some([20, 14, 8, 5]),
+            screen_height: 0.25,
+            crown_impostor: false,
+        },
+        LodLevel {
+            index: 1,
+            name: "Medium".to_string(),
+            target_triangles: 3000,
+            max_triangles: Some(4000),
+            branch_levels: 3,
+            leaf_geometry: LeafGeometry::Billboard,
+            leaf_reduction: 0.5,
+            ring_resolution: Some([12, 8, 5, 4]),
+            screen_height: 0.08,
+            crown_impostor: false,
+        },
+        LodLevel {
+            index: 2,
+            name: "Far".to_string(),
+            target_triangles: 800,
+            max_triangles: Some(1200),
+            branch_levels: 2,
+            leaf_geometry: LeafGeometry::Billboard,
+            leaf_reduction: 0.2,
+            ring_resolution: Some([8, 5, 4, 3]),
+            screen_height: 0.03,
+            crown_impostor: false,
+        },
+        LodLevel {
+            index: 3,
+            name: "Distant".to_string(),
+            target_triangles: 200,
+            max_triangles: Some(400),
+            branch_levels: 1,
+            leaf_geometry: LeafGeometry::None,
+            leaf_reduction: 0.0,
+            ring_resolution: Some([4, 3, 3, 3]),
+            screen_height: 0.01,
+            crown_impostor: true,
+        },
+    ]
+}
+
+/// Generate hero tree LOD levels for prominent single trees.
+fn generate_hero_tree_lods() -> Vec<LodLevel> {
+    vec![
+        LodLevel {
+            index: 0,
+            name: "Hero".to_string(),
+            target_triangles: 25000,
+            max_triangles: Some(35000),
+            branch_levels: 4,
+            leaf_geometry: LeafGeometry::Polygon,
+            leaf_reduction: 1.0,
+            ring_resolution: Some([32, 24, 16, 10]),
+            screen_height: 0.4,
+            crown_impostor: false,
+        },
+        LodLevel {
+            index: 1,
+            name: "Medium".to_string(),
+            target_triangles: 12000,
+            max_triangles: Some(16000),
+            branch_levels: 4,
+            leaf_geometry: LeafGeometry::CrossBillboard,
+            leaf_reduction: 0.8,
+            ring_resolution: Some([24, 16, 10, 6]),
+            screen_height: 0.15,
+            crown_impostor: false,
         },
     ]
 }

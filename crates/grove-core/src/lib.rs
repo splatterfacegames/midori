@@ -42,7 +42,8 @@ pub mod tree;
 pub use constants::*;
 pub use export::{export_lod_meshes, export_lod_meshes_to_bytes, export_mesh, ExportConfig, ExportError, ExportFormat};
 pub use generation::generate_tree;
-pub use leaves::{add_leaves_to_tree, generate_leaf_mesh, place_leaves, LeafConfig, LeafShape};
+pub use leaves::{add_leaves_to_tree, generate_leaf_mesh, place_leaves, LeafConfig};
+pub use species::LeafShape;
 pub use lod::{
     generate_lod_meshes, generate_lod_meshes_with_config, LodGenerationConfig, LodLevelConfig,
     LodMesh, LodMeshSet, LodStats,

@@ -45,6 +45,7 @@ size = 0.5
 size_variance = 0.2
 distribution = "along_branch"
 geometry = "polygon"
+shape = "willow"  # Palm leaflets are narrow and elongated
 up_influence = 0.0
 
 [textures]

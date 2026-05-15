@@ -53,7 +53,7 @@ impl Default for LodLevelConfig {
             branch_levels: 4,
             leaf_geometry: LeafGeometry::CrossBillboard,
             leaf_reduction: 1.0,
-            ring_resolution: [12, 8, 5, 4],
+            ring_resolution: [16, 12, 8, 5], // Production-quality defaults
             screen_height: 0.5,
             crown_impostor: false,
         }
@@ -81,11 +81,14 @@ impl LodGenerationConfig {
             LodPreset::Balanced => Self::balanced(),
             LodPreset::Mobile => Self::mobile(),
             LodPreset::Minimal => Self::minimal(),
+            LodPreset::OpenWorld => Self::open_world(),
+            LodPreset::HeroTree => Self::hero_tree(),
             LodPreset::Custom => Self::balanced(), // Default to balanced for custom
         }
     }
 
     /// Generate ultra quality LOD chain (5 levels)
+    /// Production-quality for hero trees and close-up views
     pub fn ultra() -> Self {
         Self {
             levels: vec![
@@ -97,7 +100,7 @@ impl LodGenerationConfig {
                     branch_levels: 4,
                     leaf_geometry: LeafGeometry::Polygon,
                     leaf_reduction: 1.0,
-                    ring_resolution: [16, 12, 8, 6],
+                    ring_resolution: [32, 24, 16, 10], // Smooth cylinders at close range
                     screen_height: 0.5,
                     crown_impostor: false,
                 },
@@ -109,7 +112,7 @@ impl LodGenerationConfig {
                     branch_levels: 4,
                     leaf_geometry: LeafGeometry::CrossBillboard,
                     leaf_reduction: 0.8,
-                    ring_resolution: [12, 8, 6, 4],
+                    ring_resolution: [24, 16, 10, 6],
                     screen_height: 0.25,
                     crown_impostor: false,
                 },
@@ -121,7 +124,7 @@ impl LodGenerationConfig {
                     branch_levels: 3,
                     leaf_geometry: LeafGeometry::CrossBillboard,
                     leaf_reduction: 0.5,
-                    ring_resolution: [8, 6, 4, 3],
+                    ring_resolution: [16, 10, 6, 4],
                     screen_height: 0.1,
                     crown_impostor: false,
                 },
@@ -133,7 +136,7 @@ impl LodGenerationConfig {
                     branch_levels: 2,
                     leaf_geometry: LeafGeometry::Billboard,
                     leaf_reduction: 0.25,
-                    ring_resolution: [6, 4, 3, 3],
+                    ring_resolution: [10, 6, 4, 3],
                     screen_height: 0.05,
                     crown_impostor: true,
                 },
@@ -145,7 +148,7 @@ impl LodGenerationConfig {
                     branch_levels: 1,
                     leaf_geometry: LeafGeometry::None,
                     leaf_reduction: 0.0,
-                    ring_resolution: [4, 3, 3, 3],
+                    ring_resolution: [6, 4, 3, 3],
                     screen_height: 0.02,
                     crown_impostor: true,
                 },
@@ -154,6 +157,7 @@ impl LodGenerationConfig {
     }
 
     /// Generate high quality LOD chain (4 levels)
+    /// Good for primary gameplay trees
     pub fn high_quality() -> Self {
         Self {
             levels: vec![
@@ -165,7 +169,7 @@ impl LodGenerationConfig {
                     branch_levels: 4,
                     leaf_geometry: LeafGeometry::CrossBillboard,
                     leaf_reduction: 1.0,
-                    ring_resolution: [12, 8, 6, 4],
+                    ring_resolution: [24, 16, 10, 6], // Smooth at medium range
                     screen_height: 0.4,
                     crown_impostor: false,
                 },
@@ -177,7 +181,7 @@ impl LodGenerationConfig {
                     branch_levels: 3,
                     leaf_geometry: LeafGeometry::CrossBillboard,
                     leaf_reduction: 0.6,
-                    ring_resolution: [8, 6, 4, 3],
+                    ring_resolution: [16, 10, 6, 4],
                     screen_height: 0.15,
                     crown_impostor: false,
                 },
@@ -189,7 +193,7 @@ impl LodGenerationConfig {
                     branch_levels: 2,
                     leaf_geometry: LeafGeometry::Billboard,
                     leaf_reduction: 0.3,
-                    ring_resolution: [6, 4, 3, 3],
+                    ring_resolution: [10, 6, 4, 3],
                     screen_height: 0.05,
                     crown_impostor: true,
                 },
@@ -210,6 +214,7 @@ impl LodGenerationConfig {
     }
 
     /// Generate balanced LOD chain (3 levels)
+    /// Default for most game scenarios
     pub fn balanced() -> Self {
         Self {
             levels: vec![
@@ -221,7 +226,7 @@ impl LodGenerationConfig {
                     branch_levels: 4,
                     leaf_geometry: LeafGeometry::CrossBillboard,
                     leaf_reduction: 1.0,
-                    ring_resolution: [12, 8, 5, 4],
+                    ring_resolution: [16, 12, 8, 5], // Good quality at typical game distances
                     screen_height: 0.5,
                     crown_impostor: false,
                 },
@@ -233,7 +238,7 @@ impl LodGenerationConfig {
                     branch_levels: 3,
                     leaf_geometry: LeafGeometry::Billboard,
                     leaf_reduction: 0.4,
-                    ring_resolution: [8, 5, 4, 3],
+                    ring_resolution: [10, 8, 5, 4],
                     screen_height: 0.2,
                     crown_impostor: false,
                 },
@@ -245,7 +250,7 @@ impl LodGenerationConfig {
                     branch_levels: 2,
                     leaf_geometry: LeafGeometry::None,
                     leaf_reduction: 0.0,
-                    ring_resolution: [6, 4, 3, 3],
+                    ring_resolution: [8, 5, 4, 3],
                     screen_height: 0.05,
                     crown_impostor: true,
                 },
@@ -324,6 +329,96 @@ impl LodGenerationConfig {
                     ring_resolution: [3, 3, 3, 3],
                     screen_height: 0.02,
                     crown_impostor: true,
+                },
+            ],
+        }
+    }
+
+    /// Generate open-world forest optimized LOD chain (4 levels)
+    /// Designed for 10-50 trees on screen simultaneously at 60fps
+    pub fn open_world() -> Self {
+        Self {
+            levels: vec![
+                LodLevelConfig {
+                    index: 0,
+                    name: "Near".to_string(),
+                    target_triangles: 8000,
+                    max_triangles: 10000,
+                    branch_levels: 4,
+                    leaf_geometry: LeafGeometry::CrossBillboard,
+                    leaf_reduction: 1.0,
+                    ring_resolution: [20, 14, 8, 5],
+                    screen_height: 0.25,
+                    crown_impostor: false,
+                },
+                LodLevelConfig {
+                    index: 1,
+                    name: "Medium".to_string(),
+                    target_triangles: 3000,
+                    max_triangles: 4000,
+                    branch_levels: 3,
+                    leaf_geometry: LeafGeometry::Billboard,
+                    leaf_reduction: 0.5,
+                    ring_resolution: [12, 8, 5, 4],
+                    screen_height: 0.08,
+                    crown_impostor: false,
+                },
+                LodLevelConfig {
+                    index: 2,
+                    name: "Far".to_string(),
+                    target_triangles: 800,
+                    max_triangles: 1200,
+                    branch_levels: 2,
+                    leaf_geometry: LeafGeometry::Billboard,
+                    leaf_reduction: 0.2,
+                    ring_resolution: [8, 5, 4, 3],
+                    screen_height: 0.03,
+                    crown_impostor: false,
+                },
+                LodLevelConfig {
+                    index: 3,
+                    name: "Distant".to_string(),
+                    target_triangles: 200,
+                    max_triangles: 400,
+                    branch_levels: 1,
+                    leaf_geometry: LeafGeometry::None,
+                    leaf_reduction: 0.0,
+                    ring_resolution: [4, 3, 3, 3],
+                    screen_height: 0.01,
+                    crown_impostor: true,
+                },
+            ],
+        }
+    }
+
+    /// Generate hero tree LOD chain (2 levels)
+    /// Maximum detail for single prominent trees (e.g., quest markers, landmarks)
+    pub fn hero_tree() -> Self {
+        Self {
+            levels: vec![
+                LodLevelConfig {
+                    index: 0,
+                    name: "Hero".to_string(),
+                    target_triangles: 25000,
+                    max_triangles: 35000,
+                    branch_levels: 4,
+                    leaf_geometry: LeafGeometry::Polygon,
+                    leaf_reduction: 1.0,
+                    ring_resolution: [32, 24, 16, 10],
+                    screen_height: 0.4,
+                    crown_impostor: false,
+                },
+                LodLevelConfig {
+                    index: 1,
+                    name: "Medium".to_string(),
+                    target_triangles: 12000,
+                    max_triangles: 16000,
+                    branch_levels: 4,
+                    leaf_geometry: LeafGeometry::CrossBillboard,
+                    leaf_reduction: 0.8,
+                    ring_resolution: [24, 16, 10, 6],
+                    screen_height: 0.15,
+                    crown_impostor: false,
                 },
             ],
         }
@@ -452,7 +547,8 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
         let leaf_config = LeafConfig {
             max_leaves: (species.leaves.count as f32 * level.leaf_reduction) as u32,
             geometry: level.leaf_geometry,
-            polygon_resolution: 10,
+            shape: species.leaves.shape,
+            polygon_resolution: 0, // Use shape's recommended resolution
             up_influence: species.leaves.up_influence,
             pivot_painter: true,
         };
@@ -462,6 +558,15 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
         leaf_count = 0;
         Mesh::new()
     };
+
+    // Add bark submesh entry for existing branch geometry
+    if !branch_mesh.indices.is_empty() {
+        branch_mesh.submeshes.push(crate::mesh::Submesh {
+            index_start: 0,
+            index_count: branch_mesh.indices.len() as u32,
+            material: MaterialType::Bark,
+        });
+    }
 
     // Merge branch and leaf meshes
     if !leaf_mesh.vertices.is_empty() {

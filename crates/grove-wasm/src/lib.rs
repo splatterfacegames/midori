@@ -150,8 +150,20 @@ struct LodOutput {
     name: String,
     vertices: VertexData,
     indices: Vec<u32>,
+    submeshes: Vec<SubmeshOutput>,
     vertex_count: u32,
     triangle_count: u32,
+}
+
+/// Submesh output for multi-material rendering.
+#[derive(serde::Serialize)]
+struct SubmeshOutput {
+    /// Starting index in the indices array
+    start: u32,
+    /// Number of indices in this submesh
+    count: u32,
+    /// Material type: 0 = Bark, 1 = Leaf
+    material_type: u32,
 }
 
 /// Single mesh output (for generate_lod).
@@ -198,6 +210,19 @@ impl MeshOutput {
                     name: lod.name.clone(),
                     vertices: VertexData::from_mesh(&lod.mesh),
                     indices: lod.mesh.indices.clone(),
+                    submeshes: lod
+                        .mesh
+                        .submeshes
+                        .iter()
+                        .map(|s| SubmeshOutput {
+                            start: s.index_start,
+                            count: s.index_count,
+                            material_type: match s.material {
+                                grove_core::MaterialType::Bark => 0,
+                                grove_core::MaterialType::Leaves => 1,
+                            },
+                        })
+                        .collect(),
                     vertex_count: lod.stats.vertex_count,
                     triangle_count: lod.stats.triangle_count,
                 })

@@ -118,15 +118,23 @@ function createTreeStore() {
     },
 
     async loadSpecies(toml: string) {
-      if (!wasmModule) return;
+      if (!wasmModule) {
+        console.error('WASM module not loaded');
+        return;
+      }
 
+      console.log('loadSpecies called with TOML length:', toml.length);
+      console.log('TOML content:\n', toml);
       update(s => ({ ...s, loading: true, error: null }));
 
       try {
+        console.log('Creating GroveGenerator...');
         generator = new wasmModule.GroveGenerator(toml);
+        console.log('GroveGenerator created, name:', generator.name);
         update(s => ({ ...s, species: generator.name, loading: false }));
         await this.regenerate();
       } catch (e: any) {
+        console.error('loadSpecies error:', e);
         update(s => ({ ...s, loading: false, error: e.toString() }));
       }
     },

@@ -22,7 +22,9 @@ pub struct MeshConfig {
 impl Default for MeshConfig {
     fn default() -> Self {
         Self {
-            ring_resolution: [16, 10, 6, 4],
+            // Higher resolution for production-quality trees
+            // Trunk needs 24+ segments for smooth appearance at close range
+            ring_resolution: [24, 16, 10, 6],
             texture_v_scale: 1.0,
             pivot_painter: true,
         }
@@ -97,7 +99,13 @@ impl<'a> MeshBuilder<'a> {
             return;
         }
 
-        let ring_res = self.ring_resolution_for_level(stem.level);
+        // Get average radius for adaptive resolution calculation
+        let avg_radius = stem.segments.iter()
+            .map(|s| (s.start_radius + s.end_radius) / 2.0)
+            .sum::<f32>() / stem.segments.len() as f32;
+
+        // Use adaptive resolution based on branch thickness
+        let ring_res = self.adaptive_ring_resolution(stem.level, avg_radius);
         if ring_res < 3 {
             return; // Too few vertices to make a cylinder
         }
@@ -158,14 +166,18 @@ impl<'a> MeshBuilder<'a> {
         stem: &Stem,
     ) -> Vec<u32> {
         let (tangent, bitangent) = create_basis(direction);
-        let mut ring_indices = Vec::with_capacity(resolution as usize);
+        // +1 for seam vertex at U=1.0 to avoid texture seam artifacts
+        let mut ring_indices = Vec::with_capacity(resolution as usize + 1);
 
-        for i in 0..resolution {
+        // Generate resolution+1 vertices (0 to resolution inclusive)
+        // Last vertex duplicates position of first but has U=1.0 for proper UV wrap
+        for i in 0..=resolution {
             let angle = (i as f32 / resolution as f32) * TAU;
             let offset = tangent * angle.cos() + bitangent * angle.sin();
 
             let position = center + offset * radius;
             let normal = offset; // Points outward
+            // U goes from 0.0 to 1.0 (inclusive) for seamless texture wrap
             let uv = Vec2::new(i as f32 / resolution as f32, v_coord);
 
             let mut vertex = Vertex::new(position, normal, uv);
@@ -184,15 +196,15 @@ impl<'a> MeshBuilder<'a> {
     }
 
     fn connect_rings(&mut self, ring_a: &[u32], ring_b: &[u32]) {
-        let n = ring_a.len();
+        // Ring has resolution+1 vertices (last is seam duplicate)
+        // Connect resolution quads (not wrapping, since last vertex handles the seam)
+        let n = ring_a.len() - 1; // -1 because last vertex is seam duplicate
 
         for i in 0..n {
-            let next_i = (i + 1) % n;
-
             let a0 = ring_a[i];
-            let a1 = ring_a[next_i];
+            let a1 = ring_a[i + 1];
             let b0 = ring_b[i];
-            let b1 = ring_b[next_i];
+            let b1 = ring_b[i + 1];
 
             // Two triangles per quad (CCW winding)
             // First triangle
@@ -208,16 +220,19 @@ impl<'a> MeshBuilder<'a> {
     }
 
     fn cap_ring(&mut self, ring: &[u32]) {
-        if ring.len() < 3 {
+        // Ring has resolution+1 vertices, last is seam duplicate
+        // Use only the unique vertices for the cap (exclude last seam vertex)
+        let actual_count = ring.len() - 1;
+        if actual_count < 3 {
             return;
         }
 
-        // Calculate center position
-        let center: Vec3 = ring
+        // Calculate center position (exclude seam vertex)
+        let center: Vec3 = ring[..actual_count]
             .iter()
             .map(|&i| self.mesh.vertices[i as usize].position)
             .sum::<Vec3>()
-            / ring.len() as f32;
+            / actual_count as f32;
 
         // Get normal from first vertex's direction (average of ring normals would be better
         // but this is simpler and works for our use case)
@@ -229,9 +244,9 @@ impl<'a> MeshBuilder<'a> {
         let center_idx = self.mesh.vertices.len() as u32;
         self.mesh.vertices.push(vertex);
 
-        // Fan triangulation
-        for i in 0..ring.len() {
-            let next_i = (i + 1) % ring.len();
+        // Fan triangulation (use actual_count, not ring.len())
+        for i in 0..actual_count {
+            let next_i = (i + 1) % actual_count;
             self.mesh.indices.push(ring[i]);
             self.mesh.indices.push(ring[next_i]);
             self.mesh.indices.push(center_idx);
@@ -279,6 +294,26 @@ impl<'a> MeshBuilder<'a> {
             .copied()
             .unwrap_or(4)
             .max(3)
+    }
+
+    /// Adaptive ring resolution based on branch radius.
+    /// Thin branches don't need as many segments - reduces polygon count
+    /// without visible quality loss.
+    fn adaptive_ring_resolution(&self, level: u8, radius: f32) -> u32 {
+        let base = self.ring_resolution_for_level(level);
+
+        // Very thin branches (< 2cm) use half resolution
+        if radius < 0.02 {
+            (base / 2).max(3)
+        }
+        // Thin branches (< 5cm) use 2/3 resolution
+        else if radius < 0.05 {
+            (base * 2 / 3).max(4)
+        }
+        // Normal branches use full resolution
+        else {
+            base
+        }
     }
 }
 
@@ -357,7 +392,7 @@ mod tests {
     #[test]
     fn test_mesh_config_default() {
         let config = MeshConfig::default();
-        assert_eq!(config.ring_resolution, [16, 10, 6, 4]);
+        assert_eq!(config.ring_resolution, [24, 16, 10, 6]);
         assert!((config.texture_v_scale - 1.0).abs() < 0.001);
         assert!(config.pivot_painter);
     }

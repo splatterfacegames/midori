@@ -11,9 +11,92 @@
     setWireframeMode,
     getVertexCount,
     getTriangleCount,
+    updateWindTime,
+    updateCameraPosition,
     type TreeMeshData,
     type TreeMeshResult
   } from '$lib/three/TreeMesh';
+
+  /**
+   * Transform WASM mesh output to TreeMeshData format.
+   * WASM returns separate arrays; TreeMesh expects interleaved data.
+   */
+  function transformWasmMeshData(wasmData: any, lodIndex: number = 0): TreeMeshData | null {
+    // Handle the lods array structure from WASM
+    const lods = wasmData?.lods;
+    if (!lods || !Array.isArray(lods) || lods.length === 0) {
+      console.warn('Preview3D: No LODs in mesh data');
+      return null;
+    }
+
+    const lod = lods[Math.min(lodIndex, lods.length - 1)];
+    if (!lod || !lod.vertices) {
+      console.warn('Preview3D: Invalid LOD structure');
+      return null;
+    }
+
+    const { positions, normals, uvs, uv2s, colors } = lod.vertices;
+    const indices = lod.indices;
+
+    if (!positions || positions.length === 0) {
+      console.warn('Preview3D: Empty positions array');
+      return null;
+    }
+
+    // Calculate vertex count from positions (3 floats per vertex)
+    const vertexCount = Math.floor(positions.length / 3);
+
+    // Create interleaved vertex buffer (14 floats per vertex)
+    // Format: position(3) + normal(3) + uv(2) + uv2(2) + color(4)
+    const FLOATS_PER_VERTEX = 14;
+    const interleavedVertices = new Float32Array(vertexCount * FLOATS_PER_VERTEX);
+
+    for (let i = 0; i < vertexCount; i++) {
+      const offset = i * FLOATS_PER_VERTEX;
+
+      // Position (3 floats)
+      interleavedVertices[offset + 0] = positions[i * 3 + 0] ?? 0;
+      interleavedVertices[offset + 1] = positions[i * 3 + 1] ?? 0;
+      interleavedVertices[offset + 2] = positions[i * 3 + 2] ?? 0;
+
+      // Normal (3 floats)
+      interleavedVertices[offset + 3] = normals?.[i * 3 + 0] ?? 0;
+      interleavedVertices[offset + 4] = normals?.[i * 3 + 1] ?? 1;
+      interleavedVertices[offset + 5] = normals?.[i * 3 + 2] ?? 0;
+
+      // UV (2 floats)
+      interleavedVertices[offset + 6] = uvs?.[i * 2 + 0] ?? 0;
+      interleavedVertices[offset + 7] = uvs?.[i * 2 + 1] ?? 0;
+
+      // UV2 (2 floats)
+      interleavedVertices[offset + 8] = uv2s?.[i * 2 + 0] ?? 0;
+      interleavedVertices[offset + 9] = uv2s?.[i * 2 + 1] ?? 0;
+
+      // Color (4 floats - RGBA)
+      interleavedVertices[offset + 10] = colors?.[i * 4 + 0] ?? 1;
+      interleavedVertices[offset + 11] = colors?.[i * 4 + 1] ?? 1;
+      interleavedVertices[offset + 12] = colors?.[i * 4 + 2] ?? 1;
+      interleavedVertices[offset + 13] = colors?.[i * 4 + 3] ?? 1;
+    }
+
+    // Convert indices to Uint32Array
+    const indicesArray = new Uint32Array(indices ?? []);
+
+    // Parse submesh data from WASM
+    const submeshes = (lod.submeshes ?? []).map((s: any) => ({
+      start: s.start,
+      count: s.count,
+      material_type: s.material_type
+    }));
+
+    console.log(`Preview3D: Transformed mesh - ${vertexCount} vertices, ${Math.floor(indicesArray.length / 3)} triangles, ${submeshes.length} submeshes`);
+
+    return {
+      vertices: interleavedVertices,
+      indices: indicesArray,
+      submeshes
+    };
+  }
 
   // Exported stores for parent component access
   export const cameraPosition = writable<THREE.Vector3>(new THREE.Vector3(5, 5, 10));
@@ -33,6 +116,7 @@
   let resizeObserver: ResizeObserver | null = null;
   let ground: THREE.Mesh | null = null;
   let gridHelper: THREE.GridHelper | null = null;
+  let clock: THREE.Clock | null = null;
 
   // Scene configuration
   const BACKGROUND_COLOR = 0x0f0f1a;
@@ -47,6 +131,9 @@
    */
   function initScene(): void {
     if (!container) return;
+
+    // Create clock for animation timing
+    clock = new THREE.Clock();
 
     // Create scene
     scene = new THREE.Scene();
@@ -71,7 +158,7 @@
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.5;
     container.appendChild(renderer.domElement);
 
     // Create controls
@@ -91,40 +178,45 @@
   }
 
   /**
-   * Setup scene lighting
+   * Setup scene lighting - three-point lighting setup
    */
   function setupLighting(): void {
     if (!scene) return;
 
-    // Ambient light for general illumination
-    const ambientLight = new THREE.AmbientLight(0x404050, 0.6);
+    // Strong ambient light for base illumination
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
-    // Main directional light (sun)
-    const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    sunLight.position.set(10, 20, 10);
-    sunLight.castShadow = true;
+    // Key light - main directional light (sun)
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    keyLight.position.set(10, 20, 10);
+    keyLight.castShadow = true;
 
     // Shadow configuration
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 50;
-    sunLight.shadow.camera.left = -20;
-    sunLight.shadow.camera.right = 20;
-    sunLight.shadow.camera.top = 20;
-    sunLight.shadow.camera.bottom = -20;
-    sunLight.shadow.bias = -0.0001;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 50;
+    keyLight.shadow.camera.left = -20;
+    keyLight.shadow.camera.right = 20;
+    keyLight.shadow.camera.top = 20;
+    keyLight.shadow.camera.bottom = -20;
+    keyLight.shadow.bias = -0.0001;
 
-    scene.add(sunLight);
+    scene.add(keyLight);
 
-    // Fill light from opposite side
-    const fillLight = new THREE.DirectionalLight(0x8080a0, 0.4);
-    fillLight.position.set(-5, 10, -5);
+    // Fill light - softer light from opposite side
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    fillLight.position.set(-10, 15, -5);
     scene.add(fillLight);
 
-    // Hemisphere light for sky/ground color variation
-    const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x362312, 0.3);
+    // Back/rim light - creates edge definition
+    const backLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    backLight.position.set(0, 10, -15);
+    scene.add(backLight);
+
+    // Hemisphere light for natural sky/ground color variation
+    const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x3d2817, 0.6);
     scene.add(hemiLight);
   }
 
@@ -163,7 +255,18 @@
   function animate(): void {
     animationId = requestAnimationFrame(animate);
 
-    if (!controls || !renderer || !scene || !camera) return;
+    if (!controls || !renderer || !scene || !camera || !clock) return;
+
+    // Get delta time for wind animation
+    const deltaTime = clock.getDelta();
+
+    // Update wind animation
+    updateWindTime(deltaTime);
+
+    // Update camera position in shader materials
+    if (treeMeshResult && treeMeshResult.materials) {
+      updateCameraPosition(treeMeshResult.materials, camera);
+    }
 
     // Update auto-rotation
     controls.autoRotate = $editorStore.autoRotate;
@@ -397,7 +500,10 @@
 
   // Reactive statements
   $: if ($treeStore.meshData && scene) {
-    updateTreeMesh($treeStore.meshData);
+    const transformedData = transformWasmMeshData($treeStore.meshData, $editorStore.currentLod);
+    if (transformedData) {
+      updateTreeMesh(transformedData);
+    }
   }
 
   $: updateWireframe($editorStore.showWireframe);

@@ -63,12 +63,13 @@ density = 1.0
 width_ratio = 1.2
 
 [leaves]
-count = 3000
+count = 2000
 min_level = 2
-size = 0.12
+size = 0.15
 size_variance = 0.25
 distribution = "both"
-geometry = "cross_billboard"
+geometry = "polygon"
+shape = "oak_lobed"
 up_influence = 0.25
 
 [textures]

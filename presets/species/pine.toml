@@ -66,6 +66,7 @@ size = 0.08
 size_variance = 0.15
 distribution = "along_branch"
 geometry = "billboard"
+shape = "needle"
 up_influence = 0.1
 
 [textures]

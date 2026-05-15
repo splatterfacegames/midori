@@ -13,9 +13,20 @@
   }
 
   async function loadPreset(name: string) {
-    const response = await fetch(`/presets/${name}.toml`);
-    const text = await response.text();
-    await treeStore.loadSpecies(text);
+    try {
+      console.log(`Loading preset: ${name}`);
+      const response = await fetch(`/presets/${name}.toml`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch preset: ${response.status}`);
+      }
+      const text = await response.text();
+      console.log(`Preset loaded, first 100 chars:`, text.substring(0, 100));
+      await treeStore.loadSpecies(text);
+      console.log(`Species loaded successfully`);
+    } catch (e) {
+      console.error('Error loading preset:', e);
+      alert(`Error loading preset: ${e}`);
+    }
   }
 
   async function exportGlb() {
