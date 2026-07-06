@@ -1,0 +1,428 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jethac/midori/schema/midori_nature.schema.json",
+  "title": "Midori Nature Package Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "generator",
+    "generator_version",
+    "asset_name",
+    "seed",
+    "units",
+    "tile_size",
+    "axis",
+    "map_resolution",
+    "terrain",
+    "map_channels",
+    "normal_conventions",
+    "material_slots",
+    "material_parameters",
+    "material_recipes",
+    "engine_import_recipes",
+    "surface_overlays",
+    "groundcover_layers",
+    "prototypes",
+    "scatter",
+    "wind_packing",
+    "memory_footprint",
+    "mobile",
+    "console",
+    "unity",
+    "unreal",
+    "shader_policy",
+    "texture_pipeline"
+  ],
+  "properties": {
+    "schema_version": { "const": 3 },
+    "generator": { "const": "midori" },
+    "generator_version": { "type": "string", "minLength": 1 },
+    "asset_name": { "type": "string", "minLength": 1 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "units": { "type": "string", "minLength": 1 },
+    "tile_size": { "type": "number", "exclusiveMinimum": 0 },
+    "axis": {
+      "type": "object",
+      "required": ["up_axis", "forward_axis", "handedness", "unit_scale"],
+      "properties": {
+        "up_axis": { "const": "Y" },
+        "forward_axis": { "const": "Z" },
+        "handedness": { "enum": ["right", "left"] },
+        "unit_scale": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "map_resolution": { "type": "integer", "minimum": 2 },
+    "terrain": {
+      "type": "object",
+      "required": [
+        "heightmap_file",
+        "masks_file",
+        "grass_density_file",
+        "height_min",
+        "height_max",
+        "bounds_min",
+        "bounds_max"
+      ],
+      "properties": {
+        "heightmap_file": { "const": "maps/height_u16.png" },
+        "masks_file": { "const": "maps/masks_rgba.png" },
+        "grass_density_file": { "const": "maps/grass_density.png" },
+        "height_min": { "type": "number" },
+        "height_max": { "type": "number" },
+        "bounds_min": { "$ref": "#/$defs/vec3" },
+        "bounds_max": { "$ref": "#/$defs/vec3" }
+      }
+    },
+    "map_channels": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["file", "channels"],
+        "properties": {
+          "file": { "type": "string", "minLength": 1 },
+          "channels": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "normal_conventions": {
+      "type": "object",
+      "required": ["unity_yplus_file", "unreal_yminus_file"],
+      "properties": {
+        "unity_yplus_file": { "const": "maps/normal_yplus.png" },
+        "unreal_yminus_file": { "const": "maps/normal_yminus.png" }
+      }
+    },
+    "material_slots": { "type": "array", "minItems": 1 },
+    "material_parameters": {
+      "type": "array",
+      "minItems": 2,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["material_slot"],
+            "properties": { "material_slot": { "const": "terrain_surface" } }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["material_slot"],
+            "properties": { "material_slot": { "const": "groundcover_foliage" } }
+          }
+        }
+      ],
+      "items": {
+        "type": "object",
+        "required": ["material_slot", "parameter_set", "runtime_policy", "parameters"],
+        "properties": {
+          "material_slot": { "enum": ["terrain_surface", "groundcover_foliage"] },
+          "parameter_set": { "type": "string", "minLength": 1 },
+          "runtime_policy": { "const": "engine_native_static" },
+          "parameters": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name", "semantic", "value_type", "source", "default_value"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "semantic": { "type": "string", "minLength": 1 },
+                "value_type": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "minLength": 1 },
+                "default_value": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "material_recipes": {
+      "type": "array",
+      "minItems": 2,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["material_slot"],
+            "properties": { "material_slot": { "const": "terrain_surface" } }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["material_slot"],
+            "properties": { "material_slot": { "const": "groundcover_foliage" } }
+          }
+        }
+      ],
+      "items": {
+        "type": "object",
+        "required": ["material_slot", "file", "runtime_policy", "engine_targets"],
+        "properties": {
+          "material_slot": { "enum": ["terrain_surface", "groundcover_foliage"] },
+          "file": { "type": "string", "pattern": "^materials/.+\\.recipe\\.json$" },
+          "runtime_policy": { "const": "engine_native_static" },
+          "engine_targets": {
+            "type": "array",
+            "minItems": 2,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "engine_import_recipes": {
+      "type": "array",
+      "minItems": 2,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["engine"],
+            "properties": { "engine": { "const": "unity" } }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["engine"],
+            "properties": { "engine": { "const": "unreal" } }
+          }
+        }
+      ],
+      "items": {
+        "type": "object",
+        "required": ["engine", "file", "profile", "runtime_policy", "expected_systems"],
+        "properties": {
+          "engine": { "enum": ["unity", "unreal"] },
+          "file": { "type": "string", "pattern": "^engines/.+\\.recipe\\.json$" },
+          "profile": { "enum": ["mobile", "console"] },
+          "runtime_policy": { "const": "engine_native_static" },
+          "expected_systems": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "surface_overlays": {
+      "type": "array",
+      "minItems": 3,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["name"],
+            "properties": { "name": { "const": "moss" } }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["name"],
+            "properties": { "name": { "const": "wetness" } }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["name"],
+            "properties": { "name": { "const": "cracks" } }
+          }
+        }
+      ],
+      "items": {
+        "type": "object",
+        "required": ["name", "source_file", "channel", "targets", "application", "runtime_policy"],
+        "properties": {
+          "name": { "enum": ["moss", "wetness", "cracks"] },
+          "source_file": { "const": "maps/masks_rgba.png" },
+          "channel": { "enum": ["R", "G", "B", "A"] },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "application": { "type": "string", "minLength": 1 },
+          "runtime_policy": { "enum": ["baked_static", "baked_optional_runtime"] }
+        }
+      }
+    },
+    "groundcover_layers": { "type": "array" },
+    "prototypes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "material_slot", "surface_targets", "lods"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["grass", "moss", "flower", "weed", "litter", "shrub", "rock", "log"] },
+          "material_slot": { "type": "string", "minLength": 1 },
+          "surface_targets": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "lods": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["index", "file", "vertex_count", "triangle_count", "bounds_min", "bounds_max"],
+              "properties": {
+                "index": { "type": "integer", "minimum": 0 },
+                "file": { "type": "string", "pattern": "^prototypes/.+\\.glb$" },
+                "vertex_count": { "type": "integer", "minimum": 1 },
+                "triangle_count": { "type": "integer", "minimum": 1 },
+                "bounds_min": { "$ref": "#/$defs/vec3" },
+                "bounds_max": { "$ref": "#/$defs/vec3" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "scatter": {
+      "type": "object",
+      "required": ["enabled", "file", "format", "binary_files", "binary_format", "chunk_size", "fields"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "file": { "type": ["string", "null"] },
+        "format": { "const": "json.chunked_instances.v1" },
+        "chunk_size": { "type": "number", "exclusiveMinimum": 0 },
+        "fields": { "type": "array", "items": { "type": "string" } },
+        "binary_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "layer_index",
+              "layer_name",
+              "kind",
+              "chunk_x",
+              "chunk_z",
+              "file",
+              "instance_count",
+              "bounds_min",
+              "bounds_max"
+            ],
+            "properties": {
+              "layer_index": { "type": "integer", "minimum": 0 },
+              "layer_name": { "type": "string", "minLength": 1 },
+              "kind": { "enum": ["grass", "moss", "flower", "weed", "litter", "shrub", "rock", "log"] },
+              "chunk_x": { "type": "integer" },
+              "chunk_z": { "type": "integer" },
+              "file": { "type": "string", "pattern": "^instances/binary/.+\\.bin$" },
+              "instance_count": { "type": "integer", "minimum": 1 },
+              "bounds_min": { "$ref": "#/$defs/vec3" },
+              "bounds_max": { "$ref": "#/$defs/vec3" }
+            }
+          }
+        },
+        "binary_format": {
+          "type": "object",
+          "required": ["format", "header_bytes", "record_stride_bytes", "endian", "header", "record"],
+          "properties": {
+            "format": { "const": "midori.scatter.bin.v1" },
+            "header_bytes": { "const": 16 },
+            "record_stride_bytes": { "const": 32 },
+            "endian": { "const": "little" },
+            "header": { "type": "array", "items": { "type": "string" } },
+            "record": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "memory_footprint": {
+      "type": "object",
+      "required": [
+        "map_pixel_count",
+        "decoded_map_bytes",
+        "encoded_map_bytes",
+        "material_recipe_bytes",
+        "engine_import_recipe_bytes",
+        "preview_mesh_bytes",
+        "prototype_mesh_bytes",
+        "scatter_json_bytes",
+        "scatter_binary_bytes",
+        "scatter_binary_header_bytes",
+        "scatter_binary_record_bytes",
+        "total_payload_bytes"
+      ],
+      "properties": {
+        "map_pixel_count": { "type": "integer", "minimum": 1 },
+        "decoded_map_bytes": { "type": "integer", "minimum": 1 },
+        "encoded_map_bytes": { "type": "integer", "minimum": 0 },
+        "material_recipe_bytes": { "type": "integer", "minimum": 0 },
+        "engine_import_recipe_bytes": { "type": "integer", "minimum": 0 },
+        "preview_mesh_bytes": { "type": "integer", "minimum": 0 },
+        "prototype_mesh_bytes": { "type": "integer", "minimum": 0 },
+        "scatter_json_bytes": { "type": "integer", "minimum": 0 },
+        "scatter_binary_bytes": { "type": "integer", "minimum": 0 },
+        "scatter_binary_header_bytes": { "type": "integer", "minimum": 0 },
+        "scatter_binary_record_bytes": { "type": "integer", "minimum": 0 },
+        "total_payload_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "mobile": { "$ref": "#/$defs/profile" },
+    "console": { "$ref": "#/$defs/profile" },
+    "shader_policy": { "const": "preview_only" },
+    "texture_pipeline": { "const": "parked" }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "required": [
+        "tile_size",
+        "terrain_resolution",
+        "lod0_max_triangles",
+        "lod1_max_triangles",
+        "lod2_max_triangles",
+        "lod0_max_distance",
+        "lod1_max_distance",
+        "lod2_max_distance",
+        "material_slots",
+        "max_instances_per_tile",
+        "max_instances_per_chunk",
+        "density_scale",
+        "cull_start",
+        "cull_end",
+        "shadows",
+        "grass_collision",
+        "moss_collision"
+      ],
+      "properties": {
+        "tile_size": { "type": "number", "exclusiveMinimum": 0 },
+        "terrain_resolution": { "type": "integer", "minimum": 2 },
+        "lod0_max_triangles": { "type": "integer", "minimum": 1 },
+        "lod1_max_triangles": { "type": "integer", "minimum": 1 },
+        "lod2_max_triangles": { "type": "integer", "minimum": 1 },
+        "lod0_max_distance": { "type": "number", "exclusiveMinimum": 0 },
+        "lod1_max_distance": { "type": "number", "exclusiveMinimum": 0 },
+        "lod2_max_distance": { "type": "number", "exclusiveMinimum": 0 },
+        "material_slots": { "type": "integer", "minimum": 1 },
+        "max_instances_per_tile": { "type": "integer", "minimum": 1 },
+        "max_instances_per_chunk": { "type": "integer", "minimum": 1 },
+        "density_scale": { "type": "number", "minimum": 0 },
+        "cull_start": { "type": "number", "minimum": 0 },
+        "cull_end": { "type": "number", "minimum": 0 },
+        "shadows": { "type": "boolean" },
+        "grass_collision": { "type": "boolean" },
+        "moss_collision": { "type": "boolean" }
+      }
+    },
+    "vec3": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number" },
+        { "type": "number" },
+        { "type": "number" }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    }
+  }
+}
