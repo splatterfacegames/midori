@@ -132,18 +132,12 @@ impl Stem {
 
     /// Get the tip position (end of last segment)
     pub fn tip(&self) -> Vec3 {
-        self.segments
-            .last()
-            .map(|s| s.end)
-            .unwrap_or(Vec3::ZERO)
+        self.segments.last().map(|s| s.end).unwrap_or(Vec3::ZERO)
     }
 
     /// Get the base position (start of first segment)
     pub fn base(&self) -> Vec3 {
-        self.segments
-            .first()
-            .map(|s| s.start)
-            .unwrap_or(Vec3::ZERO)
+        self.segments.first().map(|s| s.start).unwrap_or(Vec3::ZERO)
     }
 
     /// Get total length of stem (sum of all segment lengths)
@@ -156,10 +150,7 @@ impl Stem {
 
     /// Get radius at the base (start of first segment)
     pub fn base_radius(&self) -> f32 {
-        self.segments
-            .first()
-            .map(|s| s.start_radius)
-            .unwrap_or(0.0)
+        self.segments.first().map(|s| s.start_radius).unwrap_or(0.0)
     }
 
     /// Get position along stem (t in 0..1)
@@ -200,7 +191,11 @@ impl Stem {
         let total_length = self.length();
 
         if total_length < f32::EPSILON {
-            return self.segments.first().map(|s| s.direction).unwrap_or(Vec3::Y);
+            return self
+                .segments
+                .first()
+                .map(|s| s.direction)
+                .unwrap_or(Vec3::Y);
         }
 
         let target_length = t * total_length;
@@ -214,10 +209,7 @@ impl Stem {
             accumulated += seg_length;
         }
 
-        self.segments
-            .last()
-            .map(|s| s.direction)
-            .unwrap_or(Vec3::Y)
+        self.segments.last().map(|s| s.direction).unwrap_or(Vec3::Y)
     }
 
     /// Get radius at position along stem (t in 0..1)
@@ -286,8 +278,10 @@ impl Tree {
         for stem in &self.stems {
             for seg in &stem.segments {
                 // Expand for segment endpoints with radius
-                self.bounds.expand(seg.start - Vec3::splat(seg.start_radius));
-                self.bounds.expand(seg.start + Vec3::splat(seg.start_radius));
+                self.bounds
+                    .expand(seg.start - Vec3::splat(seg.start_radius));
+                self.bounds
+                    .expand(seg.start + Vec3::splat(seg.start_radius));
                 self.bounds.expand(seg.end - Vec3::splat(seg.end_radius));
                 self.bounds.expand(seg.end + Vec3::splat(seg.end_radius));
             }

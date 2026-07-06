@@ -1,14 +1,15 @@
 [package]
-name = "grove-cli"
+name = "midori-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Command-line interface for the grove procedural tree generator"
+description = "Command-line interface for the Midori procedural nature generator"
 
 [[bin]]
-name = "grove"
+name = "midori"
 path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
-grove-core = { path = "../grove-core" }
+midori-core = { path = "../midori-core" }
+serde_json = "1.0"

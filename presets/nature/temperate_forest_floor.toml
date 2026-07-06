@@ -1,0 +1,170 @@
+[asset]
+kind = "nature_patch"
+name = "Temperate Forest Floor"
+units = "meters"
+
+[patch]
+size = 16.0
+seed = 42
+biome = "forest_floor"
+tags = ["temperate", "grass", "moss", "shrub", "rock", "log", "damp_soil"]
+
+[soil]
+profile = "loam"
+mound_scale = 0.12
+mound_height = 0.55
+mound_coverage = 1.0
+relief_scale = 0.7
+relief_strength = 0.6
+wetness_coverage = 0.35
+
+[soil.cracks]
+enabled = false
+amount = 0.75
+plate_density = 0.9
+channel_width = 0.06
+warp = 0.2
+depth = 0.7
+
+[[groundcover.layers]]
+kind = "grass"
+name = "fine meadow grass"
+density = 0.13
+coverage = 0.62
+patch_scale = 0.15
+patch_softness = 0.251
+height = 1.5
+width = 0.049
+curl = 1.14
+color_base = "#33421b"
+color_tip = "#9bc24a"
+
+[[groundcover.layers]]
+kind = "moss"
+name = "low forest moss"
+coverage = 0.55
+patch_scale = 0.14
+height = 0.14
+relief_scale = 0.9
+relief_strength = 0.7
+
+[[groundcover.layers]]
+kind = "flower"
+name = "woodland violet"
+density = 0.14
+coverage = 0.35
+patch_scale = 0.21
+patch_softness = 0.28
+height = 0.28
+width = 0.045
+curl = 0.1
+color_base = "#2e4a2a"
+color_tip = "#b8a4ff"
+
+[[groundcover.layers]]
+kind = "weed"
+name = "broadleaf weed"
+density = 0.14
+coverage = 0.45
+patch_scale = 0.17
+patch_softness = 0.24
+height = 0.45
+width = 0.06
+curl = 0.45
+color_base = "#2f5528"
+color_tip = "#6fa85c"
+
+[[groundcover.layers]]
+kind = "litter"
+name = "fallen leaf litter"
+density = 0.06
+coverage = 0.38
+patch_scale = 0.1
+patch_softness = 0.2
+height = 0.18
+width = 0.09
+color_base = "#5b3f24"
+color_tip = "#9b6d35"
+
+[[groundcover.layers]]
+kind = "shrub"
+name = "young hazel shrub"
+density = 0.055
+coverage = 0.3
+patch_scale = 0.09
+patch_softness = 0.25
+height = 0.9
+width = 0.16
+curl = 0.35
+color_base = "#263a1f"
+color_tip = "#6f9a4b"
+
+[[groundcover.layers]]
+kind = "rock"
+name = "mossy field stones"
+density = 0.08
+coverage = 0.28
+patch_scale = 0.08
+patch_softness = 0.22
+height = 0.22
+width = 0.32
+color_base = "#4f5148"
+color_tip = "#8a8d7d"
+
+[[groundcover.layers]]
+kind = "log"
+name = "fallen branch log"
+density = 0.065
+coverage = 0.24
+patch_scale = 0.07
+patch_softness = 0.2
+height = 1.2
+width = 0.12
+curl = 0.0
+color_base = "#4a2f1d"
+color_tip = "#8a5b34"
+
+[wind]
+strength = 0.5
+speed = 1.8
+direction_degrees = 20
+gust_scale = 0.35
+flutter = 0.6
+
+[profiles.mobile]
+tile_size = 16.0
+terrain_resolution = 64
+lod0_max_triangles = 120
+lod1_max_triangles = 40
+lod2_max_triangles = 8
+lod0_max_distance = 6.0
+lod1_max_distance = 18.0
+lod2_max_distance = 32.0
+material_slots = 1
+max_instances_per_tile = 512
+max_instances_per_chunk = 96
+density_scale = 0.65
+cull_start = 18.0
+cull_end = 32.0
+shadows = false
+grass_collision = false
+moss_collision = false
+
+[profiles.console]
+tile_size = 32.0
+terrain_resolution = 128
+lod0_max_triangles = 300
+lod1_max_triangles = 100
+lod2_max_triangles = 16
+lod0_max_distance = 12.0
+lod1_max_distance = 35.0
+lod2_max_distance = 70.0
+material_slots = 1
+max_instances_per_tile = 2048
+max_instances_per_chunk = 256
+density_scale = 1.0
+cull_start = 35.0
+cull_end = 70.0
+shadows = false
+grass_collision = false
+moss_collision = false

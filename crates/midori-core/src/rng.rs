@@ -131,11 +131,7 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.variance_mul(0.1);
-            assert!(
-                v >= 0.9 && v <= 1.1,
-                "variance_mul() out of bounds: {}",
-                v
-            );
+            assert!(v >= 0.9 && v <= 1.1, "variance_mul() out of bounds: {}", v);
         }
     }
 
@@ -145,11 +141,7 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.variance_add(0.5);
-            assert!(
-                v >= -0.5 && v <= 0.5,
-                "variance_add() out of bounds: {}",
-                v
-            );
+            assert!(v >= -0.5 && v <= 0.5, "variance_add() out of bounds: {}", v);
         }
     }
 
@@ -167,11 +159,7 @@ mod tests {
     fn test_known_sequence() {
         // Verify specific output for reproducibility across platforms
         let mut rng = Rng::from_seed(0);
-        let expected = [
-            rng.next_u64(),
-            rng.next_u64(),
-            rng.next_u64(),
-        ];
+        let expected = [rng.next_u64(), rng.next_u64(), rng.next_u64()];
 
         // Reset and verify
         let mut rng2 = Rng::from_seed(0);

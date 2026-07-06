@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/grove-core",
-    "crates/grove-cli",
-    "crates/grove-wasm",
-    "crates/grove-ffi",
+    "crates/midori-core",
+    "crates/midori-cli",
+    "crates/midori-wasm",
+    "crates/midori-ffi",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/grove/grove"
+repository = "https://github.com/jethac/midori"

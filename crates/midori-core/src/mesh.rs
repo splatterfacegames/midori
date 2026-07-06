@@ -228,11 +228,9 @@ mod tests {
         mesh2
             .vertices
             .push(Vertex::new(Vec3::ONE, Vec3::Y, Vec2::ZERO));
-        mesh2.vertices.push(Vertex::new(
-            Vec3::new(1.0, 1.0, 0.0),
-            Vec3::Y,
-            Vec2::ZERO,
-        ));
+        mesh2
+            .vertices
+            .push(Vertex::new(Vec3::new(1.0, 1.0, 0.0), Vec3::Y, Vec2::ZERO));
         mesh2.indices.extend_from_slice(&[0, 1, 2]);
 
         mesh1.merge(&mesh2, MaterialType::Bark);
@@ -252,12 +250,21 @@ mod tests {
         let mut mesh = Mesh::new();
 
         // Create a simple triangle in the XY plane (facing +Z)
-        mesh.vertices
-            .push(Vertex::new(Vec3::new(0.0, 0.0, 0.0), Vec3::ZERO, Vec2::ZERO));
-        mesh.vertices
-            .push(Vertex::new(Vec3::new(1.0, 0.0, 0.0), Vec3::ZERO, Vec2::ZERO));
-        mesh.vertices
-            .push(Vertex::new(Vec3::new(0.0, 1.0, 0.0), Vec3::ZERO, Vec2::ZERO));
+        mesh.vertices.push(Vertex::new(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::ZERO,
+            Vec2::ZERO,
+        ));
+        mesh.vertices.push(Vertex::new(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::ZERO,
+            Vec2::ZERO,
+        ));
+        mesh.vertices.push(Vertex::new(
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::ZERO,
+            Vec2::ZERO,
+        ));
         mesh.indices.extend_from_slice(&[0, 1, 2]);
 
         mesh.recalculate_normals();

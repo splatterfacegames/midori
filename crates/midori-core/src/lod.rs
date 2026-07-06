@@ -4,12 +4,13 @@
 //! quality levels for efficient rendering at different distances.
 
 use crate::{
-    leaves::{generate_leaf_mesh, LeafConfig},
-    mesh::{MaterialType, Mesh},
+    leaves::{LeafConfig, generate_leaf_mesh},
+    mesh::{MaterialType, Mesh, Submesh, Vertex},
     mesh_builder::{MeshBuilder, MeshConfig},
     species::{LeafGeometry, LodLevel, LodPreset, Species},
-    tree::Tree,
+    tree::{BoundingBox, Tree},
 };
+use glam::{Vec2, Vec3, Vec4};
 
 /// Configuration for LOD generation
 #[derive(Debug, Clone)]
@@ -521,12 +522,17 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
         .count() as u32;
 
     // Build branch mesh with LOD-appropriate ring resolution
+    let default_mesh_config = MeshConfig::default();
     let mesh_config = MeshConfig {
         ring_resolution: level.ring_resolution,
         texture_v_scale: 1.0,
         pivot_painter: true,
         branch_collar_swell: 1.35,
         collar_falloff: 0.15,
+        trunk_base_flare: default_mesh_config.trunk_base_flare,
+        trunk_base_flare_height: default_mesh_config.trunk_base_flare_height,
+        branch_base_swell: default_mesh_config.branch_base_swell,
+        branch_base_falloff: default_mesh_config.branch_base_falloff,
     };
 
     // Generate branch mesh with level filtering
@@ -536,9 +542,9 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
     // Generate leaf mesh based on LOD settings
     let leaf_count;
     let leaf_mesh = if level.crown_impostor {
-        // TODO: Generate crown impostor billboard
-        leaf_count = 0;
-        Mesh::new()
+        let mesh = generate_crown_impostor_mesh(tree, species);
+        leaf_count = if mesh.is_empty() { 0 } else { 1 };
+        mesh
     } else if level.leaf_geometry != LeafGeometry::None && level.leaf_reduction > 0.0 {
         // Filter leaves based on reduction factor
         let max_leaves = (tree.leaves.len() as f32 * level.leaf_reduction) as usize;
@@ -562,7 +568,7 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
     };
 
     // Add bark submesh entry for existing branch geometry
-    if !branch_mesh.indices.is_empty() {
+    if !branch_mesh.indices.is_empty() && branch_mesh.submeshes.is_empty() {
         branch_mesh.submeshes.push(crate::mesh::Submesh {
             index_start: 0,
             index_count: branch_mesh.indices.len() as u32,
@@ -588,6 +594,106 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
         mesh: branch_mesh,
         screen_height: level.screen_height,
         stats,
+    }
+}
+
+fn generate_crown_impostor_mesh(tree: &Tree, species: &Species) -> Mesh {
+    if !tree.bounds.is_valid() {
+        return Mesh::new();
+    }
+
+    let bounds = tree.bounds;
+    let size = bounds.size();
+    let center = bounds.center();
+    let crown_offset = species.crown.offset.clamp(0.0, 0.9);
+    let crown_center_y = bounds.min.y + size.y * (crown_offset + (1.0 - crown_offset) * 0.5);
+    let crown_height = (size.y * (1.0 - crown_offset)).max(0.75);
+    let crown_width = size
+        .x
+        .max(size.z)
+        .max(size.y * 0.35)
+        .max(species.leaves.size * 8.0)
+        .max(0.75)
+        * species.crown.width_ratio.max(0.2);
+    let crown_center = Vec3::new(center.x, crown_center_y, center.z);
+
+    let mut mesh = Mesh::new();
+    add_impostor_card(
+        &mut mesh,
+        crown_center,
+        Vec3::X * crown_width,
+        Vec3::Y * crown_height,
+        Vec3::Z,
+        &bounds,
+    );
+    add_impostor_card(
+        &mut mesh,
+        crown_center,
+        Vec3::Z * crown_width,
+        Vec3::Y * crown_height,
+        Vec3::X,
+        &bounds,
+    );
+
+    if !mesh.indices.is_empty() {
+        mesh.submeshes.push(Submesh {
+            index_start: 0,
+            index_count: mesh.indices.len() as u32,
+            material: MaterialType::Leaves,
+        });
+    }
+
+    mesh
+}
+
+fn add_impostor_card(
+    mesh: &mut Mesh,
+    center: Vec3,
+    horizontal: Vec3,
+    vertical: Vec3,
+    normal: Vec3,
+    bounds: &BoundingBox,
+) {
+    let base = mesh.vertices.len() as u32;
+    let half_h = horizontal * 0.5;
+    let half_v = vertical * 0.5;
+    let corners = [
+        center - half_h - half_v,
+        center + half_h - half_v,
+        center + half_h + half_v,
+        center - half_h + half_v,
+    ];
+    let uvs = [
+        Vec2::new(0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(1.0, 1.0),
+        Vec2::new(0.0, 1.0),
+    ];
+
+    for (position, uv) in corners.into_iter().zip(uvs) {
+        let mut vertex = Vertex::new(position, normal, uv);
+        vertex.uv2 = Vec2::new(1.0, 0.0);
+        vertex.color = Vec4::new(
+            normalize_axis(position.x, bounds.min.x, bounds.max.x),
+            normalize_axis(position.y, bounds.min.y, bounds.max.y),
+            normalize_axis(position.z, bounds.min.z, bounds.max.z),
+            0.2,
+        );
+        mesh.vertices.push(vertex);
+    }
+
+    mesh.indices
+        .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    mesh.indices
+        .extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+}
+
+fn normalize_axis(value: f32, min: f32, max: f32) -> f32 {
+    let span = max - min;
+    if span.abs() < 0.0001 {
+        0.0
+    } else {
+        ((value - min) / span).clamp(0.0, 1.0)
     }
 }
 
@@ -821,7 +927,11 @@ preset = "balanced"
 
         // Each LOD should have geometry
         for lod in &lod_set.meshes {
-            assert!(!lod.mesh.is_empty(), "LOD {} should have geometry", lod.index);
+            assert!(
+                !lod.mesh.is_empty(),
+                "LOD {} should have geometry",
+                lod.index
+            );
         }
     }
 

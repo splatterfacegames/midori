@@ -147,11 +147,7 @@ fn calculate_stem_weight(stem: &Stem, distribution: LeafDistribution) -> f32 {
     match distribution {
         LeafDistribution::Endpoint => {
             // Only terminal branches get leaves
-            if stem.child_ids.is_empty() {
-                1.0
-            } else {
-                0.0
-            }
+            if stem.child_ids.is_empty() { 1.0 } else { 0.0 }
         }
         LeafDistribution::AlongBranch => {
             // Weight by branch length

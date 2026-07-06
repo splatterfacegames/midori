@@ -1,15 +1,15 @@
 [package]
-name = "grove-wasm"
+name = "midori-wasm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "WebAssembly bindings for the grove procedural tree generator"
+description = "WebAssembly bindings for the Midori procedural tree generator"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-grove-core = { path = "../grove-core" }
+midori-core = { path = "../midori-core" }
 wasm-bindgen = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde-wasm-bindgen = "0.6"

@@ -8,7 +8,9 @@ use crate::{
     constants::*,
     math::*,
     rng::Rng,
-    species::{BranchParams, CrownShape, Species},
+    species::{
+        BranchParams, BranchRadiusModel, CrownShape, GeneratorFamily, Species, TaperProfile,
+    },
     tree::*,
 };
 use glam::Vec3;
@@ -70,19 +72,21 @@ impl<'a> TreeGenerator<'a> {
             let t = i as f32 / segment_count as f32;
 
             // Calculate curve for this segment
-            let curve_amount = self.calculate_curve(
-                t,
-                trunk.curve,
-                trunk.curve_variance,
-                trunk.curve_back,
-            );
+            let curve_amount =
+                self.calculate_curve(t, trunk.curve, trunk.curve_variance, trunk.curve_back);
 
             // Apply curve rotation
             direction = self.apply_curve(direction, curve_amount, 0.0);
 
             // Calculate taper
             let next_t = (i + 1) as f32 / segment_count as f32;
-            let next_radius = trunk.radius * (1.0 - trunk.taper * next_t);
+            let next_radius = tapered_radius(
+                trunk.radius,
+                radius,
+                trunk.taper,
+                next_t,
+                trunk.taper_profile,
+            );
 
             // Create segment
             let end = position + direction * segment_length;
@@ -90,12 +94,12 @@ impl<'a> TreeGenerator<'a> {
                 start: position,
                 end,
                 start_radius: radius,
-                end_radius: next_radius.max(MIN_RADIUS),
+                end_radius: next_radius,
                 direction,
             });
 
             position = end;
-            radius = next_radius.max(MIN_RADIUS);
+            radius = next_radius;
         }
 
         stem
@@ -140,19 +144,19 @@ impl<'a> TreeGenerator<'a> {
             let t = crown_offset + (1.0 - crown_offset) * (i as f32 / count.max(1) as f32);
 
             // Rotation around parent using golden angle
-            let rotation_angle = i as f32 * radians(branch_params.rotation)
-                + self.rng.variance_add(radians(15.0));
+            let rotation_angle =
+                i as f32 * radians(branch_params.rotation) + self.rng.variance_add(radians(15.0));
 
             // Get parent position and direction at this point
             let spawn_pos = parent.point_at(t);
             let parent_dir = parent.direction_at(t);
 
             // Calculate branch direction
-            let branch_angle = radians(
-                branch_params.angle + self.rng.variance_add(branch_params.angle_variance),
-            );
+            let branch_angle =
+                radians(branch_params.angle + self.rng.variance_add(branch_params.angle_variance));
 
-            let branch_dir = self.calculate_branch_direction(parent_dir, branch_angle, rotation_angle);
+            let branch_dir =
+                self.calculate_branch_direction(parent_dir, branch_angle, rotation_angle);
 
             // Apply crown shape modifier
             let length_mod = self.crown_length_modifier(t);
@@ -166,6 +170,7 @@ impl<'a> TreeGenerator<'a> {
                 &branch_params,
                 length_mod,
                 level,
+                count,
             );
 
             // Only add branch if it has segments
@@ -195,13 +200,15 @@ impl<'a> TreeGenerator<'a> {
         params: &BranchParams,
         length_modifier: f32,
         level: u8,
+        sibling_count: u32,
     ) -> Stem {
         let mut stem = Stem::new(self.next_stem_id(), level);
         stem.parent_id = Some(parent_id);
         stem.parent_offset = parent_offset;
 
         // Calculate branch length with variance and crown modifier
-        let length = params.length * self.rng.variance_mul(params.length_variance) * length_modifier;
+        let length =
+            params.length * self.rng.variance_mul(params.length_variance) * length_modifier;
 
         if length < MIN_LENGTH {
             return stem;
@@ -219,10 +226,8 @@ impl<'a> TreeGenerator<'a> {
 
         let mut pos = position;
         let mut dir = direction;
-        let mut radius = parent_radius * params.radius_ratio;
-
-        // Default branch taper
-        let taper = 0.7;
+        let mut radius = branch_base_radius(parent_radius, params, sibling_count);
+        let base_radius = radius;
 
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
@@ -237,7 +242,13 @@ impl<'a> TreeGenerator<'a> {
 
             // Taper radius
             let next_t = (i + 1) as f32 / segment_count as f32;
-            let next_radius = (radius * (1.0 - taper * next_t)).max(MIN_RADIUS);
+            let next_radius = tapered_radius(
+                base_radius,
+                radius,
+                params.taper,
+                next_t,
+                params.taper_profile,
+            );
 
             let end = pos + dir * segment_length;
             stem.segments.push(Segment {
@@ -358,13 +369,344 @@ impl<'a> TreeGenerator<'a> {
     }
 }
 
+/// Minimal dichotomous fork-grammar generator.
+///
+/// This is intentionally small: it proves a second generator family can produce
+/// the shared `Tree` output without adding special cases to mesh, LOD, WASM, or
+/// export code.
+pub struct DichotomousGenerator<'a> {
+    species: &'a Species,
+    seed: u64,
+    rng: Rng,
+    tree: Tree,
+    next_stem_id: u32,
+}
+
+impl<'a> DichotomousGenerator<'a> {
+    /// Create a new dichotomous generator with the given species and seed.
+    pub fn new(species: &'a Species, seed: u64) -> Self {
+        Self {
+            species,
+            seed,
+            rng: Rng::from_seed(seed),
+            tree: Tree::new(species.species.name.clone(), seed),
+            next_stem_id: 0,
+        }
+    }
+
+    /// Generate a complete forked plant.
+    pub fn generate(mut self) -> Tree {
+        let trunk = self.generate_trunk();
+        let trunk_id = self.tree.add_stem(trunk);
+
+        self.generate_terminal_forks(trunk_id, 1);
+
+        self.tree.update_bounds();
+        crate::leaves::add_leaves_to_tree(&mut self.tree, self.species, self.seed);
+
+        self.tree
+    }
+
+    fn generate_trunk(&mut self) -> Stem {
+        let trunk = &self.species.trunk;
+        let height = trunk.height * self.rng.variance_mul(trunk.height_variance);
+        let segment_count = trunk.segments.max(1);
+        let segment_length = height / segment_count as f32;
+
+        let mut stem = Stem::new(self.next_stem_id(), 0);
+        let mut position = Vec3::ZERO;
+        let mut direction = Vec3::Y;
+        let mut radius = trunk.radius;
+
+        for i in 0..segment_count {
+            let t = i as f32 / segment_count as f32;
+            let curve_amount =
+                self.calculate_curve(t, trunk.curve, trunk.curve_variance, trunk.curve_back);
+            direction = self.apply_curve(direction, curve_amount, 0.0);
+
+            let next_t = (i + 1) as f32 / segment_count as f32;
+            let next_radius = tapered_radius(
+                trunk.radius,
+                radius,
+                trunk.taper,
+                next_t,
+                trunk.taper_profile,
+            );
+            let end = position + direction * segment_length;
+
+            stem.segments.push(Segment {
+                start: position,
+                end,
+                start_radius: radius,
+                end_radius: next_radius,
+                direction,
+            });
+
+            position = end;
+            radius = next_radius;
+        }
+
+        stem
+    }
+
+    fn generate_terminal_forks(&mut self, parent_id: u32, level: u8) {
+        if level > MAX_BRANCH_LEVELS as u8 {
+            return;
+        }
+
+        let params = match self.species.get_branch_level(level as u32) {
+            Some(params) => params.clone(),
+            None => return,
+        };
+
+        let parent = match self.tree.get_stem(parent_id) {
+            Some(parent) => parent.clone(),
+            None => return,
+        };
+
+        if parent.length() < MIN_LENGTH {
+            return;
+        }
+
+        let count = (params.count as i32
+            + self.rng.variance_add(params.count_variance as f32) as i32)
+            .max(0) as u32;
+        if count == 0 {
+            return;
+        }
+
+        let fork_count = count.clamp(1, 4);
+        let spawn_pos = parent.tip();
+        let parent_dir = parent.direction_at(1.0);
+        let length_mod = self.crown_length_modifier(level as f32 / MAX_BRANCH_LEVELS as f32);
+
+        for i in 0..fork_count {
+            if self.tree.stems.len() >= MAX_STEMS as usize {
+                break;
+            }
+
+            let branch_angle = radians(params.angle + self.rng.variance_add(params.angle_variance));
+            let rotation_angle = self.fork_rotation(i, fork_count, &params, level);
+            let branch_dir =
+                self.calculate_branch_direction(parent_dir, branch_angle, rotation_angle);
+            let branch = self.generate_branch(
+                parent_id, spawn_pos, branch_dir, &params, length_mod, level, fork_count,
+            );
+
+            if branch.segments.is_empty() {
+                continue;
+            }
+
+            let branch_id = self.tree.add_stem(branch);
+            if let Some(parent) = self.tree.get_stem_mut(parent_id) {
+                parent.child_ids.push(branch_id);
+            }
+
+            self.generate_terminal_forks(branch_id, level + 1);
+        }
+    }
+
+    fn fork_rotation(
+        &mut self,
+        index: u32,
+        fork_count: u32,
+        params: &BranchParams,
+        level: u8,
+    ) -> f32 {
+        let spread = if fork_count > 1 {
+            TAU / fork_count as f32
+        } else {
+            0.0
+        };
+        let level_offset = radians(params.rotation) * (level.saturating_sub(1) as f32);
+        index as f32 * spread + level_offset + self.rng.variance_add(radians(10.0))
+    }
+
+    fn generate_branch(
+        &mut self,
+        parent_id: u32,
+        position: Vec3,
+        direction: Vec3,
+        params: &BranchParams,
+        length_modifier: f32,
+        level: u8,
+        sibling_count: u32,
+    ) -> Stem {
+        let mut stem = Stem::new(self.next_stem_id(), level);
+        stem.parent_id = Some(parent_id);
+        stem.parent_offset = 1.0;
+
+        let length =
+            params.length * self.rng.variance_mul(params.length_variance) * length_modifier;
+        if length < MIN_LENGTH {
+            return stem;
+        }
+
+        let parent = match self.tree.get_stem(parent_id) {
+            Some(parent) => parent,
+            None => return stem,
+        };
+        let parent_radius = parent.radius_at(1.0);
+
+        let segment_count = params.segments.max(2);
+        let segment_length = length / segment_count as f32;
+        let mut pos = position;
+        let mut dir = direction;
+        let mut radius = branch_base_radius(parent_radius, params, sibling_count);
+        let base_radius = radius;
+
+        for i in 0..segment_count {
+            let t = i as f32 / segment_count as f32;
+            let curve_amount = self.calculate_curve(t, params.curve, params.curve_variance, 0.0);
+            let gravity_influence = params.gravity * segment_length;
+            dir = self.apply_curve_and_gravity(dir, curve_amount, gravity_influence);
+
+            let next_t = (i + 1) as f32 / segment_count as f32;
+            let next_radius = tapered_radius(
+                base_radius,
+                radius,
+                params.taper,
+                next_t,
+                params.taper_profile,
+            );
+            let end = pos + dir * segment_length;
+
+            stem.segments.push(Segment {
+                start: pos,
+                end,
+                start_radius: radius,
+                end_radius: next_radius,
+                direction: dir,
+            });
+
+            pos = end;
+            radius = next_radius;
+        }
+
+        stem
+    }
+
+    fn calculate_curve(&mut self, t: f32, curve: f32, variance: f32, curve_back: f32) -> f32 {
+        let base = radians(curve * t);
+        let var = radians(self.rng.variance_add(variance));
+        let back = if t > 0.5 && curve_back != 0.0 {
+            radians(curve_back * (t - 0.5) * 2.0)
+        } else {
+            0.0
+        };
+
+        base + var - back
+    }
+
+    fn apply_curve(&self, direction: Vec3, curve: f32, roll: f32) -> Vec3 {
+        if curve.abs() < f32::EPSILON && roll.abs() < f32::EPSILON {
+            return direction;
+        }
+
+        let (tangent, _) = create_basis(direction);
+        let rotated = rotate_around_axis(direction, tangent, curve);
+
+        if roll.abs() > f32::EPSILON {
+            rotate_around_axis(rotated, direction, roll)
+        } else {
+            rotated
+        }
+    }
+
+    fn apply_curve_and_gravity(&self, direction: Vec3, curve: f32, gravity: f32) -> Vec3 {
+        let curved = self.apply_curve(direction, curve, 0.0);
+
+        if gravity.abs() > 0.001 {
+            let gravity_dir = Vec3::new(0.0, -gravity.signum(), 0.0);
+            let blend = gravity.abs().min(1.0);
+            (curved + gravity_dir * blend).normalize()
+        } else {
+            curved
+        }
+    }
+
+    fn calculate_branch_direction(
+        &self,
+        parent_dir: Vec3,
+        branch_angle: f32,
+        rotation_angle: f32,
+    ) -> Vec3 {
+        let (tangent, _) = create_basis(parent_dir);
+        let tilted = rotate_around_axis(parent_dir, tangent, branch_angle);
+        rotate_around_axis(tilted, parent_dir, rotation_angle)
+    }
+
+    fn crown_length_modifier(&self, height_fraction: f32) -> f32 {
+        let crown = &self.species.crown;
+
+        let shape_mod = match crown.shape {
+            CrownShape::Spherical => {
+                let centered = (height_fraction - 0.5) * 2.0;
+                1.0 - centered.abs()
+            }
+            CrownShape::Conical => 1.0 - height_fraction,
+            CrownShape::Hemispherical => (1.0 - height_fraction * height_fraction).sqrt(),
+            CrownShape::Flame => height_fraction * (1.0 - height_fraction) * 4.0,
+            CrownShape::Columnar => 1.0,
+        };
+
+        shape_mod.max(0.1) * crown.density * crown.width_ratio
+    }
+
+    fn next_stem_id(&mut self) -> u32 {
+        let id = self.next_stem_id;
+        self.next_stem_id += 1;
+        id
+    }
+}
+
+fn branch_base_radius(parent_radius: f32, params: &BranchParams, sibling_count: u32) -> f32 {
+    let ratio_radius = parent_radius * params.radius_ratio;
+
+    match params.radius_model {
+        BranchRadiusModel::Ratio => ratio_radius.max(MIN_RADIUS),
+        BranchRadiusModel::Pipe => {
+            let exponent = params.pipe_exponent.clamp(1.0, 4.0);
+            let siblings = sibling_count.max(1) as f32;
+            let split_radius = parent_radius / siblings.powf(1.0 / exponent);
+            (split_radius * params.radius_ratio).max(MIN_RADIUS)
+        }
+    }
+}
+
+fn tapered_radius(
+    base_radius: f32,
+    previous_radius: f32,
+    taper: f32,
+    t: f32,
+    profile: TaperProfile,
+) -> f32 {
+    let taper = taper.clamp(0.0, 1.0);
+    let t = t.clamp(0.0, 1.0);
+
+    let radius = match profile {
+        TaperProfile::Linear => base_radius * (1.0 - taper * t),
+        TaperProfile::Smooth => {
+            let smooth_t = t * t * (3.0 - 2.0 * t);
+            base_radius * (1.0 - taper * smooth_t)
+        }
+        TaperProfile::Exponential => {
+            let tip_ratio = (1.0 - taper).max(0.05);
+            base_radius * tip_ratio.powf(t)
+        }
+        TaperProfile::Compound => previous_radius * (1.0 - taper * t),
+    };
+
+    radius.max(MIN_RADIUS)
+}
+
 /// Generate a tree from species parameters
 ///
 /// # Example
 ///
 /// ```
-/// use grove_core::species::Species;
-/// use grove_core::generation::generate_tree;
+/// use midori_core::species::Species;
+/// use midori_core::generation::generate_tree;
 ///
 /// let toml = r#"
 /// [species]
@@ -386,7 +728,13 @@ impl<'a> TreeGenerator<'a> {
 /// assert!(!tree.stems.is_empty());
 /// ```
 pub fn generate_tree(species: &Species, seed: u64) -> Tree {
-    TreeGenerator::new(species, seed).generate()
+    match species.generator.family {
+        GeneratorFamily::Dichotomous => DichotomousGenerator::new(species, seed).generate(),
+        GeneratorFamily::WeberPenn
+        | GeneratorFamily::Cactus
+        | GeneratorFamily::PadChain
+        | GeneratorFamily::Custom => TreeGenerator::new(species, seed).generate(),
+    }
 }
 
 #[cfg(test)]
@@ -433,6 +781,67 @@ shape = "spherical"
 offset = 0.3
 density = 1.0
 width_ratio = 1.0
+"#;
+
+    const DICHOTOMOUS_SPECIES_TOML: &str = r#"
+[species]
+name = "Dichotomous Prototype"
+latin = "Yucca brevifolia"
+
+[generator]
+family = "dichotomous"
+
+[trunk]
+height = 4.0
+radius = 0.32
+taper = 0.55
+segments = 4
+
+[branches.level1]
+count = 2
+length = 2.0
+radius_ratio = 0.58
+angle = 38.0
+rotation = 180.0
+gravity = -0.05
+curve = 8.0
+segments = 3
+
+[branches.level2]
+count = 2
+length = 1.2
+radius_ratio = 0.55
+angle = 42.0
+rotation = 180.0
+gravity = 0.0
+curve = 8.0
+segments = 3
+
+[branches.level3]
+count = 2
+length = 0.7
+radius_ratio = 0.5
+angle = 45.0
+rotation = 180.0
+gravity = 0.05
+curve = 6.0
+segments = 2
+
+[crown]
+shape = "columnar"
+offset = 0.75
+density = 0.85
+width_ratio = 0.8
+
+[leaves]
+count = 128
+min_level = 2
+size = 0.18
+size_variance = 0.1
+distribution = "endpoint"
+geometry = "polygon"
+shape = "needle"
+up_influence = 0.8
 "#;
 
     #[test]
@@ -535,6 +944,102 @@ width_ratio = 1.0
         let first_seg = &trunk.segments[0];
         let last_seg = trunk.segments.last().unwrap();
         assert!(last_seg.end_radius < first_seg.start_radius);
+    }
+
+    #[test]
+    fn test_pipe_model_branch_radius_split() {
+        let toml = r#"
+[species]
+name = "Pipe Radius"
+
+[trunk]
+height = 6.0
+radius = 0.5
+taper = 0.0
+segments = 2
+
+[branches.level1]
+count = 4
+length = 1.0
+radius_ratio = 1.0
+radius_model = "pipe"
+pipe_exponent = 2.0
+taper = 0.0
+taper_profile = "linear"
+angle = 45.0
+rotation = 90.0
+segments = 2
+
+[crown]
+offset = 0.25
+
+[leaves]
+count = 0
+"#;
+
+        let species = Species::from_toml(toml).unwrap();
+        let tree = generate_tree(&species, 42);
+        let branches: Vec<_> = tree.stems_at_level(1).collect();
+        assert_eq!(branches.len(), 4);
+
+        for branch in branches {
+            let parent = tree.get_stem(branch.parent_id.unwrap()).unwrap();
+            let parent_radius = parent.radius_at(branch.parent_offset);
+            let expected = parent_radius / 4.0_f32.sqrt();
+            assert!(
+                (branch.base_radius() - expected).abs() < 0.001,
+                "pipe radius should split parent radius across siblings: {} vs {}",
+                branch.base_radius(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_taper_profile_controls_branch_radius_distribution() {
+        let species_for_profile = |profile: &str| {
+            let toml = format!(
+                r#"
+[species]
+name = "Taper {profile}"
+
+[trunk]
+height = 4.0
+radius = 0.4
+taper = 0.0
+segments = 2
+
+[branches.level1]
+count = 1
+length = 2.0
+radius_ratio = 0.5
+taper = 0.8
+taper_profile = "{profile}"
+angle = 45.0
+segments = 4
+
+[crown]
+offset = 0.5
+
+[leaves]
+count = 0
+"#
+            );
+            Species::from_toml(&toml).unwrap()
+        };
+
+        let linear_tree = generate_tree(&species_for_profile("linear"), 42);
+        let smooth_tree = generate_tree(&species_for_profile("smooth"), 42);
+        let linear_branch = linear_tree.stems_at_level(1).next().unwrap();
+        let smooth_branch = smooth_tree.stems_at_level(1).next().unwrap();
+
+        let linear_first_end = linear_branch.segments[0].end_radius;
+        let smooth_first_end = smooth_branch.segments[0].end_radius;
+
+        assert!(
+            smooth_first_end > linear_first_end,
+            "smooth taper should retain more base thickness early along the branch"
+        );
     }
 
     #[test]
@@ -712,5 +1217,46 @@ name = "Test"
         let tree = generate_tree(&species, 99999);
 
         assert_eq!(tree.seed, 99999);
+    }
+
+    #[test]
+    fn test_dichotomous_generator_family_dispatch() {
+        let species = Species::from_toml(DICHOTOMOUS_SPECIES_TOML).unwrap();
+        assert_eq!(species.generator.family, GeneratorFamily::Dichotomous);
+
+        let tree = generate_tree(&species, 42);
+
+        assert_eq!(tree.species_name, "Dichotomous Prototype");
+        assert!(tree.trunk().is_some());
+        assert_eq!(tree.stems_at_level(1).count(), 2);
+        assert_eq!(tree.stems_at_level(2).count(), 4);
+        assert_eq!(tree.stems_at_level(3).count(), 8);
+        assert!(tree.leaf_count() > 0);
+        assert!(tree.bounds.is_valid());
+
+        for stem in tree.stems.iter().filter(|stem| stem.parent_id.is_some()) {
+            assert!(
+                (stem.parent_offset - 1.0).abs() < f32::EPSILON,
+                "dichotomous forks should attach at parent tips"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dichotomous_generator_reaches_lod_and_export() {
+        let species = Species::from_toml(DICHOTOMOUS_SPECIES_TOML).unwrap();
+        let tree = generate_tree(&species, 7);
+        let lods = crate::generate_lod_meshes(&tree, &species);
+
+        assert!(!lods.is_empty());
+        for lod in &lods.meshes {
+            assert!(!lod.mesh.is_empty(), "{} should have mesh data", lod.name);
+            assert!(lod.stats.vertex_count > 0);
+            assert!(lod.stats.triangle_count > 0);
+        }
+
+        let bytes = crate::export_lod_meshes_to_bytes(&lods, &crate::ExportConfig::default())
+            .expect("dichotomous LOD set should export as GLB");
+        assert!(bytes.starts_with(b"glTF"));
     }
 }

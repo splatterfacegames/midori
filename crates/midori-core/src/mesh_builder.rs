@@ -7,6 +7,10 @@ use crate::{
     tree::{Stem, Tree},
 };
 use glam::{Vec2, Vec3, Vec4};
+use std::collections::HashMap;
+
+const RING_T_EPSILON: f32 = 0.0001;
+const NORMAL_SMOOTH_POSITION_SCALE: f32 = 100_000.0;
 
 /// Configuration for mesh generation
 #[derive(Debug, Clone)]
@@ -21,6 +25,14 @@ pub struct MeshConfig {
     pub branch_collar_swell: f32,
     /// How far the swelling extends (0.0-1.0, as fraction of branch length)
     pub collar_falloff: f32,
+    /// Trunk base flare multiplier at ground level (1.0 = no flare)
+    pub trunk_base_flare: f32,
+    /// How far trunk flare extends (0.0-1.0, as fraction of trunk length)
+    pub trunk_base_flare_height: f32,
+    /// Branch base swell multiplier at parent attachment (1.0 = no swell)
+    pub branch_base_swell: f32,
+    /// How far branch base swell extends (0.0-1.0, as fraction of branch length)
+    pub branch_base_falloff: f32,
 }
 
 impl Default for MeshConfig {
@@ -33,7 +45,49 @@ impl Default for MeshConfig {
             pivot_painter: true,
             branch_collar_swell: 1.35,
             collar_falloff: 0.15,
+            trunk_base_flare: 1.18,
+            trunk_base_flare_height: 0.12,
+            branch_base_swell: 1.2,
+            branch_base_falloff: 0.14,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RingFrame {
+    tangent: Vec3,
+    bitangent: Vec3,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RingSample {
+    position: Vec3,
+    radius: f32,
+    direction: Vec3,
+    v_coord: f32,
+}
+
+impl RingFrame {
+    fn from_direction(direction: Vec3) -> Self {
+        let direction = normalized_or_up(direction);
+        let (tangent, bitangent) = create_basis(direction);
+        Self {
+            tangent,
+            bitangent: bitangent.normalize_or_zero(),
+        }
+    }
+
+    fn transported(self, direction: Vec3) -> Self {
+        let direction = normalized_or_up(direction);
+        let projected = self.tangent - direction * self.tangent.dot(direction);
+        let tangent = if projected.length_squared() > 0.0001 {
+            projected.normalize()
+        } else {
+            create_basis(direction).0
+        };
+        let bitangent = direction.cross(tangent).normalize_or_zero();
+
+        Self { tangent, bitangent }
     }
 }
 
@@ -42,6 +96,8 @@ pub struct MeshBuilder<'a> {
     tree: &'a Tree,
     config: MeshConfig,
     mesh: Mesh,
+    max_branch_level: Option<u32>,
+    cap_center_indices: Vec<u32>,
 }
 
 impl<'a> MeshBuilder<'a> {
@@ -51,6 +107,8 @@ impl<'a> MeshBuilder<'a> {
             tree,
             config,
             mesh: Mesh::new(),
+            max_branch_level: None,
+            cap_center_indices: Vec::new(),
         }
     }
 
@@ -59,6 +117,8 @@ impl<'a> MeshBuilder<'a> {
         for stem in &self.tree.stems {
             self.build_stem(stem);
         }
+
+        self.smooth_coincident_normals();
 
         // Add bark submesh for all branch geometry
         if !self.mesh.indices.is_empty() {
@@ -72,7 +132,6 @@ impl<'a> MeshBuilder<'a> {
         self.mesh
     }
 
-
     /// Build branches up to max_level depth
     ///
     /// This is useful for LOD generation where lower LOD levels
@@ -82,11 +141,15 @@ impl<'a> MeshBuilder<'a> {
     ///
     /// * `max_level` - Maximum branch level to include (0 = trunk only, 1 = trunk + primary branches, etc.)
     pub fn build_branches_to_level(mut self, max_level: u32) -> Mesh {
+        self.max_branch_level = Some(max_level);
+
         for stem in &self.tree.stems {
             if stem.level as u32 <= max_level {
                 self.build_stem(stem);
             }
         }
+
+        self.smooth_coincident_normals();
 
         // Add bark submesh for all branch geometry
         if !self.mesh.indices.is_empty() {
@@ -106,9 +169,12 @@ impl<'a> MeshBuilder<'a> {
         }
 
         // Get average radius for adaptive resolution calculation
-        let avg_radius = stem.segments.iter()
+        let avg_radius = stem
+            .segments
+            .iter()
             .map(|s| (s.start_radius + s.end_radius) / 2.0)
-            .sum::<f32>() / stem.segments.len() as f32;
+            .sum::<f32>()
+            / stem.segments.len() as f32;
 
         // Use adaptive resolution based on branch thickness
         let ring_res = self.adaptive_ring_resolution(stem.level, avg_radius);
@@ -116,66 +182,33 @@ impl<'a> MeshBuilder<'a> {
             return; // Too few vertices to make a cylinder
         }
 
-        // Collect child attachment positions for branch collar swelling
-        let child_offsets: Vec<f32> = stem.child_ids.iter()
-            .filter_map(|&child_id| {
-                self.tree.stems.iter()
-                    .find(|s| s.id == child_id)
-                    .map(|child| child.parent_offset)
-            })
-            .collect();
-
         // Calculate total stem length for position calculations
-        let total_length: f32 = stem.segments.iter()
+        let total_length: f32 = stem
+            .segments
+            .iter()
             .map(|s| (s.end - s.start).length())
             .sum();
 
+        let child_offsets = self.included_child_offsets(stem);
+        let samples = self.ring_samples(stem, &child_offsets, total_length);
+        if samples.len() < 2 {
+            return;
+        }
+
         // Generate ring vertices for each segment joint
         let mut rings: Vec<Vec<u32>> = Vec::new();
-        let mut v_coord = 0.0; // Accumulated V coordinate
-        let mut accumulated_length = 0.0;
+        let mut frame = RingFrame::from_direction(samples[0].direction);
 
-        for (seg_idx, seg) in stem.segments.iter().enumerate() {
-            let seg_length = (seg.end - seg.start).length();
-
-            // Create ring at segment start
-            if seg_idx == 0 {
-                let t = 0.0;
-                let swell = self.calculate_collar_swell(t, &child_offsets);
-                let ring = self.create_ring(
-                    seg.start,
-                    seg.direction,
-                    seg.start_radius * swell,
-                    ring_res,
-                    v_coord,
-                    stem,
-                );
-                rings.push(ring);
+        for (sample_idx, sample) in samples.iter().enumerate() {
+            if sample_idx > 0 {
+                frame = frame.transported(sample.direction);
             }
-
-            // Advance V coordinate by segment length
-            v_coord += seg_length * self.config.texture_v_scale;
-            accumulated_length += seg_length;
-
-            // Create ring at segment end
-            let direction = if seg_idx + 1 < stem.segments.len() {
-                // Average with next segment direction for smooth transition
-                let next = &stem.segments[seg_idx + 1];
-                ((seg.direction + next.direction) * 0.5).normalize()
-            } else {
-                seg.direction
-            };
-
-            // Calculate position along stem (0-1)
-            let t = if total_length > 0.0 { accumulated_length / total_length } else { 1.0 };
-            let swell = self.calculate_collar_swell(t, &child_offsets);
-
             let ring = self.create_ring(
-                seg.end,
-                direction,
-                seg.end_radius * swell,
+                sample.position,
+                frame,
+                sample.radius,
                 ring_res,
-                v_coord,
+                sample.v_coord,
                 stem,
             );
             rings.push(ring);
@@ -186,10 +219,108 @@ impl<'a> MeshBuilder<'a> {
             self.connect_rings(&rings[i], &rings[i + 1]);
         }
 
-        // Cap the end if it's a terminal branch
-        if stem.child_ids.is_empty() && !rings.is_empty() {
-            self.cap_ring(rings.last().unwrap());
+        // Cap the end unless an included child actually continues from the tip.
+        if !has_terminal_child(&child_offsets) && !rings.is_empty() {
+            let tip_normal = normalized_or_up(stem.segments.last().unwrap().direction);
+            self.cap_ring(rings.last().unwrap(), tip_normal, stem);
         }
+    }
+
+    fn included_child_offsets(&self, stem: &Stem) -> Vec<f32> {
+        let mut offsets: Vec<f32> = stem
+            .child_ids
+            .iter()
+            .filter_map(|&child_id| self.tree.stems.iter().find(|s| s.id == child_id))
+            .filter(|child| self.includes_stem(child))
+            .map(|child| child.parent_offset.clamp(0.0, 1.0))
+            .collect();
+
+        offsets.sort_by(|a, b| a.total_cmp(b));
+        offsets.dedup_by(|a, b| (*a - *b).abs() < RING_T_EPSILON);
+        offsets
+    }
+
+    fn includes_stem(&self, stem: &Stem) -> bool {
+        self.max_branch_level
+            .map(|max_level| stem.level as u32 <= max_level)
+            .unwrap_or(true)
+    }
+
+    fn ring_samples(
+        &self,
+        stem: &Stem,
+        child_offsets: &[f32],
+        total_length: f32,
+    ) -> Vec<RingSample> {
+        let mut t_values = Vec::with_capacity(stem.segments.len() + child_offsets.len() + 1);
+        t_values.push(0.0);
+
+        let mut accumulated_length = 0.0;
+        for seg in &stem.segments {
+            accumulated_length += (seg.end - seg.start).length();
+            let t = if total_length > f32::EPSILON {
+                accumulated_length / total_length
+            } else {
+                1.0
+            };
+            t_values.push(t.clamp(0.0, 1.0));
+        }
+
+        t_values.extend(child_offsets.iter().copied());
+        t_values.sort_by(|a, b| a.total_cmp(b));
+        t_values.dedup_by(|a, b| (*a - *b).abs() < RING_T_EPSILON);
+
+        t_values
+            .into_iter()
+            .map(|t| RingSample {
+                position: stem.point_at(t),
+                radius: stem.radius_at(t)
+                    * self.calculate_radius_scale(stem.level, t, child_offsets),
+                direction: self.direction_at_ring(stem, t, total_length),
+                v_coord: t * total_length * self.config.texture_v_scale,
+            })
+            .collect()
+    }
+
+    fn direction_at_ring(&self, stem: &Stem, t: f32, total_length: f32) -> Vec3 {
+        if stem.segments.is_empty() {
+            return Vec3::Y;
+        }
+
+        if t <= RING_T_EPSILON {
+            return normalized_or_up(stem.segments[0].direction);
+        }
+
+        if t >= 1.0 - RING_T_EPSILON || total_length <= f32::EPSILON {
+            return normalized_or_up(stem.segments.last().unwrap().direction);
+        }
+
+        let target_length = t.clamp(0.0, 1.0) * total_length;
+        let mut accumulated = 0.0;
+
+        for (seg_idx, seg) in stem.segments.iter().enumerate() {
+            let seg_length = (seg.end - seg.start).length();
+            let segment_end = accumulated + seg_length;
+
+            if (target_length - segment_end).abs() <= total_length * RING_T_EPSILON
+                && seg_idx + 1 < stem.segments.len()
+            {
+                let next = &stem.segments[seg_idx + 1];
+                return normalized_or(seg.direction + next.direction, seg.direction);
+            }
+
+            if target_length <= segment_end {
+                return normalized_or_up(seg.direction);
+            }
+
+            accumulated = segment_end;
+        }
+
+        normalized_or_up(stem.segments.last().unwrap().direction)
+    }
+
+    fn calculate_radius_scale(&self, level: u8, t: f32, child_offsets: &[f32]) -> f32 {
+        self.calculate_collar_swell(t, child_offsets) * self.calculate_base_swell(level, t)
     }
 
     /// Calculate branch collar swelling at a position along the stem
@@ -216,27 +347,52 @@ impl<'a> MeshBuilder<'a> {
         swell
     }
 
+    fn calculate_base_swell(&self, level: u8, t: f32) -> f32 {
+        let (max_swell, falloff) = if level == 0 {
+            (
+                self.config.trunk_base_flare,
+                self.config.trunk_base_flare_height,
+            )
+        } else {
+            (
+                self.config.branch_base_swell,
+                self.config.branch_base_falloff,
+            )
+        };
+
+        if max_swell <= 1.0 || falloff <= 0.0 || t >= falloff {
+            return 1.0;
+        }
+
+        let x = (1.0 - t / falloff).clamp(0.0, 1.0);
+        let smooth = x * x * (3.0 - 2.0 * x);
+        1.0 + (max_swell - 1.0) * smooth
+    }
+
     fn create_ring(
         &mut self,
         center: Vec3,
-        direction: Vec3,
+        frame: RingFrame,
         radius: f32,
         resolution: u32,
         v_coord: f32,
         stem: &Stem,
     ) -> Vec<u32> {
-        let (tangent, bitangent) = create_basis(direction);
         // +1 for seam vertex at U=1.0 to avoid texture seam artifacts
         let mut ring_indices = Vec::with_capacity(resolution as usize + 1);
 
         // Generate resolution+1 vertices (0 to resolution inclusive)
         // Last vertex duplicates position of first but has U=1.0 for proper UV wrap
         for i in 0..=resolution {
-            let angle = (i as f32 / resolution as f32) * TAU;
-            let offset = tangent * angle.cos() + bitangent * angle.sin();
+            let angle = if i == resolution {
+                0.0
+            } else {
+                (i as f32 / resolution as f32) * TAU
+            };
+            let offset = frame.tangent * angle.cos() + frame.bitangent * angle.sin();
 
             let position = center + offset * radius;
-            let normal = offset; // Points outward
+            let normal = offset.normalize_or_zero(); // Points outward
             // U goes from 0.0 to 1.0 (inclusive) for seamless texture wrap
             let uv = Vec2::new(i as f32 / resolution as f32, v_coord);
 
@@ -279,7 +435,7 @@ impl<'a> MeshBuilder<'a> {
         }
     }
 
-    fn cap_ring(&mut self, ring: &[u32]) {
+    fn cap_ring(&mut self, ring: &[u32], normal: Vec3, stem: &Stem) {
         // Ring has resolution+1 vertices, last is seam duplicate
         // Use only the unique vertices for the cap (exclude last seam vertex)
         let actual_count = ring.len() - 1;
@@ -294,15 +450,15 @@ impl<'a> MeshBuilder<'a> {
             .sum::<Vec3>()
             / actual_count as f32;
 
-        // Get normal from first vertex's direction (average of ring normals would be better
-        // but this is simpler and works for our use case)
-        let normal = self.mesh.vertices[ring[0] as usize].normal;
-
         // Add center vertex
         let uv = Vec2::new(0.5, 0.5);
-        let vertex = Vertex::new(center, normal, uv);
+        let mut vertex = Vertex::new(center, normal, uv);
+        if self.config.pivot_painter {
+            self.encode_pivot_painter(&mut vertex, stem);
+        }
         let center_idx = self.mesh.vertices.len() as u32;
         self.mesh.vertices.push(vertex);
+        self.cap_center_indices.push(center_idx);
 
         // Fan triangulation (use actual_count, not ring.len())
         for i in 0..actual_count {
@@ -375,6 +531,75 @@ impl<'a> MeshBuilder<'a> {
             base
         }
     }
+
+    fn smooth_coincident_normals(&mut self) {
+        if self.mesh.vertices.is_empty() {
+            return;
+        }
+
+        let mut is_cap_center = vec![false; self.mesh.vertices.len()];
+        for &index in &self.cap_center_indices {
+            if let Some(is_cap) = is_cap_center.get_mut(index as usize) {
+                *is_cap = true;
+            }
+        }
+
+        let mut groups: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
+        for (index, vertex) in self.mesh.vertices.iter().enumerate() {
+            if is_cap_center[index] {
+                continue;
+            }
+            groups
+                .entry(position_key(vertex.position))
+                .or_default()
+                .push(index);
+        }
+
+        for indices in groups.values() {
+            if indices.len() < 2 {
+                continue;
+            }
+
+            let normal_sum = indices.iter().fold(Vec3::ZERO, |sum, &index| {
+                sum + self.mesh.vertices[index].normal
+            });
+            let smoothed = normal_sum.normalize_or_zero();
+            if smoothed.length_squared() <= f32::EPSILON {
+                continue;
+            }
+
+            for &index in indices {
+                self.mesh.vertices[index].normal = smoothed;
+            }
+        }
+    }
+}
+
+fn normalized_or_up(value: Vec3) -> Vec3 {
+    normalized_or(value, Vec3::Y)
+}
+
+fn normalized_or(value: Vec3, fallback: Vec3) -> Vec3 {
+    let normalized = value.normalize_or_zero();
+    if normalized.length_squared() > 0.0 {
+        normalized
+    } else {
+        fallback.normalize_or_zero()
+    }
+}
+
+fn has_terminal_child(child_offsets: &[f32]) -> bool {
+    child_offsets
+        .iter()
+        .any(|&offset| offset >= 1.0 - RING_T_EPSILON)
+}
+
+fn position_key(position: Vec3) -> (i32, i32, i32) {
+    (
+        (position.x * NORMAL_SMOOTH_POSITION_SCALE).round() as i32,
+        (position.y * NORMAL_SMOOTH_POSITION_SCALE).round() as i32,
+        (position.z * NORMAL_SMOOTH_POSITION_SCALE).round() as i32,
+    )
 }
 
 /// Generate mesh from tree with default configuration
@@ -455,6 +680,8 @@ mod tests {
         assert_eq!(config.ring_resolution, [24, 16, 10, 6]);
         assert!((config.texture_v_scale - 1.0).abs() < 0.001);
         assert!(config.pivot_painter);
+        assert!(config.trunk_base_flare > 1.0);
+        assert!(config.branch_base_swell > 1.0);
     }
 
     #[test]
@@ -500,6 +727,184 @@ mod tests {
     }
 
     #[test]
+    fn test_trunk_base_flare_expands_base_ring() {
+        let tree = create_simple_tree();
+        let config = MeshConfig {
+            ring_resolution: [8, 6, 4, 3],
+            trunk_base_flare: 1.5,
+            trunk_base_flare_height: 0.25,
+            branch_base_swell: 1.0,
+            branch_collar_swell: 1.0,
+            ..Default::default()
+        };
+        let mesh = build_mesh_with_config(&tree, config);
+
+        let ring_len = 9;
+        let base_radius = max_ring_distance(&mesh, 0..ring_len, Vec3::ZERO);
+        let next_radius =
+            max_ring_distance(&mesh, ring_len..ring_len * 2, Vec3::new(0.0, 2.0, 0.0));
+
+        assert!(base_radius > 0.70, "base ring should be visibly flared");
+        assert!(
+            next_radius < 0.45,
+            "flare should fall off by the next trunk ring"
+        );
+    }
+
+    #[test]
+    fn test_branch_base_swell_expands_child_base_ring() {
+        let tree = create_tree_with_branch();
+        let config = MeshConfig {
+            ring_resolution: [8, 8, 4, 3],
+            trunk_base_flare: 1.0,
+            branch_base_swell: 1.6,
+            branch_base_falloff: 0.4,
+            branch_collar_swell: 1.0,
+            ..Default::default()
+        };
+        let mesh = build_mesh_with_config(&tree, config);
+
+        let branch_start = Vec3::new(0.0, 1.5, 0.0);
+        let branch_base_radius = max_depth_ring_distance(&mesh, branch_start, 0.25);
+
+        assert!(
+            branch_base_radius > 0.22,
+            "branch base should be larger than the raw 0.15m radius"
+        );
+    }
+
+    #[test]
+    fn test_child_attachment_ring_adds_parent_collar_geometry() {
+        let tree = create_tree_with_branch();
+        let config = MeshConfig {
+            ring_resolution: [8, 8, 4, 3],
+            trunk_base_flare: 1.0,
+            branch_base_swell: 1.0,
+            branch_collar_swell: 1.5,
+            collar_falloff: 0.25,
+            ..Default::default()
+        };
+        let mesh = build_mesh_with_config(&tree, config);
+
+        let ring_len = 9;
+        let attachment_center = Vec3::new(0.0, 1.5, 0.0);
+        let collar_radius = max_ring_distance(&mesh, ring_len..ring_len * 2, attachment_center);
+
+        assert!(
+            collar_radius > 0.55,
+            "parent collar ring should be inserted and swollen at the child offset"
+        );
+    }
+
+    #[test]
+    fn test_parent_tip_is_capped_when_children_are_side_branches() {
+        let tree = create_tree_with_branch();
+        let config = MeshConfig {
+            ring_resolution: [8, 8, 4, 3],
+            trunk_base_flare: 1.0,
+            branch_base_swell: 1.0,
+            branch_collar_swell: 1.0,
+            ..Default::default()
+        };
+        let mesh = build_mesh_with_config(&tree, config);
+
+        let trunk_tip = Vec3::new(0.0, 3.0, 0.0);
+        let cap_center = mesh
+            .vertices
+            .iter()
+            .find(|vertex| {
+                (vertex.position - trunk_tip).length() < 0.001
+                    && vertex.normal.dot(Vec3::Y) > 0.99
+                    && (vertex.uv2.x - 0.0).abs() < f32::EPSILON
+            })
+            .expect("side-branched parent tip should have a cap center");
+
+        assert!((cap_center.color.w - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_lod_filtering_skips_excluded_child_attachment_ring() {
+        let tree = create_tree_with_branch();
+        let config = MeshConfig {
+            ring_resolution: [8, 8, 4, 3],
+            trunk_base_flare: 1.0,
+            branch_base_swell: 1.0,
+            branch_collar_swell: 1.5,
+            ..Default::default()
+        };
+
+        let mesh = MeshBuilder::new(&tree, config).build_branches_to_level(0);
+
+        // Trunk-only LOD keeps the start/end rings and a tip cap, but does not
+        // add a hidden attachment ring for the excluded level-1 branch.
+        assert_eq!(mesh.vertex_count(), 19);
+    }
+
+    #[test]
+    fn test_seam_vertices_are_exact_duplicates_with_shared_normals() {
+        let tree = create_simple_tree();
+        let config = MeshConfig {
+            ring_resolution: [8, 6, 4, 3],
+            trunk_base_flare: 1.0,
+            branch_base_swell: 1.0,
+            branch_collar_swell: 1.0,
+            ..Default::default()
+        };
+        let mesh = build_mesh_with_config(&tree, config);
+
+        let ring_len = 9;
+        for ring_index in 0..3 {
+            let first = ring_index * ring_len;
+            let seam = first + ring_len - 1;
+
+            assert_eq!(mesh.vertices[first].position, mesh.vertices[seam].position);
+            assert_eq!(mesh.vertices[first].normal, mesh.vertices[seam].normal);
+        }
+    }
+
+    #[test]
+    fn test_coincident_side_normals_are_averaged() {
+        let tree = Tree::new("Normals".to_string(), 0);
+        let mut builder = MeshBuilder::new(&tree, MeshConfig::default());
+        builder
+            .mesh
+            .vertices
+            .push(Vertex::new(Vec3::new(1.0, 2.0, 3.0), Vec3::X, Vec2::ZERO));
+        builder.mesh.vertices.push(Vertex::new(
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::Y,
+            Vec2::new(1.0, 0.0),
+        ));
+
+        builder.smooth_coincident_normals();
+
+        let expected = (Vec3::X + Vec3::Y).normalize();
+        assert!((builder.mesh.vertices[0].normal - expected).length() < 0.001);
+        assert!((builder.mesh.vertices[1].normal - expected).length() < 0.001);
+    }
+
+    #[test]
+    fn test_cap_center_normals_are_not_smoothed_with_side_vertices() {
+        let tree = Tree::new("Normals".to_string(), 0);
+        let mut builder = MeshBuilder::new(&tree, MeshConfig::default());
+        builder
+            .mesh
+            .vertices
+            .push(Vertex::new(Vec3::new(1.0, 2.0, 3.0), Vec3::X, Vec2::ZERO));
+        builder.mesh.vertices.push(Vertex::new(
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::Y,
+            Vec2::new(0.5, 0.5),
+        ));
+        builder.cap_center_indices.push(1);
+
+        builder.smooth_coincident_normals();
+
+        assert_eq!(builder.mesh.vertices[0].normal, Vec3::X);
+        assert_eq!(builder.mesh.vertices[1].normal, Vec3::Y);
+    }
+
+    #[test]
     fn test_mesh_normals_point_outward() {
         let tree = create_simple_tree();
         let mesh = build_mesh(&tree);
@@ -507,6 +912,9 @@ mod tests {
         // Check that normals point outward from the trunk center axis
         for vertex in &mesh.vertices {
             if vertex.normal.length() > 0.5 {
+                if vertex.normal.dot(Vec3::Y).abs() > 0.95 {
+                    continue; // terminal cap center normal follows the stem axis
+                }
                 // Skip cap center vertex
                 // For a trunk along Y axis, X and Z components of normal should be non-zero
                 // and Y component should be small for side vertices
@@ -517,6 +925,56 @@ mod tests {
                     vertex.normal
                 );
             }
+        }
+    }
+
+    #[test]
+    fn test_terminal_cap_center_uses_axial_normal_and_pivot_data() {
+        let tree = create_simple_tree();
+        let mesh = build_mesh(&tree);
+        let cap_center = mesh.vertices.last().expect("terminal cap center vertex");
+
+        assert!(
+            cap_center.normal.dot(Vec3::Y) > 0.99,
+            "cap center normal should follow the terminal stem direction"
+        );
+        assert!((cap_center.uv2.x - 0.0).abs() < f32::EPSILON);
+        assert!((cap_center.color.w - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_mesh_attributes_are_finite_and_normalized() {
+        let tree = create_tree_with_multiple_levels();
+        let mesh = build_mesh(&tree);
+
+        for (index, vertex) in mesh.vertices.iter().enumerate() {
+            assert!(
+                vertex.position.is_finite(),
+                "position {} is not finite",
+                index
+            );
+            assert!(vertex.normal.is_finite(), "normal {} is not finite", index);
+            assert!(vertex.uv.is_finite(), "uv {} is not finite", index);
+            assert!(vertex.uv2.is_finite(), "uv2 {} is not finite", index);
+            assert!(vertex.color.is_finite(), "color {} is not finite", index);
+            assert!(
+                (vertex.normal.length() - 1.0).abs() < 0.001,
+                "normal {} should be unit length: {:?}",
+                index,
+                vertex.normal
+            );
+            assert!(
+                vertex.uv.x >= 0.0 && vertex.uv.x <= 1.0,
+                "u coordinate {} out of range: {}",
+                index,
+                vertex.uv.x
+            );
+            assert!(
+                vertex.color.w >= 0.0 && vertex.color.w <= 1.0,
+                "stiffness {} out of range: {}",
+                index,
+                vertex.color.w
+            );
         }
     }
 
@@ -653,8 +1111,16 @@ mod tests {
         let mesh2 = build_mesh_with_config(&tree, config2);
 
         // Find max V coordinate in each mesh
-        let max_v1 = mesh1.vertices.iter().map(|v| v.uv.y).fold(0.0_f32, f32::max);
-        let max_v2 = mesh2.vertices.iter().map(|v| v.uv.y).fold(0.0_f32, f32::max);
+        let max_v1 = mesh1
+            .vertices
+            .iter()
+            .map(|v| v.uv.y)
+            .fold(0.0_f32, f32::max);
+        let max_v2 = mesh2
+            .vertices
+            .iter()
+            .map(|v| v.uv.y)
+            .fold(0.0_f32, f32::max);
 
         // V coordinates should scale proportionally
         assert!(
@@ -758,5 +1224,20 @@ mod tests {
             mesh_all.vertex_count(),
             "High limit should include all branches"
         );
+    }
+
+    fn max_ring_distance(mesh: &Mesh, range: std::ops::Range<usize>, center: Vec3) -> f32 {
+        range
+            .map(|index| (mesh.vertices[index].position - center).length())
+            .fold(0.0_f32, f32::max)
+    }
+
+    fn max_depth_ring_distance(mesh: &Mesh, center: Vec3, depth: f32) -> f32 {
+        mesh.vertices
+            .iter()
+            .filter(|vertex| (vertex.uv2.x - depth).abs() < 0.001)
+            .filter(|vertex| (vertex.position - center).length() < 1.0)
+            .map(|vertex| (vertex.position - center).length())
+            .fold(0.0_f32, f32::max)
     }
 }

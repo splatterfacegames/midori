@@ -1,4 +1,4 @@
-//! Grove - Procedural tree generation library
+//! Midori - Procedural tree generation library
 //!
 //! A standalone procedural tree generation tool for real-time game engines.
 //! Generates 3D tree meshes with LOD, wind animation data, and AI-generated textures.
@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```
-//! use grove_core::{Species, generate_tree};
+//! use midori_core::{Species, generate_tree};
 //!
 //! let toml = r#"
 //! [species]
@@ -35,23 +35,40 @@ pub mod lod;
 pub mod math;
 pub mod mesh;
 pub mod mesh_builder;
+pub mod nature;
 pub mod rng;
 pub mod species;
 pub mod tree;
 
 pub use constants::*;
-pub use export::{export_lod_meshes, export_lod_meshes_to_bytes, export_mesh, ExportConfig, ExportError, ExportFormat};
+pub use export::{
+    ExportConfig, ExportError, ExportFormat, ExportMetadata, export_lod_meshes,
+    export_lod_meshes_to_bytes, export_mesh,
+};
 pub use generation::generate_tree;
-pub use leaves::{add_leaves_to_tree, generate_leaf_mesh, place_leaves, LeafConfig};
-pub use species::LeafShape;
+pub use leaves::{LeafConfig, add_leaves_to_tree, generate_leaf_mesh, place_leaves};
 pub use lod::{
-    generate_lod_meshes, generate_lod_meshes_with_config, LodGenerationConfig, LodLevelConfig,
-    LodMesh, LodMeshSet, LodStats,
+    LodGenerationConfig, LodLevelConfig, LodMesh, LodMeshSet, LodStats, generate_lod_meshes,
+    generate_lod_meshes_with_config,
 };
 pub use mesh::{MaterialType, Mesh, Submesh, Vertex};
-pub use mesh_builder::{build_mesh, build_mesh_with_config, MeshBuilder, MeshConfig};
+pub use mesh_builder::{MeshBuilder, MeshConfig, build_mesh, build_mesh_with_config};
+pub use nature::{
+    AxisConventions, GroundcoverConfig, GroundcoverKind, GroundcoverLayer, GroundcoverPrototype,
+    GroundcoverPrototypeLod, GroundcoverPrototypeLodManifest, GroundcoverPrototypeManifest,
+    MapChannel, MaskSample, MaterialSlotManifest, NatureAssetInfo, NatureExportManifest,
+    NatureMapSet, NaturePackageConfig, NaturePackageSummary, NaturePackageValidationReport,
+    NaturePatch, NaturePatchError, NatureProfile, NatureProfiles, NormalConventions, PatchParams,
+    ScatterBinaryFileManifest, ScatterBinaryFormatManifest, ScatterChunk, ScatterInstance,
+    ScatterManifest, ScatterSet, SoilCracks, SoilParams, TerrainField, TerrainManifest,
+    TerrainSample, UnityImportHints, UnrealImportHints, WindPackingManifest, WindParams,
+    validate_nature_package,
+};
 pub use rng::Rng;
 pub use species::Species;
+pub use species::{
+    ControlGroup, ControlSpec, GeneratorConfig, GeneratorFamily, LeafShape, MaterialPlaceholders,
+};
 pub use tree::{BoundingBox, Leaf, Segment, Stem, Tree};
 
 #[cfg(test)]
@@ -185,6 +202,7 @@ radius = 0.3
             ring_resolution: [8, 6, 4, 3],
             texture_v_scale: 2.0,
             pivot_painter: false,
+            ..MeshConfig::default()
         };
         let mesh = build_mesh_with_config(&tree, config);
 
