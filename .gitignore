@@ -9,6 +9,8 @@
 # Backup files
 *.bak
 *~
+__pycache__/
+*.py[cod]
 
 # IDE and editor files
 .idea/
