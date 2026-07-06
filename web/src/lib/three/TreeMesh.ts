@@ -1,7 +1,7 @@
 /**
  * Three.js mesh builder for tree geometry
  *
- * Converts mesh data from the Grove WASM module into
+ * Converts mesh data from the Midori WASM module into
  * Three.js BufferGeometry for rendering.
  *
  * Vertex data format (56 bytes per vertex):
@@ -42,7 +42,7 @@ export interface Submesh {
 }
 
 /**
- * Mesh data from the Grove WASM module
+ * Mesh data from the Midori WASM module
  */
 export interface TreeMeshData {
   vertices: Float32Array;

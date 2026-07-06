@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [sveltekit()],
   optimizeDeps: {
-    exclude: ['grove-wasm']
+    exclude: ['midori-wasm']
   },
   server: {
     fs: {

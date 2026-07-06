@@ -1,9 +1,17 @@
 # Oak (Quercus robur)
 # Broad, spreading crown with thick trunk. Irregular branching.
+# Morphology note: docs/morphology/oak.md
 
 [species]
 name = "Oak"
 scientific = "Quercus robur"
+latin = "Quercus robur"
+biome = "temperate"
+tags = ["broadleaf", "deciduous", "spreading_crown"]
+
+[generator]
+family = "weber_penn"
+notes = "Broadleaf tree using the current trunk/branch/leaf path."
 
 [trunk]
 height = 6.0
@@ -76,6 +84,31 @@ up_influence = 0.3
 [textures]
 bark_prompt = "English oak tree bark, deep fissures, grey-brown, coarse texture"
 leaf_prompt = "Oak leaves with rounded lobes, dark green, visible venation"
+
+[materials]
+bark = "oak_bark"
+foliage = "oak_leaf"
+notes = "Metadata placeholders only; texture/PBR asset pipeline is parked."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 3.0
+max = 18.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
 
 [lod]
 preset = "balanced"

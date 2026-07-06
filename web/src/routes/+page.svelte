@@ -12,12 +12,20 @@
   onMount(async () => {
     // Load WASM module
     await treeStore.init();
+    try {
+      const response = await fetch('/presets/oak.toml');
+      if (response.ok) {
+        await treeStore.loadSpecies(await response.text());
+      }
+    } catch (error) {
+      console.error('Failed to load default preset:', error);
+    }
     ready = true;
   });
 </script>
 
 <svelte:head>
-  <title>Grove - Tree Editor</title>
+  <title>Midori - Nature Editor</title>
 </svelte:head>
 
 <div class="app">

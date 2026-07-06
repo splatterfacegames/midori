@@ -4,12 +4,24 @@
 
   let fileInput: HTMLInputElement;
 
+  function isNaturePatchToml(text: string): boolean {
+    return /\bkind\s*=\s*"nature_patch"/.test(text) || text.includes('[asset]');
+  }
+
+  async function loadToml(text: string) {
+    if (isNaturePatchToml(text)) {
+      await treeStore.loadNaturePatch(text);
+    } else {
+      await treeStore.loadSpecies(text);
+    }
+  }
+
   async function loadFile() {
     const file = fileInput.files?.[0];
     if (!file) return;
 
     const text = await file.text();
-    await treeStore.loadSpecies(text);
+    await loadToml(text);
   }
 
   async function loadPreset(name: string) {
@@ -21,11 +33,24 @@
       }
       const text = await response.text();
       console.log(`Preset loaded, first 100 chars:`, text.substring(0, 100));
-      await treeStore.loadSpecies(text);
+      await loadToml(text);
       console.log(`Species loaded successfully`);
     } catch (e) {
       console.error('Error loading preset:', e);
       alert(`Error loading preset: ${e}`);
+    }
+  }
+
+  async function loadNaturePreset(name: string) {
+    try {
+      const response = await fetch(`/presets/nature/${name}.toml`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch nature preset: ${response.status}`);
+      }
+      await treeStore.loadNaturePatch(await response.text());
+    } catch (e) {
+      console.error('Error loading nature preset:', e);
+      alert(`Error loading nature preset: ${e}`);
     }
   }
 
@@ -46,12 +71,23 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+
+  $: lods = $treeStore.meshData?.lods ?? [];
+
+  function setManualLod(value: string) {
+    editorStore.setLodMode('manual');
+    editorStore.setLod(parseInt(value, 10));
+  }
+
+  function setLodMode(value: string) {
+    editorStore.setLodMode(value === 'auto' ? 'auto' : 'manual');
+  }
 </script>
 
 <div class="toolbar">
   <div class="brand">
     <span class="icon">🌳</span>
-    <span class="name">Grove</span>
+    <span class="name">Midori</span>
   </div>
 
   <div class="actions">
@@ -62,6 +98,10 @@
         <button on:click={() => loadPreset('pine')}>Pine</button>
         <button on:click={() => loadPreset('palm')}>Palm</button>
         <button on:click={() => loadPreset('willow')}>Willow</button>
+        <button on:click={() => loadPreset('joshua_prototype')}>Joshua Prototype</button>
+        <button on:click={() => loadNaturePreset('temperate_forest_floor')}>Forest Floor</button>
+        <button on:click={() => loadNaturePreset('flowering_meadow')}>Meadow</button>
+        <button on:click={() => loadNaturePreset('arid_scrub')}>Arid Scrub</button>
       </div>
     </div>
 
@@ -74,7 +114,7 @@
     />
     <button on:click={() => fileInput.click()}>Open</button>
 
-    <button on:click={exportGlb}>Export glTF</button>
+    <button on:click={exportGlb} disabled={$treeStore.previewMode === 'nature'}>Export GLB</button>
   </div>
 
   <div class="view-options">
@@ -86,13 +126,44 @@
     </button>
 
     <select
-      value={$editorStore.currentLod}
-      on:change={(e) => editorStore.setLod(parseInt(e.currentTarget.value))}
+      value={$editorStore.lodMode}
+      on:change={(e) => setLodMode(e.currentTarget.value)}
+      title="LOD mode"
     >
-      <option value={0}>LOD 0 (High)</option>
-      <option value={1}>LOD 1 (Medium)</option>
-      <option value={2}>LOD 2 (Low)</option>
+      <option value="manual">Manual LOD</option>
+      <option value="auto">Auto LOD</option>
     </select>
+
+    <select
+      value={$editorStore.currentLod}
+      disabled={$editorStore.lodMode === 'auto'}
+      on:change={(e) => setManualLod(e.currentTarget.value)}
+      title="Preview LOD"
+    >
+      {#each lods as lod, index}
+        <option value={index}>{lod.name || `LOD ${index}`}</option>
+      {:else}
+        <option value={0}>LOD 0</option>
+        <option value={1}>LOD 1</option>
+        <option value={2}>LOD 2</option>
+      {/each}
+    </select>
+
+    <div class="lod-buttons" aria-label="Preview LOD buttons">
+      {#each lods as lod, index}
+        <button
+          type="button"
+          data-testid={`lod-button-${index}`}
+          class:active={$editorStore.currentLod === index && $editorStore.lodMode === 'manual'}
+          disabled={$editorStore.lodMode === 'auto'}
+          on:click={() => setManualLod(String(index))}
+        >
+          {lod.name || `LOD ${index}`}
+        </button>
+      {:else}
+        <button type="button" disabled>LOD</button>
+      {/each}
+    </div>
   </div>
 
   <div class="generation">
@@ -127,7 +198,24 @@
 
   .actions, .view-options, .generation {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
+  }
+
+  .lod-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .lod-buttons button {
+    min-width: 3.5rem;
+    padding-inline: 0.5rem;
+  }
+
+  .lod-buttons button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .dropdown {
@@ -159,5 +247,10 @@
   button.active {
     background: var(--accent);
     color: var(--bg-primary);
+  }
+
+  select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 </style>

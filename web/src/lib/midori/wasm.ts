@@ -1,7 +1,7 @@
 /**
- * WASM loader for Grove tree generation module
+ * WASM loader for Midori tree generation module
  *
- * This module handles loading and initializing the grove-wasm
+ * This module handles loading and initializing the midori-wasm
  * WebAssembly module that provides tree generation capabilities.
  */
 
@@ -14,7 +14,7 @@ export interface MeshData {
   triangleCount: number;
 }
 
-export interface GroveGeneratorInterface {
+export interface MidoriGeneratorInterface {
   name: string;
   generate(seed: bigint): MeshData;
   setParameter(name: string, value: number): void;
@@ -33,16 +33,16 @@ export async function initWasm(): Promise<boolean> {
 
   try {
     // Dynamic import of the WASM package
-    wasmModule = await import('grove-wasm');
+    wasmModule = await import('midori-wasm');
 
     // Initialize the WASM module (calls the init function)
     await wasmModule.default();
 
     initialized = true;
-    console.log('Grove WASM module initialized');
+    console.log('Midori WASM module initialized');
     return true;
   } catch (error) {
-    console.error('Failed to initialize Grove WASM module:', error);
+    console.error('Failed to initialize Midori WASM module:', error);
     return false;
   }
 }
@@ -57,16 +57,16 @@ export function isInitialized(): boolean {
 /**
  * Create a new tree generator from TOML configuration
  * @param toml - TOML configuration string for the tree species
- * @returns GroveGenerator instance
+ * @returns MidoriGenerator instance
  */
-export function createGenerator(toml: string): GroveGeneratorInterface | null {
+export function createGenerator(toml: string): MidoriGeneratorInterface | null {
   if (!initialized || !wasmModule) {
     console.error('WASM module not initialized');
     return null;
   }
 
   try {
-    return new wasmModule.GroveGenerator(toml);
+    return new wasmModule.MidoriGenerator(toml);
   } catch (error) {
     console.error('Failed to create generator:', error);
     return null;

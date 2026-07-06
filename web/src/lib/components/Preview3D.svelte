@@ -3,40 +3,36 @@
   import { writable } from 'svelte/store';
   import * as THREE from 'three';
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-  import { treeStore } from '$lib/stores/tree';
+  import {
+    treeStore,
+    type MeshOutput,
+    type NaturePreviewOutput,
+    type NatureMeshOutput,
+    type NatureScatterInstance
+  } from '$lib/stores/tree';
   import { editorStore } from '$lib/stores/editor';
   import {
     createTreeMesh,
+    createTreeGeometry,
     disposeTreeMesh,
     setWireframeMode,
     getVertexCount,
     getTriangleCount,
     updateWindTime,
+    setWindParams,
     updateCameraPosition,
     type TreeMeshData,
     type TreeMeshResult
   } from '$lib/three/TreeMesh';
 
-  /**
-   * Transform WASM mesh output to TreeMeshData format.
-   * WASM returns separate arrays; TreeMesh expects interleaved data.
-   */
-  function transformWasmMeshData(wasmData: any, lodIndex: number = 0): TreeMeshData | null {
-    // Handle the lods array structure from WASM
-    const lods = wasmData?.lods;
-    if (!lods || !Array.isArray(lods) || lods.length === 0) {
-      console.warn('Preview3D: No LODs in mesh data');
+  function transformMeshOutput(mesh: NatureMeshOutput | any): TreeMeshData | null {
+    if (!mesh || !mesh.vertices) {
+      console.warn('Preview3D: Invalid mesh structure');
       return null;
     }
 
-    const lod = lods[Math.min(lodIndex, lods.length - 1)];
-    if (!lod || !lod.vertices) {
-      console.warn('Preview3D: Invalid LOD structure');
-      return null;
-    }
-
-    const { positions, normals, uvs, uv2s, colors } = lod.vertices;
-    const indices = lod.indices;
+    const { positions, normals, uvs, uv2s, colors } = mesh.vertices;
+    const indices = mesh.indices;
 
     if (!positions || positions.length === 0) {
       console.warn('Preview3D: Empty positions array');
@@ -83,7 +79,7 @@
     const indicesArray = new Uint32Array(indices ?? []);
 
     // Parse submesh data from WASM
-    const submeshes = (lod.submeshes ?? []).map((s: any) => ({
+    const submeshes = (mesh.submeshes ?? []).map((s: any) => ({
       start: s.start,
       count: s.count,
       material_type: s.material_type
@@ -96,6 +92,21 @@
       indices: indicesArray,
       submeshes
     };
+  }
+
+  /**
+   * Transform WASM tree output to TreeMeshData format.
+   * WASM returns separate arrays; TreeMesh expects interleaved data.
+   */
+  function transformWasmMeshData(wasmData: any, lodIndex: number = 0): TreeMeshData | null {
+    const lods = wasmData?.lods;
+    if (!lods || !Array.isArray(lods) || lods.length === 0) {
+      console.warn('Preview3D: No LODs in mesh data');
+      return null;
+    }
+
+    const lod = lods[Math.min(lodIndex, lods.length - 1)];
+    return transformMeshOutput(lod);
   }
 
   // Exported stores for parent component access
@@ -112,11 +123,21 @@
   let camera: THREE.PerspectiveCamera | null = null;
   let controls: OrbitControls | null = null;
   let treeMeshResult: TreeMeshResult | null = null;
+  let natureGroup: THREE.Group | null = null;
   let animationId: number = 0;
   let resizeObserver: ResizeObserver | null = null;
   let ground: THREE.Mesh | null = null;
   let gridHelper: THREE.GridHelper | null = null;
   let clock: THREE.Clock | null = null;
+  let sunLight: THREE.DirectionalLight | null = null;
+  let scaleReference: THREE.Group | null = null;
+  let renderedMeshSource: MeshOutput | null = null;
+  let renderedNatureSource: NaturePreviewOutput | null = null;
+  let renderedNatureOptionsKey = '';
+  let renderedNatureScatter = 0;
+  let renderedNatureProfileLabel = 'Authoring';
+  let renderedNatureLodLabel = 'LOD 0';
+  let renderedLodIndex = -1;
 
   // Scene configuration
   const BACKGROUND_COLOR = 0x0f0f1a;
@@ -191,6 +212,7 @@
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
     keyLight.position.set(10, 20, 10);
     keyLight.castShadow = true;
+    sunLight = keyLight;
 
     // Shadow configuration
     keyLight.shadow.mapSize.width = 2048;
@@ -204,6 +226,7 @@
     keyLight.shadow.bias = -0.0001;
 
     scene.add(keyLight);
+    updateSunLight();
 
     // Fill light - softer light from opposite side
     const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -249,6 +272,115 @@
     scene.add(gridHelper);
   }
 
+  function updateSunLight(): void {
+    if (!sunLight) return;
+
+    const radius = 24;
+    const azimuth = THREE.MathUtils.degToRad($editorStore.sunAzimuth);
+    const elevation = THREE.MathUtils.degToRad($editorStore.sunElevation);
+    sunLight.intensity = $editorStore.sunIntensity;
+    sunLight.position.set(
+      Math.cos(elevation) * Math.sin(azimuth) * radius,
+      Math.sin(elevation) * radius,
+      Math.cos(elevation) * Math.cos(azimuth) * radius
+    );
+  }
+
+  function createScaleReference(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'scale-reference';
+    group.position.set(-1.4, 0, -1.4);
+
+    const material = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+    const baseMaterial = new THREE.MeshBasicMaterial({ color: 0x94a3b8 });
+
+    const postGeometry = new THREE.CylinderGeometry(0.018, 0.018, 2, 8);
+    const post = new THREE.Mesh(postGeometry, material);
+    post.position.y = 1;
+    group.add(post);
+
+    for (const y of [1, 2]) {
+      const tickGeometry = new THREE.BoxGeometry(0.45, 0.025, 0.025);
+      const tick = new THREE.Mesh(tickGeometry, material);
+      tick.position.set(0.225, y, 0);
+      group.add(tick);
+    }
+
+    const baseGeometry = new THREE.BoxGeometry(0.55, 0.025, 0.55);
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.y = 0.0125;
+    group.add(base);
+
+    return group;
+  }
+
+  function disposeObject(object: THREE.Object3D): void {
+    object.traverse(child => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          for (const material of child.material) material.dispose();
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+  }
+
+  function updateScaleReference(): void {
+    if (!scene) return;
+
+    if ($editorStore.showScaleReference && !scaleReference) {
+      scaleReference = createScaleReference();
+      scene.add(scaleReference);
+    } else if (!$editorStore.showScaleReference && scaleReference) {
+      scene.remove(scaleReference);
+      disposeObject(scaleReference);
+      scaleReference = null;
+    }
+  }
+
+  function updateWindSettings(): void {
+    const direction = THREE.MathUtils.degToRad($editorStore.windDirection);
+    setWindParams(
+      $editorStore.windEnabled ? $editorStore.windStrength : 0,
+      $editorStore.windSpeed,
+      Math.sin(direction),
+      Math.cos(direction)
+    );
+  }
+
+  function getSelectedLodIndex(meshData: MeshOutput, currentLod = $editorStore.currentLod): number {
+    const lods = meshData.lods ?? [];
+    if (lods.length === 0) return 0;
+    return Math.min(currentLod, lods.length - 1);
+  }
+
+  function updateAutoLod(): void {
+    if (
+      $editorStore.lodMode !== 'auto' ||
+      !$treeStore.meshData ||
+      !camera ||
+      !treeMeshResult?.geometry.boundingSphere
+    ) {
+      return;
+    }
+
+    const lods = $treeStore.meshData.lods ?? [];
+    if (lods.length < 2) return;
+
+    const sphere = treeMeshResult.geometry.boundingSphere;
+    const distance = Math.max(camera.position.distanceTo(sphere.center), 0.001);
+    const fov = THREE.MathUtils.degToRad(camera.fov);
+    const screenHeight = (sphere.radius * 2) / (2 * distance * Math.tan(fov / 2));
+    const nextIndex = lods.findIndex(lod => screenHeight >= (lod.screen_height ?? 0));
+    const lodIndex = nextIndex >= 0 ? nextIndex : lods.length - 1;
+
+    if (lodIndex !== $editorStore.currentLod) {
+      editorStore.setLod(lodIndex);
+    }
+  }
+
   /**
    * Animation loop
    */
@@ -278,6 +410,8 @@
     // Update camera position store
     cameraPosition.set(camera.position.clone());
 
+    updateAutoLod();
+
     // Render
     renderer.render(scene, camera);
   }
@@ -297,18 +431,187 @@
     renderer.setSize(width, height);
   }
 
+  function clearTreeMesh(): void {
+    if (!treeMeshResult) return;
+    if (scene) scene.remove(treeMeshResult.mesh);
+    disposeTreeMesh(treeMeshResult);
+    treeMeshResult = null;
+    renderedMeshSource = null;
+    renderedLodIndex = -1;
+  }
+
+  function clearNaturePreview(): void {
+    if (!natureGroup) return;
+    if (scene) scene.remove(natureGroup);
+    disposeObject(natureGroup);
+    natureGroup = null;
+    renderedNatureSource = null;
+    renderedNatureOptionsKey = '';
+    renderedNatureScatter = 0;
+  }
+
+  function createNatureMaterial(kind: string, wireframe: boolean): THREE.MeshStandardMaterial {
+    const color =
+      kind === 'terrain'
+        ? 0x4c4330
+        : kind === 'moss'
+          ? 0x3f6b45
+          : kind === 'flower'
+            ? 0xa98ce8
+            : kind === 'weed'
+              ? 0x5f8f44
+              : kind === 'litter'
+                ? 0x8b6235
+                : kind === 'shrub'
+                  ? 0x476b36
+                  : kind === 'rock'
+                    ? 0x77786c
+                    : kind === 'log'
+                      ? 0x6a4328
+                      : 0x7aa84f;
+    return new THREE.MeshStandardMaterial({
+      color,
+      roughness: kind === 'terrain' || kind === 'rock' ? 0.95 : 0.78,
+      metalness: 0,
+      side: kind === 'terrain' ? THREE.FrontSide : THREE.DoubleSide,
+      wireframe
+    });
+  }
+
+  function flattenScatterInstances(natureData: NaturePreviewOutput, kind: string): NatureScatterInstance[] {
+    const instances: NatureScatterInstance[] = [];
+    for (const set of natureData.scatter_sets ?? []) {
+      if (set.kind !== kind) continue;
+      for (const chunk of set.chunks ?? []) {
+        instances.push(...(chunk.instances ?? []));
+      }
+    }
+    return instances;
+  }
+
+  function currentNatureOptionsKey(): string {
+    return `${$editorStore.naturePreviewProfile}:${$editorStore.naturePreviewLod}`;
+  }
+
+  function natureProfileDensityScale(natureData: NaturePreviewOutput): number {
+    const manifest = natureData.manifest ?? {};
+    const profile = $editorStore.naturePreviewProfile;
+    if (profile === 'mobile') return manifest.mobile?.density_scale ?? 1;
+    if (profile === 'console') return manifest.console?.density_scale ?? 1;
+    return 1;
+  }
+
+  function natureProfileLabel(): string {
+    const profile = $editorStore.naturePreviewProfile;
+    return profile.charAt(0).toUpperCase() + profile.slice(1);
+  }
+
+  function keepProfileInstance(index: number, densityScale: number): boolean {
+    if (densityScale >= 1) return true;
+    if (densityScale <= 0) return false;
+    const hash = ((index + 1) * 2654435761) >>> 0;
+    return hash / 4294967295 < densityScale;
+  }
+
+  function selectProfileInstances(instances: NatureScatterInstance[], densityScale: number): NatureScatterInstance[] {
+    return instances.filter((_, index) => keepProfileInstance(index, densityScale));
+  }
+
+  function focusOnNature(tileSize: number): void {
+    if (!controls || !camera) return;
+    const radius = Math.max(tileSize * 0.75, 4);
+    controls.target.set(0, 0.3, 0);
+    camera.position.set(radius * 0.8, radius * 0.55, radius * 0.9);
+    controls.update();
+  }
+
+  function updateNaturePreview(natureData: NaturePreviewOutput): void {
+    if (!scene) return;
+
+    clearTreeMesh();
+    clearNaturePreview();
+
+    const group = new THREE.Group();
+    group.name = 'nature-preview';
+
+    const terrainData = transformMeshOutput(natureData.terrain);
+    if (terrainData) {
+      const terrainGeometry = createTreeGeometry(terrainData);
+      const terrainMaterial = createNatureMaterial('terrain', $editorStore.showWireframe);
+      const terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial);
+      terrainMesh.name = 'nature-terrain';
+      terrainMesh.receiveShadow = true;
+      group.add(terrainMesh);
+    }
+
+    let renderedVertices = natureData.stats?.terrain_vertex_count ?? 0;
+    let renderedTriangles = natureData.stats?.terrain_triangle_count ?? 0;
+    renderedNatureScatter = 0;
+    renderedNatureProfileLabel = natureProfileLabel();
+    const forcedLod = Math.max(0, Math.floor($editorStore.naturePreviewLod));
+    renderedNatureLodLabel = `LOD ${forcedLod}`;
+    const densityScale = Math.min(1, Math.max(0, natureProfileDensityScale(natureData)));
+    const maxInstancesPerKind = 1500;
+    const yAxis = new THREE.Vector3(0, 1, 0);
+
+    for (const prototype of natureData.prototypes ?? []) {
+      const lods = prototype.lods ?? [];
+      const lod = lods[Math.min(forcedLod, Math.max(0, lods.length - 1))];
+      if (!lod) continue;
+
+      const meshData = transformMeshOutput(lod);
+      if (!meshData) continue;
+
+      const instances = selectProfileInstances(
+        flattenScatterInstances(natureData, prototype.kind),
+        densityScale
+      ).slice(0, maxInstancesPerKind);
+      if (instances.length === 0) continue;
+
+      const geometry = createTreeGeometry(meshData);
+      const material = createNatureMaterial(prototype.kind, $editorStore.showWireframe);
+      const instanced = new THREE.InstancedMesh(geometry, material, instances.length);
+      instanced.name = `nature-${prototype.kind}-${prototype.name}`;
+      instanced.frustumCulled = true;
+      instanced.castShadow = false;
+      instanced.receiveShadow = true;
+
+      const position = new THREE.Vector3();
+      const quaternion = new THREE.Quaternion();
+      const scale = new THREE.Vector3();
+      const matrix = new THREE.Matrix4();
+
+      instances.forEach((instance, index) => {
+        position.set(instance.position[0], instance.position[1], instance.position[2]);
+        quaternion.setFromAxisAngle(yAxis, instance.yaw);
+        scale.set(instance.width, instance.height, instance.width);
+        matrix.compose(position, quaternion, scale);
+        instanced.setMatrixAt(index, matrix);
+      });
+      instanced.instanceMatrix.needsUpdate = true;
+      group.add(instanced);
+
+      renderedVertices += (lod.vertex_count ?? 0) * instances.length;
+      renderedTriangles += (lod.triangle_count ?? 0) * instances.length;
+      renderedNatureScatter += instances.length;
+    }
+
+    scene.add(group);
+    natureGroup = group;
+    renderedNatureSource = natureData;
+    renderedNatureOptionsKey = currentNatureOptionsKey();
+    meshStats.set({ vertices: renderedVertices, triangles: renderedTriangles });
+    focusOnNature(natureData.stats?.tile_size ?? 16);
+  }
+
   /**
    * Update tree mesh from WASM data
    */
-  function updateTreeMesh(meshData: TreeMeshData): void {
+  function updateTreeMesh(meshData: TreeMeshData, shouldFocus: boolean): void {
     if (!scene) return;
 
-    // Remove and dispose old mesh
-    if (treeMeshResult) {
-      scene.remove(treeMeshResult.mesh);
-      disposeTreeMesh(treeMeshResult);
-      treeMeshResult = null;
-    }
+    clearNaturePreview();
+    clearTreeMesh();
 
     // Validate mesh data
     if (!meshData || !meshData.vertices || meshData.vertices.length === 0) {
@@ -333,8 +636,9 @@
         triangles: getTriangleCount(meshData)
       });
 
-      // Auto-focus camera on tree
-      focusOnTree();
+      if (shouldFocus) {
+        focusOnTree();
+      }
     } catch (error) {
       console.error('Preview3D: Failed to create tree mesh:', error);
     }
@@ -376,6 +680,18 @@
   function updateWireframe(wireframe: boolean): void {
     if (treeMeshResult && treeMeshResult.materials) {
       setWireframeMode(treeMeshResult.materials, wireframe);
+    }
+    if (natureGroup) {
+      natureGroup.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          for (const material of materials) {
+            if (material instanceof THREE.MeshStandardMaterial) {
+              material.wireframe = wireframe;
+            }
+          }
+        }
+      });
     }
   }
 
@@ -445,11 +761,8 @@
     }
 
     // Dispose tree mesh
-    if (treeMeshResult) {
-      if (scene) scene.remove(treeMeshResult.mesh);
-      disposeTreeMesh(treeMeshResult);
-      treeMeshResult = null;
-    }
+    clearTreeMesh();
+    clearNaturePreview();
 
     // Dispose ground
     if (ground) {
@@ -463,6 +776,12 @@
     if (gridHelper && scene) {
       scene.remove(gridHelper);
       gridHelper = null;
+    }
+
+    if (scaleReference) {
+      if (scene) scene.remove(scaleReference);
+      disposeObject(scaleReference);
+      scaleReference = null;
     }
 
     // Dispose controls
@@ -482,6 +801,10 @@
 
     scene = null;
     camera = null;
+    sunLight = null;
+    renderedMeshSource = null;
+    renderedNatureSource = null;
+    renderedLodIndex = -1;
   }
 
   // Lifecycle
@@ -499,14 +822,35 @@
   });
 
   // Reactive statements
-  $: if ($treeStore.meshData && scene) {
-    const transformedData = transformWasmMeshData($treeStore.meshData, $editorStore.currentLod);
-    if (transformedData) {
-      updateTreeMesh(transformedData);
+  $: if ($treeStore.previewMode === 'tree' && $treeStore.meshData && scene) {
+    const nextLodIndex = getSelectedLodIndex($treeStore.meshData, $editorStore.currentLod);
+    if ($treeStore.meshData !== renderedMeshSource || nextLodIndex !== renderedLodIndex) {
+      const transformedData = transformWasmMeshData($treeStore.meshData, nextLodIndex);
+      if (transformedData) {
+        const shouldFocus = $treeStore.meshData !== renderedMeshSource;
+        updateTreeMesh(transformedData, shouldFocus);
+        renderedMeshSource = $treeStore.meshData;
+        renderedLodIndex = nextLodIndex;
+      }
+    }
+  }
+
+  $: if ($treeStore.previewMode === 'nature' && $treeStore.natureData && scene) {
+    const natureOptionsKey = `${$editorStore.naturePreviewProfile}:${$editorStore.naturePreviewLod}`;
+    if ($treeStore.natureData !== renderedNatureSource || renderedNatureOptionsKey !== natureOptionsKey) {
+      updateNaturePreview($treeStore.natureData);
     }
   }
 
   $: updateWireframe($editorStore.showWireframe);
+  $: updateSunLight();
+  $: updateScaleReference();
+  $: updateWindSettings();
+
+  $: currentPreviewLod = $treeStore.meshData
+    ? $treeStore.meshData.lods?.[getSelectedLodIndex($treeStore.meshData, $editorStore.currentLod)] ?? null
+    : null;
+  $: natureStats = $treeStore.natureData?.stats ?? null;
 </script>
 
 <div class="preview-container" bind:this={container}>
@@ -523,10 +867,26 @@
     </div>
   {/if}
 
-  <div class="stats">
-    <span>Vertices: {$meshStats.vertices.toLocaleString()}</span>
-    <span>Triangles: {$meshStats.triangles.toLocaleString()}</span>
-  </div>
+  {#if $treeStore.previewMode === 'nature'}
+    <div class="stats" data-testid="preview-stats">
+      <span>Nature Patch</span>
+      <span>Profile: {renderedNatureProfileLabel}</span>
+      <span>LOD: {renderedNatureLodLabel}</span>
+      <span>Tile: {natureStats?.tile_size?.toLocaleString() ?? '--'}m</span>
+      <span>Vertices: {$meshStats.vertices.toLocaleString()}</span>
+      <span>Triangles: {$meshStats.triangles.toLocaleString()}</span>
+      <span>Scatter: {renderedNatureScatter.toLocaleString()}</span>
+      <span>Prototypes: {natureStats?.prototype_count?.toLocaleString() ?? '--'}</span>
+    </div>
+  {:else}
+    <div class="stats" data-testid="preview-stats">
+      <span>{currentPreviewLod?.name ?? 'LOD --'}</span>
+      <span>Vertices: {$meshStats.vertices.toLocaleString()}</span>
+      <span>Triangles: {$meshStats.triangles.toLocaleString()}</span>
+      <span>Branches: {currentPreviewLod?.branch_count?.toLocaleString() ?? '--'}</span>
+      <span>Leaves: {currentPreviewLod?.leaf_count?.toLocaleString() ?? '--'}</span>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -585,6 +945,7 @@
     bottom: 0.5rem;
     left: 0.5rem;
     display: flex;
+    flex-wrap: wrap;
     gap: 1rem;
     font-size: 0.75rem;
     color: var(--text-secondary, #9ca3af);

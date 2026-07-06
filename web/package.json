@@ -1,12 +1,13 @@
 {
-  "name": "grove-editor",
+  "name": "midori-editor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:browser": "node scripts/browser-smoke.mjs"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.0",

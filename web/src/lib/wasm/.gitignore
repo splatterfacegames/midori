@@ -1,1 +1,7 @@
 *
+!.gitignore
+!package.json
+!midori_wasm.d.ts
+!midori_wasm.js
+!midori_wasm_bg.wasm
+!midori_wasm_bg.wasm.d.ts
