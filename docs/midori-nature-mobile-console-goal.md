@@ -10,6 +10,8 @@ Pinned reference commit: `b236b2a38d9f35daa2ddc7b0152544b10e635d0c`
 
 Current closure status: all editorless Midori, Unity-stub, Unreal dry-run, fake-editor, package, web, and handoff checks are implemented and passing. Phase 7 remains externally blocked on real editor evidence: a licensed Unity batch import, an installed Unreal Editor import, four returned screenshots, and completed profile notes. The latest verifier state is `pending` with 1610 passing checks, 7 missing editor-only artifacts, and 0 failed checks.
 
+Cold-start resume note: [`docs/session-handoff.md`](session-handoff.md) summarizes the current commits, entry points, blockers, verification commands, and the exact Phase 7 completion path.
+
 ## Implementation Progress
 
 Current implemented slice:

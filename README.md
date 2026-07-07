@@ -112,6 +112,8 @@ cd target/midori_engine_validation_handoff
 
 Then complete `docs/validation/midori-nature-engine-profile-notes.md`, rerun `.\run_editor_validation.ps1 -VerifyOnly`, and ingest the returned bundle with `scripts/import_engine_validation_handoff.ps1`.
 
+For a cold-start resume guide with current blockers, key files, and verification commands, see `docs/session-handoff.md`.
+
 ### LOD Presets
 
 | Preset | Levels | Max Triangles |
