@@ -5,6 +5,7 @@ members = [
     "crates/midori-cli",
     "crates/midori-wasm",
     "crates/midori-ffi",
+    "crates/midori-ui-domain",
 ]
 
 [workspace.package]
