@@ -51,7 +51,6 @@ impl SyntheticFullEvidence {
             fs::create_dir_all(package.join(directory)).unwrap();
         }
         let mut manifest = manifest();
-        write_json(&package.join("midori_nature.json"), &manifest);
         write_glb(&package.join("preview_tile.glb"));
         write_maps(&package);
         let records = scatter_records();
@@ -68,7 +67,7 @@ impl SyntheticFullEvidence {
             "engines/unity_import.recipe.json",
             "engines/unreal_import.recipe.json",
         ] {
-            write_recipe(&package.join(file), file);
+            write_recipe(&package.join(file), file, &manifest);
         }
         let mut binary_files = Vec::new();
         for index in 0..26 {
@@ -545,7 +544,7 @@ fn write_glb(path: &Path) {
             {"buffer": 0, "byteOffset": 216, "byteLength": 6, "target": 34963}
         ],
         "accessors": [
-            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [0.0, 0.0, 0.0], "max": [1.0, 1.0, 0.0]},
             {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC3"},
             {"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC4"},
             {"bufferView": 3, "componentType": 5126, "count": 3, "type": "VEC2"},
@@ -572,35 +571,150 @@ fn write_glb(path: &Path) {
     write_bytes(path, &output);
 }
 
-fn write_recipe(path: &Path, file: &str) {
-    let value = if file.contains("terrain_surface") {
+fn write_recipe(path: &Path, file: &str, manifest: &Value) {
+    let value = if file.contains("terrain_surface") || file.contains("groundcover_foliage") {
+        let slot = if file.contains("terrain_surface") {
+            "terrain_surface"
+        } else {
+            "groundcover_foliage"
+        };
+        let recipe = manifest["material_recipes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|recipe| recipe["material_slot"] == slot)
+            .unwrap();
+        let parameters = manifest["material_parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|set| set["material_slot"] == slot)
+            .unwrap();
         json!({
-            "schema_version": 1,
-            "material_slot": "terrain_surface",
-            "required_textures": ["maps/masks_rgba.png"],
-            "surface_overlays": ["moss", "wetness", "cracks"],
-            "engine_targets": ["unity_terrain_material", "unreal_landscape_material"]
-        })
-    } else if file.contains("groundcover_foliage") {
-        json!({
-            "schema_version": 1,
-            "material_slot": "groundcover_foliage",
-            "required_vertex_streams": ["TEXCOORD_1.x wind", "COLOR_0.y color"],
-            "engine_targets": ["unity_detail_mesh_material", "unreal_static_mesh_foliage_material"]
-        })
-    } else if file.contains("unity_import") {
-        json!({
-            "schema_version": 1,
-            "engine": "unity",
-            "profile": "mobile",
-            "expected_systems": ["Unity TerrainData", "GPU-instanced terrain detail mesh prefabs"]
+            "schema": "midori.material_recipe.v1",
+            "material_slot": slot,
+            "parameter_set": parameters["parameter_set"],
+            "runtime_policy": recipe["runtime_policy"],
+            "shader_policy": manifest["shader_policy"],
+            "texture_pipeline": manifest["texture_pipeline"],
+            "engine_targets": recipe["engine_targets"],
+            "parameters": parameters["parameters"],
+            "required_textures": if slot == "terrain_surface" { json!(["maps/masks_rgba.png"]) } else { json!([]) },
+            "required_vertex_streams": if slot == "groundcover_foliage" { json!([
+                "TEXCOORD_1.x phase_radians", "TEXCOORD_1.y bend_stiffness",
+                "COLOR_0.x normalized_height", "COLOR_0.y color_variation",
+                "COLOR_0.z normalized_progress", "COLOR_0.w bend_stiffness"
+            ]) } else { json!([]) },
+            "surface_overlays": if slot == "terrain_surface" { json!(["moss", "wetness", "cracks"]) } else { json!([]) },
+            "notes": ["Synthetic native fixture recipe with static engine import metadata."]
         })
     } else {
+        let engine = if file.contains("unity_import") {
+            "unity"
+        } else {
+            "unreal"
+        };
+        let profile = if engine == "unity" {
+            "mobile"
+        } else {
+            "console"
+        };
+        let normal_key = if engine == "unity" {
+            "unity_yplus_file"
+        } else {
+            "unreal_yminus_file"
+        };
+        let profile_value = &manifest[profile];
+        let expected_systems = manifest["engine_import_recipes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|recipe| recipe["engine"] == engine)
+            .unwrap()["expected_systems"]
+            .clone();
+        let source_files = source_files(manifest, normal_key);
+        let material_recipe_files = manifest["material_recipes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|recipe| recipe["file"].clone())
+            .collect::<Vec<_>>();
+        let instance_count: usize = manifest["scatter"]["binary_files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["instance_count"].as_u64().unwrap() as usize)
+            .sum();
+        let groundcover_target = if engine == "unity" {
+            "Unity Terrain detail mesh prefabs"
+        } else {
+            "Unreal Static Mesh Foliage"
+        };
+        let prototype_source = if engine == "unity" {
+            "LOD0 GLB detail mesh prefabs with native GLB fallback"
+        } else {
+            "LOD0 GLB Static Mesh assets"
+        };
+        let placement_source = if engine == "unity" {
+            "grass_density/masks plus midori.scatter.bin.v1 ScriptableObject"
+        } else {
+            "midori.scatter.bin.v1 foliage placement buffers"
+        };
+        let terrain_normal = manifest["normal_conventions"][normal_key].clone();
+        let terrain_target = if engine == "unity" {
+            "Unity TerrainData"
+        } else {
+            "Unreal Landscape"
+        };
         json!({
-            "schema_version": 1,
-            "engine": "unreal",
-            "profile": "console",
-            "expected_systems": ["Unreal Landscape", "Static Mesh Foliage"]
+            "schema": "midori.engine_import_recipe.v1",
+            "engine": engine, "profile": profile,
+            "runtime_policy": "engine_native_static",
+            "expected_systems": expected_systems,
+            "source_files": source_files,
+            "material_recipe_files": material_recipe_files,
+            "terrain": {
+                "target_system": terrain_target,
+                "heightmap_file": manifest["terrain"]["heightmap_file"],
+                "mask_file": manifest["terrain"]["masks_file"],
+                "density_map_file": manifest["terrain"]["grass_density_file"],
+                "normal_map_file": terrain_normal,
+                "tile_size_meters": manifest["tile_size"],
+                "height_min": manifest["terrain"]["height_min"],
+                "height_max": manifest["terrain"]["height_max"]
+            },
+            "groundcover": {
+                "target_system": groundcover_target,
+                "prototype_source": prototype_source,
+                "material_slot": "groundcover_foliage",
+                "material_recipe_file": "materials/groundcover_foliage.recipe.json",
+                "prototype_family_count": manifest["prototypes"].as_array().unwrap().len(),
+                "lod0_prototype_count": manifest["prototypes"].as_array().unwrap().len(),
+                "double_sided": true, "alpha_mode": "masked"
+            },
+            "scatter": {
+                "placement_source": placement_source,
+                "scatter_json_file": manifest["scatter"]["file"],
+                "binary_chunk_count": manifest["scatter"]["binary_files"].as_array().unwrap().len(),
+                "instance_count": instance_count,
+                "chunk_size_meters": manifest["scatter"]["chunk_size"]
+            },
+            "profile_settings": {
+                "name": profile,
+                "density_scale": profile_value["density_scale"],
+                "lod0_max_distance_meters": profile_value["lod0_max_distance"],
+                "lod1_max_distance_meters": profile_value["lod1_max_distance"],
+                "lod2_max_distance_meters": profile_value["lod2_max_distance"],
+                "cull_start_meters": profile_value["cull_start"],
+                "cull_end_meters": profile_value["cull_end"],
+                "shadows": profile_value["shadows"],
+                "material_slots": profile_value["material_slots"],
+                "max_instances_per_tile": profile_value["max_instances_per_tile"],
+                "max_instances_per_chunk": profile_value["max_instances_per_chunk"],
+                "grass_collision": profile_value["grass_collision"],
+                "moss_collision": profile_value["moss_collision"]
+            },
+            "notes": ["Synthetic native fixture engine import recipe."]
         })
     };
     write_json(path, &value);
@@ -633,8 +747,9 @@ fn write_scatter_json(path: &Path, records: &[Vec<[f32; 8]>]) {
         .enumerate()
         .map(|(index, records)| {
             json!({
-                "chunk_index": index,
-                "file": format!("scatter/chunk_{index:02}.bin"),
+                "chunk_x": index as i32, "chunk_z": 0,
+                "bounds_min": [index as f32, 0.0, 0.0],
+                "bounds_max": [index as f32 + 1.0, 2.0, 1.0],
                 "instances": records.iter().map(|record| json!({
                     "position": [record[0], record[1], record[2]],
                     "yaw": record[3], "height": record[4], "width": record[5],
@@ -643,7 +758,12 @@ fn write_scatter_json(path: &Path, records: &[Vec<[f32; 8]>]) {
             })
         })
         .collect::<Vec<_>>();
-    write_json(path, &json!({"schema_version": 1, "chunks": chunks}));
+    write_json(
+        path,
+        &json!([{
+            "layer_index": 0, "layer_name": "grass", "kind": "grass", "chunks": chunks
+        }]),
+    );
 }
 
 fn write_scatter_binary(path: &Path, count: u32, chunk: usize) {
@@ -851,19 +971,21 @@ fn manifest() -> Value {
         ("moss", vec!["groundcover_foliage", "moss_tuft"], 2),
         ("litter", vec!["groundcover_foliage"], 2),
     ];
-    let vertices = [100, 70, 40];
-    let triangles = [120, 80, 40];
     let prototypes: Vec<Value> = kinds.iter().enumerate().map(|(index, (kind, targets, lod_count))| {
         let name = format!("{kind}_prototype");
         let lods: Vec<Value> = (0..*lod_count).map(|lod| json!({
             "index": lod, "file": format!("prototypes/{name}_lod{lod}.glb"),
-            "vertex_count": vertices[lod], "triangle_count": triangles[lod],
+            "vertex_count": 3, "triangle_count": 1,
+            "bounds_min": [0.0, 0.0, 0.0], "bounds_max": [1.0, 1.0, 0.0],
         })).collect();
-        json!({"name": name, "kind": kind, "surface_targets": targets, "lods": lods, "prototype_index": index})
+        let _ = index;
+        json!({"name": name, "kind": kind, "material_slot": "groundcover_foliage", "surface_targets": targets, "lods": lods})
     }).collect();
     let binary_files: Vec<Value> = (0..26)
         .map(|index| {
             json!({
+                "layer_index": 0, "layer_name": "grass", "kind": "grass",
+                "chunk_x": index, "chunk_z": 0,
                 "file": format!("scatter/chunk_{index:02}.bin"),
                 "instance_count": if index < 14 { 9 } else { 8 },
                 "bounds_min": [index as f64, 0.0, 0.0],
@@ -871,48 +993,156 @@ fn manifest() -> Value {
             })
         })
         .collect();
-    let terrain_parameters: Vec<Value> = [
-        ("overlay_mask_texture", "Midori_MaskTexture"),
-        ("moss_mask_channel", "Midori_MossMaskChannel"),
-        ("wetness_mask_channel", "Midori_WetnessMaskChannel"),
-        ("crack_mask_channel", "Midori_CrackMaskChannel"),
+    let material_parameter =
+        |name: &str, semantic: &str, value_type: &str, source: &str, default_value: &str| {
+            json!({
+                "name": name, "semantic": semantic, "value_type": value_type,
+                "source": source, "default_value": default_value
+            })
+        };
+    let terrain_parameters = vec![
+        material_parameter(
+            "Midori_MaskTexture",
+            "overlay_mask_texture",
+            "texture2d",
+            "maps/masks_rgba.png",
+            "maps/masks_rgba.png",
+        ),
+        material_parameter(
+            "Midori_MossMaskChannel",
+            "moss_mask_channel",
+            "channel",
+            "surface_overlays.moss.channel",
+            "G",
+        ),
+        material_parameter(
+            "Midori_WetnessMaskChannel",
+            "wetness_mask_channel",
+            "channel",
+            "surface_overlays.wetness.channel",
+            "B",
+        ),
+        material_parameter(
+            "Midori_CrackMaskChannel",
+            "crack_mask_channel",
+            "channel",
+            "surface_overlays.cracks.channel",
+            "A",
+        ),
+    ];
+    let groundcover_parameters = vec![
+        material_parameter(
+            "Midori_AlphaCutoff",
+            "alpha_cutoff",
+            "float",
+            "material_slots.groundcover_foliage.alpha_mode",
+            "0.5",
+        ),
+        material_parameter(
+            "Midori_WindStrength",
+            "wind_strength",
+            "float",
+            "wind.strength",
+            "0.8",
+        ),
+        material_parameter(
+            "Midori_WindSpeed",
+            "wind_speed",
+            "float",
+            "wind.speed",
+            "1.2",
+        ),
+        material_parameter(
+            "Midori_WindDirectionDegrees",
+            "wind_direction_degrees",
+            "float",
+            "wind.direction_degrees",
+            "35.0",
+        ),
+        material_parameter(
+            "Midori_WindGustScale",
+            "wind_gust_scale",
+            "float",
+            "wind.gust_scale",
+            "0.35",
+        ),
+        material_parameter(
+            "Midori_FadeStartMeters",
+            "fade_start_meters",
+            "float",
+            "profiles.mobile.cull_start",
+            "35.0",
+        ),
+        material_parameter(
+            "Midori_FadeEndMeters",
+            "fade_end_meters",
+            "float",
+            "profiles.mobile.cull_end",
+            "70.0",
+        ),
+        material_parameter(
+            "Midori_ColorVariationScale",
+            "color_variation_scale",
+            "float",
+            "scatter.color_variation",
+            "1.0",
+        ),
+    ];
+    let groundcover_layers: Vec<Value> = [
+        ("grass", "grass", 0.13, 0.62),
+        ("moss", "moss", 0.10, 0.55),
+        ("flower", "flower", 0.14, 0.35),
+        ("weed", "weed", 0.14, 0.45),
+        ("litter", "litter", 0.06, 0.38),
+        ("shrub", "shrub", 0.055, 0.30),
+        ("rock", "rock", 0.08, 0.28),
+        ("log", "log", 0.065, 0.24),
     ]
     .into_iter()
-    .map(|(semantic, name)| json!({"semantic": semantic, "name": name}))
-    .collect();
-    let groundcover_parameters: Vec<Value> = [
-        ("alpha_cutoff", "Midori_AlphaCutoff"),
-        ("wind_strength", "Midori_WindStrength"),
-        ("wind_speed", "Midori_WindSpeed"),
-        ("wind_direction_degrees", "Midori_WindDirectionDegrees"),
-        ("wind_gust_scale", "Midori_WindGustScale"),
-        ("fade_start_meters", "Midori_FadeStartMeters"),
-        ("fade_end_meters", "Midori_FadeEndMeters"),
-        ("color_variation_scale", "Midori_ColorVariationScale"),
-    ]
-    .into_iter()
-    .map(|(semantic, name)| json!({"semantic": semantic, "name": name}))
+    .map(|(kind, name, density, coverage)| {
+        json!({
+            "kind": kind, "name": name, "density": density, "coverage": coverage,
+            "patch_scale": 0.18, "patch_softness": 0.12, "seed_offset": 0.0,
+            "height": 0.25, "width": 0.12, "curl": 0.2,
+            "relief_scale": 0.4, "relief_strength": 0.2,
+            "color_base": "#527a3c", "color_tip": "#b8d98a"
+        })
+    })
     .collect();
     let memory = json!({
-        "map_pixel_count": 64, "decoded_map_bytes": 832, "encoded_map_bytes": 1000,
-        "material_recipe_bytes": 2000, "engine_import_recipe_bytes": 3000,
-        "preview_mesh_bytes": 4000, "prototype_mesh_bytes": 5000, "scatter_json_bytes": 6000,
+        "map_pixel_count": 64, "decoded_map_bytes": 832, "encoded_map_bytes": 1,
+        "material_recipe_bytes": 1, "engine_import_recipe_bytes": 1,
+        "preview_mesh_bytes": 1, "prototype_mesh_bytes": 1, "scatter_json_bytes": 1,
         "scatter_binary_header_bytes": 416, "scatter_binary_record_bytes": 7104,
-        "scatter_binary_bytes": 7520, "total_payload_bytes": 28520,
+        "scatter_binary_bytes": 7520, "total_payload_bytes": 7,
     });
     json!({
-        "schema_version": 3, "asset_name": "Temperate Forest Floor", "map_resolution": 8, "tile_size": 16.0,
-        "terrain": {"heightmap_file": "maps/height_u16.png", "masks_file": "maps/masks_rgba.png", "grass_density_file": "maps/grass_density.png", "height_min": 0.0, "height_max": 0.3901228},
+        "schema_version": 3, "generator": "midori", "generator_version": "0.1.0",
+        "asset_name": "Temperate Forest Floor", "seed": 1337, "units": "meters",
+        "map_resolution": 8, "tile_size": 16.0,
+        "axis": {"up_axis": "Y", "forward_axis": "Z", "handedness": "right", "unit_scale": 1.0},
+        "terrain": {"heightmap_file": "maps/height_u16.png", "masks_file": "maps/masks_rgba.png", "grass_density_file": "maps/grass_density.png", "height_min": 0.0, "height_max": 0.3901228, "bounds_min": [-8.0, 0.0, -8.0], "bounds_max": [8.0, 0.3901228, 8.0]},
+        "map_channels": [
+            {"file": "height_u16.png", "channels": "16-bit normalized terrain height"},
+            {"file": "normal_yplus.png", "channels": "RGB terrain normal, green channel Y+"},
+            {"file": "normal_yminus.png", "channels": "RGB terrain normal, green channel Y-"},
+            {"file": "masks_rgba.png", "channels": "R grass density, G moss, B wetness, A cracks"},
+            {"file": "grass_density.png", "channels": "single-channel grass density"}
+        ],
         "normal_conventions": {"unity_yplus_file": "maps/normal_yplus.png", "unreal_yminus_file": "maps/normal_yminus.png"},
-        "mobile": {"density_scale": 0.75, "lod0_max_distance": 10.0, "lod1_max_distance": 20.0, "lod2_max_distance": 30.0, "cull_start": 35.0, "cull_end": 70.0, "shadows": false, "material_slots": 2, "max_instances_per_tile": 300, "max_instances_per_chunk": 20, "lod0_max_triangles": 120, "lod1_max_triangles": 80, "lod2_max_triangles": 40, "grass_collision": false, "moss_collision": false},
-        "console": {"density_scale": 1.0, "lod0_max_distance": 15.0, "lod1_max_distance": 30.0, "lod2_max_distance": 50.0, "cull_start": 35.0, "cull_end": 70.0, "shadows": true, "material_slots": 2, "max_instances_per_tile": 300, "max_instances_per_chunk": 20, "lod0_max_triangles": 120, "lod1_max_triangles": 80, "lod2_max_triangles": 40, "grass_collision": false, "moss_collision": false},
-        "unity": {"terrain_heightmap": "maps/height_u16.png", "detail_density_map": "maps/grass_density.png", "normal_map": "maps/normal_yplus.png"},
-        "unreal": {"landscape_heightmap": "maps/height_u16.png", "landscape_weightmap": "maps/masks_rgba.png", "normal_map": "maps/normal_yminus.png"},
+        "material_slots": [
+            {"name": "terrain_surface", "purpose": "preview terrain and baked soil surface", "alpha_mode": "opaque", "double_sided": false, "shadows": true},
+            {"name": "groundcover_foliage", "purpose": "grass, moss, and low groundcover prototype meshes", "alpha_mode": "masked", "double_sided": true, "shadows": false}
+        ],
+        "mobile": {"tile_size": 16.0, "terrain_resolution": 8, "density_scale": 0.75, "lod0_max_distance": 10.0, "lod1_max_distance": 20.0, "lod2_max_distance": 30.0, "cull_start": 35.0, "cull_end": 70.0, "shadows": false, "material_slots": 2, "max_instances_per_tile": 300, "max_instances_per_chunk": 20, "lod0_max_triangles": 120, "lod1_max_triangles": 80, "lod2_max_triangles": 40, "grass_collision": false, "moss_collision": false},
+        "console": {"tile_size": 16.0, "terrain_resolution": 8, "density_scale": 1.0, "lod0_max_distance": 15.0, "lod1_max_distance": 30.0, "lod2_max_distance": 50.0, "cull_start": 35.0, "cull_end": 70.0, "shadows": true, "material_slots": 2, "max_instances_per_tile": 300, "max_instances_per_chunk": 20, "lod0_max_triangles": 120, "lod1_max_triangles": 80, "lod2_max_triangles": 40, "grass_collision": false, "moss_collision": false},
+        "unity": {"terrain_heightmap": "maps/height_u16.png", "detail_density_map": "maps/grass_density.png", "normal_map": "maps/normal_yplus.png", "detail_mode": "GPU-instanced terrain detail mesh prefabs", "detail_batch_max_instances": 1023},
+        "unreal": {"landscape_heightmap": "maps/height_u16.png", "landscape_weightmap": "maps/masks_rgba.png", "normal_map": "maps/normal_yminus.png", "foliage_mode": "Static Mesh Foliage or Landscape Grass Type", "static_mesh_pipeline": "GLB prototypes first; FBX adapter only where pipeline requires it"},
         "wind_packing": {"phase": "COLOR_0.y", "stiffness": "COLOR_0.z", "height": "TEXCOORD_1.x", "color_variation": "COLOR_0.x", "normalized_progress": "COLOR_0.w"},
-        "material_slots": ["terrain_surface", "groundcover_foliage"],
+        "groundcover_layers": groundcover_layers,
         "material_parameters": [
-            {"material_slot": "terrain_surface", "runtime_policy": "engine_native_static", "parameters": terrain_parameters},
-            {"material_slot": "groundcover_foliage", "runtime_policy": "engine_native_static", "parameters": groundcover_parameters}
+            {"material_slot": "terrain_surface", "parameter_set": "midori_terrain_static_v1", "runtime_policy": "engine_native_static", "parameters": terrain_parameters},
+            {"material_slot": "groundcover_foliage", "parameter_set": "midori_groundcover_foliage_static_v1", "runtime_policy": "engine_native_static", "parameters": groundcover_parameters}
         ],
         "material_recipes": [
             {"material_slot": "terrain_surface", "file": "materials/terrain_surface.recipe.json", "runtime_policy": "engine_native_static", "engine_targets": ["unity_terrain_material", "unreal_landscape_material"]},
@@ -923,17 +1153,20 @@ fn manifest() -> Value {
             {"engine": "unreal", "profile": "console", "file": "engines/unreal_import.recipe.json", "runtime_policy": "engine_native_static", "expected_systems": ["Unreal Landscape", "Static Mesh Foliage"]}
         ],
         "surface_overlays": [
-            {"name": "moss", "source_file": "maps/masks_rgba.png", "channel": "G", "targets": ["terrain_surface", "rock", "log"], "runtime_policy": "baked_static"},
-            {"name": "wetness", "source_file": "maps/masks_rgba.png", "channel": "B", "targets": ["terrain_surface", "rock", "log"], "runtime_policy": "baked_static"},
-            {"name": "cracks", "source_file": "maps/masks_rgba.png", "channel": "A", "targets": ["terrain_surface", "scatter_exclusion"], "runtime_policy": "baked_static"}
+            {"name": "moss", "source_file": "maps/masks_rgba.png", "channel": "G", "targets": ["terrain_surface", "rock", "log"], "application": "static material overlay mask", "runtime_policy": "baked_static"},
+            {"name": "wetness", "source_file": "maps/masks_rgba.png", "channel": "B", "targets": ["terrain_surface", "rock", "log"], "application": "static material overlay mask", "runtime_policy": "baked_static"},
+            {"name": "cracks", "source_file": "maps/masks_rgba.png", "channel": "A", "targets": ["terrain_surface", "scatter_exclusion"], "application": "static material overlay mask", "runtime_policy": "baked_static"}
         ],
         "prototypes": prototypes, "scatter": {
-            "file": "scatter/scatter.json",
+            "enabled": true, "file": "scatter/scatter.json", "format": "json.chunked_instances.v1",
+            "chunk_size": 8.0,
+            "fields": ["position.xyz", "yaw_radians", "height_multiplier", "width_multiplier", "phase_radians", "color_variation"],
             "binary_format": {
                 "format": "midori.scatter.bin.v1",
                 "header_bytes": 16,
-                "record_stride_bytes": 32,
-                "endian": "little"
+                "record_stride_bytes": 32, "endian": "little",
+                "header": ["magic:u8[4]=MDSI", "version:u32", "record_stride_bytes:u32", "instance_count:u32"],
+                "record": ["position.x:f32", "position.y:f32", "position.z:f32", "yaw_radians:f32", "height_multiplier:f32", "width_multiplier:f32", "phase_radians:f32", "color_variation:f32"]
             },
             "binary_files": binary_files
         }, "shader_policy": "preview_only", "texture_pipeline": "parked", "memory_footprint": memory
@@ -1006,10 +1239,12 @@ fn scatter_json_summaries(package: &Path, camel_case: bool) -> Vec<Value> {
     let path = package.join("scatter/scatter.json");
     let bytes = fs::read(&path).unwrap();
     let document: Value = serde_json::from_slice(&bytes).unwrap();
-    document["chunks"]
+    let file_checksum = fnv1a(&bytes);
+    document
         .as_array()
         .unwrap()
         .iter()
+        .flat_map(|set| set["chunks"].as_array().unwrap().iter())
         .map(|chunk| {
             let instances = chunk["instances"].as_array().unwrap();
             let records = instances
@@ -1028,6 +1263,12 @@ fn scatter_json_summaries(package: &Path, camel_case: bool) -> Vec<Value> {
                     ]
                 })
                 .collect::<Vec<_>>();
+            let mut packed_records = Vec::with_capacity(records.len() * 32);
+            for record in &records {
+                for value in record {
+                    packed_records.extend((*value as f32).to_le_bytes());
+                }
+            }
             let range = |slot: usize| {
                 records
                     .iter()
@@ -1041,8 +1282,7 @@ fn scatter_json_summaries(package: &Path, camel_case: bool) -> Vec<Value> {
             let (width_min, width_max) = range(5);
             let (phase_min, phase_max) = range(6);
             let (color_min, color_max) = range(7);
-            let file_checksum = fnv1a(&serde_json::to_vec(chunk).unwrap());
-            let record_checksum = fnv1a(&serde_json::to_vec(&chunk["instances"]).unwrap());
+            let record_checksum = fnv1a(&packed_records);
             if camel_case {
                 json!({
                     "source": "json", "instanceCount": instances.len(),
@@ -1116,54 +1356,249 @@ fn prototype_summaries(manifest: &Value, package: &Path) -> Vec<Value> {
         .unwrap()
         .iter()
         .flat_map(|prototype| {
-            prototype["lods"].as_array().unwrap().iter().map(|lod| json!({
-            "file": lod["file"], "lod_index": lod["index"], "vertex_count": lod["vertex_count"],
-            "triangle_count": lod["triangle_count"], "mesh_count": 1, "primitive_count": 1,
-            "has_positions": true, "has_normals": true, "has_tangents": true,
-            "normals_are_valid": true, "tangents_are_valid": true, "has_texcoord0": true,
-            "has_texcoord1": true, "has_color0": true, "used_material_count": 1,
-            "file_checksum": fnv1a(&fs::read(package.join(lod["file"].as_str().unwrap())).unwrap())
-        }))
+            prototype["lods"].as_array().unwrap().iter().map(|lod| {
+                let file = lod["file"].as_str().unwrap();
+                let path = package.join(file);
+                let document = glb_json(&path);
+                let meshes = document["meshes"].as_array().unwrap();
+                let primitives = meshes
+                    .iter()
+                    .flat_map(|mesh| mesh["primitives"].as_array().unwrap())
+                    .collect::<Vec<_>>();
+                let first = primitives.first().unwrap();
+                let attributes = first["attributes"].as_object().unwrap();
+                let accessors = document["accessors"].as_array().unwrap();
+                let vertex_accessor = accessors[attributes["POSITION"].as_u64().unwrap() as usize]
+                    .as_object()
+                    .unwrap();
+                let vertex_count = vertex_accessor["count"].as_u64().unwrap();
+                let index_accessor = accessors[first["indices"].as_u64().unwrap() as usize]
+                    .as_object()
+                    .unwrap();
+                let triangle_count = index_accessor["count"].as_u64().unwrap() / 3;
+                let used_materials = primitives
+                    .iter()
+                    .filter_map(|primitive| primitive["material"].as_u64())
+                    .collect::<BTreeSet<_>>();
+                let has_attribute = |name: &str| {
+                    primitives.iter().all(|primitive| {
+                        primitive["attributes"]
+                            .as_object()
+                            .unwrap()
+                            .contains_key(name)
+                    })
+                };
+                let bounds = |name: &str, default: [f64; 3]| {
+                    vertex_accessor
+                        .get(name)
+                        .and_then(Value::as_array)
+                        .map(|values| {
+                            [
+                                values[0].as_f64().unwrap(),
+                                values[1].as_f64().unwrap(),
+                                values[2].as_f64().unwrap(),
+                            ]
+                        })
+                        .unwrap_or(default)
+                };
+                let bytes = fs::read(&path).unwrap();
+                json!({
+                    "file": file, "lod_index": lod["index"],
+                    "vertex_count": vertex_count, "triangle_count": triangle_count,
+                    "mesh_count": meshes.len(), "primitive_count": primitives.len(),
+                    "has_positions": has_attribute("POSITION"),
+                    "has_normals": has_attribute("NORMAL"),
+                    "has_tangents": has_attribute("TANGENT"),
+                    "normals_are_valid": has_attribute("NORMAL"),
+                    "tangents_are_valid": has_attribute("TANGENT"),
+                    "has_texcoord0": has_attribute("TEXCOORD_0"),
+                    "has_texcoord1": has_attribute("TEXCOORD_1"),
+                    "has_color0": has_attribute("COLOR_0"),
+                    "bounds_min": bounds("min", [0.0, 0.0, 0.0]),
+                    "bounds_max": bounds("max", [1.0, 1.0, 0.0]),
+                    "used_material_count": used_materials.len(),
+                    "file_checksum": fnv1a(&bytes)
+                })
+            })
         })
         .collect()
 }
 
+fn decode_png(path: &Path) -> (u32, u32, png::ColorType, Vec<u8>) {
+    let decoder = png::Decoder::new(fs::File::open(path).unwrap());
+    let mut reader = decoder.read_info().unwrap();
+    let mut data = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut data).unwrap();
+    (
+        info.width,
+        info.height,
+        info.color_type,
+        data[..info.buffer_size()].to_vec(),
+    )
+}
+
+fn map_relationships(package: &Path) -> Value {
+    let (_, _, _, yplus) = decode_png(&package.join("maps/normal_yplus.png"));
+    let (_, _, _, yminus) = decode_png(&package.join("maps/normal_yminus.png"));
+    let normal_pixels = (yplus.len().min(yminus.len())) / 3;
+    let mut red_blue_mismatches = 0usize;
+    let mut green_flip_mismatches = 0usize;
+    let mut green_flip_max_error = 0u8;
+    for pixel in 0..normal_pixels {
+        let offset = pixel * 3;
+        if yplus[offset] != yminus[offset] || yplus[offset + 2] != yminus[offset + 2] {
+            red_blue_mismatches += 1;
+        }
+        let sum = u16::from(yplus[offset + 1]) + u16::from(yminus[offset + 1]);
+        let error = sum.abs_diff(255) as u8;
+        if error > 0 {
+            green_flip_mismatches += 1;
+        }
+        green_flip_max_error = green_flip_max_error.max(error);
+    }
+    let (_, _, _, masks) = decode_png(&package.join("maps/masks_rgba.png"));
+    let (_, _, _, density) = decode_png(&package.join("maps/grass_density.png"));
+    let density_pixels = (masks.len() / 4).min(density.len());
+    let density_mismatches = (0..density_pixels)
+        .filter(|pixel| masks[pixel * 4] != density[*pixel])
+        .count();
+    json!({
+        "normal_pair_pixels": normal_pixels,
+        "normal_red_blue_mismatches": red_blue_mismatches,
+        "normal_green_flip_mismatches": green_flip_mismatches,
+        "normal_green_flip_max_error": green_flip_max_error,
+        "grass_density_pixels": density_pixels,
+        "grass_density_mask_r_mismatches": density_mismatches
+    })
+}
+
+fn scatter_parity(package: &Path, manifest: &Value) -> Value {
+    let json_summaries = scatter_summaries(package, "json", false);
+    let binary_summaries = scatter_summaries(package, "binary", false);
+    let matching = json_summaries.len().min(binary_summaries.len());
+    let instance_mismatches = json_summaries
+        .iter()
+        .zip(&binary_summaries)
+        .filter(|(json, binary)| json["instance_count"] != binary["instance_count"])
+        .count();
+    let record_mismatches = json_summaries
+        .iter()
+        .zip(&binary_summaries)
+        .filter(|(json, binary)| json["record_checksum"] != binary["record_checksum"])
+        .count();
+    let json_document: Value =
+        serde_json::from_slice(&fs::read(package.join("scatter/scatter.json")).unwrap()).unwrap();
+    let json_chunks = json_document
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|set| set["chunks"].as_array().unwrap().iter())
+        .collect::<Vec<_>>();
+    let binary_chunks = manifest["scatter"]["binary_files"].as_array().unwrap();
+    let bounds_mismatches = json_chunks
+        .iter()
+        .zip(binary_chunks)
+        .filter(|(json, binary)| {
+            json["bounds_min"] != binary["bounds_min"] || json["bounds_max"] != binary["bounds_max"]
+        })
+        .count();
+    json!({
+        "json_chunk_count": json_summaries.len(),
+        "binary_chunk_count": binary_summaries.len(),
+        "matching_chunk_count": matching,
+        "missing_binary_chunk_count": json_summaries.len().saturating_sub(binary_summaries.len()),
+        "extra_binary_chunk_count": binary_summaries.len().saturating_sub(json_summaries.len()),
+        "instance_count_mismatch_count": instance_mismatches,
+        "bounds_mismatch_count": bounds_mismatches,
+        "record_checksum_mismatch_count": record_mismatches
+    })
+}
+
+fn glb_json(path: &Path) -> Value {
+    let bytes = fs::read(path).unwrap();
+    assert_eq!(&bytes[..4], b"glTF");
+    assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()), 2);
+    let json_length = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    assert_eq!(&bytes[16..20], b"JSON");
+    serde_json::from_slice(&bytes[20..20 + json_length]).unwrap()
+}
+
 fn material_recipe_summaries(package: &Path) -> Vec<Value> {
-    vec![
-        json!({
-            "material_slot": "terrain_surface", "runtime_policy": "engine_native_static",
-            "shader_policy": "preview_only", "texture_pipeline": "parked",
-            "file_checksum": fnv1a(&fs::read(package.join("materials/terrain_surface.recipe.json")).unwrap()),
-            "required_textures": ["maps/masks_rgba.png"], "surface_overlays": ["moss", "wetness", "cracks"]
-        }),
-        json!({
-            "material_slot": "groundcover_foliage", "runtime_policy": "engine_native_static",
-            "shader_policy": "preview_only", "texture_pipeline": "parked",
-            "file_checksum": fnv1a(&fs::read(package.join("materials/groundcover_foliage.recipe.json")).unwrap()),
-            "required_vertex_streams": ["TEXCOORD_1.x wind", "COLOR_0.y color"]
-        }),
+    [
+        "materials/terrain_surface.recipe.json",
+        "materials/groundcover_foliage.recipe.json",
     ]
+    .into_iter()
+    .map(|file| {
+        let bytes = fs::read(package.join(file)).unwrap();
+        let recipe: Value = serde_json::from_slice(&bytes).unwrap();
+        json!({
+            "material_slot": recipe["material_slot"],
+            "parameter_set": recipe["parameter_set"],
+            "runtime_policy": recipe["runtime_policy"],
+            "shader_policy": recipe["shader_policy"],
+            "texture_pipeline": recipe["texture_pipeline"],
+            "parameter_count": recipe["parameters"].as_array().unwrap().len(),
+            "engine_targets": recipe["engine_targets"],
+            "file_checksum": fnv1a(&bytes),
+            "required_textures": recipe["required_textures"],
+            "required_vertex_streams": recipe["required_vertex_streams"],
+            "surface_overlays": recipe["surface_overlays"]
+        })
+    })
+    .collect()
 }
 
-fn engine_recipe_summaries(manifest: &Value, package: &Path) -> Vec<Value> {
-    let count = source_files(manifest, "unity_yplus_file").len();
-    vec![
-        json!({"engine": "unity", "source_file_count": count, "scatter_instances": 222, "scatter_binary_chunks": 26, "file_checksum": fnv1a(&fs::read(package.join("engines/unity_import.recipe.json")).unwrap())}),
-        json!({"engine": "unreal", "source_file_count": count, "scatter_instances": 222, "scatter_binary_chunks": 26, "file_checksum": fnv1a(&fs::read(package.join("engines/unreal_import.recipe.json")).unwrap())}),
+fn engine_recipe_summaries(package: &Path) -> Vec<Value> {
+    [
+        "engines/unity_import.recipe.json",
+        "engines/unreal_import.recipe.json",
     ]
+    .into_iter()
+    .map(|file| {
+        let bytes = fs::read(package.join(file)).unwrap();
+        let recipe: Value = serde_json::from_slice(&bytes).unwrap();
+        json!({
+            "engine": recipe["engine"], "profile": recipe["profile"],
+            "source_file_count": recipe["source_files"].as_array().unwrap().len(),
+            "scatter_instances": recipe["scatter"]["instance_count"],
+            "scatter_binary_chunks": recipe["scatter"]["binary_chunk_count"],
+            "file_checksum": fnv1a(&bytes)
+        })
+    })
+    .collect()
 }
 
-fn profile_budget_summaries() -> Vec<Value> {
+fn profile_budget_summaries(manifest: &Value, package: &Path) -> Vec<Value> {
+    let prototype_summaries = prototype_summaries(manifest, package);
+    let max_lod = |lod_index: u64| {
+        prototype_summaries
+            .iter()
+            .filter(|summary| summary["lod_index"].as_u64() == Some(lod_index))
+            .map(|summary| summary["triangle_count"].as_u64().unwrap())
+            .max()
+            .unwrap_or(0)
+    };
+    let max_used_material_count = prototype_summaries
+        .iter()
+        .map(|summary| summary["used_material_count"].as_u64().unwrap())
+        .max()
+        .unwrap_or(0);
     ["mobile", "console"]
         .into_iter()
         .map(|profile| {
+            let profile_value = &manifest[profile];
             json!({
-                "profile": profile, "passed": true, "prototype_lod_count": 22,
-                "max_lod0_triangles": 120, "max_lod1_triangles": 80, "max_lod2_triangles": 40,
-                "lod0_triangle_budget": 120, "lod1_triangle_budget": 80, "lod2_triangle_budget": 40,
-                "max_used_material_count": 1, "material_slot_budget": 2,
+                "profile": profile, "passed": true, "prototype_lod_count": prototype_summaries.len(),
+                "max_lod0_triangles": max_lod(0), "max_lod1_triangles": max_lod(1), "max_lod2_triangles": max_lod(2),
+                "lod0_triangle_budget": profile_value["lod0_max_triangles"],
+                "lod1_triangle_budget": profile_value["lod1_max_triangles"],
+                "lod2_triangle_budget": profile_value["lod2_max_triangles"],
+                "max_used_material_count": max_used_material_count,
+                "material_slot_budget": profile_value["material_slots"],
                 "scatter_instance_count": 222, "max_chunk_instance_count": 9,
-                "max_instances_per_tile_budget": 300, "max_instances_per_chunk_budget": 20,
+                "max_instances_per_tile_budget": profile_value["max_instances_per_tile"],
+                "max_instances_per_chunk_budget": profile_value["max_instances_per_chunk"],
                 "triangle_budget_violation_count": 0, "material_slot_violation_count": 0,
                 "instance_budget_violation_count": 0
             })
@@ -1497,6 +1932,12 @@ fn add_prototype_target_fields(report: &mut Value, manifest: &Value, camel_case:
 
 fn midori_report(manifest: &Value, binary_files: &[String], package: &Path) -> Value {
     let (scatter_file_checksum, scatter_record_checksum) = scatter_checksums(package);
+    let scatter_json_chunks = scatter_summaries(package, "json", false);
+    let scatter_binary_summaries = scatter_summaries(package, "binary", false);
+    let scatter_binary_instances = scatter_binary_summaries
+        .iter()
+        .map(|summary| summary["instance_count"].as_u64().unwrap())
+        .sum::<u64>();
     let map_files = [
         "maps/height_u16.png",
         "maps/normal_yplus.png",
@@ -1508,28 +1949,19 @@ fn midori_report(manifest: &Value, binary_files: &[String], package: &Path) -> V
         "manifest": manifest,
         "map_files": map_files,
         "map_summaries": map_summaries(package),
-        "map_relationships": {
-            "normal_pair_pixels": 64, "normal_red_blue_mismatches": 0,
-            "normal_green_flip_mismatches": 0, "normal_green_flip_max_error": 0,
-            "grass_density_pixels": 64, "grass_density_mask_r_mismatches": 0
-        },
+        "map_relationships": map_relationships(package),
         "prototype_files": manifest["prototypes"].as_array().unwrap().iter().flat_map(|prototype| prototype["lods"].as_array().unwrap().iter().map(|lod| lod["file"].clone())).collect::<Vec<_>>(),
         "prototype_summaries": prototype_summaries(manifest, package),
-        "profile_budget_summaries": profile_budget_summaries(),
+        "profile_budget_summaries": profile_budget_summaries(manifest, package),
         "scatter_binary_files": binary_files,
-        "scatter_binary_instances": 222,
+        "scatter_binary_instances": scatter_binary_instances,
         "scatter_binary_file_checksum_xor": scatter_file_checksum,
         "scatter_binary_record_checksum_xor": scatter_record_checksum,
-        "scatter_json_chunks": scatter_summaries(package, "json", false),
-        "scatter_binary_summaries": scatter_summaries(package, "binary", false),
-        "scatter_parity": {
-            "json_chunk_count": 26, "binary_chunk_count": 26, "matching_chunk_count": 26,
-            "missing_binary_chunk_count": 0, "extra_binary_chunk_count": 0,
-            "instance_count_mismatch_count": 0, "bounds_mismatch_count": 0,
-            "record_checksum_mismatch_count": 0
-        },
+        "scatter_json_chunks": scatter_json_chunks,
+        "scatter_binary_summaries": scatter_binary_summaries,
+        "scatter_parity": scatter_parity(package, manifest),
         "material_recipe_summaries": material_recipe_summaries(package),
-        "engine_import_recipe_summaries": engine_recipe_summaries(manifest, package),
+        "engine_import_recipe_summaries": engine_recipe_summaries(package),
         "memory_footprint": manifest["memory_footprint"]
     });
     report

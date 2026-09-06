@@ -333,7 +333,7 @@ fn malformed_nested_scalars_and_recipe_collections_fail() {
 }
 
 #[test]
-fn missing_manifest_scalar_cannot_equal_missing_report_scalar() {
+fn missing_numeric_manifest_scalar_cannot_default_to_zero() {
     let fixture = SyntheticFullEvidence::create();
     edit_json(
         fixture
@@ -343,7 +343,7 @@ fn missing_manifest_scalar_cannot_equal_missing_report_scalar() {
             report["manifest"]["mobile"]
                 .as_object_mut()
                 .unwrap()
-                .remove("shadows");
+                .remove("density_scale");
         },
     );
     edit_json(
@@ -351,12 +351,59 @@ fn missing_manifest_scalar_cannot_equal_missing_report_scalar() {
             .validation_root()
             .join("forest_floor_unity_import_report.json"),
         |report| {
-            report.as_object_mut().unwrap().remove("mobileShadows");
+            report["mobileDensityScale"] = json!(0.0);
         },
     );
     assert_failed(
         &verify_engine_evidence(&fixture.options()),
-        "unity.mobile_shadows",
+        "unity.mobile_density",
+    );
+}
+
+#[test]
+fn exact_mixed_integer_and_float_above_two_to_the_53rd_power_compares_equal() {
+    let fixture = SyntheticFullEvidence::create();
+    let exact = 18_014_398_509_481_984u64;
+    edit_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_midori_validation_report.json"),
+        |report| {
+            report["manifest"]["prototypes"][0]["lods"][0]["vertex_count"] = json!(exact);
+        },
+    );
+    edit_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_midori_validation_report.json"),
+        |report| {
+            report["prototype_summaries"][0]["vertex_count"] = json!(exact as f64);
+        },
+    );
+    let report = verify_engine_evidence(&fixture.options());
+    assert_eq!(report.status, ReportStatus::Passed);
+    assert_eq!(
+        check_status(
+            &report,
+            "midori.prototype.rock_prototype_lod0.glb.vertex_count"
+        ),
+        CheckStatus::Passed
+    );
+}
+
+#[test]
+fn nonfinite_numeric_values_fail_closeness() {
+    let fixture = SyntheticFullEvidence::create();
+    set_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_unity_import_report.json"),
+        "/mobileDensityScale",
+        json!("inf"),
+    );
+    assert_failed(
+        &verify_engine_evidence(&fixture.options()),
+        "unity.mobile_density",
     );
 }
 
@@ -707,6 +754,11 @@ fn material_and_import_recipe_report_families_have_independent_mutations() {
 fn complete_fixture_contains_structural_payloads_and_derived_sizes() {
     let fixture = SyntheticFullEvidence::create();
     let package = fixture.validation_root().join("forest_floor");
+    let native_report = midori_core::validate_nature_package(&package)
+        .expect("synthetic package must parse through Midori's native format validator");
+    assert_eq!(native_report.prototype_summaries.len(), 22);
+    assert_eq!(native_report.scatter_json_instances, 222);
+    assert_eq!(native_report.scatter_binary_instances, 222);
     let manifest: Value =
         serde_json::from_slice(&fs::read(package.join("midori_nature.json")).unwrap()).unwrap();
     let maps = [
@@ -739,7 +791,9 @@ fn complete_fixture_contains_structural_payloads_and_derived_sizes() {
     }
     let scatter: Value =
         serde_json::from_slice(&fs::read(package.join("scatter/scatter.json")).unwrap()).unwrap();
-    let chunks = scatter["chunks"].as_array().unwrap();
+    let sets = scatter.as_array().unwrap();
+    assert_eq!(sets.len(), 1);
+    let chunks = sets[0]["chunks"].as_array().unwrap();
     assert_eq!(chunks.len(), 26);
     assert_eq!(
         chunks
