@@ -408,6 +408,146 @@ fn nonfinite_numeric_values_fail_closeness() {
 }
 
 #[test]
+fn unreal_manifest_float_scalars_cannot_default_to_zero() {
+    let cases = [
+        (
+            "tile_size",
+            "tile_size_meters",
+            "unreal.tile_size",
+            "unreal_dry_run.tile_size",
+            true,
+        ),
+        (
+            "density_scale",
+            "console_density_scale",
+            "unreal.console_density",
+            "unreal_dry_run.console_density",
+            false,
+        ),
+        (
+            "lod0_max_distance",
+            "console_lod0_max_distance_meters",
+            "unreal.console_lod0_distance_m",
+            "unreal_dry_run.console_lod0_distance_m",
+            false,
+        ),
+        (
+            "lod1_max_distance",
+            "console_lod1_max_distance_meters",
+            "unreal.console_lod1_distance_m",
+            "unreal_dry_run.console_lod1_distance_m",
+            false,
+        ),
+        (
+            "lod2_max_distance",
+            "console_lod2_max_distance_meters",
+            "unreal.console_lod2_distance_m",
+            "unreal_dry_run.console_lod2_distance_m",
+            false,
+        ),
+        (
+            "cull_start",
+            "console_cull_start_meters",
+            "unreal.console_cull_start_m",
+            "unreal_dry_run.console_cull_start_m",
+            false,
+        ),
+        (
+            "cull_end",
+            "console_cull_end_meters",
+            "unreal.console_cull_end_m",
+            "unreal_dry_run.console_cull_end_m",
+            false,
+        ),
+    ];
+    for (manifest_field, report_field, editor_check, dry_run_check, top_level) in cases {
+        for null_value in [false, true] {
+            let fixture = SyntheticFullEvidence::create();
+            edit_json(
+                fixture
+                    .validation_root()
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| {
+                    let target = if top_level {
+                        report["manifest"].as_object_mut().unwrap()
+                    } else {
+                        report["manifest"]["console"].as_object_mut().unwrap()
+                    };
+                    if null_value {
+                        target.insert(manifest_field.to_string(), Value::Null);
+                    } else {
+                        target.remove(manifest_field);
+                    }
+                },
+            );
+            for report_file in [
+                "forest_floor_unreal_editor_report.json",
+                "forest_floor_unreal_dry_run_report.json",
+            ] {
+                edit_json(fixture.validation_root().join(report_file), |report| {
+                    report[report_field] = json!(0.0);
+                });
+            }
+            let report = verify_engine_evidence(&fixture.options());
+            assert_failed(&report, editor_check);
+            assert_failed(&report, dry_run_check);
+        }
+    }
+}
+
+#[test]
+fn unreal_manifest_numeric_scalars_reject_wrong_types() {
+    let cases = [
+        (
+            "density_scale",
+            "console_density_scale",
+            "unreal.console_density",
+            "unreal_dry_run.console_density",
+        ),
+        (
+            "material_slots",
+            "console_material_slots",
+            "unreal.console_material_slots",
+            "unreal_dry_run.console_material_slots",
+        ),
+        (
+            "max_instances_per_tile",
+            "console_max_instances_per_tile",
+            "unreal.console_max_instances_per_tile",
+            "unreal_dry_run.console_max_instances_per_tile",
+        ),
+        (
+            "max_instances_per_chunk",
+            "console_max_instances_per_chunk",
+            "unreal.console_max_instances_per_chunk",
+            "unreal_dry_run.console_max_instances_per_chunk",
+        ),
+    ];
+    for (manifest_field, report_field, editor_check, dry_run_check) in cases {
+        let fixture = SyntheticFullEvidence::create();
+        edit_json(
+            fixture
+                .validation_root()
+                .join("forest_floor_midori_validation_report.json"),
+            |report| {
+                report["manifest"]["console"][manifest_field] = json!({});
+            },
+        );
+        for report_file in [
+            "forest_floor_unreal_editor_report.json",
+            "forest_floor_unreal_dry_run_report.json",
+        ] {
+            edit_json(fixture.validation_root().join(report_file), |report| {
+                report[report_field] = json!({});
+            });
+        }
+        let report = verify_engine_evidence(&fixture.options());
+        assert_failed(&report, editor_check);
+        assert_failed(&report, dry_run_check);
+    }
+}
+
+#[test]
 fn checked_accumulations_reject_overflow() {
     let fixture = SyntheticFullEvidence::create();
     edit_json(
