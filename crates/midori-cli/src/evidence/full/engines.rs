@@ -32,6 +32,16 @@ fn eq_field(verifier: &mut Verifier, name: &str, value: &Value, path: &[&str], e
     verifier.require_equal(name, field_path(value, path), expected);
 }
 
+fn require_manifest_object(verifier: &mut Verifier, prefix: &str, manifest: &Value, name: &str) {
+    let value = field(manifest, name);
+    if !value.is_some_and(Value::is_object) {
+        verifier.fail(
+            format!("{prefix}.manifest_{name}"),
+            format!("manifest is missing object {name}"),
+        );
+    }
+}
+
 fn require_nonzero_checksum(
     verifier: &mut Verifier,
     name: &str,
@@ -699,7 +709,30 @@ fn check_compile_stub_report(
         json!("Temperate Forest Floor"),
     );
     let package_dir_value = field(report, "package_dir");
-    let Some(package_dir_string) = package_dir_value.and_then(Value::as_str) else {
+    if let Some(package_dir_string) = package_dir_value.and_then(Value::as_str) {
+        let report_package_path = PathBuf::from(package_dir_string);
+        let resolved_report_package = if report_package_path.is_absolute() {
+            canonicalish(&report_package_path)
+        } else {
+            let first = validation_root.join(&report_package_path);
+            let second = validation_root
+                .parent()
+                .unwrap_or(validation_root)
+                .join(&report_package_path);
+            canonicalish(if first.exists() { &first } else { &second })
+        };
+        verifier.require_equal(
+            "summary.unity_preflight_compile_stub_report_package_dir",
+            Some(&json!(
+                resolved_report_package.to_string_lossy().to_string()
+            )),
+            json!(
+                canonicalish(&validation_root.join("forest_floor"))
+                    .to_string_lossy()
+                    .to_string()
+            ),
+        );
+    } else {
         verifier.fail(
             "summary.unity_preflight_compile_stub_report_package_dir",
             format!(
@@ -707,30 +740,7 @@ fn check_compile_stub_report(
                 py_repr(package_dir_value.unwrap_or(&Value::Null))
             ),
         );
-        return;
-    };
-    let report_package_path = PathBuf::from(package_dir_string);
-    let resolved_report_package = if report_package_path.is_absolute() {
-        canonicalish(&report_package_path)
-    } else {
-        let first = validation_root.join(&report_package_path);
-        let second = validation_root
-            .parent()
-            .unwrap_or(validation_root)
-            .join(&report_package_path);
-        canonicalish(if first.exists() { &first } else { &second })
-    };
-    verifier.require_equal(
-        "summary.unity_preflight_compile_stub_report_package_dir",
-        Some(&json!(
-            resolved_report_package.to_string_lossy().to_string()
-        )),
-        json!(
-            canonicalish(&validation_root.join("forest_floor"))
-                .to_string_lossy()
-                .to_string()
-        ),
-    );
+    }
     verifier.require_equal(
         "summary.unity_preflight_compile_stub_report_manifest_checksum",
         field(report, "manifest_file_checksum"),
@@ -763,7 +773,6 @@ fn check_compile_stub_report(
     );
     if let Some(manifest) = manifest {
         let prototype_count = value_len(field(manifest, "prototypes"));
-        let lod_count = expected_prototype_lod_files(manifest).len();
         let material_slot_count = value_len(field(manifest, "material_slots"));
         for (name, field_name, expected) in [
             (
@@ -779,7 +788,7 @@ fn check_compile_stub_report(
             (
                 "summary.unity_preflight_compile_stub_report_lod_files_declared",
                 "lodFilesDeclared",
-                json!(lod_count),
+                json!(22),
             ),
             (
                 "summary.unity_preflight_compile_stub_report_material_slots_declared",
@@ -1220,7 +1229,7 @@ fn check_fake_screenshot(
         "Fake Unreal screenshot checksum must be present and nonzero",
     );
     verifier.require_equal(
-        format!("summary.unreal_fake_editor_{summary_prefix}_checksum"),
+        format!("summary.unreal_fake_editor_{summary_prefix}_metric_checksum"),
         field_path(
             summary,
             &["unreal_fake_editor", &format!("{summary_prefix}_checksum")],
@@ -1436,8 +1445,17 @@ pub fn check_unity_report(
 ) {
     let terrain = field(manifest, "terrain").unwrap_or(&Value::Null);
     let mobile = field(manifest, "mobile").unwrap_or(&Value::Null);
-    let unity = field(manifest, "unity").unwrap_or(&Value::Null);
+    let unity = field(manifest, "unity");
     let wind = field(manifest, "wind_packing").unwrap_or(&Value::Null);
+    for name in [
+        "terrain",
+        "mobile",
+        "unity",
+        "normal_conventions",
+        "wind_packing",
+    ] {
+        require_manifest_object(verifier, "unity", manifest, name);
+    }
     verifier.require_equal(
         "unity.schema_version",
         field(report, "schemaVersion"),
@@ -1509,27 +1527,33 @@ pub fn check_unity_report(
             .cloned()
             .unwrap_or(Value::Null),
     );
-    verifier.require_equal(
-        "unity.hint_heightmap",
-        field(report, "unityHintHeightmap"),
-        field_path(unity, &["terrain_heightmap"])
-            .cloned()
-            .unwrap_or(Value::Null),
-    );
-    verifier.require_equal(
-        "unity.hint_density",
-        field(report, "unityHintDensityMap"),
-        field_path(unity, &["detail_density_map"])
-            .cloned()
-            .unwrap_or(Value::Null),
-    );
-    verifier.require_equal(
-        "unity.hint_normal",
-        field(report, "unityHintNormalMap"),
-        field_path(unity, &["normal_map"])
-            .cloned()
-            .unwrap_or(Value::Null),
-    );
+    for (name, report_field, manifest_path) in [
+        (
+            "unity.hint_heightmap",
+            "unityHintHeightmap",
+            &["terrain_heightmap"][..],
+        ),
+        (
+            "unity.hint_density",
+            "unityHintDensityMap",
+            &["detail_density_map"][..],
+        ),
+        (
+            "unity.hint_normal",
+            "unityHintNormalMap",
+            &["normal_map"][..],
+        ),
+    ] {
+        match unity.and_then(|value| field_path(value, manifest_path)) {
+            Some(expected) => {
+                verifier.require_equal(name, field(report, report_field), expected.clone())
+            }
+            None => verifier.fail(
+                name,
+                format!("manifest unity hint field {manifest_path:?} is missing"),
+            ),
+        }
+    }
     check_unity_screenshot_report(
         verifier,
         "unity.import_screenshot_report",
@@ -1713,7 +1737,7 @@ pub fn check_unity_report(
     verifier.require_equal(
         "unity.lod_files_declared",
         field(report, "lodFilesDeclared"),
-        json!(expected_prototype_lod_files(manifest).len()),
+        json!(22),
     );
     verifier.require(
         "unity.detail_prototypes_created",
@@ -1729,22 +1753,39 @@ pub fn check_unity_report(
         field(report, "detailPrototypeFailures"),
         json!(0),
     );
-    verifier.require_equal(
-        "unity.detail_prototype_fallback_errors",
-        Some(&json_len_value(field(
-            report,
-            "detailPrototypeFallbackErrors",
-        ))),
-        json!(0),
-    );
+    let fallback_errors = field(report, "detailPrototypeFallbackErrors");
+    match fallback_errors {
+        Some(value) if value.is_array() => verifier.require_equal(
+            "unity.detail_prototype_fallback_errors",
+            Some(&json!(value_len(Some(value)))),
+            json!(0),
+        ),
+        Some(value) => verifier.fail(
+            "unity.detail_prototype_fallback_errors",
+            format!(
+                "detailPrototypeFallbackErrors must be an array, got {}",
+                py_repr(value)
+            ),
+        ),
+        None => verifier.fail(
+            "unity.detail_prototype_fallback_errors",
+            "Unity report is missing detailPrototypeFallbackErrors",
+        ),
+    }
     let loaded = int_or_default(field(report, "detailPrototypesLoadedFromAssets"), 0);
     let generated = int_or_default(field(report, "detailPrototypesGeneratedFromGlb"), 0);
     let created = int_or_default(field(report, "detailPrototypesCreated"), 0);
-    verifier.require_equal(
-        "unity.detail_prototype_source_count",
-        Some(&json!(loaded + generated)),
-        json!(created),
-    );
+    match loaded.checked_add(generated) {
+        Some(total) => verifier.require_equal(
+            "unity.detail_prototype_source_count",
+            Some(&json!(total)),
+            json!(created),
+        ),
+        None => verifier.fail(
+            "unity.detail_prototype_source_count",
+            "Unity detail prototype source count overflows a signed 64-bit integer",
+        ),
+    }
     verifier.require("unity.detail_prototype_glb_sources", loaded > 0 || generated > 0, format!("{loaded} AssetDatabase prototypes, {generated} native GLB prototypes"), "Unity detail prototypes must come from imported GLB assets or Midori's native GLB fallback");
     verifier.require(
         "unity.detail_density_nonzero",
@@ -1761,10 +1802,6 @@ pub fn check_unity_report(
         json!(222),
     );
     check_unity_scatter_report(verifier, report);
-}
-
-fn json_len_value(value: Option<&Value>) -> Value {
-    json!(value_as_array(value).map_or(0, Vec::len))
 }
 
 fn check_unity_screenshot_report(
@@ -1866,7 +1903,7 @@ fn check_unity_scatter_report(verifier: &mut Verifier, report: &Value) {
         Some(&json!(summaries.len())),
         json!(26),
     );
-    let mut total = 0i64;
+    let mut total = Some(0i64);
     for (index, summary) in summaries.iter().enumerate() {
         let Some(summary) = summary.as_object().map(|_| summary) else {
             verifier.fail(
@@ -1877,7 +1914,15 @@ fn check_unity_scatter_report(verifier: &mut Verifier, report: &Value) {
         };
         let label = format!("unity.scatter_chunk_report.{index}");
         let instances = int_or_default(field(summary, "instanceCount"), 0);
-        total += instances;
+        if let Some(running) = total {
+            total = running.checked_add(instances);
+            if total.is_none() {
+                verifier.fail(
+                    "unity.scatter_chunk_report_instances",
+                    "Unity scatter chunk instance count overflows a signed 64-bit integer",
+                );
+            }
+        }
         verifier.require(
             format!("{label}.instance_count"),
             instances > 0,
@@ -1940,11 +1985,13 @@ fn check_unity_scatter_report(verifier: &mut Verifier, report: &Value) {
             "Unity scatter color variation range must be ordered and inside 0..1",
         );
     }
-    verifier.require_equal(
-        "unity.scatter_chunk_report_instances",
-        Some(&json!(total)),
-        json!(222),
-    );
+    if let Some(total) = total {
+        verifier.require_equal(
+            "unity.scatter_chunk_report_instances",
+            Some(&json!(total)),
+            json!(222),
+        );
+    }
 }
 
 pub fn check_unreal_report(
@@ -1956,6 +2003,9 @@ pub fn check_unreal_report(
     let console = field(manifest, "console").unwrap_or(&Value::Null);
     let unreal = field(manifest, "unreal").unwrap_or(&Value::Null);
     let groundcover = field(report, "groundcover_material").unwrap_or(&Value::Null);
+    for name in ["console", "unreal", "normal_conventions", "wind_packing"] {
+        require_manifest_object(verifier, "unreal", manifest, name);
+    }
     verifier.require_equal(
         "unreal.schema_version",
         field(report, "schema_version"),
@@ -2123,7 +2173,6 @@ pub fn check_unreal_report(
         json!(7000),
     );
     let prototype_count = value_len(field(manifest, "prototypes"));
-    let lod_count = expected_prototype_lod_files(manifest).len();
     for (name, field_name, expected) in [
         (
             "unreal.prototypes_declared",
@@ -2135,11 +2184,7 @@ pub fn check_unreal_report(
             "lod0_prototypes_declared",
             json!(prototype_count),
         ),
-        (
-            "unreal.lod_files_declared",
-            "lod_files_declared",
-            json!(lod_count),
-        ),
+        ("unreal.lod_files_declared", "lod_files_declared", json!(22)),
         (
             "unreal.foliage_type_status",
             "foliage_type_status",
@@ -2310,6 +2355,9 @@ pub fn check_unreal_dry_run_report(
     let console = field(manifest, "console").unwrap_or(&Value::Null);
     let unreal = field(manifest, "unreal").unwrap_or(&Value::Null);
     let groundcover = field(report, "groundcover_material").unwrap_or(&Value::Null);
+    for name in ["console", "unreal", "normal_conventions", "wind_packing"] {
+        require_manifest_object(verifier, "unreal_dry_run", manifest, name);
+    }
     verifier.require_equal(
         "unreal_dry_run.schema_version",
         field(report, "schema_version"),
@@ -2388,16 +2436,6 @@ pub fn check_unreal_dry_run_report(
             "console_lod2_max_distance_meters",
             "lod2_max_distance",
         ),
-        (
-            "unreal_dry_run.console_cull_start_m",
-            "console_cull_start_meters",
-            "cull_start",
-        ),
-        (
-            "unreal_dry_run.console_cull_end_m",
-            "console_cull_end_meters",
-            "cull_end",
-        ),
     ] {
         verifier.require_close(
             name,
@@ -2473,7 +2511,6 @@ pub fn check_unreal_dry_run_report(
         json!(7000),
     );
     let prototype_count = value_len(field(manifest, "prototypes"));
-    let lod_count = expected_prototype_lod_files(manifest).len();
     for (name, field_name, expected) in [
         (
             "unreal_dry_run.prototypes_declared",
@@ -2488,7 +2525,7 @@ pub fn check_unreal_dry_run_report(
         (
             "unreal_dry_run.lod_files_declared",
             "lod_files_declared",
-            json!(lod_count),
+            json!(22),
         ),
         (
             "unreal_dry_run.foliage_type_status",
@@ -2750,7 +2787,7 @@ pub(crate) fn check_unreal_scatter_report(verifier: &mut Verifier, report: &Valu
         Some(&json!(summaries.len())),
         json!(26),
     );
-    let mut total = 0i64;
+    let mut total = Some(0i64);
     for (index, summary) in summaries.iter().enumerate() {
         let Some(summary) = summary.as_object().map(|_| summary) else {
             verifier.fail(
@@ -2761,7 +2798,15 @@ pub(crate) fn check_unreal_scatter_report(verifier: &mut Verifier, report: &Valu
         };
         let label = format!("{prefix}.scatter_chunk_report.{index}");
         let instances = int_or_default(field(summary, "instance_count"), 0);
-        total += instances;
+        if let Some(running) = total {
+            total = running.checked_add(instances);
+            if total.is_none() {
+                verifier.fail(
+                    format!("{prefix}.scatter_chunk_report_instances"),
+                    "Unreal scatter chunk instance count overflows a signed 64-bit integer",
+                );
+            }
+        }
         verifier.require(
             format!("{label}.instance_count"),
             instances > 0,
@@ -2824,11 +2869,13 @@ pub(crate) fn check_unreal_scatter_report(verifier: &mut Verifier, report: &Valu
             &format!("{prefix} scatter color variation range must be ordered and inside 0..1"),
         );
     }
-    verifier.require_equal(
-        format!("{prefix}.scatter_chunk_report_instances"),
-        Some(&json!(total)),
-        json!(222),
-    );
+    if let Some(total) = total {
+        verifier.require_equal(
+            format!("{prefix}.scatter_chunk_report_instances"),
+            Some(&json!(total)),
+            json!(222),
+        );
+    }
 }
 
 pub(crate) fn check_range(

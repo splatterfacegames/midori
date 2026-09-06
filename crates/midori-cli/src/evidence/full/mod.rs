@@ -10,6 +10,7 @@ use engines::{
 };
 use package::check_midori_report;
 use png::check_png_artifact;
+use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 
@@ -91,6 +92,43 @@ where
     }
 }
 
+fn check_profile_notes(verifier: &mut Verifier, path: &Path) {
+    match fs::metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            verifier.extend(verify_profile_notes(path).checks);
+        }
+        Err(error) => verifier.fail(
+            "profile.notes",
+            format!("{path:?} cannot be inspected: {error}"),
+        ),
+        Ok(metadata) if !metadata.is_file() => {
+            verifier.fail("profile.notes", format!("{path:?} is not a regular file"));
+        }
+        Ok(metadata) if metadata.len() == 0 => {
+            verifier.extend(verify_profile_notes(path).checks);
+        }
+        Ok(_) => match catch_unwind(AssertUnwindSafe(|| verify_profile_notes(path))) {
+            Ok(report) => verifier.extend(report.checks),
+            Err(_) => verifier.fail(
+                "profile.notes",
+                "malformed profile notes triggered an internal verifier error",
+            ),
+        },
+    }
+}
+
+fn check_png_artifact_guarded(verifier: &mut Verifier, name: &str, path: &Path) {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        check_png_artifact(verifier, name, path)
+    }));
+    if result.is_err() {
+        verifier.fail(
+            name,
+            "malformed PNG evidence triggered an internal verifier error",
+        );
+    }
+}
+
 pub fn verify_engine_evidence(options: &FullEvidenceOptions) -> EvidenceReport {
     let mut verifier = Verifier::default();
     let package_dir = options.validation_root.join("forest_floor");
@@ -145,36 +183,28 @@ pub fn verify_engine_evidence(options: &FullEvidenceOptions) -> EvidenceReport {
         }
     }
 
-    check_png_artifact(
+    check_png_artifact_guarded(
         &mut verifier,
         "unity.import_screenshot",
         &options.unity_import_screenshot,
     );
-    check_png_artifact(
+    check_png_artifact_guarded(
         &mut verifier,
         "unity.density_screenshot",
         &options.unity_density_screenshot,
     );
-    check_png_artifact(
+    check_png_artifact_guarded(
         &mut verifier,
         "unreal.import_screenshot",
         &options.unreal_import_screenshot,
     );
-    check_png_artifact(
+    check_png_artifact_guarded(
         &mut verifier,
         "unreal.foliage_settings_screenshot",
         &options.unreal_foliage_settings_screenshot,
     );
 
-    match catch_unwind(AssertUnwindSafe(|| {
-        verify_profile_notes(&options.profile_notes)
-    })) {
-        Ok(report) => verifier.extend(report.checks),
-        Err(_) => verifier.fail(
-            "profile.notes",
-            "malformed profile notes triggered an internal verifier error",
-        ),
-    }
+    check_profile_notes(&mut verifier, &options.profile_notes);
     EvidenceReport::from_checks(verifier.into_checks())
 }
 

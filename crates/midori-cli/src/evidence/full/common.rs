@@ -70,7 +70,9 @@ impl Verifier {
         expected: Value,
     ) {
         let actual_value = actual.cloned().unwrap_or(Value::Null);
-        let ok = values_equal(&actual_value, &expected);
+        // A missing field is malformed evidence, even when another missing
+        // field would otherwise make both sides serialize as JSON null.
+        let ok = actual.is_some() && !expected.is_null() && values_equal(&actual_value, &expected);
         self.require(
             name,
             ok,
@@ -88,7 +90,10 @@ impl Verifier {
     ) {
         let name = name.into();
         let actual_float = actual.and_then(as_f64);
-        let ok = actual_float.is_some_and(|value| (value - expected).abs() <= tolerance);
+        let ok = actual_float.is_some_and(|value| {
+            let difference = (value - expected).abs();
+            difference <= tolerance.max(1e-9 * value.abs().max(expected.abs()))
+        });
         let actual_text = actual_float
             .map(|value| value.to_string())
             .unwrap_or_else(|| py_repr(actual.unwrap_or(&Value::Null)));
@@ -119,7 +124,7 @@ pub fn load_json(path: &Path) -> JsonLoad {
         Err(error) => return JsonLoad::Invalid(format!("{path:?} cannot be inspected: {error}")),
     };
     if !metadata.is_file() {
-        return JsonLoad::Missing;
+        return JsonLoad::Invalid(format!("{path:?} is not a regular file"));
     }
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
@@ -175,12 +180,45 @@ pub fn int_or_default(value: Option<&Value>, default: i64) -> i64 {
     match value {
         Value::Number(number) => number
             .as_i64()
-            .or_else(|| number.as_u64().and_then(|value| i64::try_from(value).ok()))
+            .or_else(|| {
+                number
+                    .as_u64()
+                    .map(|value| value.min(i64::MAX as u64) as i64)
+            })
             .or_else(|| number.as_f64().map(|value| value as i64))
             .unwrap_or(default),
-        Value::String(text) => text.parse::<i64>().unwrap_or(default),
+        Value::String(text) => text
+            .parse::<i64>()
+            .ok()
+            .or_else(|| {
+                text.parse::<u64>()
+                    .ok()
+                    .map(|value| value.min(i64::MAX as u64) as i64)
+            })
+            .unwrap_or(default),
         Value::Bool(value) => i64::from(*value),
         Value::Null | Value::Array(_) | Value::Object(_) => default,
+    }
+}
+
+pub fn integer_value(value: Option<&Value>) -> Option<i64> {
+    let value = value?;
+    match value {
+        Value::Number(number) => number
+            .as_i64()
+            .or_else(|| {
+                number
+                    .as_u64()
+                    .map(|value| value.min(i64::MAX as u64) as i64)
+            })
+            .or_else(|| number.as_f64().map(|value| value as i64)),
+        Value::String(text) => text.parse::<i64>().ok().or_else(|| {
+            text.parse::<u64>()
+                .ok()
+                .map(|value| value.min(i64::MAX as u64) as i64)
+        }),
+        Value::Bool(value) => Some(i64::from(*value)),
+        Value::Null | Value::Array(_) | Value::Object(_) => None,
     }
 }
 
@@ -302,9 +340,19 @@ pub fn expected_unreal_import_destinations(destination: &str, files: &[String]) 
         .iter()
         .map(|relative| {
             let normalized = relative.replace('\\', "/");
-            match normalized.rsplit_once('/') {
-                None => destination.to_string(),
-                Some((parent, _)) => format!("{destination}/{parent}"),
+            let mut components = Vec::new();
+            for component in normalized.split('/') {
+                match component {
+                    "" | "." => {}
+                    ".." => components.push(".."),
+                    value => components.push(value),
+                }
+            }
+            if components.len() <= 1 {
+                destination.to_string()
+            } else {
+                components.pop();
+                format!("{destination}/{}", components.join("/"))
             }
         })
         .collect()
@@ -352,7 +400,7 @@ pub fn expected_lod0_prototype_files(manifest: &Value) -> Vec<String> {
         for prototype in prototypes {
             if let Some(lods) = value_as_array(field(prototype, "lods")) {
                 for lod in lods {
-                    if int_or_default(field(lod, "index"), -1) == 0 {
+                    if field(lod, "index").is_some_and(is_numeric_zero) {
                         if let Some(text) = string_field(field(lod, "file")) {
                             if !text.is_empty() {
                                 result.push(text.to_string());
@@ -365,6 +413,14 @@ pub fn expected_lod0_prototype_files(manifest: &Value) -> Vec<String> {
     }
     result.sort();
     result
+}
+
+fn is_numeric_zero(value: &Value) -> bool {
+    match value {
+        Value::Number(number) => number.as_f64().is_some_and(|value| value == 0.0),
+        Value::Bool(value) => !value,
+        _ => false,
+    }
 }
 
 pub fn source_file_checksum_xor(package_dir: &Path, source_files: &[String]) -> io::Result<String> {
@@ -455,12 +511,15 @@ pub fn check_artifact(verifier: &mut Verifier, name: &str, path: &Path) {
         }
         Err(error) => verifier.fail(name, format!("{path:?} cannot be read: {error}")),
         Ok(metadata) if !metadata.is_file() => {
-            verifier.missing(name, format!("{path:?} is missing or empty"))
+            verifier.fail(name, format!("{path:?} is not a regular file"))
         }
         Ok(metadata) if metadata.len() == 0 => {
             verifier.missing(name, format!("{path:?} is missing or empty"))
         }
-        Ok(_) => verifier.pass(name, format!("{path:?} exists")),
+        Ok(_) => match fs::read(path) {
+            Ok(_) => verifier.pass(name, format!("{path:?} exists")),
+            Err(error) => verifier.fail(name, format!("{path:?} cannot be read: {error}")),
+        },
     }
 }
 
@@ -688,12 +747,52 @@ pub fn py_repr(value: &Value) -> String {
     }
 }
 
+fn numbers_equal(actual: &serde_json::Number, expected: &serde_json::Number) -> bool {
+    if actual.is_f64() != expected.is_f64() {
+        let (integer, floating) = if actual.is_f64() {
+            (expected, actual)
+        } else {
+            (actual, expected)
+        };
+        let integer_value = integer
+            .as_i64()
+            .map(|value| value as f64)
+            .or_else(|| integer.as_u64().map(|value| value as f64));
+        let Some(integer_value) = integer_value else {
+            return false;
+        };
+        if integer
+            .as_i64()
+            .is_some_and(|value| value.unsigned_abs() > (1u64 << 53))
+            || integer.as_u64().is_some_and(|value| value > (1u64 << 53))
+        {
+            return false;
+        }
+        return integer_value == floating.as_f64().unwrap_or(f64::NAN);
+    }
+    if !actual.is_f64() && !expected.is_f64() {
+        match (actual.as_i64(), expected.as_i64()) {
+            (Some(a), Some(b)) => return a == b,
+            _ => {}
+        }
+        match (actual.as_u64(), expected.as_u64()) {
+            (Some(a), Some(b)) => return a == b,
+            _ => {}
+        }
+        if let (Some(a), Some(b)) = (actual.as_i64(), expected.as_u64()) {
+            return a >= 0 && a as u64 == b;
+        }
+        if let (Some(a), Some(b)) = (actual.as_u64(), expected.as_i64()) {
+            return b >= 0 && a == b as u64;
+        }
+        return false;
+    }
+    actual.as_f64() == expected.as_f64()
+}
+
 pub fn values_equal(actual: &Value, expected: &Value) -> bool {
     match (actual, expected) {
-        (Value::Number(_), Value::Number(_)) => match (as_f64(actual), as_f64(expected)) {
-            (Some(a), Some(b)) => a == b,
-            _ => false,
-        },
+        (Value::Number(actual), Value::Number(expected)) => numbers_equal(actual, expected),
         (Value::Bool(_), Value::Number(_)) | (Value::Number(_), Value::Bool(_)) => {
             as_f64(actual) == as_f64(expected)
         }
