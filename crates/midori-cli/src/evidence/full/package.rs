@@ -382,6 +382,10 @@ pub fn check_material_recipes(
     }
 
     let Some(summaries) = value_as_array(field(report, "material_recipe_summaries")) else {
+        verifier.fail(
+            format!("{prefix}.material_recipe_summaries"),
+            "report is missing an array material_recipe_summaries",
+        );
         return;
     };
     verifier.require_equal(
@@ -597,6 +601,10 @@ pub fn check_engine_import_recipes(
     }
 
     let Some(summaries) = value_as_array(field(report, "engine_import_recipe_summaries")) else {
+        verifier.fail(
+            format!("{prefix}.engine_import_recipe_summaries"),
+            "report is missing an array engine_import_recipe_summaries",
+        );
         return;
     };
     verifier.require_equal(
@@ -970,12 +978,24 @@ pub fn check_midori_memory_footprint(verifier: &mut Verifier, report: &Value, ma
     let decoded_map_bytes = int_or_default(field(footprint, "decoded_map_bytes"), 0);
     let scatter_chunk_count = value_as_array(field_path(manifest, &["scatter", "binary_files"]))
         .map_or(0, Vec::len) as i64;
-    let scatter_instance_count = value_as_array(field_path(manifest, &["scatter", "binary_files"]))
+    let mut scatter_instance_count = Some(0i64);
+    for item in value_as_array(field_path(manifest, &["scatter", "binary_files"]))
         .into_iter()
         .flatten()
-        .map(|item| int_or_default(field(item, "instance_count"), 0))
-        .sum::<i64>();
-    let expected_total = [
+    {
+        if let Some(running) = scatter_instance_count {
+            scatter_instance_count =
+                running.checked_add(int_or_default(field(item, "instance_count"), 0));
+            if scatter_instance_count.is_none() {
+                verifier.fail(
+                    "midori.memory_footprint.scatter_instance_count",
+                    "scatter instance count overflows a signed 64-bit integer",
+                );
+            }
+        }
+    }
+    let mut expected_total = Some(0i64);
+    for field_name in [
         "encoded_map_bytes",
         "material_recipe_bytes",
         "engine_import_recipe_bytes",
@@ -983,10 +1003,17 @@ pub fn check_midori_memory_footprint(verifier: &mut Verifier, report: &Value, ma
         "prototype_mesh_bytes",
         "scatter_json_bytes",
         "scatter_binary_bytes",
-    ]
-    .into_iter()
-    .map(|field_name| int_or_default(field(footprint, field_name), 0))
-    .sum::<i64>();
+    ] {
+        if let Some(running) = expected_total {
+            expected_total = running.checked_add(int_or_default(field(footprint, field_name), 0));
+            if expected_total.is_none() {
+                verifier.fail(
+                    "midori.memory_footprint.total_payload_sum",
+                    "total payload bytes overflow a signed 64-bit integer",
+                );
+            }
+        }
+    }
     verifier.require_equal(
         "midori.memory_footprint.map_pixels",
         Some(&json!(map_pixel_count)),
@@ -1002,31 +1029,45 @@ pub fn check_midori_memory_footprint(verifier: &mut Verifier, report: &Value, ma
         field(footprint, "scatter_binary_header_bytes"),
         json!(scatter_chunk_count.saturating_mul(16)),
     );
-    verifier.require_equal(
-        "midori.memory_footprint.scatter_binary_record_bytes",
-        field(footprint, "scatter_binary_record_bytes"),
-        json!(scatter_instance_count.saturating_mul(32)),
-    );
-    let scatter_total =
-        int_or_default(field(footprint, "scatter_binary_header_bytes"), 0).saturating_add(
-            int_or_default(field(footprint, "scatter_binary_record_bytes"), 0),
+    if let Some(scatter_instance_count) = scatter_instance_count {
+        match scatter_instance_count.checked_mul(32) {
+            Some(expected_record_bytes) => verifier.require_equal(
+                "midori.memory_footprint.scatter_binary_record_bytes",
+                field(footprint, "scatter_binary_record_bytes"),
+                json!(expected_record_bytes),
+            ),
+            None => verifier.fail(
+                "midori.memory_footprint.scatter_binary_record_bytes",
+                "scatter record bytes overflow a signed 64-bit integer",
+            ),
+        }
+    }
+    match int_or_default(field(footprint, "scatter_binary_header_bytes"), 0).checked_add(
+        int_or_default(field(footprint, "scatter_binary_record_bytes"), 0),
+    ) {
+        Some(scatter_total) => verifier.require_equal(
+            "midori.memory_footprint.scatter_binary_total",
+            Some(&json!(int_or_default(
+                field(footprint, "scatter_binary_bytes"),
+                0
+            ))),
+            json!(scatter_total),
+        ),
+        None => verifier.fail(
+            "midori.memory_footprint.scatter_binary_total",
+            "scatter binary bytes overflow a signed 64-bit integer",
+        ),
+    }
+    if let Some(expected_total) = expected_total {
+        verifier.require_equal(
+            "midori.memory_footprint.total_payload",
+            Some(&json!(int_or_default(
+                field(footprint, "total_payload_bytes"),
+                0
+            ))),
+            json!(expected_total),
         );
-    verifier.require_equal(
-        "midori.memory_footprint.scatter_binary_total",
-        Some(&json!(int_or_default(
-            field(footprint, "scatter_binary_bytes"),
-            0
-        ))),
-        json!(scatter_total),
-    );
-    verifier.require_equal(
-        "midori.memory_footprint.total_payload",
-        Some(&json!(int_or_default(
-            field(footprint, "total_payload_bytes"),
-            0
-        ))),
-        json!(expected_total),
-    );
+    }
     for field_name in [
         "encoded_map_bytes",
         "material_recipe_bytes",
@@ -1139,31 +1180,61 @@ pub fn check_midori_map_summaries(verifier: &mut Verifier, report: &Value, manif
                 );
                 continue;
             };
+            let Some(minimum_value) = integer_value(Some(minimum)) else {
+                verifier.fail(
+                    format!("midori.map.{file_name}.channel_{channel}_varies"),
+                    "channel minimum must be a scalar integer",
+                );
+                continue;
+            };
+            let Some(maximum_value) = integer_value(Some(maximum)) else {
+                verifier.fail(
+                    format!("midori.map.{file_name}.channel_{channel}_varies"),
+                    "channel maximum must be a scalar integer",
+                );
+                continue;
+            };
             verifier.require(
                 format!("midori.map.{file_name}.channel_{channel}_varies"),
-                int_or_default(Some(maximum), 0) > int_or_default(Some(minimum), 0),
+                maximum_value > minimum_value,
                 format!("{}..{}", py_string(minimum), py_string(maximum)),
                 format!("channel {channel} must have nontrivial range"),
             );
         }
         if !varying_any_channels.is_empty() {
             let mut varies = false;
+            let mut valid = true;
             let mut ranges = Vec::new();
             for channel in *varying_any_channels {
-                if let (Some(minimum), Some(maximum)) =
+                let (Some(minimum), Some(maximum)) =
                     (channel_min.get(*channel), channel_max.get(*channel))
-                {
-                    ranges.push(format!(
-                        "{channel}:{}..{}",
-                        py_string(minimum),
-                        py_string(maximum)
-                    ));
-                    varies |= int_or_default(Some(maximum), 0) > int_or_default(Some(minimum), 0);
+                else {
+                    valid = false;
+                    ranges.push(format!("{channel}:missing range"));
+                    continue;
+                };
+                match (integer_value(Some(minimum)), integer_value(Some(maximum))) {
+                    (Some(minimum_value), Some(maximum_value)) => {
+                        ranges.push(format!(
+                            "{channel}:{}..{}",
+                            py_string(minimum),
+                            py_string(maximum)
+                        ));
+                        varies |= maximum_value > minimum_value;
+                    }
+                    _ => {
+                        valid = false;
+                        ranges.push(format!(
+                            "{channel}:invalid scalar range {}..{}",
+                            py_string(minimum),
+                            py_string(maximum)
+                        ));
+                    }
                 }
             }
             verifier.require(
                 format!("midori.map.{file_name}.normal_variation"),
-                varies,
+                valid && varies,
                 ranges.join(", "),
                 "normal map must have nontrivial channel variation",
             );

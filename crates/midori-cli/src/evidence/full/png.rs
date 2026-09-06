@@ -1,7 +1,6 @@
-use super::common::{MIN_SCREENSHOT_LUMINANCE_RANGE, MIN_SCREENSHOT_SIZE, Verifier, file_nonempty};
-use flate2::read::ZlibDecoder;
+use super::common::{MIN_SCREENSHOT_LUMINANCE_RANGE, MIN_SCREENSHOT_SIZE, Verifier};
+use flate2::{Decompress, FlushDecompress, Status};
 use std::fs;
-use std::io::Read;
 use std::path::Path;
 
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
@@ -184,15 +183,20 @@ pub fn png_luminance_stats(path: &Path) -> Result<(u32, u32, u64), PngError> {
     let row_size = width
         .checked_mul(channels)
         .ok_or_else(|| error("PNG row size overflows"))?;
-    let mut decoder = ZlibDecoder::new(idat.as_slice());
-    let mut raw = Vec::new();
-    decoder
-        .read_to_end(&mut raw)
-        .map_err(|cause| error(format!("invalid PNG image data: {cause}")))?;
     let expected_size = row_size
         .checked_add(1)
         .and_then(|size| size.checked_mul(height))
         .ok_or_else(|| error("PNG image size overflows"))?;
+    let mut decoder = Decompress::new(true);
+    let mut raw = Vec::new();
+    raw.try_reserve(expected_size)
+        .map_err(|cause| error(format!("PNG image data cannot be allocated: {cause:?}")))?;
+    let status = decoder
+        .decompress_vec(&idat, &mut raw, FlushDecompress::Finish)
+        .map_err(|cause| error(format!("invalid PNG image data: {cause}")))?;
+    if status != Status::StreamEnd {
+        return Err(error("incomplete PNG zlib stream"));
+    }
     if raw.len() < expected_size {
         return Err(error(format!(
             "truncated PNG image data: {} bytes, expected {expected_size}",
@@ -241,13 +245,27 @@ pub fn png_luminance_stats(path: &Path) -> Result<(u32, u32, u64), PngError> {
 }
 
 pub fn check_png_artifact(verifier: &mut Verifier, name: &str, path: &Path) {
-    if !file_nonempty(path) {
-        match fs::metadata(path) {
-            Ok(metadata) if !metadata.is_file() => {
-                verifier.missing(name, format!("{path:?} is missing or empty"))
-            }
-            _ => verifier.missing(name, format!("{path:?} is missing or empty")),
+    match fs::metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            verifier.missing(name, format!("{path:?} is missing or empty"));
+            return;
         }
+        Err(error) => {
+            verifier.fail(name, format!("{path:?} cannot be inspected: {error}"));
+            return;
+        }
+        Ok(metadata) if !metadata.is_file() => {
+            verifier.fail(name, format!("{path:?} is not a regular file"));
+            return;
+        }
+        Ok(metadata) if metadata.len() == 0 => {
+            verifier.missing(name, format!("{path:?} is missing or empty"));
+            return;
+        }
+        Ok(_) => {}
+    }
+    if let Err(error) = fs::read(path) {
+        verifier.fail(name, format!("{path:?} cannot be read: {error}"));
         return;
     }
     let Some((width, height)) = png_dimensions(path) else {

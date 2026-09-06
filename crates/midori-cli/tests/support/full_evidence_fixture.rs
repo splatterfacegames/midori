@@ -15,11 +15,14 @@ pub enum Mutation {
     PngContent,
     PngFilter,
     PngDecompression,
+    PngIncompleteZlib,
     PrototypeAttribute,
     MapRelationship,
     ScatterParity,
     ScatterRange,
     MaterialRecipe,
+    MaterialParameter,
+    EngineImportRecipe,
     SurfaceOverlay,
     PrototypeTargets,
     ProfileBudget,
@@ -47,29 +50,16 @@ impl SyntheticFullEvidence {
         for directory in ["maps", "scatter", "prototypes", "materials", "engines"] {
             fs::create_dir_all(package.join(directory)).unwrap();
         }
-        let manifest = manifest();
+        let mut manifest = manifest();
         write_json(&package.join("midori_nature.json"), &manifest);
-        write_bytes(&package.join("preview_tile.glb"), b"synthetic-preview-glb");
-        for name in [
-            "height_u16.png",
-            "normal_yplus.png",
-            "normal_yminus.png",
-            "masks_rgba.png",
-            "grass_density.png",
-        ] {
-            write_bytes(
-                &package.join("maps").join(name),
-                format!("synthetic-{name}").as_bytes(),
-            );
-        }
-        write_json(
-            &package.join("scatter/scatter.json"),
-            &json!({"chunks": scatter_summaries("json", false)}),
-        );
+        write_glb(&package.join("preview_tile.glb"));
+        write_maps(&package);
+        let records = scatter_records();
+        write_scatter_json(&package.join("scatter/scatter.json"), &records);
         for prototype in manifest["prototypes"].as_array().unwrap() {
             for lod in prototype["lods"].as_array().unwrap() {
                 let file = lod["file"].as_str().unwrap();
-                write_bytes(&package.join(file), file.as_bytes());
+                write_glb(&package.join(file));
             }
         }
         for file in [
@@ -78,42 +68,71 @@ impl SyntheticFullEvidence {
             "engines/unity_import.recipe.json",
             "engines/unreal_import.recipe.json",
         ] {
-            write_bytes(&package.join(file), file.as_bytes());
+            write_recipe(&package.join(file), file);
         }
         let mut binary_files = Vec::new();
         for index in 0..26 {
             let file = format!("scatter/chunk_{index:02}.bin");
-            write_bytes(&package.join(&file), file.as_bytes());
+            write_scatter_binary(&package.join(&file), scatter_count(index) as u32, index);
             binary_files.push(file);
         }
+        manifest["memory_footprint"] = memory_footprint(&package, &manifest);
+        write_json(&package.join("midori_nature.json"), &manifest);
         write_scaffolds(&validation);
+        let screenshots = validation.join("screenshots");
+        write_png(&screenshots.join("unity_import.png"), 256, 256);
+        write_png(&screenshots.join("unity_density.png"), 256, 256);
+        write_png(&screenshots.join("unreal_import.png"), 256, 256);
+        write_png(&screenshots.join("unreal_foliage.png"), 256, 256);
         let unity_source_files = source_files(&manifest, "unity_yplus_file");
         let unreal_source_files = source_files(&manifest, "unreal_yminus_file");
         let manifest_checksum = fnv_hex(&fs::read(package.join("midori_nature.json")).unwrap());
         let unity_source_checksum = source_xor(&package, &unity_source_files);
         let unreal_source_checksum = source_xor(&package, &unreal_source_files);
-        let midori = midori_report(&manifest, &binary_files);
+        let midori = midori_report(&manifest, &binary_files, &package);
         let summary = summary(
             &manifest,
             &validation,
             &manifest_checksum,
             &unity_source_checksum,
             &unreal_source_checksum,
+            &package,
         );
         let compile_stub = compile_stub_report(
             &manifest,
             &validation,
             &manifest_checksum,
             &unity_source_checksum,
+            &package,
         );
-        let fake_editor = fake_editor_report(&manifest_checksum, &unreal_source_checksum);
-        let unity = unity_report(&manifest, &manifest_checksum, &unity_source_checksum);
-        let dry_run = unreal_report(&manifest, &manifest_checksum, &unreal_source_checksum, true);
+        let fake_editor = fake_editor_report(
+            &manifest_checksum,
+            &unreal_source_checksum,
+            &package,
+            &validation,
+        );
+        let unity = unity_report(
+            &manifest,
+            &manifest_checksum,
+            &unity_source_checksum,
+            &package,
+            &validation,
+        );
+        let dry_run = unreal_report(
+            &manifest,
+            &manifest_checksum,
+            &unreal_source_checksum,
+            true,
+            &package,
+            &validation,
+        );
         let unreal = unreal_report(
             &manifest,
             &manifest_checksum,
             &unreal_source_checksum,
             false,
+            &package,
+            &validation,
         );
         write_json(
             &validation.join("forest_floor_midori_validation_report.json"),
@@ -140,11 +159,6 @@ impl SyntheticFullEvidence {
             &validation.join("forest_floor_unreal_editor_report.json"),
             &unreal,
         );
-        let screenshots = validation.join("screenshots");
-        write_png(&screenshots.join("unity_import.png"), 256, 256);
-        write_png(&screenshots.join("unity_density.png"), 256, 256);
-        write_png(&screenshots.join("unreal_import.png"), 256, 256);
-        write_png(&screenshots.join("unreal_foliage.png"), 256, 256);
         fs::write(validation.join("profile-notes.md"), profile_notes()).unwrap();
         Self {
             _root: root,
@@ -182,6 +196,56 @@ impl SyntheticFullEvidence {
         }
     }
 
+    pub fn mutate_destination_dot(&self) {
+        let dot_heightmap = "./maps/height_u16.png";
+        edit_json(
+            self.validation
+                .join("forest_floor_midori_validation_report.json"),
+            |report| {
+                report["manifest"]["terrain"]["heightmap_file"] = json!(dot_heightmap);
+            },
+        );
+        edit_json(
+            self.validation
+                .join("forest_floor_unity_import_report.json"),
+            |report| {
+                report["heightmapFile"] = json!(dot_heightmap);
+                replace_in_value(
+                    &mut report["sourceFiles"],
+                    "maps/height_u16.png",
+                    dot_heightmap,
+                );
+                sort_value_strings(&mut report["sourceFiles"]);
+            },
+        );
+        for report_file in [
+            "forest_floor_unreal_dry_run_report.json",
+            "forest_floor_unreal_editor_report.json",
+        ] {
+            edit_json(self.validation.join(report_file), |report| {
+                for field_name in ["imported_files", "import_task_files", "source_files"] {
+                    replace_in_value(
+                        &mut report[field_name],
+                        "maps/height_u16.png",
+                        dot_heightmap,
+                    );
+                    sort_value_strings(&mut report[field_name]);
+                }
+                replace_in_value(
+                    &mut report["imported_map_files"],
+                    "maps/height_u16.png",
+                    dot_heightmap,
+                );
+                replace_in_value(
+                    &mut report["import_tasks"],
+                    "maps/height_u16.png",
+                    dot_heightmap,
+                );
+                sort_value_objects_by_string(&mut report["import_tasks"], "file");
+            });
+        }
+    }
+
     pub fn mutate(&self, mutation: Mutation) {
         match mutation {
             Mutation::MidoriIdentity => edit_json(
@@ -215,6 +279,11 @@ impl SyntheticFullEvidence {
                 png_with_bad_decompression(),
             )
             .unwrap(),
+            Mutation::PngIncompleteZlib => fs::write(
+                self.validation.join("screenshots/unity_import.png"),
+                png_with_incomplete_zlib(),
+            )
+            .unwrap(),
             Mutation::PrototypeAttribute => edit_json(
                 self.validation
                     .join("forest_floor_midori_validation_report.json"),
@@ -239,6 +308,22 @@ impl SyntheticFullEvidence {
                 self.validation
                     .join("forest_floor_midori_validation_report.json"),
                 |report| report["manifest"]["material_recipes"][0]["engine_targets"] = json!([]),
+            ),
+            Mutation::MaterialParameter => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| {
+                    report["manifest"]["material_parameters"][0]["parameters"][0]["semantic"] =
+                        json!("wrong_semantic");
+                },
+            ),
+            Mutation::EngineImportRecipe => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| {
+                    report["manifest"]["engine_import_recipes"][0]["profile"] =
+                        json!("wrong_profile");
+                },
             ),
             Mutation::SurfaceOverlay => edit_json(
                 self.validation
@@ -308,6 +393,352 @@ fn write_bytes(path: &Path, bytes: &[u8]) {
     }
     fs::write(path, bytes).unwrap();
 }
+
+fn write_maps(package: &Path) {
+    let mut height = Vec::with_capacity(8 * 8 * 2);
+    let mut density = Vec::with_capacity(8 * 8);
+    let mut normal_yplus = Vec::with_capacity(8 * 8 * 3);
+    let mut normal_yminus = Vec::with_capacity(8 * 8 * 3);
+    let mut masks = Vec::with_capacity(8 * 8 * 4);
+    for y in 0..8u16 {
+        for x in 0..8u16 {
+            let value = x * 2048 + y * 1024;
+            height.extend(value.to_be_bytes());
+            // Keep the density map's authored red channel identical to the
+            // mask's R channel so the report's independently derived
+            // relationship summary is true for the bytes on disk.
+            density.push((x * 31) as u8);
+            normal_yplus.extend_from_slice(&[
+                (x * 16 + 16) as u8,
+                (y * 16 + 16) as u8,
+                ((x + y) * 16 + 16) as u8,
+            ]);
+            normal_yminus.extend_from_slice(&[
+                (x * 16 + 16) as u8,
+                255u16.saturating_sub(y * 16 + 16) as u8,
+                ((x + y) * 16 + 16) as u8,
+            ]);
+            masks.extend_from_slice(&[(x * 31) as u8, (y * 31) as u8, ((x + y) * 15) as u8, 255]);
+        }
+    }
+    write_png_encoded(
+        &package.join("maps/height_u16.png"),
+        8,
+        8,
+        png::ColorType::Grayscale,
+        png::BitDepth::Sixteen,
+        &height,
+    );
+    write_png_encoded(
+        &package.join("maps/normal_yplus.png"),
+        8,
+        8,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &normal_yplus,
+    );
+    write_png_encoded(
+        &package.join("maps/normal_yminus.png"),
+        8,
+        8,
+        png::ColorType::Rgb,
+        png::BitDepth::Eight,
+        &normal_yminus,
+    );
+    write_png_encoded(
+        &package.join("maps/masks_rgba.png"),
+        8,
+        8,
+        png::ColorType::Rgba,
+        png::BitDepth::Eight,
+        &masks,
+    );
+    write_png_encoded(
+        &package.join("maps/grass_density.png"),
+        8,
+        8,
+        png::ColorType::Grayscale,
+        png::BitDepth::Eight,
+        &density,
+    );
+}
+
+fn write_png_encoded(
+    path: &Path,
+    width: u32,
+    height: u32,
+    color: png::ColorType,
+    depth: png::BitDepth,
+    data: &[u8],
+) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let file = fs::File::create(path).unwrap();
+    let mut encoder = png::Encoder::new(file, width, height);
+    encoder.set_color(color);
+    encoder.set_depth(depth);
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(data).unwrap();
+}
+
+fn write_glb(path: &Path) {
+    let mut binary = Vec::new();
+    let mut push_f32 = |value: f32| binary.extend(value.to_le_bytes());
+    for values in [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]] {
+        for value in values {
+            push_f32(value);
+        }
+    }
+    for _ in 0..3 {
+        for value in [0.0, 1.0, 0.0] {
+            push_f32(value);
+        }
+    }
+    for _ in 0..3 {
+        for value in [1.0, 0.0, 0.0, 1.0] {
+            push_f32(value);
+        }
+    }
+    for _ in 0..3 {
+        for value in [0.0, 0.0] {
+            push_f32(value);
+        }
+    }
+    for _ in 0..3 {
+        for value in [0.0, 1.0] {
+            push_f32(value);
+        }
+    }
+    for _ in 0..3 {
+        for value in [1.0, 1.0, 1.0, 1.0] {
+            push_f32(value);
+        }
+    }
+    for value in [0u16, 1, 2] {
+        binary.extend(value.to_le_bytes());
+    }
+    while binary.len() % 4 != 0 {
+        binary.push(0);
+    }
+    let json_chunk = json!({
+        "asset": {"version": "2.0"},
+        "scene": 0,
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"mesh": 0}],
+        "meshes": [{"primitives": [{
+            "attributes": {
+                "POSITION": 0, "NORMAL": 1, "TANGENT": 2,
+                "TEXCOORD_0": 3, "TEXCOORD_1": 4, "COLOR_0": 5
+            },
+            "indices": 6, "material": 0
+        }]}],
+        "materials": [{"pbrMetallicRoughness": {}}],
+        "buffers": [{"byteLength": binary.len()}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36, "target": 34962},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 36, "target": 34962},
+            {"buffer": 0, "byteOffset": 72, "byteLength": 48, "target": 34962},
+            {"buffer": 0, "byteOffset": 120, "byteLength": 24, "target": 34962},
+            {"buffer": 0, "byteOffset": 144, "byteLength": 24, "target": 34962},
+            {"buffer": 0, "byteOffset": 168, "byteLength": 48, "target": 34962},
+            {"buffer": 0, "byteOffset": 216, "byteLength": 6, "target": 34963}
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC4"},
+            {"bufferView": 3, "componentType": 5126, "count": 3, "type": "VEC2"},
+            {"bufferView": 4, "componentType": 5126, "count": 3, "type": "VEC2"},
+            {"bufferView": 5, "componentType": 5126, "count": 3, "type": "VEC4"},
+            {"bufferView": 6, "componentType": 5123, "count": 3, "type": "SCALAR"}
+        ]
+    });
+    let mut json_bytes = serde_json::to_vec(&json_chunk).unwrap();
+    while json_bytes.len() % 4 != 0 {
+        json_bytes.push(b' ');
+    }
+    let total_length = 12 + 8 + json_bytes.len() + 8 + binary.len();
+    let mut output = Vec::with_capacity(total_length);
+    output.extend_from_slice(b"glTF");
+    output.extend(2u32.to_le_bytes());
+    output.extend((total_length as u32).to_le_bytes());
+    output.extend((json_bytes.len() as u32).to_le_bytes());
+    output.extend_from_slice(b"JSON");
+    output.extend(json_bytes);
+    output.extend((binary.len() as u32).to_le_bytes());
+    output.extend_from_slice(b"BIN\0");
+    output.extend(binary);
+    write_bytes(path, &output);
+}
+
+fn write_recipe(path: &Path, file: &str) {
+    let value = if file.contains("terrain_surface") {
+        json!({
+            "schema_version": 1,
+            "material_slot": "terrain_surface",
+            "required_textures": ["maps/masks_rgba.png"],
+            "surface_overlays": ["moss", "wetness", "cracks"],
+            "engine_targets": ["unity_terrain_material", "unreal_landscape_material"]
+        })
+    } else if file.contains("groundcover_foliage") {
+        json!({
+            "schema_version": 1,
+            "material_slot": "groundcover_foliage",
+            "required_vertex_streams": ["TEXCOORD_1.x wind", "COLOR_0.y color"],
+            "engine_targets": ["unity_detail_mesh_material", "unreal_static_mesh_foliage_material"]
+        })
+    } else if file.contains("unity_import") {
+        json!({
+            "schema_version": 1,
+            "engine": "unity",
+            "profile": "mobile",
+            "expected_systems": ["Unity TerrainData", "GPU-instanced terrain detail mesh prefabs"]
+        })
+    } else {
+        json!({
+            "schema_version": 1,
+            "engine": "unreal",
+            "profile": "console",
+            "expected_systems": ["Unreal Landscape", "Static Mesh Foliage"]
+        })
+    };
+    write_json(path, &value);
+}
+
+fn scatter_records() -> Vec<Vec<[f32; 8]>> {
+    (0..26)
+        .map(|chunk| {
+            (0..scatter_count(chunk) as usize)
+                .map(|index| {
+                    [
+                        chunk as f32 + 0.25 + index as f32 * 0.01,
+                        0.5 + index as f32 * 0.01,
+                        0.25 + index as f32 * 0.01,
+                        (index as f32) * 0.1,
+                        0.8 + index as f32 * 0.01,
+                        0.9 + index as f32 * 0.01,
+                        (index as f32) * 0.05,
+                        0.2 + index as f32 * 0.01,
+                    ]
+                })
+                .collect()
+        })
+        .collect()
+}
+
+fn write_scatter_json(path: &Path, records: &[Vec<[f32; 8]>]) {
+    let chunks = records
+        .iter()
+        .enumerate()
+        .map(|(index, records)| {
+            json!({
+                "chunk_index": index,
+                "file": format!("scatter/chunk_{index:02}.bin"),
+                "instances": records.iter().map(|record| json!({
+                    "position": [record[0], record[1], record[2]],
+                    "yaw": record[3], "height": record[4], "width": record[5],
+                    "phase": record[6], "color_variation": record[7]
+                })).collect::<Vec<_>>()
+            })
+        })
+        .collect::<Vec<_>>();
+    write_json(path, &json!({"schema_version": 1, "chunks": chunks}));
+}
+
+fn write_scatter_binary(path: &Path, count: u32, chunk: usize) {
+    let records = scatter_records();
+    let records = &records[chunk];
+    assert_eq!(records.len(), count as usize);
+    let mut bytes = Vec::with_capacity(16 + records.len() * 32);
+    bytes.extend_from_slice(b"MDSI");
+    bytes.extend(1u32.to_le_bytes());
+    bytes.extend(32u32.to_le_bytes());
+    bytes.extend(count.to_le_bytes());
+    for record in records {
+        for value in record {
+            bytes.extend(value.to_le_bytes());
+        }
+    }
+    write_bytes(path, &bytes);
+}
+
+fn memory_footprint(package: &Path, manifest: &Value) -> Value {
+    let map_files = [
+        "maps/height_u16.png",
+        "maps/normal_yplus.png",
+        "maps/normal_yminus.png",
+        "maps/masks_rgba.png",
+        "maps/grass_density.png",
+    ];
+    let encoded_map_bytes = map_files
+        .iter()
+        .map(|file| fs::metadata(package.join(file)).unwrap().len())
+        .sum::<u64>();
+    let material_recipe_bytes = [
+        "materials/terrain_surface.recipe.json",
+        "materials/groundcover_foliage.recipe.json",
+    ]
+    .iter()
+    .map(|file| fs::metadata(package.join(file)).unwrap().len())
+    .sum::<u64>();
+    let engine_import_recipe_bytes = [
+        "engines/unity_import.recipe.json",
+        "engines/unreal_import.recipe.json",
+    ]
+    .iter()
+    .map(|file| fs::metadata(package.join(file)).unwrap().len())
+    .sum::<u64>();
+    let prototype_mesh_bytes = manifest["prototypes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|prototype| prototype["lods"].as_array().unwrap())
+        .map(|lod| {
+            fs::metadata(package.join(lod["file"].as_str().unwrap()))
+                .unwrap()
+                .len()
+        })
+        .sum::<u64>();
+    let scatter_binary_bytes = manifest["scatter"]["binary_files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| {
+            fs::metadata(package.join(item["file"].as_str().unwrap()))
+                .unwrap()
+                .len()
+        })
+        .sum::<u64>();
+    let values = [
+        encoded_map_bytes,
+        material_recipe_bytes,
+        engine_import_recipe_bytes,
+        fs::metadata(package.join("preview_tile.glb"))
+            .unwrap()
+            .len(),
+        prototype_mesh_bytes,
+        fs::metadata(package.join("scatter/scatter.json"))
+            .unwrap()
+            .len(),
+        scatter_binary_bytes,
+    ];
+    let total_payload_bytes = values.iter().sum::<u64>();
+    json!({
+        "map_pixel_count": 64,
+        "decoded_map_bytes": 832,
+        "encoded_map_bytes": encoded_map_bytes,
+        "material_recipe_bytes": material_recipe_bytes,
+        "engine_import_recipe_bytes": engine_import_recipe_bytes,
+        "preview_mesh_bytes": fs::metadata(package.join("preview_tile.glb")).unwrap().len(),
+        "prototype_mesh_bytes": prototype_mesh_bytes,
+        "scatter_json_bytes": fs::metadata(package.join("scatter/scatter.json")).unwrap().len(),
+        "scatter_binary_header_bytes": 26 * 16,
+        "scatter_binary_record_bytes": 222 * 32,
+        "scatter_binary_bytes": scatter_binary_bytes,
+        "total_payload_bytes": total_payload_bytes,
+    })
+}
 fn write_json(path: &Path, value: &Value) {
     write_bytes(path, &serde_json::to_vec_pretty(value).unwrap());
 }
@@ -315,6 +746,35 @@ fn edit_json(path: PathBuf, edit: impl FnOnce(&mut Value)) {
     let mut value: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     edit(&mut value);
     write_json(&path, &value);
+}
+
+fn replace_in_value(value: &mut Value, from: &str, to: &str) {
+    match value {
+        Value::String(text) if text == from => *text = to.to_string(),
+        Value::Array(values) => {
+            for value in values {
+                replace_in_value(value, from, to);
+            }
+        }
+        Value::Object(values) => {
+            for value in values.values_mut() {
+                replace_in_value(value, from, to);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn sort_value_strings(value: &mut Value) {
+    if let Value::Array(values) = value {
+        values.sort_by_key(|value| value.as_str().unwrap_or("").to_string());
+    }
+}
+
+fn sort_value_objects_by_string(value: &mut Value, key: &str) {
+    if let Value::Array(values) = value {
+        values.sort_by_key(|value| value[key].as_str().unwrap_or("").to_string());
+    }
 }
 fn fnv1a(bytes: &[u8]) -> u64 {
     let mut value = 0xcbf29ce484222325u64;
@@ -326,6 +786,19 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 }
 fn fnv_hex(bytes: &[u8]) -> String {
     format!("0x{:016x}", fnv1a(bytes))
+}
+fn fnv_hex_u64(value: u64) -> String {
+    format!("0x{value:016x}")
+}
+fn scatter_checksums(package: &Path) -> (u64, u64) {
+    let mut file_checksum = 0u64;
+    let mut record_checksum = 0u64;
+    for index in 0..26 {
+        let bytes = fs::read(package.join(format!("scatter/chunk_{index:02}.bin"))).unwrap();
+        file_checksum ^= fnv1a(&bytes);
+        record_checksum ^= fnv1a(&bytes[16..]);
+    }
+    (file_checksum, record_checksum)
 }
 fn source_xor(package: &Path, files: &[String]) -> String {
     let mut value = 0u64;
@@ -393,6 +866,8 @@ fn manifest() -> Value {
             json!({
                 "file": format!("scatter/chunk_{index:02}.bin"),
                 "instance_count": if index < 14 { 9 } else { 8 },
+                "bounds_min": [index as f64, 0.0, 0.0],
+                "bounds_max": [index as f64 + 1.0, 2.0, 1.0],
             })
         })
         .collect();
@@ -452,7 +927,16 @@ fn manifest() -> Value {
             {"name": "wetness", "source_file": "maps/masks_rgba.png", "channel": "B", "targets": ["terrain_surface", "rock", "log"], "runtime_policy": "baked_static"},
             {"name": "cracks", "source_file": "maps/masks_rgba.png", "channel": "A", "targets": ["terrain_surface", "scatter_exclusion"], "runtime_policy": "baked_static"}
         ],
-        "prototypes": prototypes, "scatter": {"file": "scatter/scatter.json", "binary_files": binary_files}, "shader_policy": "preview_only", "texture_pipeline": "parked", "memory_footprint": memory
+        "prototypes": prototypes, "scatter": {
+            "file": "scatter/scatter.json",
+            "binary_format": {
+                "format": "midori.scatter.bin.v1",
+                "header_bytes": 16,
+                "record_stride_bytes": 32,
+                "endian": "little"
+            },
+            "binary_files": binary_files
+        }, "shader_policy": "preview_only", "texture_pipeline": "parked", "memory_footprint": memory
     })
 }
 
@@ -460,53 +944,173 @@ fn scatter_count(index: usize) -> i64 {
     if index < 14 { 9 } else { 8 }
 }
 
-fn scatter_summaries(source: &str, camel_case: bool) -> Vec<Value> {
-    (0..26).map(|index| {
-        if camel_case {
-            json!({
-                "source": source, "instanceCount": scatter_count(index),
-                "fileChecksum": format!("0x{:016x}", index + 1), "recordChecksum": format!("0x{:016x}", index + 101),
-                "yawMin": 0.0, "yawMax": 1.0, "phaseMin": 0.0, "phaseMax": 1.0,
-                "heightMin": 0.5, "heightMax": 1.5, "widthMin": 0.5, "widthMax": 1.5,
-                "colorVariationMin": 0.1, "colorVariationMax": 0.9
-            })
-        } else {
-            json!({
-                "source": source, "instance_count": scatter_count(index),
-                "file_checksum": index + 1, "record_checksum": index + 101,
-                "yaw_min": 0.0, "yaw_max": 1.0, "phase_min": 0.0, "phase_max": 1.0,
-                "height_min": 0.5, "height_max": 1.5, "width_min": 0.5, "width_max": 1.5,
-                "color_variation_min": 0.1, "color_variation_max": 0.9
-            })
-        }
-    }).collect()
+fn scatter_summaries(package: &Path, source: &str, camel_case: bool) -> Vec<Value> {
+    if source == "json" {
+        return scatter_json_summaries(package, camel_case);
+    }
+    (0..26)
+        .map(|index| {
+            let file = package.join(format!("scatter/chunk_{index:02}.bin"));
+            let bytes = fs::read(&file).unwrap();
+            let count = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+            let records = bytes[16..]
+                .chunks_exact(32)
+                .map(|record| {
+                    let mut values = [0.0f64; 8];
+                    for (slot, value) in values.iter_mut().enumerate() {
+                        let start = slot * 4;
+                        *value = f32::from_le_bytes(record[start..start + 4].try_into().unwrap())
+                            as f64;
+                    }
+                    values
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(records.len(), count);
+            let range = |slot: usize| {
+                records
+                    .iter()
+                    .map(|record| record[slot])
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(minimum, maximum), value| {
+                        (minimum.min(value), maximum.max(value))
+                    })
+            };
+            let (yaw_min, yaw_max) = range(3);
+            let (height_min, height_max) = range(4);
+            let (width_min, width_max) = range(5);
+            let (phase_min, phase_max) = range(6);
+            let (color_min, color_max) = range(7);
+            let file_checksum = fnv1a(&bytes);
+            let record_checksum = fnv1a(&bytes[16..]);
+            if camel_case {
+                json!({
+                    "source": source, "instanceCount": count,
+                    "fileChecksum": fnv_hex_u64(file_checksum), "recordChecksum": fnv_hex_u64(record_checksum),
+                    "yawMin": yaw_min, "yawMax": yaw_max, "phaseMin": phase_min, "phaseMax": phase_max,
+                    "heightMin": height_min, "heightMax": height_max, "widthMin": width_min, "widthMax": width_max,
+                    "colorVariationMin": color_min, "colorVariationMax": color_max
+                })
+            } else {
+                json!({
+                    "source": source, "instance_count": count,
+                    "file_checksum": file_checksum, "record_checksum": record_checksum,
+                    "yaw_min": yaw_min, "yaw_max": yaw_max, "phase_min": phase_min, "phase_max": phase_max,
+                    "height_min": height_min, "height_max": height_max, "width_min": width_min, "width_max": width_max,
+                    "color_variation_min": color_min, "color_variation_max": color_max
+                })
+            }
+        })
+        .collect()
 }
 
-fn map_summaries() -> Vec<Value> {
+fn scatter_json_summaries(package: &Path, camel_case: bool) -> Vec<Value> {
+    let path = package.join("scatter/scatter.json");
+    let bytes = fs::read(&path).unwrap();
+    let document: Value = serde_json::from_slice(&bytes).unwrap();
+    document["chunks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|chunk| {
+            let instances = chunk["instances"].as_array().unwrap();
+            let records = instances
+                .iter()
+                .map(|instance| {
+                    let position = instance["position"].as_array().unwrap();
+                    [
+                        position[0].as_f64().unwrap(),
+                        position[1].as_f64().unwrap(),
+                        position[2].as_f64().unwrap(),
+                        instance["yaw"].as_f64().unwrap(),
+                        instance["height"].as_f64().unwrap(),
+                        instance["width"].as_f64().unwrap(),
+                        instance["phase"].as_f64().unwrap(),
+                        instance["color_variation"].as_f64().unwrap(),
+                    ]
+                })
+                .collect::<Vec<_>>();
+            let range = |slot: usize| {
+                records
+                    .iter()
+                    .map(|record| record[slot])
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(minimum, maximum), value| {
+                        (minimum.min(value), maximum.max(value))
+                    })
+            };
+            let (yaw_min, yaw_max) = range(3);
+            let (height_min, height_max) = range(4);
+            let (width_min, width_max) = range(5);
+            let (phase_min, phase_max) = range(6);
+            let (color_min, color_max) = range(7);
+            let file_checksum = fnv1a(&serde_json::to_vec(chunk).unwrap());
+            let record_checksum = fnv1a(&serde_json::to_vec(&chunk["instances"]).unwrap());
+            if camel_case {
+                json!({
+                    "source": "json", "instanceCount": instances.len(),
+                    "fileChecksum": fnv_hex_u64(file_checksum), "recordChecksum": fnv_hex_u64(record_checksum),
+                    "yawMin": yaw_min, "yawMax": yaw_max, "phaseMin": phase_min, "phaseMax": phase_max,
+                    "heightMin": height_min, "heightMax": height_max, "widthMin": width_min, "widthMax": width_max,
+                    "colorVariationMin": color_min, "colorVariationMax": color_max
+                })
+            } else {
+                json!({
+                    "source": "json", "instance_count": instances.len(),
+                    "file_checksum": file_checksum, "record_checksum": record_checksum,
+                    "yaw_min": yaw_min, "yaw_max": yaw_max, "phase_min": phase_min, "phase_max": phase_max,
+                    "height_min": height_min, "height_max": height_max, "width_min": width_min, "width_max": width_max,
+                    "color_variation_min": color_min, "color_variation_max": color_max
+                })
+            }
+        })
+        .collect()
+}
+
+fn map_summaries(package: &Path) -> Vec<Value> {
     [
-        ("height_u16.png", "L16", 1, vec![1, 2], vec![3, 4]),
-        ("normal_yplus.png", "RGB8", 3, vec![1, 2, 3], vec![4, 5, 6]),
-        ("normal_yminus.png", "RGB8", 3, vec![1, 2, 3], vec![4, 5, 6]),
-        (
-            "masks_rgba.png",
-            "RGBA8",
-            4,
-            vec![1, 2, 3, 4],
-            vec![5, 6, 7, 8],
-        ),
-        ("grass_density.png", "L8", 1, vec![1, 2], vec![3, 4]),
+        ("height_u16.png", "L16"),
+        ("normal_yplus.png", "RGB8"),
+        ("normal_yminus.png", "RGB8"),
+        ("masks_rgba.png", "RGBA8"),
+        ("grass_density.png", "L8"),
     ]
     .into_iter()
-    .map(|(file, color_type, channels, minimum, maximum)| {
+    .map(|(file, color_type)| {
+        let path = package.join("maps").join(file);
+        let bytes = fs::read(&path).unwrap();
+        let decoder = png::Decoder::new(fs::File::open(&path).unwrap());
+        let mut reader = decoder.read_info().unwrap();
+        let output_size = reader.output_buffer_size();
+        let mut output = vec![0; output_size];
+        let info = reader.next_frame(&mut output).unwrap();
+        let channels = info.color_type.samples();
+        let bytes_per_sample = if info.bit_depth == png::BitDepth::Sixteen {
+            2
+        } else {
+            1
+        };
+        let mut minimum = vec![u64::MAX; channels];
+        let mut maximum = vec![0u64; channels];
+        for sample in output[..info.buffer_size()].chunks_exact(channels * bytes_per_sample) {
+            for channel in 0..channels {
+                let start = channel * bytes_per_sample;
+                let value = if bytes_per_sample == 2 {
+                    u16::from_be_bytes([sample[start], sample[start + 1]]) as u64
+                } else {
+                    u64::from(sample[start])
+                };
+                minimum[channel] = minimum[channel].min(value);
+                maximum[channel] = maximum[channel].max(value);
+            }
+        }
         json!({
-            "file": format!("maps/{file}"), "width": 8, "height": 8, "color_type": color_type,
-            "channels": channels, "file_checksum": 1, "channel_min": minimum, "channel_max": maximum
+            "file": format!("maps/{file}"), "width": info.width, "height": info.height,
+            "color_type": color_type, "channels": channels, "file_checksum": fnv1a(&bytes),
+            "channel_min": minimum, "channel_max": maximum
         })
     })
     .collect()
 }
 
-fn prototype_summaries(manifest: &Value) -> Vec<Value> {
+fn prototype_summaries(manifest: &Value, package: &Path) -> Vec<Value> {
     manifest["prototypes"]
         .as_array()
         .unwrap()
@@ -518,32 +1122,34 @@ fn prototype_summaries(manifest: &Value) -> Vec<Value> {
             "has_positions": true, "has_normals": true, "has_tangents": true,
             "normals_are_valid": true, "tangents_are_valid": true, "has_texcoord0": true,
             "has_texcoord1": true, "has_color0": true, "used_material_count": 1,
-            "file_checksum": 1
+            "file_checksum": fnv1a(&fs::read(package.join(lod["file"].as_str().unwrap())).unwrap())
         }))
         })
         .collect()
 }
 
-fn material_recipe_summaries() -> Vec<Value> {
+fn material_recipe_summaries(package: &Path) -> Vec<Value> {
     vec![
         json!({
             "material_slot": "terrain_surface", "runtime_policy": "engine_native_static",
-            "shader_policy": "preview_only", "texture_pipeline": "parked", "file_checksum": 1,
+            "shader_policy": "preview_only", "texture_pipeline": "parked",
+            "file_checksum": fnv1a(&fs::read(package.join("materials/terrain_surface.recipe.json")).unwrap()),
             "required_textures": ["maps/masks_rgba.png"], "surface_overlays": ["moss", "wetness", "cracks"]
         }),
         json!({
             "material_slot": "groundcover_foliage", "runtime_policy": "engine_native_static",
-            "shader_policy": "preview_only", "texture_pipeline": "parked", "file_checksum": 2,
+            "shader_policy": "preview_only", "texture_pipeline": "parked",
+            "file_checksum": fnv1a(&fs::read(package.join("materials/groundcover_foliage.recipe.json")).unwrap()),
             "required_vertex_streams": ["TEXCOORD_1.x wind", "COLOR_0.y color"]
         }),
     ]
 }
 
-fn engine_recipe_summaries(manifest: &Value) -> Vec<Value> {
+fn engine_recipe_summaries(manifest: &Value, package: &Path) -> Vec<Value> {
     let count = source_files(manifest, "unity_yplus_file").len();
     vec![
-        json!({"engine": "unity", "source_file_count": count, "scatter_instances": 222, "scatter_binary_chunks": 26, "file_checksum": 1}),
-        json!({"engine": "unreal", "source_file_count": count, "scatter_instances": 222, "scatter_binary_chunks": 26, "file_checksum": 2}),
+        json!({"engine": "unity", "source_file_count": count, "scatter_instances": 222, "scatter_binary_chunks": 26, "file_checksum": fnv1a(&fs::read(package.join("engines/unity_import.recipe.json")).unwrap())}),
+        json!({"engine": "unreal", "source_file_count": count, "scatter_instances": 222, "scatter_binary_chunks": 26, "file_checksum": fnv1a(&fs::read(package.join("engines/unreal_import.recipe.json")).unwrap())}),
     ]
 }
 
@@ -889,7 +1495,8 @@ fn add_prototype_target_fields(report: &mut Value, manifest: &Value, camel_case:
     }
 }
 
-fn midori_report(manifest: &Value, binary_files: &[String]) -> Value {
+fn midori_report(manifest: &Value, binary_files: &[String], package: &Path) -> Value {
+    let (scatter_file_checksum, scatter_record_checksum) = scatter_checksums(package);
     let map_files = [
         "maps/height_u16.png",
         "maps/normal_yplus.png",
@@ -900,27 +1507,29 @@ fn midori_report(manifest: &Value, binary_files: &[String]) -> Value {
     let report = json!({
         "manifest": manifest,
         "map_files": map_files,
-        "map_summaries": map_summaries(),
+        "map_summaries": map_summaries(package),
         "map_relationships": {
             "normal_pair_pixels": 64, "normal_red_blue_mismatches": 0,
             "normal_green_flip_mismatches": 0, "normal_green_flip_max_error": 0,
             "grass_density_pixels": 64, "grass_density_mask_r_mismatches": 0
         },
         "prototype_files": manifest["prototypes"].as_array().unwrap().iter().flat_map(|prototype| prototype["lods"].as_array().unwrap().iter().map(|lod| lod["file"].clone())).collect::<Vec<_>>(),
-        "prototype_summaries": prototype_summaries(manifest),
+        "prototype_summaries": prototype_summaries(manifest, package),
         "profile_budget_summaries": profile_budget_summaries(),
         "scatter_binary_files": binary_files,
         "scatter_binary_instances": 222,
-        "scatter_json_chunks": scatter_summaries("json", false),
-        "scatter_binary_summaries": scatter_summaries("binary", false),
+        "scatter_binary_file_checksum_xor": scatter_file_checksum,
+        "scatter_binary_record_checksum_xor": scatter_record_checksum,
+        "scatter_json_chunks": scatter_summaries(package, "json", false),
+        "scatter_binary_summaries": scatter_summaries(package, "binary", false),
         "scatter_parity": {
             "json_chunk_count": 26, "binary_chunk_count": 26, "matching_chunk_count": 26,
             "missing_binary_chunk_count": 0, "extra_binary_chunk_count": 0,
             "instance_count_mismatch_count": 0, "bounds_mismatch_count": 0,
             "record_checksum_mismatch_count": 0
         },
-        "material_recipe_summaries": material_recipe_summaries(),
-        "engine_import_recipe_summaries": engine_recipe_summaries(manifest),
+        "material_recipe_summaries": material_recipe_summaries(package),
+        "engine_import_recipe_summaries": engine_recipe_summaries(manifest, package),
         "memory_footprint": manifest["memory_footprint"]
     });
     report
@@ -948,8 +1557,14 @@ fn package_identity_fields(
     }
 }
 
-fn screenshot_summary(path: &str, width: usize, height: usize, checksum: &str) -> Value {
-    json!({"path": path, "status": "captured", "method": "AutomationLibrary.take_high_res_screenshot", "exists": true, "bytes": 1, "checksum": checksum, "width": width, "height": height})
+fn screenshot_summary(
+    path: &str,
+    width: usize,
+    height: usize,
+    checksum: &str,
+    bytes: u64,
+) -> Value {
+    json!({"path": path, "status": "captured", "method": "AutomationLibrary.take_high_res_screenshot", "exists": true, "bytes": bytes, "checksum": checksum, "width": width, "height": height})
 }
 
 fn add_common_engine_recipe_fields(report: &mut Value, manifest: &Value, camel_case: bool) {
@@ -960,15 +1575,32 @@ fn add_common_engine_recipe_fields(report: &mut Value, manifest: &Value, camel_c
     add_prototype_target_fields(report, manifest, camel_case);
 }
 
-fn unity_report(manifest: &Value, manifest_checksum: &str, source_checksum: &str) -> Value {
+fn unity_report(
+    manifest: &Value,
+    manifest_checksum: &str,
+    source_checksum: &str,
+    package: &Path,
+    validation: &Path,
+) -> Value {
+    let (scatter_file_checksum, scatter_record_checksum) = scatter_checksums(package);
+    let import_checksum =
+        fnv_hex(&fs::read(validation.join("screenshots/unity_import.png")).unwrap());
+    let density_checksum =
+        fnv_hex(&fs::read(validation.join("screenshots/unity_density.png")).unwrap());
+    let import_bytes = fs::metadata(validation.join("screenshots/unity_import.png"))
+        .unwrap()
+        .len();
+    let density_bytes = fs::metadata(validation.join("screenshots/unity_density.png"))
+        .unwrap()
+        .len();
     let mut report = json!({
         "schemaVersion": 3, "profile": "mobile", "tileSizeMeters": 16.0,
         "terrainSize": {"x": 16.0, "y": 0.3901228, "z": 16.0},
         "heightmapFile": "maps/height_u16.png", "densityMapFile": "maps/grass_density.png",
         "normalMapFile": "maps/normal_yplus.png", "unityHintHeightmap": "maps/height_u16.png",
         "unityHintDensityMap": "maps/grass_density.png", "unityHintNormalMap": "maps/normal_yplus.png",
-        "importScreenshot": screenshot_summary("screenshots/unity_import.png", 1024, 1024, "0x0000000000000001"),
-        "densityScreenshot": screenshot_summary("screenshots/unity_density.png", 512, 512, "0x0000000000000002"),
+        "importScreenshot": screenshot_summary("screenshots/unity_import.png", 1024, 1024, &import_checksum, import_bytes),
+        "densityScreenshot": screenshot_summary("screenshots/unity_density.png", 512, 512, &density_checksum, density_bytes),
         "mobileDensityScale": 0.75, "mobileLod0MaxDistance": 10.0, "mobileLod1MaxDistance": 20.0,
         "mobileLod2MaxDistance": 30.0, "mobileCullStartMeters": 35.0, "mobileCullEndMeters": 70.0,
         "mobileShadows": false, "mobileMaterialSlots": 2, "mobileMaxInstancesPerTile": 300,
@@ -983,8 +1615,8 @@ fn unity_report(manifest: &Value, manifest_checksum: &str, source_checksum: &str
         "detailPrototypesLoadedFromAssets": 0, "detailPrototypesGeneratedFromGlb": 8,
         "nonZeroDetailCells": 512, "scatterBinaryInstances": 222,
         "scatterBinaryChunks": 26, "scatterBinaryRecordsValidated": true, "scatterBinaryRecordsRead": 222,
-        "scatterBinaryFileChecksumXor": "0x0000000000000003", "scatterBinaryRecordChecksumXor": "0x0000000000000004",
-        "scatterChunkReports": scatter_summaries("binary", true)
+        "scatterBinaryFileChecksumXor": fnv_hex_u64(scatter_file_checksum), "scatterBinaryRecordChecksumXor": fnv_hex_u64(scatter_record_checksum),
+        "scatterChunkReports": scatter_summaries(package, "binary", true)
     });
     package_identity_fields(
         &mut report,
@@ -1003,7 +1635,20 @@ fn unreal_report(
     manifest_checksum: &str,
     source_checksum: &str,
     dry_run: bool,
+    package: &Path,
+    validation: &Path,
 ) -> Value {
+    let (scatter_file_checksum, scatter_record_checksum) = scatter_checksums(package);
+    let import_checksum =
+        fnv_hex(&fs::read(validation.join("screenshots/unreal_import.png")).unwrap());
+    let foliage_checksum =
+        fnv_hex(&fs::read(validation.join("screenshots/unreal_foliage.png")).unwrap());
+    let import_bytes = fs::metadata(validation.join("screenshots/unreal_import.png"))
+        .unwrap()
+        .len();
+    let foliage_bytes = fs::metadata(validation.join("screenshots/unreal_foliage.png"))
+        .unwrap()
+        .len();
     let destination = if dry_run {
         "/Game/Midori/Imported"
     } else {
@@ -1031,18 +1676,20 @@ fn unreal_report(
         })
         .collect::<Vec<_>>();
     let prototype_count = manifest["prototypes"].as_array().unwrap().len();
-    let mut scatter_chunks = scatter_summaries("binary", false);
-    for (index, chunk) in scatter_chunks.iter_mut().enumerate() {
-        chunk["file_checksum"] = json!(format!("0x{:016x}", index + 1));
-        chunk["record_checksum"] = json!(format!("0x{:016x}", index + 101));
+    let mut scatter_chunks = scatter_summaries(package, "binary", false);
+    for chunk in &mut scatter_chunks {
+        for field in ["file_checksum", "record_checksum"] {
+            let checksum = chunk[field].as_u64().unwrap();
+            chunk[field] = json!(fnv_hex_u64(checksum));
+        }
     }
     let mut report = json!({
         "schema_version": 3, "dry_run": dry_run, "profile": "console",
         "tile_size_meters": 16.0, "landscape_heightmap": "maps/height_u16.png",
         "landscape_weightmap": "maps/masks_rgba.png", "normal_map": "maps/normal_yminus.png",
         "screenshots": {
-            "import": screenshot_summary("screenshots/unreal_import.png", 1024, 1024, "0x0000000000000005"),
-            "foliage_settings": screenshot_summary("screenshots/unreal_foliage.png", 1024, 1024, "0x0000000000000006")
+            "import": screenshot_summary("screenshots/unreal_import.png", 1024, 1024, &import_checksum, import_bytes),
+            "foliage_settings": screenshot_summary("screenshots/unreal_foliage.png", 1024, 1024, &foliage_checksum, foliage_bytes)
         },
         "console_density_scale": 1.0, "console_lod0_max_distance_meters": 15.0,
         "console_lod1_max_distance_meters": 30.0, "console_lod2_max_distance_meters": 50.0,
@@ -1062,7 +1709,7 @@ fn unreal_report(
         "wind_packing": manifest["wind_packing"],
         "scatter_binary_instances": 222, "scatter_binary_chunks": 26,
         "scatter_binary_records_validated": true, "scatter_binary_records_read": 222,
-        "scatter_binary_file_checksum_xor": "0x0000000000000007", "scatter_binary_record_checksum_xor": "0x0000000000000008",
+        "scatter_binary_file_checksum_xor": fnv_hex_u64(scatter_file_checksum), "scatter_binary_record_checksum_xor": fnv_hex_u64(scatter_record_checksum),
         "scatter_chunks": scatter_chunks,
         "destination_path": destination, "imported_files": import_files, "import_task_count": import_files.len(),
         "import_task_files": import_files, "import_task_destination_paths": import_destinations,
@@ -1154,7 +1801,15 @@ fn compile_stub_report(
     validation: &Path,
     manifest_checksum: &str,
     source_checksum: &str,
+    package: &Path,
 ) -> Value {
+    let (scatter_file_checksum, scatter_record_checksum) = scatter_checksums(package);
+    let import_screenshot = validation.join("screenshots/unity_import.png");
+    let density_screenshot = validation.join("screenshots/unity_density.png");
+    let import_checksum = fnv_hex(&fs::read(&import_screenshot).unwrap());
+    let density_checksum = fnv_hex(&fs::read(&density_screenshot).unwrap());
+    let import_bytes = fs::metadata(import_screenshot).unwrap().len();
+    let density_bytes = fs::metadata(density_screenshot).unwrap().len();
     let mut report = json!({
         "status": "passed", "schema_version": 3, "asset_name": "Temperate Forest Floor",
         "package_dir": "forest_floor", "manifest_file_checksum": manifest_checksum,
@@ -1168,14 +1823,14 @@ fn compile_stub_report(
         "detailPrototypesCreated": 8, "detailPrototypesLoadedFromAssets": 0,
         "detailPrototypesGeneratedFromGlb": 8, "detailPrototypeFailures": 0,
         "detailPrototypeGeneratedFileCount": 8, "detailPrototypeFallbackErrorCount": 0,
-        "nonZeroDetailCells": 512, "importScreenshotExists": true, "importScreenshotBytes": 1,
-        "importScreenshotChecksum": "0x0000000000000009", "importScreenshotWidth": 1024,
+        "nonZeroDetailCells": 512, "importScreenshotExists": true, "importScreenshotBytes": import_bytes,
+        "importScreenshotChecksum": import_checksum, "importScreenshotWidth": 1024,
         "importScreenshotHeight": 1024, "importScreenshotPixelCount": 1024 * 1024,
         "importScreenshotMinR": 0.08, "importScreenshotMaxR": 0.72,
         "importScreenshotMinG": 0.10, "importScreenshotMaxG": 0.82,
         "importScreenshotMinB": 0.08, "importScreenshotMaxB": 0.35,
-        "densityScreenshotExists": true, "densityScreenshotBytes": 1,
-        "densityScreenshotChecksum": "0x000000000000000a", "densityScreenshotWidth": 512,
+        "densityScreenshotExists": true, "densityScreenshotBytes": density_bytes,
+        "densityScreenshotChecksum": density_checksum, "densityScreenshotWidth": 512,
         "densityScreenshotHeight": 512, "densityScreenshotPixelCount": 512 * 512,
         "densityScreenshotMinR": 0.25, "densityScreenshotMaxR": 0.75,
         "densityScreenshotMinG": 0.25, "densityScreenshotMaxG": 0.75,
@@ -1185,17 +1840,32 @@ fn compile_stub_report(
         "engine_import_recipe_files": ["engines/unity_import.recipe.json", "engines/unreal_import.recipe.json"],
         "surface_overlay_count": 3, "prototype_count": 8, "scatter_chunk_reports": 26,
         "scatter_binary_records_validated": true,
-        "scatter_binary_file_checksum_xor": "0x000000000000000b",
-        "scatter_binary_record_checksum_xor": "0x000000000000000c"
+        "scatter_binary_file_checksum_xor": fnv_hex_u64(scatter_file_checksum),
+        "scatter_binary_record_checksum_xor": fnv_hex_u64(scatter_record_checksum)
     });
-    let _ = validation;
     add_common_engine_recipe_fields(&mut report, manifest, true);
     report
 }
 
-fn fake_editor_report(manifest_checksum: &str, source_checksum: &str) -> Value {
-    let screenshot = |checksum: &str| json!({"status": "captured", "method": "AutomationLibrary.take_high_res_screenshot", "exists": true, "bytes": 1, "checksum": checksum, "width": 1024, "height": 1024});
-    let metric = |checksum: &str| json!({"exists": true, "bytes": 1, "checksum": checksum, "width": 1024, "height": 1024, "sample_count": 1024 * 1024, "luminance_range": 91});
+fn fake_editor_report(
+    manifest_checksum: &str,
+    source_checksum: &str,
+    package: &Path,
+    validation: &Path,
+) -> Value {
+    let (scatter_file_checksum, scatter_record_checksum) = scatter_checksums(package);
+    let import_checksum =
+        fnv_hex(&fs::read(validation.join("screenshots/unreal_import.png")).unwrap());
+    let foliage_checksum =
+        fnv_hex(&fs::read(validation.join("screenshots/unreal_foliage.png")).unwrap());
+    let screenshot = |checksum: &str, bytes: u64| json!({"status": "captured", "method": "AutomationLibrary.take_high_res_screenshot", "exists": true, "bytes": bytes, "checksum": checksum, "width": 1024, "height": 1024});
+    let metric = |checksum: &str, bytes: u64| json!({"exists": true, "bytes": bytes, "checksum": checksum, "width": 1024, "height": 1024, "sample_count": 1024 * 1024, "luminance_range": 91});
+    let import_bytes = fs::metadata(validation.join("screenshots/unreal_import.png"))
+        .unwrap()
+        .len();
+    let foliage_bytes = fs::metadata(validation.join("screenshots/unreal_foliage.png"))
+        .unwrap()
+        .len();
     json!({
         "status": "passed", "dry_run": false, "destination_path": "/Game/Midori/FakeEditor/Temperate_Forest_Floor",
         "source_file_count": 59, "manifest_file_checksum": manifest_checksum,
@@ -1205,11 +1875,11 @@ fn fake_editor_report(manifest_checksum: &str, source_checksum: &str) -> Value {
         "foliage_type_count": 8, "foliage_type_status": "created", "foliage_cull_start_cm": 3500,
         "foliage_cull_end_cm": 7000, "scatter_binary_chunks": 26, "scatter_binary_instances": 222,
         "scatter_binary_records_validated": true, "scatter_binary_records_read": 222,
-        "scatter_binary_file_checksum_xor": "0x000000000000000d",
-        "scatter_binary_record_checksum_xor": "0x000000000000000e",
+        "scatter_binary_file_checksum_xor": fnv_hex_u64(scatter_file_checksum),
+        "scatter_binary_record_checksum_xor": fnv_hex_u64(scatter_record_checksum),
         "corrupt_scatter_rejection": "passed",
-        "screenshots": {"import": screenshot("0x000000000000000f"), "foliage_settings": screenshot("0x0000000000000010")},
-        "screenshot_metrics": {"import": metric("0x0000000000000011"), "foliage_settings": metric("0x0000000000000012")}
+        "screenshots": {"import": screenshot(&import_checksum, import_bytes), "foliage_settings": screenshot(&foliage_checksum, foliage_bytes)},
+        "screenshot_metrics": {"import": metric(&import_checksum, import_bytes), "foliage_settings": metric(&foliage_checksum, foliage_bytes)}
     })
 }
 
@@ -1219,7 +1889,15 @@ fn summary(
     manifest_checksum: &str,
     unity_source_checksum: &str,
     unreal_source_checksum: &str,
+    package: &Path,
 ) -> Value {
+    let (scatter_file_checksum, scatter_record_checksum) = scatter_checksums(package);
+    let import_screenshot = validation.join("screenshots/unreal_import.png");
+    let foliage_screenshot = validation.join("screenshots/unreal_foliage.png");
+    let import_checksum = fnv_hex(&fs::read(&import_screenshot).unwrap());
+    let foliage_checksum = fnv_hex(&fs::read(&foliage_screenshot).unwrap());
+    let import_bytes = fs::metadata(import_screenshot).unwrap().len();
+    let foliage_bytes = fs::metadata(foliage_screenshot).unwrap().len();
     let compile_path = validation.join("forest_floor_unity_compile_stub_report.json");
     let fake_path = validation.join("forest_floor_unreal_fake_editor_report.json");
     let summary = json!({
@@ -1250,22 +1928,22 @@ fn summary(
         "unreal": {
             "dry_run_status": "passed", "scatter_binary_instances": 222,
             "scatter_binary_records_validated": true, "scatter_binary_records_read": 222,
-            "scatter_binary_file_checksum_xor": "0x0000000000000007",
-            "scatter_binary_record_checksum_xor": "0x0000000000000008",
+            "scatter_binary_file_checksum_xor": fnv_hex_u64(scatter_file_checksum),
+            "scatter_binary_record_checksum_xor": fnv_hex_u64(scatter_record_checksum),
             "scatter_chunk_reports": 26, "manifest_file_checksum": manifest_checksum,
             "source_file_checksum_xor": unreal_source_checksum
         },
         "unreal_fake_editor": {
             "status": "passed", "report": fake_path.to_string_lossy(),
             "import_screenshot_status": "captured", "import_screenshot_method": "AutomationLibrary.take_high_res_screenshot",
-            "import_screenshot_report_exists": true, "import_screenshot_report_bytes": 1,
-            "import_screenshot_report_checksum": "0x000000000000000f", "import_screenshot_report_width": 1024,
-            "import_screenshot_report_height": 1024, "import_screenshot_checksum": "0x0000000000000011",
+            "import_screenshot_report_exists": true, "import_screenshot_report_bytes": import_bytes,
+            "import_screenshot_report_checksum": import_checksum, "import_screenshot_report_width": 1024,
+            "import_screenshot_report_height": 1024, "import_screenshot_checksum": import_checksum,
             "import_screenshot_luminance_range": 91,
             "foliage_settings_screenshot_status": "captured", "foliage_settings_screenshot_method": "AutomationLibrary.take_high_res_screenshot",
-            "foliage_settings_screenshot_report_exists": true, "foliage_settings_screenshot_report_bytes": 1,
-            "foliage_settings_screenshot_report_checksum": "0x0000000000000010", "foliage_settings_screenshot_report_width": 1024,
-            "foliage_settings_screenshot_report_height": 1024, "foliage_settings_screenshot_checksum": "0x0000000000000012",
+            "foliage_settings_screenshot_report_exists": true, "foliage_settings_screenshot_report_bytes": foliage_bytes,
+            "foliage_settings_screenshot_report_checksum": foliage_checksum, "foliage_settings_screenshot_report_width": 1024,
+            "foliage_settings_screenshot_report_height": 1024, "foliage_settings_screenshot_checksum": foliage_checksum,
             "foliage_settings_screenshot_luminance_range": 91
         }
     });
@@ -1356,9 +2034,15 @@ fn png_with_bad_filter() -> Vec<u8> {
     let width = 256u32;
     let height = 256u32;
     let mut raw = Vec::with_capacity((width as usize * 3 + 1) * height as usize);
-    for _ in 0..height {
+    for y in 0..height {
         raw.push(5);
-        raw.extend(std::iter::repeat_n(80u8, width as usize * 3));
+        for x in 0..width {
+            raw.extend_from_slice(&[
+                (x.wrapping_mul(11).wrapping_add(y.wrapping_mul(3))) as u8,
+                (x.wrapping_mul(7).wrapping_add(y.wrapping_mul(13))) as u8,
+                (x.wrapping_mul(5).wrapping_add(y.wrapping_mul(17))) as u8,
+            ]);
+        }
     }
     let mut compressed = Vec::new();
     {
@@ -1389,6 +2073,37 @@ fn png_with_bad_decompression() -> Vec<u8> {
     header.extend([8, 2, 0, 0, 0]);
     append_png_chunk(&mut output, b"IHDR", &header);
     append_png_chunk(&mut output, b"IDAT", &[0x78, 0x9c, 0x00]);
+    append_png_chunk(&mut output, b"IEND", &[]);
+    output
+}
+
+fn png_with_incomplete_zlib() -> Vec<u8> {
+    let width = 256u32;
+    let height = 256u32;
+    let mut raw = Vec::with_capacity((width as usize * 3 + 1) * height as usize);
+    for y in 0..height {
+        raw.push(0);
+        for x in 0..width {
+            raw.extend_from_slice(&[(x % 256) as u8, (y % 256) as u8, ((x + y) % 256) as u8]);
+        }
+    }
+    let mut compressed = Vec::new();
+    {
+        use flate2::Compression;
+        use flate2::write::ZlibEncoder;
+        use std::io::Write;
+        let mut encoder = ZlibEncoder::new(&mut compressed, Compression::default());
+        encoder.write_all(&raw).unwrap();
+        encoder.finish().unwrap();
+    }
+    compressed.truncate(compressed.len().saturating_sub(4));
+    let mut output = b"\x89PNG\r\n\x1a\n".to_vec();
+    let mut header = Vec::with_capacity(13);
+    header.extend(width.to_be_bytes());
+    header.extend(height.to_be_bytes());
+    header.extend([8, 2, 0, 0, 0]);
+    append_png_chunk(&mut output, b"IHDR", &header);
+    append_png_chunk(&mut output, b"IDAT", &compressed);
     append_png_chunk(&mut output, b"IEND", &[]);
     output
 }
