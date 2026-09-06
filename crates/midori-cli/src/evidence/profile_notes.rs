@@ -167,17 +167,22 @@ pub fn verify_profile_notes_text(label: &str, text: &str) -> EvidenceReport {
 
 pub fn verify_profile_notes(path: &std::path::Path) -> EvidenceReport {
     let label = path.display().to_string();
-    let single = |status, detail| EvidenceReport::from_checks(vec![Check {
-        name: "profile.notes".into(),
-        status,
-        detail,
-    }]);
+    let single = |status, detail| {
+        EvidenceReport::from_checks(vec![Check {
+            name: "profile.notes".into(),
+            status,
+            detail,
+        }])
+    };
     match std::fs::metadata(path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return single(CheckStatus::Missing, format!("{label} is missing or empty"));
         }
         Err(error) => {
-            return single(CheckStatus::Failed, format!("{label} cannot be read: {error}"));
+            return single(
+                CheckStatus::Failed,
+                format!("{label} cannot be read: {error}"),
+            );
         }
         Ok(metadata) if !metadata.is_file() || metadata.len() == 0 => {
             return single(CheckStatus::Missing, format!("{label} is missing or empty"));
