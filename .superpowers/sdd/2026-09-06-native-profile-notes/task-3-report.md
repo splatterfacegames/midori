@@ -170,3 +170,45 @@ launch the actual binary. The profile policy remains a native Rust library.
   images, GLBs, scatter buffers, recipes, checksums, editor reports, or real
   Unity/Unreal execution. The checkout remains not Python-free overall.
 - Independent Astra review is required before treating this slice as accepted.
+
+## Formatting follow-up
+
+Per parent authorization, only the two inherited Task 1/2-owned Rust files
+were formatted, with no semantic edits:
+
+```powershell
+rustfmt --edition 2024 crates/midori-cli/src/evidence/profile_notes.rs crates/midori-cli/tests/profile_notes.rs
+```
+
+```text
+exit: 0
+```
+
+Final format and covering-test command (Cargo jobs remained capped at 2 and the
+warm C: target was used):
+
+```powershell
+$env:CARGO_TARGET_DIR = 'C:/Users/jetha/AppData/Local/Temp/lab-midori-cargo-target'
+$env:CARGO_BUILD_JOBS = '2'
+cargo fmt --all -- --check
+$fmtExit = $LASTEXITCODE
+cargo test -p midori-cli --locked --test profile_notes --quiet
+$testExit = $LASTEXITCODE
+Write-Output "fmt exit: $fmtExit"
+Write-Output "profile_notes test exit: $testExit"
+```
+
+Exact output:
+
+```text
+running 9 tests
+.........
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+fmt exit: 0
+profile_notes test exit: 0
+```
+
+The scoped formatting commit is `c54277691301d32e282e656fa605eb7665e3f8c3`
+(`style(midori): format profile notes sources`), which was the new `HEAD`
+after the formatting follow-up and before this report-only amendment.
