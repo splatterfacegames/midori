@@ -228,17 +228,28 @@ fn profile_self_test_four_legacy_cases_and_file_errors() {
     assert_eq!(r.status, ReportStatus::Pending);
     assert_eq!(r.checks.len(), 1);
     assert_eq!(r.checks[0].name, "profile.notes");
-    assert_eq!(r.checks[0].detail, format!("{} is missing or empty", absent.display()));
+    assert_eq!(
+        r.checks[0].detail,
+        format!("{} is missing or empty", absent.display())
+    );
 
     let copied = dir.path().join("copied-template.md");
-    std::fs::write(&copied, include_str!("../../../docs/validation/midori-nature-engine-profile-notes.template.md")).unwrap();
+    std::fs::write(
+        &copied,
+        include_str!("../../../docs/validation/midori-nature-engine-profile-notes.template.md"),
+    )
+    .unwrap();
     let r = verify_profile_notes(&copied);
     assert_eq!(r.status, ReportStatus::Failed);
     assert_eq!(r.checks[2].name, "profile.notes.unresolved_markers");
     assert_eq!(r.checks[2].status, CheckStatus::Failed);
 
     let thin = dir.path().join("thin.md");
-    std::fs::write(&thin, "Unity Unreal Frame Debugger RenderDoc instanced scale density cull\n").unwrap();
+    std::fs::write(
+        &thin,
+        "Unity Unreal Frame Debugger RenderDoc instanced scale density cull\n",
+    )
+    .unwrap();
     assert_eq!(verify_profile_notes(&thin).status, ReportStatus::Failed);
     let good = dir.path().join("good.md");
     std::fs::write(&good, format!("\u{feff}{}", GOOD.replace('\n', "\r\n"))).unwrap();
@@ -247,7 +258,10 @@ fn profile_self_test_four_legacy_cases_and_file_errors() {
     let empty = dir.path().join("empty.md");
     std::fs::write(&empty, []).unwrap();
     assert_eq!(verify_profile_notes(&empty).status, ReportStatus::Pending);
-    assert_eq!(verify_profile_notes(dir.path()).status, ReportStatus::Pending);
+    assert_eq!(
+        verify_profile_notes(dir.path()).status,
+        ReportStatus::Pending
+    );
     let invalid = dir.path().join("invalid.md");
     std::fs::write(&invalid, [0xff]).unwrap();
     let r = verify_profile_notes(&invalid);
