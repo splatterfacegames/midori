@@ -67,6 +67,30 @@ fn require_manifest_close(
     verifier.require_close(name, actual, expected, tolerance);
 }
 
+fn require_manifest_numeric_equal(
+    verifier: &mut Verifier,
+    name: &str,
+    actual: Option<&Value>,
+    manifest: &Value,
+    path: &[&str],
+) {
+    let Some(expected) = field_path(manifest, path) else {
+        verifier.fail(
+            name,
+            format!("manifest field {path:?} is missing or not numeric"),
+        );
+        return;
+    };
+    let Some(_value) = as_f64(expected).filter(|value| value.is_finite()) else {
+        verifier.fail(
+            name,
+            format!("manifest field {path:?} must be a finite numeric scalar"),
+        );
+        return;
+    };
+    verifier.require_equal(name, actual, expected.clone());
+}
+
 fn require_nonzero_checksum(
     verifier: &mut Verifier,
     name: &str,
@@ -2051,10 +2075,12 @@ pub fn check_unreal_report(
         "unreal_yminus_file",
         false,
     );
-    verifier.require_close(
+    require_manifest_close(
+        verifier,
         "unreal.tile_size",
         field(report, "tile_size_meters"),
-        float_or_default(field(manifest, "tile_size"), 0.0),
+        manifest,
+        &["tile_size"],
         0.001,
     );
     verifier.require_equal(
@@ -2091,12 +2117,12 @@ pub fn check_unreal_report(
         1024,
         1024,
     );
-    verifier.require_equal(
+    require_manifest_numeric_equal(
+        verifier,
         "unreal.console_density",
         field(report, "console_density_scale"),
-        field(console, "density_scale")
-            .cloned()
-            .unwrap_or(Value::Null),
+        manifest,
+        &["console", "density_scale"],
     );
     for (name, field_name, manifest_field) in [
         (
@@ -2115,35 +2141,41 @@ pub fn check_unreal_report(
             "lod2_max_distance",
         ),
     ] {
-        verifier.require_close(
+        require_manifest_close(
+            verifier,
             name,
             field(report, field_name),
-            float_or_default(field(console, manifest_field), 0.0),
+            manifest,
+            &["console", manifest_field],
             0.001,
         );
     }
-    for (name, field_name, expected) in [
+    for (name, field_name, manifest_field) in [
         (
             "unreal.console_material_slots",
             "console_material_slots",
-            field(console, "material_slots")
-                .cloned()
-                .unwrap_or(Value::Null),
+            "material_slots",
         ),
         (
             "unreal.console_max_instances_per_tile",
             "console_max_instances_per_tile",
-            field(console, "max_instances_per_tile")
-                .cloned()
-                .unwrap_or(Value::Null),
+            "max_instances_per_tile",
         ),
         (
             "unreal.console_max_instances_per_chunk",
             "console_max_instances_per_chunk",
-            field(console, "max_instances_per_chunk")
-                .cloned()
-                .unwrap_or(Value::Null),
+            "max_instances_per_chunk",
         ),
+    ] {
+        require_manifest_numeric_equal(
+            verifier,
+            name,
+            field(report, field_name),
+            manifest,
+            &["console", manifest_field],
+        );
+    }
+    for (name, field_name, expected) in [
         (
             "unreal.console_shadows",
             "console_shadows",
@@ -2178,10 +2210,12 @@ pub fn check_unreal_report(
             "cull_end",
         ),
     ] {
-        verifier.require_close(
+        require_manifest_close(
+            verifier,
             name,
             field(report, field_name),
-            float_or_default(field(console, manifest_field), 0.0),
+            manifest,
+            &["console", manifest_field],
             0.001,
         );
     }
@@ -2407,10 +2441,12 @@ pub fn check_unreal_dry_run_report(
         "unreal_yminus_file",
         false,
     );
-    verifier.require_close(
+    require_manifest_close(
+        verifier,
         "unreal_dry_run.tile_size",
         field(report, "tile_size_meters"),
-        float_or_default(field(manifest, "tile_size"), 0.0),
+        manifest,
+        &["tile_size"],
         0.001,
     );
     for (name, field_name, expected) in [
@@ -2436,12 +2472,12 @@ pub fn check_unreal_dry_run_report(
     ] {
         verifier.require_equal(name, field(report, field_name), expected);
     }
-    verifier.require_equal(
+    require_manifest_numeric_equal(
+        verifier,
         "unreal_dry_run.console_density",
         field(report, "console_density_scale"),
-        field(console, "density_scale")
-            .cloned()
-            .unwrap_or(Value::Null),
+        manifest,
+        &["console", "density_scale"],
     );
     for (name, field_name, manifest_field) in [
         (
@@ -2460,35 +2496,41 @@ pub fn check_unreal_dry_run_report(
             "lod2_max_distance",
         ),
     ] {
-        verifier.require_close(
+        require_manifest_close(
+            verifier,
             name,
             field(report, field_name),
-            float_or_default(field(console, manifest_field), 0.0),
+            manifest,
+            &["console", manifest_field],
             0.001,
         );
     }
-    for (name, field_name, expected) in [
+    for (name, field_name, manifest_field) in [
         (
             "unreal_dry_run.console_material_slots",
             "console_material_slots",
-            field(console, "material_slots")
-                .cloned()
-                .unwrap_or(Value::Null),
+            "material_slots",
         ),
         (
             "unreal_dry_run.console_max_instances_per_tile",
             "console_max_instances_per_tile",
-            field(console, "max_instances_per_tile")
-                .cloned()
-                .unwrap_or(Value::Null),
+            "max_instances_per_tile",
         ),
         (
             "unreal_dry_run.console_max_instances_per_chunk",
             "console_max_instances_per_chunk",
-            field(console, "max_instances_per_chunk")
-                .cloned()
-                .unwrap_or(Value::Null),
+            "max_instances_per_chunk",
         ),
+    ] {
+        require_manifest_numeric_equal(
+            verifier,
+            name,
+            field(report, field_name),
+            manifest,
+            &["console", manifest_field],
+        );
+    }
+    for (name, field_name, expected) in [
         (
             "unreal_dry_run.console_shadows",
             "console_shadows",
@@ -2511,16 +2553,20 @@ pub fn check_unreal_dry_run_report(
     ] {
         verifier.require_equal(name, field(report, field_name), expected);
     }
-    verifier.require_close(
+    require_manifest_close(
+        verifier,
         "unreal_dry_run.console_cull_start_m",
         field(report, "console_cull_start_meters"),
-        float_or_default(field(console, "cull_start"), 0.0),
+        manifest,
+        &["console", "cull_start"],
         0.001,
     );
-    verifier.require_close(
+    require_manifest_close(
+        verifier,
         "unreal_dry_run.console_cull_end_m",
         field(report, "console_cull_end_meters"),
-        float_or_default(field(console, "cull_end"), 0.0),
+        manifest,
+        &["console", "cull_end"],
         0.001,
     );
     verifier.require_equal(
