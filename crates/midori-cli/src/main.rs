@@ -151,6 +151,21 @@ enum Commands {
         #[arg(short, long)]
         verbose: bool,
     },
+
+    /// Verify profile-note completeness only; not full engine evidence
+    VerifyProfileNotes {
+        #[arg(
+            long,
+            default_value = "docs/validation/midori-nature-engine-profile-notes.md"
+        )]
+        profile_notes: PathBuf,
+        /// Optional profile-only JSON report path
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Permit missing notes, never failed checks
+        #[arg(long)]
+        allow_pending: bool,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -253,6 +268,14 @@ fn main() {
             report,
             verbose,
         } => run_validate_nature(&input, report.as_ref(), verbose),
+        Commands::VerifyProfileNotes {
+            profile_notes,
+            output,
+            allow_pending,
+        } => match run_verify_profile_notes(&profile_notes, output.as_deref(), allow_pending) {
+            Ok(code) => std::process::exit(code),
+            Err(error) => Err(error),
+        },
     };
 
     if let Err(e) = result {
@@ -685,6 +708,29 @@ fn run_validate_nature(
     println!("Validation completed in {:?}", start.elapsed());
 
     Ok(())
+}
+
+fn run_verify_profile_notes(
+    path: &std::path::Path,
+    output: Option<&std::path::Path>,
+    allow_pending: bool,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    use std::io::Write;
+
+    let report = midori_cli::evidence::verify_profile_notes(path);
+    let mut json = serde_json::to_vec_pretty(&report)?;
+    json.push(b'\n');
+    if let Some(output) = output {
+        if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(output, &json)?;
+    }
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    handle.write_all(&json)?;
+    handle.flush()?;
+    Ok(report.exit_code(allow_pending))
 }
 
 #[cfg(test)]
