@@ -42,6 +42,31 @@ fn require_manifest_object(verifier: &mut Verifier, prefix: &str, manifest: &Val
     }
 }
 
+fn require_manifest_close(
+    verifier: &mut Verifier,
+    name: &str,
+    actual: Option<&Value>,
+    manifest: &Value,
+    path: &[&str],
+    tolerance: f64,
+) {
+    let Some(expected) = field_path(manifest, path).and_then(as_f64) else {
+        verifier.fail(
+            name,
+            format!("manifest field {path:?} is missing or not numeric"),
+        );
+        return;
+    };
+    if !expected.is_finite() {
+        verifier.fail(
+            name,
+            format!("manifest field {path:?} must be finite, got {expected}"),
+        );
+        return;
+    }
+    verifier.require_close(name, actual, expected, tolerance);
+}
+
 fn require_nonzero_checksum(
     verifier: &mut Verifier,
     name: &str,
@@ -1568,48 +1593,46 @@ pub fn check_unity_report(
         512,
         512,
     );
-    for (name, field_name, expected) in [
+    for (name, field_name, manifest_path) in [
         (
             "unity.mobile_density",
             "mobileDensityScale",
-            field(mobile, "density_scale")
-                .cloned()
-                .unwrap_or(Value::Null),
+            &["mobile", "density_scale"][..],
         ),
         (
             "unity.mobile_lod0_distance",
             "mobileLod0MaxDistance",
-            field(mobile, "lod0_max_distance")
-                .cloned()
-                .unwrap_or(Value::Null),
+            &["mobile", "lod0_max_distance"][..],
         ),
         (
             "unity.mobile_lod1_distance",
             "mobileLod1MaxDistance",
-            field(mobile, "lod1_max_distance")
-                .cloned()
-                .unwrap_or(Value::Null),
+            &["mobile", "lod1_max_distance"][..],
         ),
         (
             "unity.mobile_lod2_distance",
             "mobileLod2MaxDistance",
-            field(mobile, "lod2_max_distance")
-                .cloned()
-                .unwrap_or(Value::Null),
+            &["mobile", "lod2_max_distance"][..],
         ),
         (
             "unity.mobile_cull_start",
             "mobileCullStartMeters",
-            field(mobile, "cull_start").cloned().unwrap_or(Value::Null),
+            &["mobile", "cull_start"][..],
         ),
         (
             "unity.mobile_cull_end",
             "mobileCullEndMeters",
-            field(mobile, "cull_end").cloned().unwrap_or(Value::Null),
+            &["mobile", "cull_end"][..],
         ),
     ] {
-        let expected = float_or_default(Some(&expected), 0.0);
-        verifier.require_close(name, field(report, field_name), expected, 0.001);
+        require_manifest_close(
+            verifier,
+            name,
+            field(report, field_name),
+            manifest,
+            manifest_path,
+            0.001,
+        );
     }
     for (name, field_name, expected) in [
         (

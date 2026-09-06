@@ -92,7 +92,10 @@ impl Verifier {
         let actual_float = actual.and_then(as_f64);
         let ok = actual_float.is_some_and(|value| {
             let difference = (value - expected).abs();
-            difference <= tolerance.max(1e-9 * value.abs().max(expected.abs()))
+            value.is_finite()
+                && expected.is_finite()
+                && difference.is_finite()
+                && difference <= tolerance.max(1e-9 * value.abs().max(expected.abs()))
         });
         let actual_text = actual_float
             .map(|value| value.to_string())
@@ -754,21 +757,7 @@ fn numbers_equal(actual: &serde_json::Number, expected: &serde_json::Number) -> 
         } else {
             (actual, expected)
         };
-        let integer_value = integer
-            .as_i64()
-            .map(|value| value as f64)
-            .or_else(|| integer.as_u64().map(|value| value as f64));
-        let Some(integer_value) = integer_value else {
-            return false;
-        };
-        if integer
-            .as_i64()
-            .is_some_and(|value| value.unsigned_abs() > (1u64 << 53))
-            || integer.as_u64().is_some_and(|value| value > (1u64 << 53))
-        {
-            return false;
-        }
-        return integer_value == floating.as_f64().unwrap_or(f64::NAN);
+        return integer_float_equal(integer, floating);
     }
     if !actual.is_f64() && !expected.is_f64() {
         match (actual.as_i64(), expected.as_i64()) {
@@ -788,6 +777,31 @@ fn numbers_equal(actual: &serde_json::Number, expected: &serde_json::Number) -> 
         return false;
     }
     actual.as_f64() == expected.as_f64()
+}
+
+fn integer_float_equal(integer: &serde_json::Number, floating: &serde_json::Number) -> bool {
+    let Some(floating) = floating.as_f64().filter(|value| value.is_finite()) else {
+        return false;
+    };
+    if let Some(integer) = integer.as_i64() {
+        // Rust's float-to-integer cast saturates at the signed bounds. Reject
+        // the positive saturation boundary, where i64::MAX rounds to 2^63.
+        if integer >= 0 && floating >= 2f64.powi(63) {
+            return false;
+        }
+        let candidate = floating as i64;
+        candidate == integer && candidate as f64 == floating
+    } else if let Some(integer) = integer.as_u64() {
+        // Reject the unsigned saturation boundary, where u64::MAX rounds to
+        // 2^64. Every lower exactly representable integer round-trips.
+        if floating >= 2f64.powi(64) {
+            return false;
+        }
+        let candidate = floating as u64;
+        candidate == integer && candidate as f64 == floating
+    } else {
+        false
+    }
 }
 
 pub fn values_equal(actual: &Value, expected: &Value) -> bool {
