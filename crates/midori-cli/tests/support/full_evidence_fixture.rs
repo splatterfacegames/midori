@@ -1,0 +1,1410 @@
+use midori_cli::evidence::FullEvidenceOptions;
+use serde_json::{Value, json};
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use tempfile::{TempDir, tempdir};
+
+/// Synthetic evidence mutations used by the native self-tests. This fixture is
+/// intentionally not real-engine acceptance evidence.
+#[derive(Clone, Copy)]
+pub enum Mutation {
+    MidoriIdentity,
+    ManifestChecksum,
+    PngDimensions,
+    PngContent,
+    PngFilter,
+    PngDecompression,
+    PrototypeAttribute,
+    MapRelationship,
+    ScatterParity,
+    ScatterRange,
+    MaterialRecipe,
+    SurfaceOverlay,
+    PrototypeTargets,
+    ProfileBudget,
+    MemoryFootprint,
+    Scaffold,
+    CompileStub,
+    FakeEditor,
+    UnityField,
+    UnrealImportTasks,
+    UnrealFoliage,
+    UnrealCull,
+    Notes,
+}
+
+pub struct SyntheticFullEvidence {
+    _root: TempDir,
+    validation: PathBuf,
+}
+
+impl SyntheticFullEvidence {
+    pub fn create() -> Self {
+        let root = tempdir().expect("synthetic fixture tempdir");
+        let validation = root.path().join("validation");
+        let package = validation.join("forest_floor");
+        for directory in ["maps", "scatter", "prototypes", "materials", "engines"] {
+            fs::create_dir_all(package.join(directory)).unwrap();
+        }
+        let manifest = manifest();
+        write_json(&package.join("midori_nature.json"), &manifest);
+        write_bytes(&package.join("preview_tile.glb"), b"synthetic-preview-glb");
+        for name in [
+            "height_u16.png",
+            "normal_yplus.png",
+            "normal_yminus.png",
+            "masks_rgba.png",
+            "grass_density.png",
+        ] {
+            write_bytes(
+                &package.join("maps").join(name),
+                format!("synthetic-{name}").as_bytes(),
+            );
+        }
+        write_json(
+            &package.join("scatter/scatter.json"),
+            &json!({"chunks": scatter_summaries("json", false)}),
+        );
+        for prototype in manifest["prototypes"].as_array().unwrap() {
+            for lod in prototype["lods"].as_array().unwrap() {
+                let file = lod["file"].as_str().unwrap();
+                write_bytes(&package.join(file), file.as_bytes());
+            }
+        }
+        for file in [
+            "materials/terrain_surface.recipe.json",
+            "materials/groundcover_foliage.recipe.json",
+            "engines/unity_import.recipe.json",
+            "engines/unreal_import.recipe.json",
+        ] {
+            write_bytes(&package.join(file), file.as_bytes());
+        }
+        let mut binary_files = Vec::new();
+        for index in 0..26 {
+            let file = format!("scatter/chunk_{index:02}.bin");
+            write_bytes(&package.join(&file), file.as_bytes());
+            binary_files.push(file);
+        }
+        write_scaffolds(&validation);
+        let unity_source_files = source_files(&manifest, "unity_yplus_file");
+        let unreal_source_files = source_files(&manifest, "unreal_yminus_file");
+        let manifest_checksum = fnv_hex(&fs::read(package.join("midori_nature.json")).unwrap());
+        let unity_source_checksum = source_xor(&package, &unity_source_files);
+        let unreal_source_checksum = source_xor(&package, &unreal_source_files);
+        let midori = midori_report(&manifest, &binary_files);
+        let summary = summary(
+            &manifest,
+            &validation,
+            &manifest_checksum,
+            &unity_source_checksum,
+            &unreal_source_checksum,
+        );
+        let compile_stub = compile_stub_report(
+            &manifest,
+            &validation,
+            &manifest_checksum,
+            &unity_source_checksum,
+        );
+        let fake_editor = fake_editor_report(&manifest_checksum, &unreal_source_checksum);
+        let unity = unity_report(&manifest, &manifest_checksum, &unity_source_checksum);
+        let dry_run = unreal_report(&manifest, &manifest_checksum, &unreal_source_checksum, true);
+        let unreal = unreal_report(
+            &manifest,
+            &manifest_checksum,
+            &unreal_source_checksum,
+            false,
+        );
+        write_json(
+            &validation.join("forest_floor_midori_validation_report.json"),
+            &midori,
+        );
+        write_json(&validation.join("engine_validation_summary.json"), &summary);
+        write_json(
+            &validation.join("forest_floor_unity_compile_stub_report.json"),
+            &compile_stub,
+        );
+        write_json(
+            &validation.join("forest_floor_unreal_fake_editor_report.json"),
+            &fake_editor,
+        );
+        write_json(
+            &validation.join("forest_floor_unity_import_report.json"),
+            &unity,
+        );
+        write_json(
+            &validation.join("forest_floor_unreal_dry_run_report.json"),
+            &dry_run,
+        );
+        write_json(
+            &validation.join("forest_floor_unreal_editor_report.json"),
+            &unreal,
+        );
+        let screenshots = validation.join("screenshots");
+        write_png(&screenshots.join("unity_import.png"), 256, 256);
+        write_png(&screenshots.join("unity_density.png"), 256, 256);
+        write_png(&screenshots.join("unreal_import.png"), 256, 256);
+        write_png(&screenshots.join("unreal_foliage.png"), 256, 256);
+        fs::write(validation.join("profile-notes.md"), profile_notes()).unwrap();
+        Self {
+            _root: root,
+            validation,
+        }
+    }
+
+    pub fn validation_root(&self) -> PathBuf {
+        self.validation.clone()
+    }
+
+    pub fn options(&self) -> FullEvidenceOptions {
+        let mut options = FullEvidenceOptions::from_validation_root(self.validation.clone());
+        options.unity_import_screenshot = self.validation.join("screenshots/unity_import.png");
+        options.unity_density_screenshot = self.validation.join("screenshots/unity_density.png");
+        options.unreal_import_screenshot = self.validation.join("screenshots/unreal_import.png");
+        options.unreal_foliage_settings_screenshot =
+            self.validation.join("screenshots/unreal_foliage.png");
+        options.profile_notes = self.validation.join("profile-notes.md");
+        options
+    }
+
+    pub fn remove_editor_only_evidence(&self) {
+        for path in [
+            "forest_floor_unreal_dry_run_report.json",
+            "forest_floor_unity_import_report.json",
+            "forest_floor_unreal_editor_report.json",
+            "screenshots/unity_import.png",
+            "screenshots/unity_density.png",
+            "screenshots/unreal_import.png",
+            "screenshots/unreal_foliage.png",
+            "profile-notes.md",
+        ] {
+            let _ = fs::remove_file(self.validation.join(path));
+        }
+    }
+
+    pub fn mutate(&self, mutation: Mutation) {
+        match mutation {
+            Mutation::MidoriIdentity => edit_json(
+                self.validation
+                    .join("forest_floor_unity_import_report.json"),
+                |report| report["sourceFileCount"] = json!(1),
+            ),
+            Mutation::ManifestChecksum => edit_json(
+                self.validation
+                    .join("forest_floor_unity_import_report.json"),
+                |report| report["manifestFileChecksum"] = json!("0x0000000000000000"),
+            ),
+            Mutation::PngDimensions => write_png(
+                &self.validation.join("screenshots/unity_import.png"),
+                32,
+                32,
+            ),
+            Mutation::PngContent => write_png_constant(
+                &self.validation.join("screenshots/unity_import.png"),
+                256,
+                256,
+                100,
+            ),
+            Mutation::PngFilter => fs::write(
+                self.validation.join("screenshots/unity_import.png"),
+                png_with_bad_filter(),
+            )
+            .unwrap(),
+            Mutation::PngDecompression => fs::write(
+                self.validation.join("screenshots/unity_import.png"),
+                png_with_bad_decompression(),
+            )
+            .unwrap(),
+            Mutation::PrototypeAttribute => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["prototype_summaries"][0]["has_normals"] = json!(false),
+            ),
+            Mutation::MapRelationship => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["map_relationships"]["normal_green_flip_mismatches"] = json!(1),
+            ),
+            Mutation::ScatterParity => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["scatter_parity"]["record_checksum_mismatch_count"] = json!(1),
+            ),
+            Mutation::ScatterRange => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["scatter_json_chunks"][0]["yaw_max"] = json!(99.0),
+            ),
+            Mutation::MaterialRecipe => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["manifest"]["material_recipes"][0]["engine_targets"] = json!([]),
+            ),
+            Mutation::SurfaceOverlay => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["manifest"]["surface_overlays"][0]["channel"] = json!("R"),
+            ),
+            Mutation::PrototypeTargets => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["manifest"]["prototypes"][0]["surface_targets"] = json!([]),
+            ),
+            Mutation::ProfileBudget => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["profile_budget_summaries"][0]["lod0_triangle_budget"] = json!(1),
+            ),
+            Mutation::MemoryFootprint => edit_json(
+                self.validation
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| report["memory_footprint"]["total_payload_bytes"] = json!(1),
+            ),
+            Mutation::Scaffold => edit_json(
+                self.validation
+                    .join("projects/unreal/MidoriUnrealValidation/MidoriUnrealValidation.uproject"),
+                |project| project["Plugins"][0]["Enabled"] = json!(false),
+            ),
+            Mutation::CompileStub => edit_json(
+                self.validation
+                    .join("forest_floor_unity_compile_stub_report.json"),
+                |report| report["detailPrototypeFailures"] = json!(1),
+            ),
+            Mutation::FakeEditor => edit_json(
+                self.validation
+                    .join("forest_floor_unreal_fake_editor_report.json"),
+                |report| report["foliage_type_count"] = json!(1),
+            ),
+            Mutation::UnityField => edit_json(
+                self.validation
+                    .join("forest_floor_unity_import_report.json"),
+                |report| report["mobileDensityScale"] = json!(9.0),
+            ),
+            Mutation::UnrealImportTasks => edit_json(
+                self.validation
+                    .join("forest_floor_unreal_editor_report.json"),
+                |report| report["import_task_files"][0] = json!("wrong.glb"),
+            ),
+            Mutation::UnrealFoliage => edit_json(
+                self.validation
+                    .join("forest_floor_unreal_editor_report.json"),
+                |report| report["foliage_type_count"] = json!(1),
+            ),
+            Mutation::UnrealCull => edit_json(
+                self.validation
+                    .join("forest_floor_unreal_editor_report.json"),
+                |report| report["foliage_cull_start_cm"] = json!(1),
+            ),
+            Mutation::Notes => {
+                fs::write(self.validation.join("profile-notes.md"), "Unity Unreal").unwrap()
+            }
+        }
+    }
+}
+
+fn write_bytes(path: &Path, bytes: &[u8]) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, bytes).unwrap();
+}
+fn write_json(path: &Path, value: &Value) {
+    write_bytes(path, &serde_json::to_vec_pretty(value).unwrap());
+}
+fn edit_json(path: PathBuf, edit: impl FnOnce(&mut Value)) {
+    let mut value: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    edit(&mut value);
+    write_json(&path, &value);
+}
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut value = 0xcbf29ce484222325u64;
+    for byte in bytes {
+        value ^= u64::from(*byte);
+        value = value.wrapping_mul(0x100000001b3);
+    }
+    value
+}
+fn fnv_hex(bytes: &[u8]) -> String {
+    format!("0x{:016x}", fnv1a(bytes))
+}
+fn source_xor(package: &Path, files: &[String]) -> String {
+    let mut value = 0u64;
+    for file in files {
+        value ^= fnv1a(&fs::read(package.join(file)).unwrap());
+    }
+    format!("0x{value:016x}")
+}
+fn source_files(manifest: &Value, normal_key: &str) -> Vec<String> {
+    let mut files = BTreeSet::new();
+    files.insert("midori_nature.json".to_string());
+    files.insert("preview_tile.glb".to_string());
+    for key in ["heightmap_file", "masks_file", "grass_density_file"] {
+        files.insert(manifest["terrain"][key].as_str().unwrap().to_string());
+    }
+    if let Some(file) = manifest["scatter"]["file"].as_str() {
+        files.insert(file.to_string());
+    }
+    files.insert(
+        manifest["normal_conventions"][normal_key]
+            .as_str()
+            .unwrap()
+            .to_string(),
+    );
+    for item in manifest["scatter"]["binary_files"].as_array().unwrap() {
+        files.insert(item["file"].as_str().unwrap().to_string());
+    }
+    for prototype in manifest["prototypes"].as_array().unwrap() {
+        for lod in prototype["lods"].as_array().unwrap() {
+            files.insert(lod["file"].as_str().unwrap().to_string());
+        }
+    }
+    for item in manifest["material_recipes"].as_array().unwrap() {
+        files.insert(item["file"].as_str().unwrap().to_string());
+    }
+    for item in manifest["engine_import_recipes"].as_array().unwrap() {
+        files.insert(item["file"].as_str().unwrap().to_string());
+    }
+    files.into_iter().collect()
+}
+
+fn manifest() -> Value {
+    let kinds = [
+        ("rock", vec!["static_surface", "rock"], 3usize),
+        ("log", vec!["static_surface", "log"], 3),
+        ("shrub", vec!["groundcover_foliage", "shrub_base"], 3),
+        ("grass", vec!["groundcover_foliage"], 3),
+        ("flower", vec!["groundcover_foliage"], 3),
+        ("weed", vec!["groundcover_foliage"], 3),
+        ("moss", vec!["groundcover_foliage", "moss_tuft"], 2),
+        ("litter", vec!["groundcover_foliage"], 2),
+    ];
+    let vertices = [100, 70, 40];
+    let triangles = [120, 80, 40];
+    let prototypes: Vec<Value> = kinds.iter().enumerate().map(|(index, (kind, targets, lod_count))| {
+        let name = format!("{kind}_prototype");
+        let lods: Vec<Value> = (0..*lod_count).map(|lod| json!({
+            "index": lod, "file": format!("prototypes/{name}_lod{lod}.glb"),
+            "vertex_count": vertices[lod], "triangle_count": triangles[lod],
+        })).collect();
+        json!({"name": name, "kind": kind, "surface_targets": targets, "lods": lods, "prototype_index": index})
+    }).collect();
+    let binary_files: Vec<Value> = (0..26)
+        .map(|index| {
+            json!({
+                "file": format!("scatter/chunk_{index:02}.bin"),
+                "instance_count": if index < 14 { 9 } else { 8 },
+            })
+        })
+        .collect();
+    let terrain_parameters: Vec<Value> = [
+        ("overlay_mask_texture", "Midori_MaskTexture"),
+        ("moss_mask_channel", "Midori_MossMaskChannel"),
+        ("wetness_mask_channel", "Midori_WetnessMaskChannel"),
+        ("crack_mask_channel", "Midori_CrackMaskChannel"),
+    ]
+    .into_iter()
+    .map(|(semantic, name)| json!({"semantic": semantic, "name": name}))
+    .collect();
+    let groundcover_parameters: Vec<Value> = [
+        ("alpha_cutoff", "Midori_AlphaCutoff"),
+        ("wind_strength", "Midori_WindStrength"),
+        ("wind_speed", "Midori_WindSpeed"),
+        ("wind_direction_degrees", "Midori_WindDirectionDegrees"),
+        ("wind_gust_scale", "Midori_WindGustScale"),
+        ("fade_start_meters", "Midori_FadeStartMeters"),
+        ("fade_end_meters", "Midori_FadeEndMeters"),
+        ("color_variation_scale", "Midori_ColorVariationScale"),
+    ]
+    .into_iter()
+    .map(|(semantic, name)| json!({"semantic": semantic, "name": name}))
+    .collect();
+    let memory = json!({
+        "map_pixel_count": 64, "decoded_map_bytes": 832, "encoded_map_bytes": 1000,
+        "material_recipe_bytes": 2000, "engine_import_recipe_bytes": 3000,
+        "preview_mesh_bytes": 4000, "prototype_mesh_bytes": 5000, "scatter_json_bytes": 6000,
+        "scatter_binary_header_bytes": 416, "scatter_binary_record_bytes": 7104,
+        "scatter_binary_bytes": 7520, "total_payload_bytes": 28520,
+    });
+    json!({
+        "schema_version": 3, "asset_name": "Temperate Forest Floor", "map_resolution": 8, "tile_size": 16.0,
+        "terrain": {"heightmap_file": "maps/height_u16.png", "masks_file": "maps/masks_rgba.png", "grass_density_file": "maps/grass_density.png", "height_min": 0.0, "height_max": 0.3901228},
+        "normal_conventions": {"unity_yplus_file": "maps/normal_yplus.png", "unreal_yminus_file": "maps/normal_yminus.png"},
+        "mobile": {"density_scale": 0.75, "lod0_max_distance": 10.0, "lod1_max_distance": 20.0, "lod2_max_distance": 30.0, "cull_start": 35.0, "cull_end": 70.0, "shadows": false, "material_slots": 2, "max_instances_per_tile": 300, "max_instances_per_chunk": 20, "lod0_max_triangles": 120, "lod1_max_triangles": 80, "lod2_max_triangles": 40, "grass_collision": false, "moss_collision": false},
+        "console": {"density_scale": 1.0, "lod0_max_distance": 15.0, "lod1_max_distance": 30.0, "lod2_max_distance": 50.0, "cull_start": 35.0, "cull_end": 70.0, "shadows": true, "material_slots": 2, "max_instances_per_tile": 300, "max_instances_per_chunk": 20, "lod0_max_triangles": 120, "lod1_max_triangles": 80, "lod2_max_triangles": 40, "grass_collision": false, "moss_collision": false},
+        "unity": {"terrain_heightmap": "maps/height_u16.png", "detail_density_map": "maps/grass_density.png", "normal_map": "maps/normal_yplus.png"},
+        "unreal": {"landscape_heightmap": "maps/height_u16.png", "landscape_weightmap": "maps/masks_rgba.png", "normal_map": "maps/normal_yminus.png"},
+        "wind_packing": {"phase": "COLOR_0.y", "stiffness": "COLOR_0.z", "height": "TEXCOORD_1.x", "color_variation": "COLOR_0.x", "normalized_progress": "COLOR_0.w"},
+        "material_slots": ["terrain_surface", "groundcover_foliage"],
+        "material_parameters": [
+            {"material_slot": "terrain_surface", "runtime_policy": "engine_native_static", "parameters": terrain_parameters},
+            {"material_slot": "groundcover_foliage", "runtime_policy": "engine_native_static", "parameters": groundcover_parameters}
+        ],
+        "material_recipes": [
+            {"material_slot": "terrain_surface", "file": "materials/terrain_surface.recipe.json", "runtime_policy": "engine_native_static", "engine_targets": ["unity_terrain_material", "unreal_landscape_material"]},
+            {"material_slot": "groundcover_foliage", "file": "materials/groundcover_foliage.recipe.json", "runtime_policy": "engine_native_static", "engine_targets": ["unity_detail_mesh_material", "unreal_static_mesh_foliage_material"]}
+        ],
+        "engine_import_recipes": [
+            {"engine": "unity", "profile": "mobile", "file": "engines/unity_import.recipe.json", "runtime_policy": "engine_native_static", "expected_systems": ["Unity TerrainData", "GPU-instanced terrain detail mesh prefabs"]},
+            {"engine": "unreal", "profile": "console", "file": "engines/unreal_import.recipe.json", "runtime_policy": "engine_native_static", "expected_systems": ["Unreal Landscape", "Static Mesh Foliage"]}
+        ],
+        "surface_overlays": [
+            {"name": "moss", "source_file": "maps/masks_rgba.png", "channel": "G", "targets": ["terrain_surface", "rock", "log"], "runtime_policy": "baked_static"},
+            {"name": "wetness", "source_file": "maps/masks_rgba.png", "channel": "B", "targets": ["terrain_surface", "rock", "log"], "runtime_policy": "baked_static"},
+            {"name": "cracks", "source_file": "maps/masks_rgba.png", "channel": "A", "targets": ["terrain_surface", "scatter_exclusion"], "runtime_policy": "baked_static"}
+        ],
+        "prototypes": prototypes, "scatter": {"file": "scatter/scatter.json", "binary_files": binary_files}, "shader_policy": "preview_only", "texture_pipeline": "parked", "memory_footprint": memory
+    })
+}
+
+fn scatter_count(index: usize) -> i64 {
+    if index < 14 { 9 } else { 8 }
+}
+
+fn scatter_summaries(source: &str, camel_case: bool) -> Vec<Value> {
+    (0..26).map(|index| {
+        if camel_case {
+            json!({
+                "source": source, "instanceCount": scatter_count(index),
+                "fileChecksum": format!("0x{:016x}", index + 1), "recordChecksum": format!("0x{:016x}", index + 101),
+                "yawMin": 0.0, "yawMax": 1.0, "phaseMin": 0.0, "phaseMax": 1.0,
+                "heightMin": 0.5, "heightMax": 1.5, "widthMin": 0.5, "widthMax": 1.5,
+                "colorVariationMin": 0.1, "colorVariationMax": 0.9
+            })
+        } else {
+            json!({
+                "source": source, "instance_count": scatter_count(index),
+                "file_checksum": index + 1, "record_checksum": index + 101,
+                "yaw_min": 0.0, "yaw_max": 1.0, "phase_min": 0.0, "phase_max": 1.0,
+                "height_min": 0.5, "height_max": 1.5, "width_min": 0.5, "width_max": 1.5,
+                "color_variation_min": 0.1, "color_variation_max": 0.9
+            })
+        }
+    }).collect()
+}
+
+fn map_summaries() -> Vec<Value> {
+    [
+        ("height_u16.png", "L16", 1, vec![1, 2], vec![3, 4]),
+        ("normal_yplus.png", "RGB8", 3, vec![1, 2, 3], vec![4, 5, 6]),
+        ("normal_yminus.png", "RGB8", 3, vec![1, 2, 3], vec![4, 5, 6]),
+        (
+            "masks_rgba.png",
+            "RGBA8",
+            4,
+            vec![1, 2, 3, 4],
+            vec![5, 6, 7, 8],
+        ),
+        ("grass_density.png", "L8", 1, vec![1, 2], vec![3, 4]),
+    ]
+    .into_iter()
+    .map(|(file, color_type, channels, minimum, maximum)| {
+        json!({
+            "file": format!("maps/{file}"), "width": 8, "height": 8, "color_type": color_type,
+            "channels": channels, "file_checksum": 1, "channel_min": minimum, "channel_max": maximum
+        })
+    })
+    .collect()
+}
+
+fn prototype_summaries(manifest: &Value) -> Vec<Value> {
+    manifest["prototypes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|prototype| {
+            prototype["lods"].as_array().unwrap().iter().map(|lod| json!({
+            "file": lod["file"], "lod_index": lod["index"], "vertex_count": lod["vertex_count"],
+            "triangle_count": lod["triangle_count"], "mesh_count": 1, "primitive_count": 1,
+            "has_positions": true, "has_normals": true, "has_tangents": true,
+            "normals_are_valid": true, "tangents_are_valid": true, "has_texcoord0": true,
+            "has_texcoord1": true, "has_color0": true, "used_material_count": 1,
+            "file_checksum": 1
+        }))
+        })
+        .collect()
+}
+
+fn material_recipe_summaries() -> Vec<Value> {
+    vec![
+        json!({
+            "material_slot": "terrain_surface", "runtime_policy": "engine_native_static",
+            "shader_policy": "preview_only", "texture_pipeline": "parked", "file_checksum": 1,
+            "required_textures": ["maps/masks_rgba.png"], "surface_overlays": ["moss", "wetness", "cracks"]
+        }),
+        json!({
+            "material_slot": "groundcover_foliage", "runtime_policy": "engine_native_static",
+            "shader_policy": "preview_only", "texture_pipeline": "parked", "file_checksum": 2,
+            "required_vertex_streams": ["TEXCOORD_1.x wind", "COLOR_0.y color"]
+        }),
+    ]
+}
+
+fn engine_recipe_summaries(manifest: &Value) -> Vec<Value> {
+    let count = source_files(manifest, "unity_yplus_file").len();
+    vec![
+        json!({"engine": "unity", "source_file_count": count, "scatter_instances": 222, "scatter_binary_chunks": 26, "file_checksum": 1}),
+        json!({"engine": "unreal", "source_file_count": count, "scatter_instances": 222, "scatter_binary_chunks": 26, "file_checksum": 2}),
+    ]
+}
+
+fn profile_budget_summaries() -> Vec<Value> {
+    ["mobile", "console"]
+        .into_iter()
+        .map(|profile| {
+            json!({
+                "profile": profile, "passed": true, "prototype_lod_count": 22,
+                "max_lod0_triangles": 120, "max_lod1_triangles": 80, "max_lod2_triangles": 40,
+                "lod0_triangle_budget": 120, "lod1_triangle_budget": 80, "lod2_triangle_budget": 40,
+                "max_used_material_count": 1, "material_slot_budget": 2,
+                "scatter_instance_count": 222, "max_chunk_instance_count": 9,
+                "max_instances_per_tile_budget": 300, "max_instances_per_chunk_budget": 20,
+                "triangle_budget_violation_count": 0, "material_slot_violation_count": 0,
+                "instance_budget_violation_count": 0
+            })
+        })
+        .collect()
+}
+
+fn surface_target_entries(manifest: &Value, camel_case: bool) -> Value {
+    if camel_case {
+        json!(
+            manifest["prototypes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|prototype| {
+                    let targets = prototype["surface_targets"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|value| value.as_str().unwrap())
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    format!("{}:{targets}", prototype["name"].as_str().unwrap())
+                })
+                .collect::<Vec<_>>()
+        )
+    } else {
+        json!(manifest["prototypes"].as_array().unwrap().iter().map(|prototype| json!({
+            "name": prototype["name"], "kind": prototype["kind"], "targets": prototype["surface_targets"]
+        })).collect::<Vec<_>>())
+    }
+}
+
+fn material_parameter_report_fields(
+    manifest: &Value,
+    camel_case: bool,
+) -> (Value, Value, Value, Value, Value, Value) {
+    let parameters = manifest["material_parameters"].as_array().unwrap();
+    let slots = parameters
+        .iter()
+        .map(|item| item["material_slot"].clone())
+        .collect::<Vec<_>>();
+    let policies = parameters
+        .iter()
+        .map(|item| item["runtime_policy"].clone())
+        .collect::<Vec<_>>();
+    let semantics = parameters
+        .iter()
+        .flat_map(|item| {
+            let slot = item["material_slot"].as_str().unwrap();
+            item["parameters"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(move |parameter| {
+                    json!(format!(
+                        "{slot}:{}",
+                        parameter["semantic"].as_str().unwrap()
+                    ))
+                })
+        })
+        .collect::<Vec<_>>();
+    let names = |slot: &str| {
+        let mut result = parameters
+            .iter()
+            .find(|item| item["material_slot"] == slot)
+            .unwrap()["parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["name"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>();
+        result.sort();
+        result
+    };
+    let _ = camel_case;
+    (
+        json!(slots),
+        json!(policies),
+        json!(semantics),
+        json!(names("groundcover_foliage")),
+        json!(names("terrain_surface")),
+        json!(parameters.len()),
+    )
+}
+
+fn add_material_parameter_fields(report: &mut Value, manifest: &Value, camel_case: bool) {
+    let (slots, policies, semantics, groundcover, terrain, count) =
+        material_parameter_report_fields(manifest, camel_case);
+    let (count_name, slots_name, policies_name, semantics_name, groundcover_name, terrain_name) =
+        if camel_case {
+            (
+                "materialParameterSetCount",
+                "materialParameterSlots",
+                "materialParameterRuntimePolicies",
+                "materialParameterSemantics",
+                "groundcoverMaterialParameterNames",
+                "terrainMaterialParameterNames",
+            )
+        } else {
+            (
+                "material_parameter_set_count",
+                "material_parameter_slots",
+                "material_parameter_runtime_policies",
+                "material_parameter_semantics",
+                "groundcover_material_parameter_names",
+                "terrain_material_parameter_names",
+            )
+        };
+    report[count_name] = count;
+    report[slots_name] = slots;
+    report[policies_name] = policies;
+    report[semantics_name] = semantics;
+    report[groundcover_name] = groundcover;
+    report[terrain_name] = terrain;
+}
+
+fn add_material_recipe_fields(report: &mut Value, manifest: &Value, camel_case: bool) {
+    let recipes = manifest["material_recipes"].as_array().unwrap();
+    let (count, files, policies, targets, terrain, groundcover) = if camel_case {
+        (
+            "materialRecipeCount",
+            "materialRecipeFiles",
+            "materialRecipeRuntimePolicies",
+            "materialRecipeEngineTargets",
+            "terrainMaterialRecipeFile",
+            "groundcoverMaterialRecipeFile",
+        )
+    } else {
+        (
+            "material_recipe_count",
+            "material_recipe_files",
+            "material_recipe_runtime_policies",
+            "material_recipe_engine_targets",
+            "terrain_material_recipe_file",
+            "groundcover_material_recipe_file",
+        )
+    };
+    report[count] = json!(recipes.len());
+    report[files] = json!(
+        recipes
+            .iter()
+            .map(|item| item["file"].as_str().unwrap())
+            .collect::<Vec<_>>()
+    );
+    report[policies] = json!(
+        recipes
+            .iter()
+            .map(|item| item["runtime_policy"].as_str().unwrap())
+            .collect::<Vec<_>>()
+    );
+    report[targets] = json!(
+        recipes
+            .iter()
+            .flat_map(|item| {
+                let slot = item["material_slot"].as_str().unwrap();
+                item["engine_targets"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(move |target| format!("{slot}:{}", target.as_str().unwrap()))
+            })
+            .collect::<Vec<_>>()
+    );
+    report[terrain] = json!("materials/terrain_surface.recipe.json");
+    report[groundcover] = json!("materials/groundcover_foliage.recipe.json");
+}
+
+fn add_engine_recipe_fields(report: &mut Value, manifest: &Value, camel_case: bool) {
+    let recipes = manifest["engine_import_recipes"].as_array().unwrap();
+    let (count, files, profiles, policies, systems, unity, unreal) = if camel_case {
+        (
+            "engineImportRecipeCount",
+            "engineImportRecipeFiles",
+            "engineImportRecipeProfiles",
+            "engineImportRecipeRuntimePolicies",
+            "engineImportRecipeExpectedSystems",
+            "unityEngineImportRecipeFile",
+            "unrealEngineImportRecipeFile",
+        )
+    } else {
+        (
+            "engine_import_recipe_count",
+            "engine_import_recipe_files",
+            "engine_import_recipe_profiles",
+            "engine_import_recipe_runtime_policies",
+            "engine_import_recipe_expected_systems",
+            "unity_engine_import_recipe_file",
+            "unreal_engine_import_recipe_file",
+        )
+    };
+    report[count] = json!(recipes.len());
+    report[files] = json!(
+        recipes
+            .iter()
+            .map(|item| item["file"].as_str().unwrap())
+            .collect::<Vec<_>>()
+    );
+    report[profiles] = json!(
+        recipes
+            .iter()
+            .map(|item| format!(
+                "{}:{}",
+                item["engine"].as_str().unwrap(),
+                item["profile"].as_str().unwrap()
+            ))
+            .collect::<Vec<_>>()
+    );
+    report[policies] = json!(
+        recipes
+            .iter()
+            .map(|item| item["runtime_policy"].as_str().unwrap())
+            .collect::<Vec<_>>()
+    );
+    report[systems] = json!(
+        recipes
+            .iter()
+            .flat_map(|item| {
+                let engine = item["engine"].as_str().unwrap();
+                item["expected_systems"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(move |system| format!("{engine}:{}", system.as_str().unwrap()))
+            })
+            .collect::<Vec<_>>()
+    );
+    report[unity] = json!("engines/unity_import.recipe.json");
+    report[unreal] = json!("engines/unreal_import.recipe.json");
+}
+
+fn add_surface_fields(report: &mut Value, manifest: &Value, camel_case: bool) {
+    let overlays = manifest["surface_overlays"].as_array().unwrap();
+    let (count, names, sources, channels, policies, targets) = if camel_case {
+        (
+            "surfaceOverlayCount",
+            "surfaceOverlayNames",
+            "surfaceOverlaySourceFiles",
+            "surfaceOverlayChannels",
+            "surfaceOverlayRuntimePolicies",
+            "surfaceOverlayTargets",
+        )
+    } else {
+        (
+            "surface_overlay_count",
+            "surface_overlay_names",
+            "surface_overlay_source_files",
+            "surface_overlay_channels",
+            "surface_overlay_runtime_policies",
+            "surface_overlay_targets",
+        )
+    };
+    report[count] = json!(overlays.len());
+    report[names] = json!(
+        overlays
+            .iter()
+            .map(|item| item["name"].as_str().unwrap())
+            .collect::<Vec<_>>()
+    );
+    report[sources] = json!(
+        overlays
+            .iter()
+            .map(|item| item["source_file"].as_str().unwrap())
+            .collect::<Vec<_>>()
+    );
+    report[channels] = json!(
+        overlays
+            .iter()
+            .map(|item| item["channel"].as_str().unwrap())
+            .collect::<Vec<_>>()
+    );
+    report[policies] = json!(
+        overlays
+            .iter()
+            .map(|item| item["runtime_policy"].as_str().unwrap())
+            .collect::<Vec<_>>()
+    );
+    if camel_case {
+        report[targets] = json!(
+            overlays
+                .iter()
+                .map(|item| item["targets"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|value| value.as_str().unwrap())
+                    .collect::<Vec<_>>()
+                    .join(","))
+                .collect::<Vec<_>>()
+        );
+    } else {
+        report[targets] = json!(
+            overlays
+                .iter()
+                .map(|item| item["targets"].clone())
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
+fn add_prototype_target_fields(report: &mut Value, manifest: &Value, camel_case: bool) {
+    report[if camel_case {
+        "prototypeSurfaceTargets"
+    } else {
+        "prototype_surface_targets"
+    }] = surface_target_entries(manifest, camel_case);
+    let values = |kind: &str| {
+        let mut targets = BTreeSet::new();
+        for prototype in manifest["prototypes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|prototype| prototype["kind"] == kind)
+        {
+            for target in prototype["surface_targets"].as_array().unwrap() {
+                targets.insert(target.as_str().unwrap());
+            }
+        }
+        targets.into_iter().collect::<Vec<_>>()
+    };
+    if camel_case {
+        report["rockPrototypeSurfaceTargets"] = json!(values("rock"));
+        report["logPrototypeSurfaceTargets"] = json!(values("log"));
+        report["shrubPrototypeSurfaceTargets"] = json!(values("shrub"));
+    } else {
+        report["rock_prototype_surface_targets"] = json!(values("rock"));
+        report["log_prototype_surface_targets"] = json!(values("log"));
+        report["shrub_prototype_surface_targets"] = json!(values("shrub"));
+    }
+}
+
+fn midori_report(manifest: &Value, binary_files: &[String]) -> Value {
+    let map_files = [
+        "maps/height_u16.png",
+        "maps/normal_yplus.png",
+        "maps/normal_yminus.png",
+        "maps/masks_rgba.png",
+        "maps/grass_density.png",
+    ];
+    let report = json!({
+        "manifest": manifest,
+        "map_files": map_files,
+        "map_summaries": map_summaries(),
+        "map_relationships": {
+            "normal_pair_pixels": 64, "normal_red_blue_mismatches": 0,
+            "normal_green_flip_mismatches": 0, "normal_green_flip_max_error": 0,
+            "grass_density_pixels": 64, "grass_density_mask_r_mismatches": 0
+        },
+        "prototype_files": manifest["prototypes"].as_array().unwrap().iter().flat_map(|prototype| prototype["lods"].as_array().unwrap().iter().map(|lod| lod["file"].clone())).collect::<Vec<_>>(),
+        "prototype_summaries": prototype_summaries(manifest),
+        "profile_budget_summaries": profile_budget_summaries(),
+        "scatter_binary_files": binary_files,
+        "scatter_binary_instances": 222,
+        "scatter_json_chunks": scatter_summaries("json", false),
+        "scatter_binary_summaries": scatter_summaries("binary", false),
+        "scatter_parity": {
+            "json_chunk_count": 26, "binary_chunk_count": 26, "matching_chunk_count": 26,
+            "missing_binary_chunk_count": 0, "extra_binary_chunk_count": 0,
+            "instance_count_mismatch_count": 0, "bounds_mismatch_count": 0,
+            "record_checksum_mismatch_count": 0
+        },
+        "material_recipe_summaries": material_recipe_summaries(),
+        "engine_import_recipe_summaries": engine_recipe_summaries(manifest),
+        "memory_footprint": manifest["memory_footprint"]
+    });
+    report
+}
+
+fn package_identity_fields(
+    report: &mut Value,
+    manifest: &Value,
+    manifest_checksum: &str,
+    source_checksum: &str,
+    normal_key: &str,
+    camel_case: bool,
+) {
+    let files = source_files(manifest, normal_key);
+    if camel_case {
+        report["manifestFileChecksum"] = json!(manifest_checksum);
+        report["sourceFileCount"] = json!(files.len());
+        report["sourceFileChecksumXor"] = json!(source_checksum);
+        report["sourceFiles"] = json!(files);
+    } else {
+        report["manifest_file_checksum"] = json!(manifest_checksum);
+        report["source_file_count"] = json!(files.len());
+        report["source_file_checksum_xor"] = json!(source_checksum);
+        report["source_files"] = json!(files);
+    }
+}
+
+fn screenshot_summary(path: &str, width: usize, height: usize, checksum: &str) -> Value {
+    json!({"path": path, "status": "captured", "method": "AutomationLibrary.take_high_res_screenshot", "exists": true, "bytes": 1, "checksum": checksum, "width": width, "height": height})
+}
+
+fn add_common_engine_recipe_fields(report: &mut Value, manifest: &Value, camel_case: bool) {
+    add_material_parameter_fields(report, manifest, camel_case);
+    add_material_recipe_fields(report, manifest, camel_case);
+    add_engine_recipe_fields(report, manifest, camel_case);
+    add_surface_fields(report, manifest, camel_case);
+    add_prototype_target_fields(report, manifest, camel_case);
+}
+
+fn unity_report(manifest: &Value, manifest_checksum: &str, source_checksum: &str) -> Value {
+    let mut report = json!({
+        "schemaVersion": 3, "profile": "mobile", "tileSizeMeters": 16.0,
+        "terrainSize": {"x": 16.0, "y": 0.3901228, "z": 16.0},
+        "heightmapFile": "maps/height_u16.png", "densityMapFile": "maps/grass_density.png",
+        "normalMapFile": "maps/normal_yplus.png", "unityHintHeightmap": "maps/height_u16.png",
+        "unityHintDensityMap": "maps/grass_density.png", "unityHintNormalMap": "maps/normal_yplus.png",
+        "importScreenshot": screenshot_summary("screenshots/unity_import.png", 1024, 1024, "0x0000000000000001"),
+        "densityScreenshot": screenshot_summary("screenshots/unity_density.png", 512, 512, "0x0000000000000002"),
+        "mobileDensityScale": 0.75, "mobileLod0MaxDistance": 10.0, "mobileLod1MaxDistance": 20.0,
+        "mobileLod2MaxDistance": 30.0, "mobileCullStartMeters": 35.0, "mobileCullEndMeters": 70.0,
+        "mobileShadows": false, "mobileMaterialSlots": 2, "mobileMaxInstancesPerTile": 300,
+        "mobileMaxInstancesPerChunk": 20, "mobileGrassCollision": false, "mobileMossCollision": false,
+        "materialSlotsDeclared": 2, "hasTerrainSurfaceMaterialSlot": true,
+        "hasGroundcoverFoliageMaterialSlot": true, "groundcoverMaterialAlphaMode": "masked",
+        "groundcoverMaterialDoubleSided": true, "groundcoverMaterialShadows": false,
+        "windPhase": "COLOR_0.y", "windStiffness": "COLOR_0.z", "windHeight": "TEXCOORD_1.x",
+        "windColorVariation": "COLOR_0.x", "windNormalizedProgress": "COLOR_0.w",
+        "prototypesDeclared": 8, "lod0PrototypesDeclared": 8, "lodFilesDeclared": 22,
+        "detailPrototypesCreated": 8, "detailPrototypeFailures": 0, "detailPrototypeFallbackErrors": [],
+        "detailPrototypesLoadedFromAssets": 0, "detailPrototypesGeneratedFromGlb": 8,
+        "nonZeroDetailCells": 512, "scatterBinaryInstances": 222,
+        "scatterBinaryChunks": 26, "scatterBinaryRecordsValidated": true, "scatterBinaryRecordsRead": 222,
+        "scatterBinaryFileChecksumXor": "0x0000000000000003", "scatterBinaryRecordChecksumXor": "0x0000000000000004",
+        "scatterChunkReports": scatter_summaries("binary", true)
+    });
+    package_identity_fields(
+        &mut report,
+        manifest,
+        manifest_checksum,
+        source_checksum,
+        "unity_yplus_file",
+        true,
+    );
+    add_common_engine_recipe_fields(&mut report, manifest, true);
+    report
+}
+
+fn unreal_report(
+    manifest: &Value,
+    manifest_checksum: &str,
+    source_checksum: &str,
+    dry_run: bool,
+) -> Value {
+    let destination = if dry_run {
+        "/Game/Midori/Imported"
+    } else {
+        "/Game/Midori/FakeEditor/Temperate_Forest_Floor"
+    };
+    let import_files = unreal_import_files(manifest);
+    let import_destinations = import_files
+        .iter()
+        .map(|file| {
+            let parent = file
+                .rsplit_once('/')
+                .map(|(parent, _)| format!("{destination}/{parent}"))
+                .unwrap_or_else(|| destination.to_string());
+            parent
+        })
+        .collect::<Vec<_>>();
+    let import_tasks = import_files
+        .iter()
+        .zip(import_destinations.iter())
+        .map(|(file, destination)| {
+            json!({
+                "file": file, "destination_path": destination,
+                "extension": format!(".{}", file.rsplit_once('.').map(|(_, ext)| ext).unwrap_or(""))
+            })
+        })
+        .collect::<Vec<_>>();
+    let prototype_count = manifest["prototypes"].as_array().unwrap().len();
+    let mut scatter_chunks = scatter_summaries("binary", false);
+    for (index, chunk) in scatter_chunks.iter_mut().enumerate() {
+        chunk["file_checksum"] = json!(format!("0x{:016x}", index + 1));
+        chunk["record_checksum"] = json!(format!("0x{:016x}", index + 101));
+    }
+    let mut report = json!({
+        "schema_version": 3, "dry_run": dry_run, "profile": "console",
+        "tile_size_meters": 16.0, "landscape_heightmap": "maps/height_u16.png",
+        "landscape_weightmap": "maps/masks_rgba.png", "normal_map": "maps/normal_yminus.png",
+        "screenshots": {
+            "import": screenshot_summary("screenshots/unreal_import.png", 1024, 1024, "0x0000000000000005"),
+            "foliage_settings": screenshot_summary("screenshots/unreal_foliage.png", 1024, 1024, "0x0000000000000006")
+        },
+        "console_density_scale": 1.0, "console_lod0_max_distance_meters": 15.0,
+        "console_lod1_max_distance_meters": 30.0, "console_lod2_max_distance_meters": 50.0,
+        "console_material_slots": 2, "console_max_instances_per_tile": 300,
+        "console_max_instances_per_chunk": 20, "console_shadows": true,
+        "console_grass_collision": false, "console_moss_collision": false,
+        "console_cull_start_meters": 35.0, "console_cull_end_meters": 70.0,
+        "console_cull_start_cm": 3500, "console_cull_end_cm": 7000,
+        "prototypes_declared": prototype_count, "lod0_prototypes_declared": prototype_count,
+        "lod_files_declared": 22, "foliage_type_status": if dry_run { "dry_run" } else { "created" },
+        "foliage_type_expected_count": prototype_count, "foliage_type_count": if dry_run { 0 } else { prototype_count },
+        "foliage_type_assets": if dry_run { json!([]) } else { json!(["Foliage_0", "Foliage_1", "Foliage_2", "Foliage_3", "Foliage_4", "Foliage_5", "Foliage_6", "Foliage_7"]) },
+        "foliage_cull_start_cm": 3500, "foliage_cull_end_cm": 7000,
+        "material_slots_declared": 2, "has_terrain_surface_material_slot": true,
+        "has_groundcover_foliage_material_slot": true,
+        "groundcover_material": {"alpha_mode": "masked", "double_sided": true, "shadows": false},
+        "wind_packing": manifest["wind_packing"],
+        "scatter_binary_instances": 222, "scatter_binary_chunks": 26,
+        "scatter_binary_records_validated": true, "scatter_binary_records_read": 222,
+        "scatter_binary_file_checksum_xor": "0x0000000000000007", "scatter_binary_record_checksum_xor": "0x0000000000000008",
+        "scatter_chunks": scatter_chunks,
+        "destination_path": destination, "imported_files": import_files, "import_task_count": import_files.len(),
+        "import_task_files": import_files, "import_task_destination_paths": import_destinations,
+        "import_task_extensions": [".glb", ".json", ".png"], "imported_manifest": true, "imported_preview_tile": true,
+        "imported_map_files": expected_import_map_files(manifest),
+        "imported_map_file_count": expected_import_map_files(manifest).len(),
+        "imported_prototype_lod_files": expected_lod_files(manifest),
+        "imported_prototype_lod_file_count": expected_lod_files(manifest).len(),
+        "imported_lod0_prototype_files": expected_lod0_files(manifest),
+        "imported_lod0_prototype_file_count": expected_lod0_files(manifest).len(),
+        "import_tasks": import_tasks,
+    });
+    package_identity_fields(
+        &mut report,
+        manifest,
+        manifest_checksum,
+        source_checksum,
+        "unreal_yminus_file",
+        false,
+    );
+    add_common_engine_recipe_fields(&mut report, manifest, false);
+    report
+}
+
+fn expected_import_map_files(manifest: &Value) -> Vec<String> {
+    vec![
+        manifest["terrain"]["heightmap_file"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+        manifest["terrain"]["masks_file"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+        manifest["terrain"]["grass_density_file"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+        manifest["normal_conventions"]["unreal_yminus_file"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+    ]
+}
+fn expected_lod_files(manifest: &Value) -> Vec<String> {
+    let mut result = manifest["prototypes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|prototype| {
+            prototype["lods"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|lod| lod["file"].as_str().unwrap().to_string())
+        })
+        .collect::<Vec<_>>();
+    result.sort();
+    result
+}
+fn expected_lod0_files(manifest: &Value) -> Vec<String> {
+    let mut result = manifest["prototypes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|prototype| {
+            prototype["lods"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|lod| lod["index"] == 0)
+                .map(|lod| lod["file"].as_str().unwrap().to_string())
+        })
+        .collect::<Vec<_>>();
+    result.sort();
+    result
+}
+fn unreal_import_files(manifest: &Value) -> Vec<String> {
+    let mut files = BTreeSet::new();
+    files.insert("midori_nature.json".to_string());
+    files.insert("preview_tile.glb".to_string());
+    files.extend(expected_import_map_files(manifest));
+    files.extend(expected_lod_files(manifest));
+    files.into_iter().collect()
+}
+
+fn compile_stub_report(
+    manifest: &Value,
+    validation: &Path,
+    manifest_checksum: &str,
+    source_checksum: &str,
+) -> Value {
+    let mut report = json!({
+        "status": "passed", "schema_version": 3, "asset_name": "Temperate Forest Floor",
+        "package_dir": "forest_floor", "manifest_file_checksum": manifest_checksum,
+        "source_file_count": 59, "source_file_checksum_xor": source_checksum,
+        "material_recipe_count": 2, "prototypesDeclared": 8, "lod0PrototypesDeclared": 8,
+        "lodFilesDeclared": 22, "materialSlotsDeclared": 2, "hasTerrainSurfaceMaterialSlot": true,
+        "hasGroundcoverFoliageMaterialSlot": true, "groundcoverMaterialAlphaMode": "masked",
+        "groundcoverMaterialDoubleSided": true, "groundcoverMaterialShadows": false,
+        "terrain_size_x": 16.0, "terrain_size_y": 0.3901228, "terrain_size_z": 16.0,
+        "heightmapResolution": 33, "detailResolution": 8, "detailResolutionPerPatch": 8,
+        "detailPrototypesCreated": 8, "detailPrototypesLoadedFromAssets": 0,
+        "detailPrototypesGeneratedFromGlb": 8, "detailPrototypeFailures": 0,
+        "detailPrototypeGeneratedFileCount": 8, "detailPrototypeFallbackErrorCount": 0,
+        "nonZeroDetailCells": 512, "importScreenshotExists": true, "importScreenshotBytes": 1,
+        "importScreenshotChecksum": "0x0000000000000009", "importScreenshotWidth": 1024,
+        "importScreenshotHeight": 1024, "importScreenshotPixelCount": 1024 * 1024,
+        "importScreenshotMinR": 0.08, "importScreenshotMaxR": 0.72,
+        "importScreenshotMinG": 0.10, "importScreenshotMaxG": 0.82,
+        "importScreenshotMinB": 0.08, "importScreenshotMaxB": 0.35,
+        "densityScreenshotExists": true, "densityScreenshotBytes": 1,
+        "densityScreenshotChecksum": "0x000000000000000a", "densityScreenshotWidth": 512,
+        "densityScreenshotHeight": 512, "densityScreenshotPixelCount": 512 * 512,
+        "densityScreenshotMinR": 0.25, "densityScreenshotMaxR": 0.75,
+        "densityScreenshotMinG": 0.25, "densityScreenshotMaxG": 0.75,
+        "densityScreenshotMinB": 0.3625, "densityScreenshotMaxB": 0.7875,
+        "scatter_binary_instances": 222, "scatter_binary_chunks": 26,
+        "engine_import_recipe_count": 2,
+        "engine_import_recipe_files": ["engines/unity_import.recipe.json", "engines/unreal_import.recipe.json"],
+        "surface_overlay_count": 3, "prototype_count": 8, "scatter_chunk_reports": 26,
+        "scatter_binary_records_validated": true,
+        "scatter_binary_file_checksum_xor": "0x000000000000000b",
+        "scatter_binary_record_checksum_xor": "0x000000000000000c"
+    });
+    let _ = validation;
+    add_common_engine_recipe_fields(&mut report, manifest, true);
+    report
+}
+
+fn fake_editor_report(manifest_checksum: &str, source_checksum: &str) -> Value {
+    let screenshot = |checksum: &str| json!({"status": "captured", "method": "AutomationLibrary.take_high_res_screenshot", "exists": true, "bytes": 1, "checksum": checksum, "width": 1024, "height": 1024});
+    let metric = |checksum: &str| json!({"exists": true, "bytes": 1, "checksum": checksum, "width": 1024, "height": 1024, "sample_count": 1024 * 1024, "luminance_range": 91});
+    json!({
+        "status": "passed", "dry_run": false, "destination_path": "/Game/Midori/FakeEditor/Temperate_Forest_Floor",
+        "source_file_count": 59, "manifest_file_checksum": manifest_checksum,
+        "source_file_checksum_xor": source_checksum, "import_task_count": 28,
+        "imported_map_file_count": 4, "imported_prototype_lod_file_count": 22,
+        "imported_lod0_prototype_file_count": 8, "foliage_type_expected_count": 8,
+        "foliage_type_count": 8, "foliage_type_status": "created", "foliage_cull_start_cm": 3500,
+        "foliage_cull_end_cm": 7000, "scatter_binary_chunks": 26, "scatter_binary_instances": 222,
+        "scatter_binary_records_validated": true, "scatter_binary_records_read": 222,
+        "scatter_binary_file_checksum_xor": "0x000000000000000d",
+        "scatter_binary_record_checksum_xor": "0x000000000000000e",
+        "corrupt_scatter_rejection": "passed",
+        "screenshots": {"import": screenshot("0x000000000000000f"), "foliage_settings": screenshot("0x0000000000000010")},
+        "screenshot_metrics": {"import": metric("0x0000000000000011"), "foliage_settings": metric("0x0000000000000012")}
+    })
+}
+
+fn summary(
+    manifest: &Value,
+    validation: &Path,
+    manifest_checksum: &str,
+    unity_source_checksum: &str,
+    unreal_source_checksum: &str,
+) -> Value {
+    let compile_path = validation.join("forest_floor_unity_compile_stub_report.json");
+    let fake_path = validation.join("forest_floor_unreal_fake_editor_report.json");
+    let summary = json!({
+        "project_scaffolds": {
+            "status": "generated", "preflight_status": "passed",
+            "root": validation.join("projects").to_string_lossy(),
+            "unity_project": validation.join("projects/unity/MidoriUnityValidation").to_string_lossy(),
+            "unreal_project": validation.join("projects/unreal/MidoriUnrealValidation/MidoriUnrealValidation.uproject").to_string_lossy()
+        },
+        "midori": {
+            "status": "passed", "map_summaries": 5, "map_relationships_status": "passed",
+            "prototype_summaries": 22, "profile_budget_summaries": 2,
+            "profile_budget_status": "passed", "profile_budget_failure_count": 0,
+            "scatter_json_chunks": 26, "scatter_binary_summaries": 26,
+            "scatter_parity_status": "passed", "scatter_record_checksum_mismatches": 0
+        },
+        "unity_preflight": {
+            "status": "passed", "compile_stub_status": "passed",
+            "compile_stub_execution_status": "passed", "compile_stub_source_file_count": 59,
+            "compile_stub_manifest_file_checksum": manifest_checksum,
+            "compile_stub_source_file_checksum_xor": unity_source_checksum,
+            "compile_stub_material_recipe_count": 2, "compile_stub_engine_import_recipe_count": 2,
+            "compile_stub_scatter_binary_chunks": 26, "compile_stub_scatter_binary_instances": 222,
+            "compile_stub_scatter_binary_records_validated": true,
+            "compile_stub_execution_report": compile_path.to_string_lossy(), "scatter_binary_instances": 222
+        },
+        "profile_notes_preflight": {"status": "passed"},
+        "unreal": {
+            "dry_run_status": "passed", "scatter_binary_instances": 222,
+            "scatter_binary_records_validated": true, "scatter_binary_records_read": 222,
+            "scatter_binary_file_checksum_xor": "0x0000000000000007",
+            "scatter_binary_record_checksum_xor": "0x0000000000000008",
+            "scatter_chunk_reports": 26, "manifest_file_checksum": manifest_checksum,
+            "source_file_checksum_xor": unreal_source_checksum
+        },
+        "unreal_fake_editor": {
+            "status": "passed", "report": fake_path.to_string_lossy(),
+            "import_screenshot_status": "captured", "import_screenshot_method": "AutomationLibrary.take_high_res_screenshot",
+            "import_screenshot_report_exists": true, "import_screenshot_report_bytes": 1,
+            "import_screenshot_report_checksum": "0x000000000000000f", "import_screenshot_report_width": 1024,
+            "import_screenshot_report_height": 1024, "import_screenshot_checksum": "0x0000000000000011",
+            "import_screenshot_luminance_range": 91,
+            "foliage_settings_screenshot_status": "captured", "foliage_settings_screenshot_method": "AutomationLibrary.take_high_res_screenshot",
+            "foliage_settings_screenshot_report_exists": true, "foliage_settings_screenshot_report_bytes": 1,
+            "foliage_settings_screenshot_report_checksum": "0x0000000000000010", "foliage_settings_screenshot_report_width": 1024,
+            "foliage_settings_screenshot_report_height": 1024, "foliage_settings_screenshot_checksum": "0x0000000000000012",
+            "foliage_settings_screenshot_luminance_range": 91
+        }
+    });
+    let _ = manifest;
+    summary
+}
+
+fn write_scaffolds(validation: &Path) {
+    let root = validation.join("projects");
+    let unity = root.join("unity/MidoriUnityValidation");
+    let unreal = root.join("unreal/MidoriUnrealValidation");
+    write_bytes(
+        &unity.join("Assets/Editor/MidoriNaturePackageImporter.cs"),
+        b"synthetic importer",
+    );
+    fs::create_dir_all(unity.join("ProjectSettings")).unwrap();
+    write_bytes(
+        &unity.join("Assets/Midori/Validation/README.md"),
+        b"synthetic Unity scaffold",
+    );
+    write_json(
+        &unity.join("Packages/manifest.json"),
+        &json!({"dependencies": {
+            "com.unity.cloud.gltfast": "5.2.0",
+            "com.unity.modules.imgui": "1.0.0",
+            "com.unity.modules.jsonserialize": "1.0.0",
+            "com.unity.modules.terrain": "1.0.0",
+            "com.unity.modules.uielements": "1.0.0"
+        }}),
+    );
+    write_json(
+        &unreal.join("MidoriUnrealValidation.uproject"),
+        &json!({"Plugins": [
+            {"Name": "PythonScriptPlugin", "Enabled": true},
+            {"Name": "EditorScriptingUtilities", "Enabled": true}
+        ]}),
+    );
+    write_bytes(
+        &unreal.join("Config/DefaultEngine.ini"),
+        b"[/Script/Plugins.PythonScriptPluginSettings]\nbDeveloperMode=True\n",
+    );
+    write_bytes(
+        &unreal.join("Content/Midori/Validation/README.md"),
+        b"synthetic Unreal scaffold",
+    );
+    write_json(
+        &root.join("project_scaffold_summary.json"),
+        &json!({"unity": {"gltfast_version": "5.2.0"}, "unreal": {"destination_root": "/Game/Midori/Imported"}}),
+    );
+}
+
+fn write_png(path: &Path, width: u32, height: u32) {
+    let mut data = Vec::with_capacity((width as usize) * (height as usize) * 3);
+    for y in 0..height {
+        for x in 0..width {
+            data.push((x % 256) as u8);
+            data.push((y % 256) as u8);
+            data.push(((x + y) % 256) as u8);
+        }
+    }
+    write_png_data(path, width, height, &data);
+}
+
+fn write_png_constant(path: &Path, width: u32, height: u32, value: u8) {
+    write_png_data(
+        path,
+        width,
+        height,
+        &vec![value; width as usize * height as usize * 3],
+    );
+}
+
+fn write_png_data(path: &Path, width: u32, height: u32, data: &[u8]) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let file = fs::File::create(path).unwrap();
+    let mut encoder = png::Encoder::new(file, width, height);
+    encoder.set_color(png::ColorType::Rgb);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(data).unwrap();
+}
+
+fn png_with_bad_filter() -> Vec<u8> {
+    // A small valid PNG whose first scanline advertises unsupported filter 5.
+    // The verifier reaches filter validation after passing signature/IHDR/IDAT.
+    let width = 256u32;
+    let height = 256u32;
+    let mut raw = Vec::with_capacity((width as usize * 3 + 1) * height as usize);
+    for _ in 0..height {
+        raw.push(5);
+        raw.extend(std::iter::repeat_n(80u8, width as usize * 3));
+    }
+    let mut compressed = Vec::new();
+    {
+        use flate2::Compression;
+        use flate2::write::ZlibEncoder;
+        use std::io::Write;
+        let mut encoder = ZlibEncoder::new(&mut compressed, Compression::default());
+        encoder.write_all(&raw).unwrap();
+        encoder.finish().unwrap();
+    }
+    let mut output = b"\x89PNG\r\n\x1a\n".to_vec();
+    let mut header = Vec::with_capacity(13);
+    header.extend(width.to_be_bytes());
+    header.extend(height.to_be_bytes());
+    header.extend([8, 2, 0, 0, 0]);
+    append_png_chunk(&mut output, b"IHDR", &header);
+    append_png_chunk(&mut output, b"IDAT", &compressed);
+    append_png_chunk(&mut output, b"IEND", &[]);
+    output
+}
+
+fn png_with_bad_decompression() -> Vec<u8> {
+    // A structurally valid PNG with a deliberately truncated zlib stream.
+    let mut output = b"\x89PNG\r\n\x1a\n".to_vec();
+    let mut header = Vec::with_capacity(13);
+    header.extend(256u32.to_be_bytes());
+    header.extend(256u32.to_be_bytes());
+    header.extend([8, 2, 0, 0, 0]);
+    append_png_chunk(&mut output, b"IHDR", &header);
+    append_png_chunk(&mut output, b"IDAT", &[0x78, 0x9c, 0x00]);
+    append_png_chunk(&mut output, b"IEND", &[]);
+    output
+}
+
+fn append_png_chunk(output: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+    output.extend((data.len() as u32).to_be_bytes());
+    output.extend(kind);
+    output.extend(data);
+    // The native verifier intentionally preserves the legacy parser's lack of
+    // CRC validation; zero is sufficient for this synthetic fixture.
+    output.extend([0u8; 4]);
+}
+
+fn profile_notes() -> String {
+    let paragraph = "Synthetic profile evidence records Unity Editor version and Unreal Editor version observations for the mobile and console profiles. LOD distances, Frame Debugger and RenderDoc observations cover instanced rendering, scale, density, cull distances, material slot bindings, and wind channels. The strict verifier consumes forest_floor_unity_import_report.json and forest_floor_unreal_editor_report.json together with unity_forest_floor_import.png, unity_forest_floor_density.png, unreal_forest_floor_import.png, and unreal_forest_floor_foliage_settings.png. Unity fields detailPrototypesCreated, detailPrototypesGeneratedFromGlb, detailPrototypeFailures, detailPrototypeFallbackErrors, and scatterBinaryRecordsRead are recorded; scatterChunkReports and Unreal foliage_type_count and foliage_type_assets are included with 3500 and 7000 cull bounds. This is a synthetic test fixture and does not claim that an editor was executed.\n";
+    format!(
+        "## Evidence Artifacts\n\n{paragraph}\n## Unity\n\n{paragraph}\n## Unreal\n\n{paragraph}\n## Verdict\n\n{paragraph}{paragraph}"
+    )
+}
