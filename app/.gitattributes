@@ -1,0 +1,9 @@
+# core.autocrlf is true on this machine. Without these rules, every checkout
+# would rewrite the line endings of the vendored crates, and the SHA-256 digests
+# in vendor/PROVENANCE.json would no longer describe the bytes on disk -
+# src-tauri/tests/vendor.rs would fail on a clean clone even though nothing had
+# actually been tampered with.
+vendor/** -text
+
+# The cross-language fixture is bytes a Rust encoder produced. Never convert it.
+fixtures/*.bin -text
