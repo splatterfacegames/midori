@@ -14,6 +14,7 @@ const PRESETS: [&[u8]; 5] = [
 ];
 
 fn identity() -> EngineIdentity {
+    // Explicit test data, not a real revision, build identity or release attestation.
     EngineIdentity {
         source_revision: "test-fixture:source-not-a-git-revision".into(),
         build_id: "test-fixture:not-release-evidence".into(),
@@ -50,6 +51,7 @@ fn assert_mesh(left: &Mesh, right: &Mesh) {
 }
 
 fn assert_reopened(result: &TreeResult) {
+    // Independent public gltf reader, including its normal validation path.
     let glb = gltf::Gltf::from_slice(result.glb()).expect("independent GLB parse");
     let binary = glb.blob.as_deref().expect("embedded binary");
     assert_eq!(glb.document.buffers().count(), 1);
@@ -70,9 +72,16 @@ fn assert_reopened(result: &TreeResult) {
         glb.document.default_scene().unwrap().nodes().count(),
         nonempty.len()
     );
-    for (node, mesh) in glb.document.nodes().zip(glb.document.meshes()) {
+    for (position, (node, mesh)) in glb.document.nodes().zip(glb.document.meshes()).enumerate() {
         assert_eq!(node.mesh().unwrap().index(), mesh.index());
-        assert!(node.name().unwrap().contains("_LOD"));
+        let name = node.name().expect("exported LOD node is named");
+        // Bind the node to its own LOD ordinal, not merely to the "_LOD"
+        // marker: emitting one LOD's name for every node must fail here.
+        let expected = format!("_LOD{}", nonempty[position].index);
+        assert!(
+            name.ends_with(&expected),
+            "node {position} named {name:?} does not carry its own LOD ordinal {expected:?}"
+        );
     }
     for (exported, lod) in glb.document.meshes().zip(nonempty) {
         let mesh = &lod.mesh;
@@ -81,7 +90,7 @@ fn assert_reopened(result: &TreeResult) {
             .iter()
             .filter(|s| s.index_count > 0)
             .collect();
-        assert!(!ranges.is_empty());
+        assert!(!ranges.is_empty(), "preset should exercise submesh export");
         assert_eq!(exported.primitives().count(), ranges.len());
         for (primitive, range) in exported.primitives().zip(ranges) {
             assert_eq!(primitive.mode(), gltf::mesh::Mode::Triangles);
