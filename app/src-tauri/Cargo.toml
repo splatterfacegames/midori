@@ -32,3 +32,4 @@ midori-core = { path = "../../crates/midori-core" }
 sha2 = "=0.10.9"
 # Reopens an exported GLB from disk and reads back what is actually in it.
 gltf = "1.4"
+

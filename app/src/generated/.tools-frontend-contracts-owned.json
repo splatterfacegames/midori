@@ -1,0 +1,18 @@
+{
+  "files": {
+    "bindings.ts": "e4bb8558ec93f6415ad0625850ed2887e6bf450520d579cab37f3a9bb737eb8e",
+    "metadata.ts": "94f185ff3e22fc7f22fbdf4487c55bb8492871afcf03abdb43e04cf7b98605c8",
+    "midori/tree/v1.ts": "c49c963bfdee2743418246d4876b8cb0deaf475008aa2bfcac1eabf42a2557b6",
+    "midori/tree/v1/artifact-ref.ts": "b2aada1e1a73528c3f7d293257618d45b3fa8529a3180ee683760519ebbcb62d",
+    "midori/tree/v1/engine-identity.ts": "a88fd2874b8ef1a40fdd8299a6d88e4ad48619e5d0bcca13f2ebbe5fbb638ea1",
+    "midori/tree/v1/lod-level.ts": "7e55ded20314d8d2d36fff21a15549a1afed2217ca627c085c91b6ff36f907b1",
+    "midori/tree/v1/material-role.ts": "2b62676a3ed77aea20e3f67941b4e059cc1387f16cd1b08dc4fc2e3edc87ceb1",
+    "midori/tree/v1/submesh-range.ts": "b9f04836eb17728274be1448b415a7d2ebe4db50783c0df81806ad5712bb47e1",
+    "midori/tree/v1/tree-compute-request.ts": "67ae42f32a4fb79e13e7fbefa0837a947daf7bc6a353090c8d21f3955d5ddab9",
+    "midori/tree/v1/tree-compute-result.ts": "4e8356c36208ca9c6bca88898e34e47a77252491c57694b6e0dc42a822fd20ea",
+    "midori/tree/v1/tree-summary.ts": "bed4a078460c6942b57055f101a1f5fb75ffeb82d78518efb92f5a7b14c9050d",
+    "registry.ts": "31a24b47af24fb4807cf7109db48df3c3c446eaea54927d00c2ce7e6b322895e"
+  },
+  "generator_version": 1,
+  "kind": "typescript"
+}
