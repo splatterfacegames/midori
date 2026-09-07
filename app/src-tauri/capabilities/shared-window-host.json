@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "shared-window-host",
+  "description": "Allow the shared tools-frontend window host exchange in every Midori window.",
+  "windows": ["main", "host-*"],
+  "permissions": ["tools-frontend-host:default"]
+}

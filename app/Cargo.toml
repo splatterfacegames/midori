@@ -1,0 +1,6 @@
+[workspace]
+members = ["src-tauri"]
+resolver = "2"
+
+[profile.dev]
+debug = 1
