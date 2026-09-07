@@ -1,0 +1,299 @@
+{
+  "catalog": {},
+  "descriptor_sha256": "5d04e55d3a9bb071aa05edaef2e623488f9e7f6b652c0c24ff9676d70f524362",
+  "enums": {},
+  "generator_version": 1,
+  "identifiers": {
+    "HostMessage": "TFWH"
+  },
+  "objects": {
+    "HostMessage": {
+      "attributes": {},
+      "fields": [
+        {
+          "attributes": {
+            "id": "0",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 0,
+          "name": "operation",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "1",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 1,
+          "name": "app_id",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "2"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 2,
+          "name": "project_id",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "3"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 3,
+          "name": "session_id",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "4"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 4,
+          "name": "window_id",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "5"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 5,
+          "name": "generation",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "UInt",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "6"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 6,
+          "name": "transfer_id",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "7"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 7,
+          "name": "source_id",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "8"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 8,
+          "name": "destination_id",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "9"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 9,
+          "name": "panel_ids",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "Vector",
+            "element": "String",
+            "element_size": 4,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "10"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 10,
+          "name": "layout",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "11"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 11,
+          "name": "status",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "12"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 12,
+          "name": "owned_panel_ids",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "Vector",
+            "element": "String",
+            "element_size": 4,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "13"
+          },
+          "default_integer": "0",
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 13,
+          "name": "ownership_revision",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 8,
+            "base_type": "ULong",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        }
+      ],
+      "namespace": "ToolsFrontend.Host"
+    }
+  }
+}

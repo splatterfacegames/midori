@@ -18,11 +18,12 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tauri = { version = "2.11.0" }
 tauri-plugin-log = "2"
-# Shared native window host. There is no published registry or Git rev for this
-# crate in the lab, so it is consumed from the reviewed checkout by path. The npm
-# half of the shared stack IS installed from the packed tarball with a pinned
-# lockfile integrity; this Cargo edge is the remaining gap. See README.md.
-tools-frontend-host-tauri = { path = "../../../../lab-shared-main-bdade495/source/crates/tools-frontend-host-tauri" }
+# Shared native window host. Vendored into app/vendor/ rather than referenced
+# in place: the reviewed checkout is not a Git repository and the crate is not
+# published, so there is no rev or version to pin it to. The vendored tree is
+# byte-identical to its source and every file is digested in
+# app/vendor/PROVENANCE.json, which src-tauri/tests/vendor.rs re-verifies.
+tools-frontend-host-tauri = { path = "../vendor/crates/tools-frontend-host-tauri" }
 
 # The tree slice.
 midori-contracts = { path = "../../crates/midori-contracts" }
@@ -33,3 +34,8 @@ sha2 = "=0.10.9"
 # Reopens an exported GLB from disk and reads back what is actually in it.
 gltf = "1.4"
 
+
+[dev-dependencies]
+# `tests/vendor.rs` re-digests the vendored shared crates.
+sha2 = "=0.10.9"
+serde_json = "1.0"

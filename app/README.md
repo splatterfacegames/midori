@@ -44,10 +44,22 @@ tarball, with no `link` field. `npm` rewrites `resolved` to a path relative to
 this directory, so the lockfile is not portable to another machine even though
 the integrity pin is exact.
 
-`tools-frontend-host-tauri` is still a Cargo **path** dependency on the reviewed
-checkout. There is no registry or Git rev for it in the lab and the shared
-checkout is not a Git repository, so there is nothing to pin it to. This is the
-one remaining dependency gap.
+`tools-frontend-host-tauri` is not published, and the reviewed checkout it comes
+from is not a Git repository, so there is no version or rev to pin it to.
+Instead its source is **vendored** into `app/vendor/`, together with
+`tools-frontend-contracts` and the three schema files the two crates compile in
+with `include_str!` from outside their own directories. The vendored tree is
+byte-identical to its source (`diff -r` clean at capture) and contains no Python.
+
+`app/vendor/PROVENANCE.json` records the source path, the capture time, a
+SHA-256 for every vendored file, and a tree digest over all of them.
+`src-tauri/tests/vendor.rs` recomputes all of it on every test run and also
+asserts that `src-tauri/Cargo.toml` still points at the vendored copy and no
+longer mentions the shared checkout. Both were mutation-checked: appending a
+line to a vendored file and adding an unrecorded file each fail the suite.
+
+That makes the dependency immutable and auditable. It is not the same thing as a
+registry version pin, and the README should not be read as claiming it is.
 
 ## A note on the generated JSON projection
 
