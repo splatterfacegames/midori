@@ -6,7 +6,12 @@ members = [
     "crates/midori-wasm",
     "crates/midori-ffi",
     "crates/midori-ui-domain",
+    "crates/midori-contracts",
 ]
+# `app/` is a Tauri application with its own workspace and lockfile, exactly as
+# the shared stack's reference workbench is laid out. Keeping its large native
+# dependency tree out of this workspace keeps engine builds unaffected by it.
+exclude = ["app"]
 
 [workspace.package]
 version = "0.1.0"

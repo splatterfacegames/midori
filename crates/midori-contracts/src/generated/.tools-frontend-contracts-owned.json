@@ -1,0 +1,8 @@
+{
+  "files": {
+    "projection_generated.rs": "452a620ba276bfd674b2bb5b75e6b77cec93e19081251bd95d1c8070a54d53b9",
+    "tree_generated.rs": "2e013debd2b84b236f4295a45695dfa0a41e7409004f18238553724368b125a3"
+  },
+  "generator_version": 1,
+  "kind": "rust"
+}

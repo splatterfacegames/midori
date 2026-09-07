@@ -1,0 +1,230 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "description": "Exact 64-bit decimal integer; runtime enforces range.",
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "EngineIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "build_id": {
+          "type": "string"
+        },
+        "source_revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_revision",
+        "build_id"
+      ],
+      "type": "object"
+    },
+    "LodLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "index_count": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "screen_height": {
+          "type": "number"
+        },
+        "submeshes": {
+          "items": {
+            "$ref": "#/$defs/SubmeshRange"
+          },
+          "maxItems": 1000000,
+          "type": "array"
+        },
+        "vertex_count": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "submeshes"
+      ],
+      "type": "object"
+    },
+    "SubmeshRange": {
+      "additionalProperties": false,
+      "properties": {
+        "index_count": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "index_offset": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "material": {
+          "enum": [
+            "Bark",
+            "Leaves",
+            0,
+            1
+          ]
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "TreeComputeRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema": {
+          "type": "string"
+        },
+        "seed": {
+          "description": "Exact 64-bit decimal integer; runtime enforces range.",
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "source": {
+          "items": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 1000000,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "source"
+      ],
+      "type": "object"
+    },
+    "TreeComputeResult": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "$ref": "#/$defs/EngineIdentity"
+        },
+        "glb": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "lods": {
+          "items": {
+            "$ref": "#/$defs/LodLevel"
+          },
+          "maxItems": 1000000,
+          "type": "array"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "seed": {
+          "description": "Exact 64-bit decimal integer; runtime enforces range.",
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "source_sha256": {
+          "type": "string"
+        },
+        "summary": {
+          "$ref": "#/$defs/TreeSummary"
+        }
+      },
+      "required": [
+        "schema",
+        "source_sha256",
+        "engine",
+        "summary",
+        "lods",
+        "glb"
+      ],
+      "type": "object"
+    },
+    "TreeSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "bounds_max": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 1000000,
+          "type": "array"
+        },
+        "bounds_min": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 1000000,
+          "type": "array"
+        },
+        "branch_count": {
+          "description": "Exact 64-bit decimal integer; runtime enforces range.",
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "leaf_count": {
+          "description": "Exact 64-bit decimal integer; runtime enforces range.",
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "scientific_name": {
+          "type": "string"
+        },
+        "species_name": {
+          "type": "string"
+        },
+        "stem_count": {
+          "description": "Exact 64-bit decimal integer; runtime enforces range.",
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "species_name",
+        "scientific_name",
+        "bounds_min",
+        "bounds_max"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,0 +1,725 @@
+{
+  "catalog": {},
+  "descriptor_sha256": "b5fddc6191b5b10c5e22dd21f60e628d65c8864ee6f77a60fb598e2e58f59235",
+  "enums": {
+    "0": {
+      "name": "MaterialRole",
+      "namespace": "Midori.Tree.V1",
+      "values": {
+        "Bark": 0,
+        "Leaves": 1
+      }
+    }
+  },
+  "generator_version": 1,
+  "identifiers": {
+    "TreeComputeResult": "MTR1"
+  },
+  "objects": {
+    "ArtifactRef": {
+      "attributes": {},
+      "fields": [
+        {
+          "attributes": {
+            "id": "0",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 0,
+          "name": "kind",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "1",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 1,
+          "name": "sha256",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "2"
+          },
+          "default_integer": "0",
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 2,
+          "name": "byte_count",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 8,
+            "base_type": "ULong",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        }
+      ],
+      "namespace": "Midori.Tree.V1"
+    },
+    "EngineIdentity": {
+      "attributes": {},
+      "fields": [
+        {
+          "attributes": {
+            "id": "0",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 0,
+          "name": "source_revision",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "1",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 1,
+          "name": "build_id",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        }
+      ],
+      "namespace": "Midori.Tree.V1"
+    },
+    "LodLevel": {
+      "attributes": {},
+      "fields": [
+        {
+          "attributes": {
+            "id": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 0,
+          "name": "index",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "UInt",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "1",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 1,
+          "name": "name",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "2"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 2,
+          "name": "screen_height",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "Float",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "3"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 3,
+          "name": "vertex_count",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "UInt",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "4"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 4,
+          "name": "index_count",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "UInt",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "5",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 5,
+          "name": "submeshes",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "Vector",
+            "element": "Obj",
+            "element_size": 4,
+            "fixed_length": 0,
+            "index": 3,
+            "object": "SubmeshRange"
+          }
+        }
+      ],
+      "namespace": "Midori.Tree.V1"
+    },
+    "SubmeshRange": {
+      "attributes": {},
+      "fields": [
+        {
+          "attributes": {
+            "id": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 0,
+          "name": "material",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 1,
+            "base_type": "UByte",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": 0
+          }
+        },
+        {
+          "attributes": {
+            "id": "1"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 1,
+          "name": "index_offset",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "UInt",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "2"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 2,
+          "name": "index_count",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "UInt",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        }
+      ],
+      "namespace": "Midori.Tree.V1"
+    },
+    "TreeComputeRequest": {
+      "attributes": {},
+      "fields": [
+        {
+          "attributes": {
+            "id": "0",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 0,
+          "name": "schema",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "1",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 1,
+          "name": "source",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "Vector",
+            "element": "UByte",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "2"
+          },
+          "default_integer": "0",
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 2,
+          "name": "seed",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 8,
+            "base_type": "ULong",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "3"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 3,
+          "name": "display_name",
+          "optional": true,
+          "required": false,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        }
+      ],
+      "namespace": "Midori.Tree.V1"
+    },
+    "TreeComputeResult": {
+      "attributes": {},
+      "fields": [
+        {
+          "attributes": {
+            "id": "0",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 0,
+          "name": "schema",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "1",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 1,
+          "name": "source_sha256",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "2"
+          },
+          "default_integer": "0",
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 2,
+          "name": "seed",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 8,
+            "base_type": "ULong",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "3",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 3,
+          "name": "engine",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "Obj",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": 1,
+            "object": "EngineIdentity"
+          }
+        },
+        {
+          "attributes": {
+            "id": "4",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 4,
+          "name": "summary",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "Obj",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": 6,
+            "object": "TreeSummary"
+          }
+        },
+        {
+          "attributes": {
+            "id": "5",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 5,
+          "name": "lods",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "Vector",
+            "element": "Obj",
+            "element_size": 4,
+            "fixed_length": 0,
+            "index": 2,
+            "object": "LodLevel"
+          }
+        },
+        {
+          "attributes": {
+            "id": "6",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 6,
+          "name": "glb",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "Obj",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": 0,
+            "object": "ArtifactRef"
+          }
+        }
+      ],
+      "namespace": "Midori.Tree.V1"
+    },
+    "TreeSummary": {
+      "attributes": {},
+      "fields": [
+        {
+          "attributes": {
+            "id": "0",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 0,
+          "name": "species_name",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "1",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 1,
+          "name": "scientific_name",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "String",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "2"
+          },
+          "default_integer": "0",
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 2,
+          "name": "stem_count",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 8,
+            "base_type": "ULong",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "3"
+          },
+          "default_integer": "0",
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 3,
+          "name": "branch_count",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 8,
+            "base_type": "ULong",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "4"
+          },
+          "default_integer": "0",
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 4,
+          "name": "leaf_count",
+          "optional": false,
+          "required": false,
+          "type": {
+            "base_size": 8,
+            "base_type": "ULong",
+            "element": "None",
+            "element_size": 1,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "5",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 5,
+          "name": "bounds_min",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "Vector",
+            "element": "Float",
+            "element_size": 4,
+            "fixed_length": 0,
+            "index": -1
+          }
+        },
+        {
+          "attributes": {
+            "id": "6",
+            "required": "0"
+          },
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "id": 6,
+          "name": "bounds_max",
+          "optional": false,
+          "required": true,
+          "type": {
+            "base_size": 4,
+            "base_type": "Vector",
+            "element": "Float",
+            "element_size": 4,
+            "fixed_length": 0,
+            "index": -1
+          }
+        }
+      ],
+      "namespace": "Midori.Tree.V1"
+    }
+  }
+}
