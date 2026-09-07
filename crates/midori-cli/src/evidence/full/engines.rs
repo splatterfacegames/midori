@@ -58,6 +58,10 @@ fn manifest_finite(manifest: &Value, path: &[&str]) -> Result<f64, String> {
 
 /// Resolve the manifest terrain height span. Both bounds must be present, so an
 /// omitted bound can never collapse the span to a passing zero.
+///
+/// Resolution order is maximum then minimum, so when both bounds are malformed
+/// the reported detail names `max_path`. Only one check is ever emitted for the
+/// span, whichever bound is at fault.
 fn manifest_span(
     manifest: &Value,
     min_path: &[&str],
@@ -67,6 +71,8 @@ fn manifest_span(
     let maximum = manifest_finite(manifest, max_path)?;
     let minimum = manifest_finite(manifest, min_path)?;
     let span = maximum - minimum;
+    // Both bounds are finite here, but their difference can still overflow to
+    // infinity at the extremes of f64; that is malformed evidence, not a span.
     if !span.is_finite() {
         return Err(format!(
             "manifest fields {max_path:?} and {min_path:?} must span a finite range"

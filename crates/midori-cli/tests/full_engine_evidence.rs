@@ -194,6 +194,16 @@ fn check_status<'a>(report: &'a midori_cli::evidence::EvidenceReport, name: &str
         .status
 }
 
+fn check_detail<'a>(report: &'a midori_cli::evidence::EvidenceReport, name: &str) -> &'a str {
+    report
+        .checks
+        .iter()
+        .find(|check| check.name == name)
+        .unwrap_or_else(|| panic!("missing check {name}"))
+        .detail
+        .as_str()
+}
+
 fn edit_json(path: impl AsRef<Path>, edit: impl FnOnce(&mut Value)) {
     let path = path.as_ref();
     let mut value: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
@@ -900,15 +910,73 @@ fn unreal_destination_parent_normalizes_dot_components() {
     );
 }
 
+/// Every check name the complete synthetic fixture emits, in emission order.
+/// This is the pinned legacy ordering: any addition, removal or reorder shows up
+/// here as a diff rather than slipping past a sampled position assertion.
+const PINNED_CHECK_ORDER: &str = include_str!("fixtures/full-engine-evidence-check-order.txt");
+
+fn pinned_check_order() -> Vec<&'static str> {
+    PINNED_CHECK_ORDER.lines().collect()
+}
+
+fn ordered_names(report: &midori_cli::evidence::EvidenceReport) -> Vec<&str> {
+    report
+        .checks
+        .iter()
+        .map(|check| check.name.as_str())
+        .collect()
+}
+
+fn assert_matches_pinned_order(report: &midori_cli::evidence::EvidenceReport, label: &str) {
+    let actual = ordered_names(report);
+    let expected = pinned_check_order();
+    if actual != expected {
+        let first_difference = actual
+            .iter()
+            .zip(expected.iter())
+            .position(|(left, right)| left != right);
+        panic!(
+            "{label}: ordered check names diverged from the pinned baseline \
+             (actual {} names, expected {}, first difference at index {:?}: \
+             actual {:?} vs expected {:?})",
+            actual.len(),
+            expected.len(),
+            first_difference,
+            first_difference.map(|index| actual.get(index)),
+            first_difference.map(|index| expected.get(index)),
+        );
+    }
+}
+
 #[test]
 fn ordered_check_names_and_continuation_match_legacy() {
     let fixture = SyntheticFullEvidence::create();
     let report = verify_engine_evidence(&fixture.options());
+    assert_matches_pinned_order(&report, "complete fixture");
     let names = report
         .checks
         .iter()
         .map(|check| check.name.clone())
         .collect::<Vec<_>>();
+    // Legacy emits exactly two names twice: each is checked once against the
+    // engine summary and once against the value derived from the manifest. Pin
+    // that set so any NEW duplicate emission is caught.
+    let mut counts = std::collections::BTreeMap::<&str, usize>::new();
+    for name in &names {
+        *counts.entry(name.as_str()).or_default() += 1;
+    }
+    let duplicated = counts
+        .iter()
+        .filter(|(_, count)| **count > 1)
+        .map(|(name, count)| (*name, *count))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        duplicated,
+        vec![
+            ("midori.memory_footprint.scatter_binary_header_bytes", 2),
+            ("midori.memory_footprint.scatter_binary_record_bytes", 2),
+        ]
+    );
     assert_eq!(
         names
             .iter()
@@ -957,6 +1025,135 @@ fn ordered_check_names_and_continuation_match_legacy() {
             "summary.unity_preflight_compile_stub_report_scatter_instances"
         ),
         CheckStatus::Passed
+    );
+}
+
+#[test]
+fn manifest_resolver_failures_preserve_check_names_and_emission_order() {
+    // The manifest resolvers must emit exactly one check per name on the Err
+    // path too, so a malformed manifest cannot add, drop or reorder a check.
+    for (removal, failed_checks) in [
+        (
+            &["tile_size"][..],
+            &[
+                "unity.tile_size",
+                "unity.terrain_size_x",
+                "unity.terrain_size_z",
+                "unreal.tile_size",
+                "unreal_dry_run.tile_size",
+                "summary.unity_preflight_compile_stub_report_terrain_size_x",
+                "summary.unity_preflight_compile_stub_report_terrain_size_z",
+            ][..],
+        ),
+        (
+            &["terrain", "height_min"][..],
+            &[
+                "unity.terrain_height",
+                "summary.unity_preflight_compile_stub_report_terrain_size_y",
+            ][..],
+        ),
+        (
+            &["terrain", "height_max"][..],
+            &[
+                "unity.terrain_height",
+                "summary.unity_preflight_compile_stub_report_terrain_size_y",
+            ][..],
+        ),
+        (
+            &["console", "cull_end"][..],
+            &[
+                "unreal.console_cull_end_m",
+                "unreal_dry_run.console_cull_end_m",
+            ][..],
+        ),
+    ] {
+        let fixture = SyntheticFullEvidence::create();
+        edit_json(
+            fixture
+                .validation_root()
+                .join("forest_floor_midori_validation_report.json"),
+            |report| {
+                let (last, parents) = removal.split_last().unwrap();
+                let mut target = &mut report["manifest"];
+                for parent in parents {
+                    target = &mut target[*parent];
+                }
+                target.as_object_mut().unwrap().remove(*last);
+            },
+        );
+        let report = verify_engine_evidence(&fixture.options());
+        assert_matches_pinned_order(&report, &format!("manifest without {removal:?}"));
+        for name in failed_checks {
+            assert_failed(&report, name);
+        }
+    }
+}
+
+#[test]
+fn manifest_resolver_failure_details_name_the_offending_field() {
+    // Pin the resolver failure wording so a future refactor cannot silently
+    // change how malformed manifest evidence is reported.
+    let fixture = SyntheticFullEvidence::create();
+    edit_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_midori_validation_report.json"),
+        |report| {
+            report["manifest"]
+                .as_object_mut()
+                .unwrap()
+                .remove("tile_size");
+            report["manifest"]["console"]["cull_end"] = json!("not-a-number");
+            report["manifest"]["terrain"]["height_max"] = json!(f64::MAX);
+            report["manifest"]["terrain"]["height_min"] = json!(-f64::MAX);
+        },
+    );
+    let report = verify_engine_evidence(&fixture.options());
+    assert_eq!(
+        check_detail(&report, "unity.tile_size"),
+        "manifest field [\"tile_size\"] is missing or not numeric"
+    );
+    assert_eq!(
+        check_detail(&report, "unreal.console_cull_end_m"),
+        "manifest field [\"console\", \"cull_end\"] is missing or not numeric"
+    );
+    // A span that overflows to infinity is malformed, not a very tall terrain.
+    assert_eq!(
+        check_detail(&report, "unity.terrain_height"),
+        "manifest fields [\"terrain\", \"height_max\"] and [\"terrain\", \"height_min\"] \
+         must span a finite range"
+    );
+    // Both bounds absent resolves the maximum first, so the maximum is named.
+    let fixture = SyntheticFullEvidence::create();
+    edit_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_midori_validation_report.json"),
+        |report| {
+            let terrain = report["manifest"]["terrain"].as_object_mut().unwrap();
+            terrain.remove("height_min");
+            terrain.remove("height_max");
+        },
+    );
+    let report = verify_engine_evidence(&fixture.options());
+    assert_eq!(
+        check_detail(&report, "unity.terrain_height"),
+        "manifest field [\"terrain\", \"height_max\"] is missing or not numeric"
+    );
+    // A present non-finite scalar is reported as such rather than defaulted.
+    let fixture = SyntheticFullEvidence::create();
+    edit_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_midori_validation_report.json"),
+        |report| {
+            report["manifest"]["console"]["cull_end"] = json!("inf");
+        },
+    );
+    let report = verify_engine_evidence(&fixture.options());
+    assert_eq!(
+        check_detail(&report, "unreal.console_cull_end_m"),
+        "manifest field [\"console\", \"cull_end\"] must be finite, got inf"
     );
 }
 

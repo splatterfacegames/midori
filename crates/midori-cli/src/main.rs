@@ -32,10 +32,6 @@ struct Cli {
     command: Commands,
 }
 
-// `verify-engine-evidence` carries eleven optional path overrides, so its
-// payload is necessarily much larger than the other subcommands. Clap parses
-// this enum exactly once per process, and it cannot flatten a boxed `Args`.
-#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum Commands {
     /// Generate tree mesh(es) from species definition
@@ -177,7 +173,10 @@ enum Commands {
     /// Reads only the evidence files already on disk: it does not launch or
     /// prove real engines, and a passing report is not proof that a Unity or
     /// Unreal editor was ever executed.
-    VerifyEngineEvidence(VerifyEngineEvidenceArgs),
+    // Boxed because eleven optional path overrides would otherwise make this
+    // variant several times larger than every other subcommand; clap supplies
+    // `impl<T: Args> Args for Box<T>`, so the parsed surface is unchanged.
+    VerifyEngineEvidence(Box<VerifyEngineEvidenceArgs>),
 }
 
 #[derive(Args)]
@@ -833,9 +832,11 @@ fn emit_evidence_report(
     json.push(b'\n');
     if let Some(output) = output {
         if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
-            std::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent)
+                .map_err(|error| format!("cannot create report directory {parent:?}: {error}"))?;
         }
-        std::fs::write(output, &json)?;
+        std::fs::write(output, &json)
+            .map_err(|error| format!("cannot write report {output:?}: {error}"))?;
     }
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
