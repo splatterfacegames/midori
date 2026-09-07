@@ -349,11 +349,27 @@ pub fn decode_request(bytes: &[u8]) -> Result<TreeComputeRequest<'_>, ContractEr
 /// entry point for bytes from another process.
 ///
 /// The projection is also *not* a symmetric round trip for a table containing an
-/// enum. The generated serializer writes `MaterialRole` as its name (`"Leaves"`),
-/// while the generated parser reads it with `as_u64()`. Feeding the output of
-/// this function back into [`project_from_json`] therefore panics for any table
-/// reachable from a `MaterialRole` field. `tests::the_projection_is_not_symmetric_for_enums`
-/// pins that behaviour.
+/// enum. The serializer flatc emits writes `MaterialRole` as its name
+/// (`"Leaves"`), while the generated parser reads it with `as_u64()`. Feeding
+/// the output of this function back into [`project_from_json`] therefore panics
+/// for any table reachable from a `MaterialRole` field.
+///
+/// **This asymmetry is pre-existing in the Python generator, not something the
+/// Node port introduced.** The same `as_u64().unwrap()` against the same
+/// `serialize_unit_variant(..., variant_name())` appears in the checked-in
+/// Python-generated projection for the shared control schema
+/// (`tools-frontend-contracts/src/generated/projection_generated.rs`, the
+/// `OperationStatus` field of `parse_OperationReceipt`, against
+/// `control_generated.rs`'s `impl Serialize for OperationStatus`). Reproducing
+/// it is what byte-identity with the oracle requires, and byte-identity is the
+/// generator's entire acceptance basis.
+///
+/// So it **must not be "fixed" in the generator**: doing so would break
+/// byte-identity against every checked-in bundle. Changing it is a
+/// contract-tooling decision with that cost attached, not a local bug fix.
+/// `tests::the_projection_is_not_symmetric_for_enums` pins the behaviour so
+/// nothing in this application is built on the assumption that the round trip
+/// closes, and so a silent change upstream is noticed.
 ///
 /// # Errors
 ///
@@ -670,10 +686,17 @@ mod tests {
 
     #[test]
     fn the_projection_is_not_symmetric_for_enums() {
-        // Pins the generator defect documented on `project_from_json`: the
-        // serializer emits `"Leaves"`, the parser calls `as_u64()` on it and
-        // unwraps `None`. Recorded here so nothing in the application is built
-        // on the assumption that this round trip closes.
+        // Pins the behaviour documented on `project_from_json`: the serializer
+        // emits `"Leaves"`, the parser calls `as_u64()` on it and unwraps
+        // `None`.
+        //
+        // This is upstream, not ours. The Python generator produces the same
+        // asymmetry for the shared control schema, and a byte-identical port is
+        // obliged to reproduce it - so this test exists to hold the behaviour
+        // still, NOT as a bug report against the Node generator. If it ever
+        // starts passing the wrong way, the generator's byte-identity against
+        // the checked-in bundles has been broken and that is the thing to
+        // investigate first.
         let json = serde_json::json!({
             "material": "Leaves",
             "index_offset": 0,

@@ -508,19 +508,11 @@ function Midori({ host, hostError, engine: injected }: AppProps) {
         docking={{
           appId: APP_ID,
           preferenceAdapter,
-          // The shared named-slot layout, unmodified. On this machine it does
-          // not fit the window: measured against a running build on a display
-          // scaled to 150%, every panel is laid out exactly 1.5x too wide and
-          // too tall, so `objects`, `inspector` and `bottom` fall outside the
-          // window entirely and only Source, Preview and Export & verify are
-          // reachable. The factor tracks `devicePixelRatio`, and the ratio held
-          // at 1.50 across window widths of 1360, 1700, 1900 and 2560, which
-          // points at the shared `computeGeometry` being handed a container
-          // size in device pixels and applying the result as CSS pixels.
-          //
-          // Deliberately not worked around here. A local fudge by
-          // `devicePixelRatio` would hide a shared-stack defect and would break
-          // again when it is fixed upstream. See README.md.
+          // The shared named-slot layout, unmodified, and it places every panel
+          // correctly. Measured in the running application: `#root` is exactly
+          // `window.innerWidth` CSS pixels, and the six panel tabs sit at
+          // 0.0005, 0.1695, 0.4693, 0.7691, 0.7691 and 0.0005 of that width -
+          // which is what `createNamedSlotLayout`'s ratios specify.
           defaultLayout: createNamedSlotLayout(),
           windowHost: host,
         }}

@@ -49,17 +49,25 @@ checkout. There is no registry or Git rev for it in the lab and the shared
 checkout is not a Git repository, so there is nothing to pin it to. This is the
 one remaining dependency gap.
 
-## Known defect: the dock layout does not fit the window
+## A note on the generated JSON projection
 
-On a display scaled to 150%, every panel is laid out exactly 1.5x too wide and
-too tall. `objects`, `inspector` and `bottom` fall outside the window, leaving
-only Source, Preview and Export & verify reachable. The factor tracks
-`devicePixelRatio` and held at 1.50 across window widths of 1360, 1700, 1900 and
-2560 px, which points at the shared `computeGeometry` receiving a container size
-in device pixels and applying the result as CSS pixels.
+`midori_contracts::project_from_json` is not a symmetric inverse of
+`project_to_json` for any table containing an enum: flatc's serializer writes
+`MaterialRole` by name (`"Leaves"`), while the generated parser reads it with
+`as_u64().unwrap()`.
 
-This is not worked around locally. See the comment on `docking.defaultLayout` in
-`src/App.tsx`.
+This is **pre-existing in the Python generator**, not something the Node port
+introduced — the same pairing appears in the checked-in Python-generated
+projection for the shared control schema (`OperationStatus` in
+`parse_OperationReceipt`, against `impl Serialize for OperationStatus` in
+`control_generated.rs`). A byte-identical port is obliged to reproduce it, and
+byte-identity against the checked-in bundles is the generator's whole acceptance
+basis, so this **must not be "fixed" in the generator**. Changing it is a
+contract-tooling decision with that cost attached.
+
+`tests::the_projection_is_not_symmetric_for_enums` pins the behaviour so nothing
+here is built on the round trip closing, and so a silent upstream change is
+noticed. Nothing on the application's transport path uses the projection.
 
 ## What is deliberately absent
 
@@ -78,6 +86,28 @@ shipping known-broken behaviour.
 Bark and Leaves are the only material roles, because they are the only ones
 public `midori_core::MaterialType` has. Wind is Midori-owned and has no hook
 proof yet, so it is not advertised as working.
+
+## What is and is not proven
+
+The application **builds and launches**, and the shared shell renders: the menu
+bar, command palette affordance, all six docked panels (Source, Preview,
+Export & verify, LODs, Result, Output) and a status bar reporting the live
+window-host session.
+
+A **user-driven** run of the workflow is *not* proven. Synthetic clicks never
+actuated the webview and no CDP handle was obtainable, so nobody has clicked
+through open → seed → generate → inspect → export → verify in the running
+window. The engine path is covered by Rust tests, the decode and state rules by
+vitest under jsdom, and the command/argument names by a static cross-check in
+`src/wiring.test.ts` — which says in its own header that it catches the typo
+class and nothing more.
+
+If you are screenshotting this application on a scaled display, note that a
+DPI-unaware capture reads the physical framebuffer while `GetWindowRect` reports
+virtualised coordinates, so it silently returns a magnified crop of the window.
+Scale the capture region by `GetDeviceCaps(DESKTOPHORZRES) / GetDeviceCaps(HORZRES)`.
+An earlier revision of this file reported a 1.5x dock-layout defect that was
+entirely this artefact.
 
 ## Building and running
 
