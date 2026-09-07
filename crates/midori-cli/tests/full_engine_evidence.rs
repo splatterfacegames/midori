@@ -496,6 +496,161 @@ fn unreal_manifest_float_scalars_cannot_default_to_zero() {
 }
 
 #[test]
+fn unity_and_summary_manifest_tile_size_cannot_default_to_zero() {
+    for null_value in [false, true] {
+        let fixture = SyntheticFullEvidence::create();
+        edit_json(
+            fixture
+                .validation_root()
+                .join("forest_floor_midori_validation_report.json"),
+            |report| {
+                let manifest = report["manifest"].as_object_mut().unwrap();
+                if null_value {
+                    manifest.insert("tile_size".to_string(), Value::Null);
+                } else {
+                    manifest.remove("tile_size");
+                }
+            },
+        );
+        edit_json(
+            fixture
+                .validation_root()
+                .join("forest_floor_unity_import_report.json"),
+            |report| {
+                report["tileSizeMeters"] = json!(0.0);
+                report["terrainSize"]["x"] = json!(0.0);
+                report["terrainSize"]["z"] = json!(0.0);
+            },
+        );
+        edit_json(
+            fixture
+                .validation_root()
+                .join("forest_floor_unity_compile_stub_report.json"),
+            |report| {
+                report["terrain_size_x"] = json!(0.0);
+                report["terrain_size_z"] = json!(0.0);
+            },
+        );
+        let report = verify_engine_evidence(&fixture.options());
+        for name in [
+            "unity.tile_size",
+            "unity.terrain_size_x",
+            "unity.terrain_size_z",
+            "summary.unity_preflight_compile_stub_report_terrain_size_x",
+            "summary.unity_preflight_compile_stub_report_terrain_size_z",
+        ] {
+            assert_failed(&report, name);
+        }
+    }
+}
+
+#[test]
+fn unity_and_summary_manifest_terrain_height_span_cannot_default_to_zero() {
+    // Each case removes exactly one bound and pairs the engine reports with the
+    // value the unguarded zero-default arithmetic would have produced, so the
+    // case can only fail once the manifest bound itself is required.
+    let cases = [
+        ("height_min", 0.3901228_f64, 0.3901228_f64),
+        ("height_max", 0.01_f64, 0.0_f64),
+    ];
+    for (manifest_field, unity_terrain_height, stub_terrain_size_y) in cases {
+        for null_value in [false, true] {
+            let fixture = SyntheticFullEvidence::create();
+            edit_json(
+                fixture
+                    .validation_root()
+                    .join("forest_floor_midori_validation_report.json"),
+                |report| {
+                    let terrain = report["manifest"]["terrain"].as_object_mut().unwrap();
+                    if null_value {
+                        terrain.insert(manifest_field.to_string(), Value::Null);
+                    } else {
+                        terrain.remove(manifest_field);
+                    }
+                },
+            );
+            edit_json(
+                fixture
+                    .validation_root()
+                    .join("forest_floor_unity_import_report.json"),
+                |report| {
+                    report["terrainSize"]["y"] = json!(unity_terrain_height);
+                },
+            );
+            edit_json(
+                fixture
+                    .validation_root()
+                    .join("forest_floor_unity_compile_stub_report.json"),
+                |report| {
+                    report["terrain_size_y"] = json!(stub_terrain_size_y);
+                },
+            );
+            let report = verify_engine_evidence(&fixture.options());
+            assert_failed(&report, "unity.terrain_height");
+            assert_failed(
+                &report,
+                "summary.unity_preflight_compile_stub_report_terrain_size_y",
+            );
+        }
+    }
+}
+
+#[test]
+fn present_zero_manifest_scalars_are_still_accepted() {
+    // The manifest guards must reject absent or non-numeric scalars without
+    // rejecting a scalar that is legitimately present and exactly zero.
+    let fixture = SyntheticFullEvidence::create();
+    edit_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_midori_validation_report.json"),
+        |report| {
+            report["manifest"]["console"]["cull_start"] = json!(0.0);
+            report["manifest"]["console"]["density_scale"] = json!(0.0);
+            report["manifest"]["terrain"]["height_min"] = json!(0.0);
+            report["manifest"]["terrain"]["height_max"] = json!(0.0);
+        },
+    );
+    for report_file in [
+        "forest_floor_unreal_editor_report.json",
+        "forest_floor_unreal_dry_run_report.json",
+    ] {
+        edit_json(fixture.validation_root().join(report_file), |report| {
+            report["console_cull_start_meters"] = json!(0.0);
+            report["console_density_scale"] = json!(0.0);
+        });
+    }
+    edit_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_unity_import_report.json"),
+        |report| {
+            // A zero span still floors at the legacy 0.01 minimum terrain height.
+            report["terrainSize"]["y"] = json!(0.01);
+        },
+    );
+    edit_json(
+        fixture
+            .validation_root()
+            .join("forest_floor_unity_compile_stub_report.json"),
+        |report| {
+            report["terrain_size_y"] = json!(0.0);
+        },
+    );
+    let report = verify_engine_evidence(&fixture.options());
+    for name in [
+        "unreal.console_cull_start_m",
+        "unreal_dry_run.console_cull_start_m",
+        "unreal.console_density",
+        "unreal_dry_run.console_density",
+        "unity.terrain_height",
+        "summary.unity_preflight_compile_stub_report_terrain_size_y",
+    ] {
+        assert_eq!(check_status(&report, name), CheckStatus::Passed, "{name}");
+    }
+}
+
+#[test]
 fn unreal_manifest_numeric_scalars_reject_wrong_types() {
     let cases = [
         (

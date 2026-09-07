@@ -195,6 +195,69 @@ impl SyntheticFullEvidence {
         }
     }
 
+    /// Copy this synthetic tree onto the CLI's cwd-relative default locations
+    /// beneath `cwd`. The copied tree is still synthetic self-test data and
+    /// certifies nothing about a Unity or Unreal editor ever having been run.
+    pub fn install_default_layout(&self, cwd: &Path) {
+        copy_tree(
+            &self.validation,
+            &cwd.join("target/midori_engine_validation"),
+        );
+        let screenshots = cwd.join("docs/validation/screenshots");
+        fs::create_dir_all(&screenshots).unwrap();
+        for (source, destination) in [
+            (
+                "screenshots/unity_import.png",
+                "unity_forest_floor_import.png",
+            ),
+            (
+                "screenshots/unity_density.png",
+                "unity_forest_floor_density.png",
+            ),
+            (
+                "screenshots/unreal_import.png",
+                "unreal_forest_floor_import.png",
+            ),
+            (
+                "screenshots/unreal_foliage.png",
+                "unreal_forest_floor_foliage_settings.png",
+            ),
+        ] {
+            fs::copy(self.validation.join(source), screenshots.join(destination)).unwrap();
+        }
+        fs::copy(
+            self.validation.join("profile-notes.md"),
+            cwd.join("docs/validation/midori-nature-engine-profile-notes.md"),
+        )
+        .unwrap();
+    }
+
+    /// Move the five top-level evidence reports to alternate names so a test can
+    /// only reach them through explicit CLI path overrides.
+    pub fn divert_reports(&self) -> Vec<(&'static str, PathBuf)> {
+        let alternates = self.validation.join("alternate");
+        fs::create_dir_all(&alternates).unwrap();
+        let mut moved = Vec::new();
+        for (flag, name) in [
+            (
+                "--midori-report",
+                "forest_floor_midori_validation_report.json",
+            ),
+            ("--summary", "engine_validation_summary.json"),
+            ("--unity-report", "forest_floor_unity_import_report.json"),
+            (
+                "--unreal-dry-run-report",
+                "forest_floor_unreal_dry_run_report.json",
+            ),
+            ("--unreal-report", "forest_floor_unreal_editor_report.json"),
+        ] {
+            let destination = alternates.join(name);
+            fs::rename(self.validation.join(name), &destination).unwrap();
+            moved.push((flag, destination));
+        }
+        moved
+    }
+
     pub fn mutate_destination_dot(&self) {
         let dot_heightmap = "./maps/height_u16.png";
         edit_json(
@@ -2547,6 +2610,19 @@ fn append_png_chunk(output: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
     // The native verifier intentionally preserves the legacy parser's lack of
     // CRC validation; zero is sufficient for this synthetic fixture.
     output.extend([0u8; 4]);
+}
+
+fn copy_tree(source: &Path, destination: &Path) {
+    fs::create_dir_all(destination).unwrap();
+    for entry in fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        let target = destination.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), target).unwrap();
+        }
+    }
 }
 
 fn profile_notes() -> String {
