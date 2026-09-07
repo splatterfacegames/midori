@@ -42,6 +42,68 @@ fn require_manifest_object(verifier: &mut Verifier, prefix: &str, manifest: &Val
     }
 }
 
+/// Resolve a manifest scalar without ever substituting a default. A missing,
+/// non-numeric or non-finite manifest field is malformed evidence, not a zero.
+fn manifest_finite(manifest: &Value, path: &[&str]) -> Result<f64, String> {
+    let Some(expected) = field_path(manifest, path).and_then(as_f64) else {
+        return Err(format!("manifest field {path:?} is missing or not numeric"));
+    };
+    if !expected.is_finite() {
+        return Err(format!(
+            "manifest field {path:?} must be finite, got {expected}"
+        ));
+    }
+    Ok(expected)
+}
+
+/// Resolve the manifest terrain height span. Both bounds must be present, so an
+/// omitted bound can never collapse the span to a passing zero.
+fn manifest_span(
+    manifest: &Value,
+    min_path: &[&str],
+    max_path: &[&str],
+    floor: Option<f64>,
+) -> Result<f64, String> {
+    let maximum = manifest_finite(manifest, max_path)?;
+    let minimum = manifest_finite(manifest, min_path)?;
+    let span = maximum - minimum;
+    if !span.is_finite() {
+        return Err(format!(
+            "manifest fields {max_path:?} and {min_path:?} must span a finite range"
+        ));
+    }
+    Ok(match floor {
+        Some(floor) => span.max(floor),
+        None => span,
+    })
+}
+
+fn require_resolved_close(
+    verifier: &mut Verifier,
+    name: &str,
+    actual: Option<&Value>,
+    expected: &Result<f64, String>,
+    tolerance: f64,
+) {
+    match expected {
+        Ok(expected) => verifier.require_close(name, actual, *expected, tolerance),
+        Err(detail) => verifier.fail(name, detail.clone()),
+    }
+}
+
+fn require_resolved_vector_close(
+    verifier: &mut Verifier,
+    name: &str,
+    actual: Option<&Value>,
+    component: &str,
+    expected: &Result<f64, String>,
+) {
+    match expected {
+        Ok(expected) => require_vector_close(verifier, name, actual, component, *expected),
+        Err(detail) => verifier.fail(name, detail.clone()),
+    }
+}
+
 fn require_manifest_close(
     verifier: &mut Verifier,
     name: &str,
@@ -50,21 +112,13 @@ fn require_manifest_close(
     path: &[&str],
     tolerance: f64,
 ) {
-    let Some(expected) = field_path(manifest, path).and_then(as_f64) else {
-        verifier.fail(
-            name,
-            format!("manifest field {path:?} is missing or not numeric"),
-        );
-        return;
-    };
-    if !expected.is_finite() {
-        verifier.fail(
-            name,
-            format!("manifest field {path:?} must be finite, got {expected}"),
-        );
-        return;
-    }
-    verifier.require_close(name, actual, expected, tolerance);
+    require_resolved_close(
+        verifier,
+        name,
+        actual,
+        &manifest_finite(manifest, path),
+        tolerance,
+    );
 }
 
 fn require_manifest_numeric_equal(
@@ -872,26 +926,32 @@ fn check_compile_stub_report(
             field(report, "groundcoverMaterialShadows"),
             json!(false),
         );
-        let tile_size = float_or_default(field(manifest, "tile_size"), 0.0);
-        let terrain_height =
-            float_or_default(field_path(manifest, &["terrain", "height_max"]), 0.0)
-                - float_or_default(field_path(manifest, &["terrain", "height_min"]), 0.0);
-        verifier.require_close(
+        let tile_size = manifest_finite(manifest, &["tile_size"]);
+        let terrain_height = manifest_span(
+            manifest,
+            &["terrain", "height_min"],
+            &["terrain", "height_max"],
+            None,
+        );
+        require_resolved_close(
+            verifier,
             "summary.unity_preflight_compile_stub_report_terrain_size_x",
             field(report, "terrain_size_x"),
-            tile_size,
+            &tile_size,
             0.001,
         );
-        verifier.require_close(
+        require_resolved_close(
+            verifier,
             "summary.unity_preflight_compile_stub_report_terrain_size_y",
             field(report, "terrain_size_y"),
-            terrain_height,
+            &terrain_height,
             0.001,
         );
-        verifier.require_close(
+        require_resolved_close(
+            verifier,
             "summary.unity_preflight_compile_stub_report_terrain_size_z",
             field(report, "terrain_size_z"),
-            tile_size,
+            &tile_size,
             0.001,
         );
         verifier.require_equal(
@@ -1522,32 +1582,26 @@ pub fn check_unity_report(
         "unity_yplus_file",
         true,
     );
-    verifier.require_close(
+    let tile_size = manifest_finite(manifest, &["tile_size"]);
+    let terrain_height = manifest_span(
+        manifest,
+        &["terrain", "height_min"],
+        &["terrain", "height_max"],
+        Some(0.01),
+    );
+    require_resolved_close(
+        verifier,
         "unity.tile_size",
         field(report, "tileSizeMeters"),
-        float_or_default(field(manifest, "tile_size"), 0.0),
+        &tile_size,
         0.001,
     );
     for (name, component, expected) in [
-        (
-            "unity.terrain_size_x",
-            "x",
-            float_or_default(field(manifest, "tile_size"), 0.0),
-        ),
-        (
-            "unity.terrain_size_z",
-            "z",
-            float_or_default(field(manifest, "tile_size"), 0.0),
-        ),
-        (
-            "unity.terrain_height",
-            "y",
-            (float_or_default(field_path(terrain, &["height_max"]), 0.0)
-                - float_or_default(field_path(terrain, &["height_min"]), 0.0))
-            .max(0.01),
-        ),
+        ("unity.terrain_size_x", "x", &tile_size),
+        ("unity.terrain_size_z", "z", &tile_size),
+        ("unity.terrain_height", "y", &terrain_height),
     ] {
-        require_vector_close(
+        require_resolved_vector_close(
             verifier,
             name,
             field(report, "terrainSize"),
