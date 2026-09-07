@@ -911,8 +911,13 @@ fn unreal_destination_parent_normalizes_dot_components() {
 }
 
 /// Every check name the complete synthetic fixture emits, in emission order.
-/// This is the pinned legacy ordering: any addition, removal or reorder shows up
-/// here as a diff rather than slipping past a sampled position assertion.
+///
+/// This is a SELF-baseline captured from this implementation, not a transcript
+/// of the legacy Python verifier: nothing in this repository compares the two
+/// lists automatically. It pins the ordering against regression, so any
+/// addition, removal or reorder shows up as a diff rather than slipping past a
+/// sampled position assertion. It is derived from synthetic fixture data and
+/// certifies nothing about a Unity or Unreal editor having been run.
 const PINNED_CHECK_ORDER: &str = include_str!("fixtures/full-engine-evidence-check-order.txt");
 
 fn pinned_check_order() -> Vec<&'static str> {
@@ -931,25 +936,26 @@ fn assert_matches_pinned_order(report: &midori_cli::evidence::EvidenceReport, la
     let actual = ordered_names(report);
     let expected = pinned_check_order();
     if actual != expected {
-        let first_difference = actual
-            .iter()
-            .zip(expected.iter())
-            .position(|(left, right)| left != right);
+        // Scan to the longer length, not the zipped overlap, so a name appended
+        // or dropped at the very end still reports a precise index instead of
+        // "no difference found".
+        let index = (0..actual.len().max(expected.len()))
+            .find(|index| actual.get(*index) != expected.get(*index))
+            .expect("unequal name lists must differ at some index");
         panic!(
             "{label}: ordered check names diverged from the pinned baseline \
-             (actual {} names, expected {}, first difference at index {:?}: \
+             (actual {} names, expected {}; first difference at index {index}: \
              actual {:?} vs expected {:?})",
             actual.len(),
             expected.len(),
-            first_difference,
-            first_difference.map(|index| actual.get(index)),
-            first_difference.map(|index| expected.get(index)),
+            actual.get(index),
+            expected.get(index),
         );
     }
 }
 
 #[test]
-fn ordered_check_names_and_continuation_match_legacy() {
+fn ordered_check_names_and_continuation_match_pinned_baseline() {
     let fixture = SyntheticFullEvidence::create();
     let report = verify_engine_evidence(&fixture.options());
     assert_matches_pinned_order(&report, "complete fixture");
@@ -958,9 +964,13 @@ fn ordered_check_names_and_continuation_match_legacy() {
         .iter()
         .map(|check| check.name.clone())
         .collect::<Vec<_>>();
-    // Legacy emits exactly two names twice: each is checked once against the
-    // engine summary and once against the value derived from the manifest. Pin
-    // that set so any NEW duplicate emission is caught.
+    // Two names are emitted twice, faithfully matching legacy: each is checked
+    // once against the engine summary and once against the value derived from
+    // the manifest. Pin that set so any NEW duplicate emission is caught.
+    //
+    // This set is specific to the COMPLETE fixture, not a global invariant: the
+    // second `record_bytes` emission is guarded on a resolvable scatter instance
+    // count, so evidence lacking one yields a single emission instead of two.
     let mut counts = std::collections::BTreeMap::<&str, usize>::new();
     for name in &names {
         *counts.entry(name.as_str()).or_default() += 1;
