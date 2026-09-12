@@ -70,9 +70,9 @@ impl From<crate::textures::TextureError> for ExportError {
 impl std::fmt::Display for ExportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Io(e) => write!(f, "IO error: {}", e),
-            Self::Json(e) => write!(f, "JSON error: {}", e),
-            Self::Texture(e) => write!(f, "texture error: {}", e),
+            Self::Io(e) => write!(f, "IO error: {e}"),
+            Self::Json(e) => write!(f, "JSON error: {e}"),
+            Self::Texture(e) => write!(f, "texture error: {e}"),
             Self::NoMeshes => write!(f, "No meshes to export"),
         }
     }
@@ -878,7 +878,7 @@ fn write_gltf_separate(path: &Path, data: &GltfData) -> Result<(), std::io::Erro
     let bin_filename = path
         .file_stem()
         .and_then(|s| s.to_str())
-        .map(|s| format!("{}.bin", s))
+        .map(|s| format!("{s}.bin"))
         .unwrap_or_else(|| "buffer.bin".to_string());
 
     // Update JSON to reference external buffer

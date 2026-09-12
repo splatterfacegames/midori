@@ -57,10 +57,10 @@ impl From<std::io::Error> for TextureError {
 impl std::fmt::Display for TextureError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Decode(e) => write!(f, "image decode error: {}", e),
-            Self::Encode(e) => write!(f, "image encode error: {}", e),
-            Self::Io(e) => write!(f, "texture IO error: {}", e),
-            Self::BadPath(p) => write!(f, "invalid texture path: {}", p),
+            Self::Decode(e) => write!(f, "image decode error: {e}"),
+            Self::Encode(e) => write!(f, "image encode error: {e}"),
+            Self::Io(e) => write!(f, "texture IO error: {e}"),
+            Self::BadPath(p) => write!(f, "invalid texture path: {p}"),
         }
     }
 }
@@ -636,9 +636,8 @@ name = "Texture Test"
 height = 5.0
 radius = 0.3
 
-{}
-"#,
-            toml_extra
+{toml_extra}
+"#
         );
         Species::from_toml(&toml).unwrap()
     }
@@ -674,8 +673,7 @@ radius = 0.3
         let coverage = set.leaf_card.alpha_coverage();
         assert!(
             (0.08..0.85).contains(&coverage),
-            "cluster card coverage {} outside expected range",
-            coverage
+            "cluster card coverage {coverage} outside expected range"
         );
         // Transparent border and opaque interior both exist.
         assert_eq!(set.leaf_card.get(0, 0)[3], 0);
@@ -693,8 +691,8 @@ leaf_card = "single"
         let a = TextureSet::generate(&single).leaf_card.alpha_coverage();
         let b = TextureSet::generate(&cluster).leaf_card.alpha_coverage();
         // One leaf silhouette is sparser than a spray of many.
-        assert!(a < b, "single {} should be sparser than cluster {}", a, b);
-        assert!(a > 0.03, "single {} should still be visible", a);
+        assert!(a < b, "single {a} should be sparser than cluster {b}");
+        assert!(a > 0.03, "single {a} should still be visible");
     }
 
     #[test]
@@ -707,11 +705,7 @@ leaf_card = "single"
                 let b = bark_height_at(style, 1.0, v, 42);
                 assert!(
                     (a - b).abs() < 1e-5,
-                    "{:?} does not tile at v={}: {} vs {}",
-                    style,
-                    v,
-                    a,
-                    b
+                    "{style:?} does not tile at v={v}: {a} vs {b}"
                 );
             }
         }
@@ -726,9 +720,7 @@ leaf_card = "single"
                 let b = bark_height_at(style, u, 1.0, 42);
                 assert!(
                     (a - b).abs() < 1e-5,
-                    "{:?} does not tile vertically at u={}",
-                    style,
-                    u
+                    "{style:?} does not tile vertically at u={u}"
                 );
             }
         }

@@ -40,7 +40,7 @@ impl GroveGenerator {
     #[wasm_bindgen(constructor)]
     pub fn new(toml: &str) -> Result<GroveGenerator, JsValue> {
         let species = Species::from_toml(toml)
-            .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+            .map_err(|e| JsValue::from_str(&format!("Parse error: {e}")))?;
         Ok(Self { species })
     }
 
@@ -51,7 +51,7 @@ impl GroveGenerator {
     #[wasm_bindgen(js_name = fromJson)]
     pub fn from_json(value: JsValue) -> Result<GroveGenerator, JsValue> {
         let species = serde_wasm_bindgen::from_value::<Species>(value)
-            .map_err(|e| JsValue::from_str(&format!("Invalid species: {}", e)))?;
+            .map_err(|e| JsValue::from_str(&format!("Invalid species: {e}")))?;
         Ok(Self { species })
     }
 
@@ -62,14 +62,14 @@ impl GroveGenerator {
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
         serde_wasm_bindgen::to_value(&self.species)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
     }
 
     /// Serialize the species definition back to TOML.
     #[wasm_bindgen(js_name = toToml)]
     pub fn to_toml(&self) -> Result<String, JsValue> {
         toml::to_string_pretty(&self.species)
-            .map_err(|e| JsValue::from_str(&format!("TOML serialization error: {}", e)))
+            .map_err(|e| JsValue::from_str(&format!("TOML serialization error: {e}")))
     }
 
     /// Get the species name.
@@ -89,7 +89,7 @@ impl GroveGenerator {
 
         let result = MeshOutput::from_lods(&lods);
         serde_wasm_bindgen::to_value(&result)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
     }
 
     /// Generate only a specific LOD level.
@@ -101,11 +101,10 @@ impl GroveGenerator {
         if let Some(lod) = lods.get(lod_level) {
             let result = SingleMeshOutput::from_mesh(&lod.mesh, &lod.name);
             serde_wasm_bindgen::to_value(&result)
-                .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+                .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
         } else {
             Err(JsValue::from_str(&format!(
-                "LOD level {} not found",
-                lod_level
+                "LOD level {lod_level} not found"
             )))
         }
     }
@@ -125,7 +124,7 @@ impl GroveGenerator {
         };
 
         serde_wasm_bindgen::to_value(&stats)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
     }
 
     /// Export tree as GLB binary data.
@@ -145,7 +144,7 @@ impl GroveGenerator {
 
         let config = self.export_config(embed_textures);
         let glb_bytes = export_lod_meshes_to_bytes(&lods, &config)
-            .map_err(|e| JsValue::from_str(&format!("Export error: {}", e)))?;
+            .map_err(|e| JsValue::from_str(&format!("Export error: {e}")))?;
 
         let array = js_sys::Uint8Array::new_with_length(glb_bytes.len() as u32);
         array.copy_from(&glb_bytes);
@@ -169,7 +168,7 @@ impl GroveGenerator {
 
         let config = self.export_config(embed_textures);
         let (gltf, bin) = export_lod_meshes_to_parts(&lods, bin_name, &config)
-            .map_err(|e| JsValue::from_str(&format!("Export error: {}", e)))?;
+            .map_err(|e| JsValue::from_str(&format!("Export error: {e}")))?;
 
         let result = js_sys::Object::new();
         let gltf_array = js_sys::Uint8Array::new_with_length(gltf.len() as u32);
@@ -198,7 +197,7 @@ impl GroveGenerator {
             ("leaf_card", textures.leaf_card.to_png()),
         ] {
             let bytes =
-                png.map_err(|e| JsValue::from_str(&format!("Texture encode error: {}", e)))?;
+                png.map_err(|e| JsValue::from_str(&format!("Texture encode error: {e}")))?;
             let array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
             array.copy_from(&bytes);
             js_sys::Reflect::set(&result, &name.into(), &array)?;

@@ -372,7 +372,7 @@ resolution = 64
         assert_eq!(imp.atlas.width, imp.atlas.height * 2);
         // The bake should have real coverage, not an empty card.
         let coverage = imp.atlas.alpha_coverage();
-        assert!(coverage > 0.02, "atlas coverage {} too low", coverage);
+        assert!(coverage > 0.02, "atlas coverage {coverage} too low");
         // UVs stay inside each view half.
         for v in &imp.mesh.vertices {
             assert!(v.uv.x >= 0.0 && v.uv.x <= 1.0);
