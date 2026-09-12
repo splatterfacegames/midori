@@ -10,8 +10,10 @@ engine plugins.
 - **Weber–Penn branching algorithm** — biologically-inspired recursive branching with configurable parameters
 - **Multiple LOD levels** — configurable triangle budgets per level
 - **Leaf systems** — polygon, cross-billboard, and billboard leaf geometries
+- **Procedural material maps** — deterministic bark albedo+normal and leaf albedo+alpha cards, generated in-engine or overridden via file slots
+- **Crown impostors** — far LODs bake the crown to crossed cards sampled from a front+side atlas
 - **Pivot Painter 2.0** — wind animation vertex data compatible with Unreal Engine 5
-- **glTF 2.0 export** — binary `.glb` or `.gltf` + `.bin` with PBR materials
+- **glTF 2.0 export** — binary `.glb` or `.gltf` + `.bin` with per-submesh PBR materials and embedded PNG maps
 - **Workbench app** — React/Tauri editor for species parameters, LOD previews, and export
 - **Species presets** — Oak, Pine, Palm, and Willow included
 
@@ -39,7 +41,8 @@ seeded variants, and exports `.glb`/`.gltf`. See [docs/workbench.md](docs/workbe
 
 ```bash
 cargo build --release -p grove-cli
-grove generate -s presets/species/oak.toml -o tree.glb --seed 42
+grove generate -s presets/species/oak.toml -o tree.glb --seed 42 --textures
+grove maps -s presets/species/oak.toml -o maps/
 grove info -s presets/species/willow.toml
 ```
 
@@ -52,7 +55,12 @@ grove info -s presets/species/willow.toml
 | `--lod <all\|0\|1\|2\|3>` | LOD level(s) to export | `all` |
 | `--format <glb\|gltf>` | Output format | `glb` |
 | `--lod-preset <PRESET>` | LOD quality preset | species `[lod]` |
+| `--textures` | Embed material maps in the export | off |
 | `-v, --verbose` | Verbose output | off |
+
+`grove maps` writes the species' material maps (`*_bark_albedo.png`,
+`*_bark_normal.png`, `*_leaf_card.png`) without generating a tree — useful for
+inspecting `[textures]` output or handing maps to an art pipeline.
 
 ### Library
 
@@ -159,8 +167,11 @@ See `presets/species/` for complete examples and
 ## Output format
 
 Grove exports glTF 2.0 with one mesh per LOD level and attributes
-`POSITION`, `NORMAL`, `TEXCOORD_0`, `TEXCOORD_1`, `COLOR_0` plus bark/leaf
-primitive materials.
+`POSITION`, `NORMAL`, `TEXCOORD_0`, `TEXCOORD_1`, `COLOR_0`. Each submesh is
+its own primitive: bark (albedo + normal), leaves (alpha-masked card), and
+impostor (alpha-masked baked atlas) get separate PBR materials. Material maps
+embed as PNGs when textures are enabled; impostor atlases always embed when a
+LOD bakes one. Normal maps use the glTF OpenGL +Y convention.
 
 ### Pivot Painter data
 

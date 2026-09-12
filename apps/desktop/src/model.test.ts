@@ -29,6 +29,26 @@ describe('GroveModel', () => {
     }
   });
 
+  it('generates deterministic material maps for the loaded species', () => {
+    const maps = model.getState().maps;
+    expect(maps).not.toBeNull();
+    for (const bytes of [maps!.bark_albedo, maps!.bark_normal, maps!.leaf_card]) {
+      // PNG magic
+      expect([...bytes.slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    }
+  });
+
+  it('bakes a crown impostor on the last balanced LOD', () => {
+    const lods = model.getState().lods ?? [];
+    const last = lods[lods.length - 1];
+    expect(last.name).toBe('Low');
+    const impostor = last.submeshes.find((sub) => sub.material === 'impostor');
+    expect(impostor).toBeDefined();
+    expect(impostor!.index_count).toBeGreaterThan(0);
+    expect(last.impostor_atlas).toBeDefined();
+    expect([...last.impostor_atlas!.slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  });
+
   it('is deterministic for the same seed', () => {
     const first = model.getState().lods;
     model.setSeed(7);
@@ -95,6 +115,36 @@ describe('GroveModel', () => {
     const gltf = JSON.parse(new TextDecoder().decode(parts.find((f) => f.name === 'oak.gltf')!.data));
     expect(gltf.buffers[0].uri).toBe('oak.bin');
     expect(gltf.meshes.length).toBeGreaterThan(0);
+  });
+
+  it('embeds material maps only when requested', () => {
+    const textured = model.exportFiles(3, 'gltf', 'oak', true);
+    const gltf = JSON.parse(
+      new TextDecoder().decode(textured.find((f) => f.name === 'oak.gltf')!.data),
+    );
+    expect(gltf.images.length).toBeGreaterThanOrEqual(3); // bark albedo + normal, leaf card (+impostor atlas)
+    expect(gltf.textures.length).toBe(gltf.images.length);
+    const materials = gltf.materials.map((m: { name?: string }) => m.name);
+    expect(materials).toContain('bark');
+    expect(materials).toContain('leaves');
+    // Textured impostor materials are named per-LOD ("impostor_Low").
+    expect(materials.some((n: string) => n.startsWith('impostor'))).toBe(true);
+    // Leaf + impostor primitives must not share the bark material.
+    const leafPrimitive = gltf.meshes
+      .flatMap((m: { primitives: unknown[] }) => m.primitives)
+      .find((p: { material: number }) => gltf.materials[p.material].name === 'leaves');
+    expect(leafPrimitive).toBeDefined();
+
+    const plain = model.exportFiles(3, 'gltf', 'oak', false);
+    const plainGltf = JSON.parse(
+      new TextDecoder().decode(plain.find((f) => f.name === 'oak.gltf')!.data),
+    );
+    // The impostor atlas embeds regardless — it is the impostor's content.
+    expect(plainGltf.images?.map((i: { name: string }) => i.name)).toEqual(['impostor_lod2']);
+    expect(plainGltf.materials.length).toBe(3);
+    const plainNames = plainGltf.materials.map((m: { name?: string }) => m.name);
+    expect(plainNames.slice(0, 2)).toEqual(['bark', 'leaves']);
+    expect(plainNames[2]).toMatch(/^impostor_/);
   });
 });
 

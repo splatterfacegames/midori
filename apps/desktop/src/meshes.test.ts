@@ -43,4 +43,21 @@ describe('lodToDescriptors', () => {
     expect(out).toHaveLength(1);
     expect(out[0].indices?.length).toBe(3);
   });
+
+  it('routes impostor submeshes through the leaves layer', () => {
+    const withImpostor: LodMesh = {
+      ...lod,
+      indices: [0, 1, 2, 2, 1, 0],
+      submeshes: [
+        { index_start: 0, index_count: 3, material: 'bark' },
+        { index_start: 3, index_count: 3, material: 'impostor' },
+      ],
+    };
+    const both = lodToDescriptors(withImpostor, 1, { bark: true, leaves: true });
+    expect(both).toHaveLength(2);
+    expect(both[1].color).toBe(MATERIAL_COLORS.impostor);
+    const barkOnly = lodToDescriptors(withImpostor, 1, { bark: true, leaves: false });
+    expect(barkOnly).toHaveLength(1);
+    expect(barkOnly[0].color).toBe(MATERIAL_COLORS.bark);
+  });
 });

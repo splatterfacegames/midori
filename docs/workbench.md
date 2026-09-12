@@ -26,9 +26,14 @@ npm run wasm          # wasm-pack build -> apps/desktop/src/wasm
 | Species (left) | Built-in presets (oak/pine/palm/willow from `presets/species/`), TOML import |
 | LOD preview | 3D viewport; toolbar switches LOD levels, Fit recenters |
 | Species source | TOML editor; Apply validates through the engine, Revert restores |
-| Tree (right) | LOD list with triangle budgets, bark/leaves layer toggles, variant seeds |
-| Parameters (right) | Weber–Penn fields: trunk, per-level branches, crown, leaves, LOD preset, platform |
+| Tree (right) | LOD list with triangle budgets, bark/leaves layer toggles, generated material-map strip, variant seeds |
+| Parameters (right) | Weber–Penn fields: trunk, per-level branches, crown, leaves, textures, LOD preset, platform |
 | Activity (bottom) | Generation stats, bounds, export log |
+
+The Tree panel's **Materials** strip shows the species' generated maps (bark
+albedo, bark normal, leaf card) plus the baked impostor atlas for LODs that
+use `crown_impostor`. The 3D preview itself stays flat-colored until the
+jethaforge `MeshDescriptor` gains a UV/texture channel.
 
 Drag panel headers to re-dock; tap Space over a viewport to maximize; hold
 Space for the hotbox; Cmd/Ctrl+K opens the action palette. Layouts persist
@@ -45,6 +50,11 @@ windows.
 Variants export as `name_0.glb`, `name_1.glb`, … from the seed list in the
 Tree panel. Vertex data includes `TEXCOORD_1`/`COLOR_0` Pivot Painter channels
 for wind animation in engines that support them.
+
+**Embed material maps** (on by default) packs the species' generated bark
+albedo+normal and leaf card PNGs into the export. Leaf and impostor
+primitives get `alphaMode: MASK` cutout materials; baked impostor atlases
+embed automatically whenever a LOD uses `crown_impostor`.
 
 ## Browser vs desktop
 

@@ -13,6 +13,7 @@ use crate::{
     tree::{Leaf, Stem, Tree},
 };
 use glam::{Quat, Vec2, Vec3, Vec4};
+use serde::{Deserialize, Serialize};
 
 /// Leaf generation configuration
 #[derive(Debug, Clone)]
@@ -54,8 +55,13 @@ impl LeafConfig {
     }
 }
 
-/// Leaf shape for polygon generation using SDF
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Leaf shape for polygon generation and leaf-card textures.
+///
+/// Shared by leaf geometry (`leaves.geometry = "polygon"`) and the procedural
+/// `[textures]` pipeline (`leaf_shape`), so a species describes one silhouette
+/// vocabulary across surfaces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum LeafShape {
     /// Elliptical leaf shape (common in many trees)
     Oval,
@@ -479,7 +485,8 @@ fn find_sdf_edge(dir: Vec2, shape: LeafShape, min: f32, max: f32, iterations: u3
 /// Signed distance function for leaf shapes
 ///
 /// Returns negative values inside the shape, positive outside.
-fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
+/// `pub(crate)` so the texture pipeline can stamp the same silhouettes.
+pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
     match shape {
         LeafShape::Oval => {
             // Ellipse: wider in X, narrower in Y

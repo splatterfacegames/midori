@@ -29,10 +29,11 @@
 //! of raw pointers. String arguments are `(ptr, len)` pairs of UTF-8 bytes.
 
 use grove_core::{
-    ExportConfig, Species, Tree, export_lod_meshes, generate_tree, lod::LodGenerationConfig,
+    ExportConfig, Species, TextureSet, Tree, export_lod_meshes, generate_tree,
+    lod::LodGenerationConfig,
 };
 use std::ffi::{c_char, c_int};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::slice;
 
 /// Opaque handle to a parsed species definition.
@@ -162,9 +163,67 @@ pub unsafe extern "C" fn grove_tree_export_glb(
     let species = unsafe { &*species };
     let tree = unsafe { &*tree };
 
+    export_tree_glb(species, tree, path_str, None)
+}
+
+/// Export a generated tree to a GLB file with the species' material maps
+/// embedded (bark albedo+normal, leaf card, baked impostor atlases).
+///
+/// `base_dir_ptr`/`base_dir_len` give the directory `[textures]` file-slot
+/// paths resolve against (typically the directory the species document came
+/// from); pass null/0 to generate all maps procedurally.
+///
+/// # Safety
+///
+/// Same contract as `grove_tree_export_glb`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn grove_tree_export_glb_textured(
+    species: GroveSpeciesHandle,
+    tree: GroveTreeHandle,
+    path_ptr: *const u8,
+    path_len: usize,
+    base_dir_ptr: *const u8,
+    base_dir_len: usize,
+) -> c_int {
+    if species.is_null() || tree.is_null() || path_ptr.is_null() || path_len == 0 {
+        return GroveStatus::InvalidArgument as c_int;
+    }
+    let bytes = unsafe { slice::from_raw_parts(path_ptr, path_len) };
+    let Ok(path_str) = std::str::from_utf8(bytes) else {
+        return GroveStatus::InvalidArgument as c_int;
+    };
+    let species = unsafe { &*species };
+    let tree = unsafe { &*tree };
+
+    let base_dir = if base_dir_ptr.is_null() || base_dir_len == 0 {
+        PathBuf::new()
+    } else {
+        let bytes = unsafe { slice::from_raw_parts(base_dir_ptr, base_dir_len) };
+        match std::str::from_utf8(bytes) {
+            Ok(dir) => PathBuf::from(dir),
+            Err(_) => return GroveStatus::InvalidArgument as c_int,
+        }
+    };
+    let textures = match TextureSet::resolve(species, &base_dir) {
+        Ok(set) => Some(set),
+        Err(_) => return GroveStatus::ExportError as c_int,
+    };
+    export_tree_glb(species, tree, path_str, textures)
+}
+
+fn export_tree_glb(
+    species: &Species,
+    tree: &Tree,
+    path: &str,
+    textures: Option<TextureSet>,
+) -> c_int {
     let lod_config = LodGenerationConfig::from_species(species);
     let lods = grove_core::lod::generate_lod_meshes_with_config(tree, species, &lod_config);
-    match export_lod_meshes(&lods, &PathBuf::from(path_str), &ExportConfig::default()) {
+    let config = ExportConfig {
+        textures,
+        ..ExportConfig::default()
+    };
+    match export_lod_meshes(&lods, Path::new(path), &config) {
         Ok(()) => GroveStatus::Ok as c_int,
         Err(_) => GroveStatus::ExportError as c_int,
     }

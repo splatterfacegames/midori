@@ -47,6 +47,8 @@ pub enum MaterialType {
     Bark,
     /// Leaf material for foliage
     Leaves,
+    /// Baked crown impostor (two crossed quads sampling a baked atlas)
+    Impostor,
 }
 
 impl Mesh {

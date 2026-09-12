@@ -1,5 +1,30 @@
+import { useEffect, useMemo } from 'react';
 import { Dice5, Eye, EyeOff } from 'lucide-react';
+import type { MaterialMaps } from '../engine';
 import type { WorkbenchState } from '../model';
+
+/** Blob URLs for a map set, revoked when the inputs change. */
+function useMapUrls(maps: MaterialMaps | null, atlas?: Uint8Array): Record<string, string> {
+  const urls = useMemo(() => {
+    const out: Record<string, string> = {};
+    if (maps) {
+      for (const key of ['bark_albedo', 'bark_normal', 'leaf_card'] as const) {
+        out[key] = URL.createObjectURL(new Blob([maps[key] as BlobPart], { type: 'image/png' }));
+      }
+    }
+    if (atlas) {
+      out.impostor = URL.createObjectURL(new Blob([atlas as BlobPart], { type: 'image/png' }));
+    }
+    return out;
+  }, [maps, atlas]);
+  useEffect(
+    () => () => {
+      for (const url of Object.values(urls)) URL.revokeObjectURL(url);
+    },
+    [urls],
+  );
+  return urls;
+}
 
 export function ObjectsPanel({
   state,
@@ -14,6 +39,9 @@ export function ObjectsPanel({
   onNewVariant: () => void;
   onToggleLayer: (layer: 'bark' | 'leaves') => void;
 }) {
+  const selectedLod = state.lods?.[state.selectedLod];
+  const mapUrls = useMapUrls(state.maps, selectedLod?.impostor_atlas);
+
   return (
     <div className="grove-panel-content">
       <div className="grove-section-title">
@@ -33,6 +61,7 @@ export function ObjectsPanel({
             <span>{lod.name}</span>
             <small>
               {lod.triangle_count.toLocaleString()} tris · {lod.vertex_count.toLocaleString()} verts
+              {lod.impostor_atlas ? ' · impostor' : ''}
             </small>
           </button>
         ))}
@@ -52,6 +81,32 @@ export function ObjectsPanel({
           </button>
         ))}
       </div>
+
+      <div className="grove-section-title">MATERIALS</div>
+      {state.maps ? (
+        <div className="grove-materials-strip">
+          {(
+            [
+              ['bark_albedo', 'Bark'],
+              ['bark_normal', 'Normal'],
+              ['leaf_card', 'Leaf card'],
+            ] as const
+          ).map(([key, label]) => (
+            <figure key={key} className="grove-material-thumb">
+              <img src={mapUrls[key]} alt={label} />
+              <figcaption>{label}</figcaption>
+            </figure>
+          ))}
+          {mapUrls.impostor ? (
+            <figure className="grove-material-thumb grove-material-thumb-wide">
+              <img src={mapUrls.impostor} alt="Impostor atlas" />
+              <figcaption>Impostor · {selectedLod?.name}</figcaption>
+            </figure>
+          ) : null}
+        </div>
+      ) : (
+        <p className="grove-subtle">No maps generated yet.</p>
+      )}
 
       <div className="grove-section-title">
         VARIANTS <span>{state.variants.length}</span>

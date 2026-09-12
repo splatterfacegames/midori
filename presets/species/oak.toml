@@ -74,6 +74,12 @@ up_influence = 0.25
 [textures]
 bark_prompt = "English oak tree bark, deep fissures, grey-brown, coarse texture"
 leaf_prompt = "Oak leaves with rounded lobes, dark green, visible venation"
+resolution = 512
+bark_style = "furrowed"
+leaf_shape = "lobed"
+leaf_card = "cluster"
+bark_color = [0.36, 0.3, 0.25]
+leaf_color = [0.17, 0.35, 0.12]
 
 [lod]
 preset = "balanced"

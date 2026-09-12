@@ -7,7 +7,7 @@
  * it is committed and the tree regenerated.
  */
 
-import { Generator, loadEngine, type LodMesh, type TreeStats } from './engine';
+import { Generator, loadEngine, type LodMesh, type MaterialMaps, type TreeStats } from './engine';
 import { PRESETS } from './presets';
 import { setParam, type BranchLevelId, type SpeciesJson, DEFAULT_BRANCH_PARAMS } from './species';
 
@@ -37,6 +37,10 @@ export interface WorkbenchState {
   sourceError: string | null;
   paramError: string | null;
   layers: { bark: boolean; leaves: boolean };
+  /** Generated material maps (PNG bytes) for the loaded species — bark
+   *  albedo, bark normal, leaf card. Regenerated when `[textures]` params or
+   *  the species name (default map seed) change. */
+  maps: MaterialMaps | null;
   log: string[];
 }
 
@@ -47,6 +51,8 @@ export class GroveModel {
   private listeners = new Set<() => void>();
   private generator: Generator | null = null;
   private regenTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Cache key for `state.maps` — texture params + the name-derived seed. */
+  private mapsKey = '';
 
   private constructor(state: WorkbenchState) {
     this.state = state;
@@ -71,6 +77,7 @@ export class GroveModel {
       sourceError: null,
       paramError: null,
       layers: { bark: true, leaves: true },
+      maps: null,
       log: [],
     });
     model.loadPreset(PRESETS[0].id);
@@ -123,6 +130,7 @@ export class GroveModel {
         paramError: null,
       });
       this.pushLog(`Loaded ${generator.name}`);
+      this.refreshMaps();
       this.regenerate();
       return true;
     } catch (error) {
@@ -130,6 +138,23 @@ export class GroveModel {
       this.emit({ sourceError: message });
       this.pushLog(`Load failed: ${message}`);
       return false;
+    }
+  }
+
+  /** Regenerate material maps when the texture-affecting params changed.
+   *  Maps are deterministic in the species doc, so re-rendering an unchanged
+   *  section is skipped. */
+  private refreshMaps(): void {
+    if (!this.generator || !this.state.json) return;
+    const key = JSON.stringify([this.state.json.species.name, this.state.json.textures]);
+    if (key === this.mapsKey && this.state.maps) return;
+    this.mapsKey = key;
+    try {
+      const maps = this.generator.generateMaps();
+      this.emit({ maps });
+    } catch (error) {
+      this.emit({ maps: null });
+      this.pushLog(`Map generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -209,6 +234,7 @@ export class GroveModel {
         sourceDraft: this.state.sourceDirty ? this.state.sourceDraft : toml,
         paramError: null,
       });
+      this.refreshMaps();
       this.scheduleRegenerate();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -239,6 +265,7 @@ export class GroveModel {
         paramError: null,
       });
       this.pushLog(`Source applied · ${generator.name}`);
+      this.refreshMaps();
       this.regenerate();
       return true;
     } catch (error) {
@@ -255,13 +282,13 @@ export class GroveModel {
   // ---- export ----------------------------------------------------------------
 
   /** Build the export file set for a seed (all LODs, current species). */
-  exportFiles(seed: number, format: 'glb' | 'gltf', baseName: string): ExportFile[] {
+  exportFiles(seed: number, format: 'glb' | 'gltf', baseName: string, embedTextures = true): ExportFile[] {
     if (!this.generator) throw new Error('No species loaded');
     const stem = baseName.replace(/\.(glb|gltf)$/i, '') || 'tree';
     if (format === 'glb') {
-      return [{ name: `${stem}.glb`, data: this.generator.exportGlb(seed) }];
+      return [{ name: `${stem}.glb`, data: this.generator.exportGlb(seed, embedTextures) }];
     }
-    const parts = this.generator.exportGltf(seed, `${stem}.bin`);
+    const parts = this.generator.exportGltf(seed, `${stem}.bin`, embedTextures);
     return [
       { name: `${stem}.gltf`, data: parts.gltf },
       { name: `${stem}.bin`, data: parts.bin },

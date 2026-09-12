@@ -1,6 +1,6 @@
 //! glTF 2.0 export for tree meshes.
 
-use crate::{LodMeshSet, Mesh, mesh::Submesh};
+use crate::{LodMeshSet, Mesh, mesh::MaterialType, mesh::Submesh, textures::TextureSet};
 use std::io::Write;
 use std::path::Path;
 
@@ -11,16 +11,22 @@ pub struct ExportConfig {
     pub format: ExportFormat,
     /// Enable Draco compression (requires separate processing)
     pub draco: bool,
-    /// Include embedded placeholder textures
-    pub embed_textures: bool,
+    /// Material maps to embed into the export. `Some` emits real textured
+    /// materials (bark albedo+normal, leaf card, baked impostor atlases);
+    /// `None` exports plain colored materials. Build with
+    /// `TextureSet::generate` or `TextureSet::resolve` for file slots.
+    pub textures: Option<TextureSet>,
     /// Add pivot_painter flag in extras
     pub pivot_painter_extras: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExportFormat {
-    Glb,  // Binary glTF
-    GlTf, // JSON + separate binary
+    /// Binary glTF
+    #[default]
+    Glb,
+    /// JSON + separate binary
+    GlTf,
 }
 
 impl Default for ExportConfig {
@@ -28,7 +34,7 @@ impl Default for ExportConfig {
         Self {
             format: ExportFormat::Glb,
             draco: false,
-            embed_textures: false,
+            textures: None,
             pivot_painter_extras: true,
         }
     }
@@ -39,6 +45,7 @@ impl Default for ExportConfig {
 pub enum ExportError {
     Io(std::io::Error),
     Json(serde_json::Error),
+    Texture(crate::textures::TextureError),
     NoMeshes,
 }
 
@@ -54,11 +61,18 @@ impl From<serde_json::Error> for ExportError {
     }
 }
 
+impl From<crate::textures::TextureError> for ExportError {
+    fn from(e: crate::textures::TextureError) -> Self {
+        Self::Texture(e)
+    }
+}
+
 impl std::fmt::Display for ExportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(e) => write!(f, "IO error: {}", e),
             Self::Json(e) => write!(f, "JSON error: {}", e),
+            Self::Texture(e) => write!(f, "texture error: {}", e),
             Self::NoMeshes => write!(f, "No meshes to export"),
         }
     }
@@ -205,6 +219,10 @@ fn build_gltf_single(mesh: &Mesh, config: &ExportConfig) -> Result<GltfData, Exp
     // Compute bounds
     let (min_pos, max_pos) = compute_bounds(mesh);
 
+    // Embed material maps (bark/leaf; a bare Mesh carries no impostor atlas).
+    let mut images = Vec::new();
+    append_material_images(&mut binary, &mut images, config)?;
+
     // Build glTF JSON
     let json = build_gltf_json(
         &[MeshBufferInfo {
@@ -220,7 +238,9 @@ fn build_gltf_single(mesh: &Mesh, config: &ExportConfig) -> Result<GltfData, Exp
             min_pos,
             max_pos,
             submeshes: mesh.submeshes.clone(),
+            impostor_image: None,
         }],
+        &images,
         binary.len(),
         config,
     )?;
@@ -271,11 +291,92 @@ fn build_gltf_lods(lods: &LodMeshSet, config: &ExportConfig) -> Result<GltfData,
             min_pos,
             max_pos,
             submeshes: mesh.submeshes.clone(),
+            // Filled below once the atlas PNG is appended.
+            impostor_image: None,
         });
     }
 
-    let json = build_gltf_json(&mesh_infos, binary.len(), config)?;
+    // Image payloads live in the same buffer, after the vertex data.
+    let mut images = Vec::new();
+    append_material_images(&mut binary, &mut images, config)?;
+
+    // Impostor atlases are material content, not optional decoration — a LOD
+    // carrying one always embeds it so the crossed quads render correctly.
+    for (i, lod) in lods
+        .meshes
+        .iter()
+        .filter(|l| !l.mesh.vertices.is_empty())
+        .enumerate()
+    {
+        if let Some(atlas) = &lod.impostor_atlas {
+            let png = atlas.to_png()?;
+            let image_index = images.len();
+            images.push(ImageInfo {
+                name: format!("impostor_lod{}", lod.index),
+                offset: binary.len(),
+                len: png.len(),
+                // Clamp-to-edge so the two atlas halves never bleed.
+                sampler: SamplerKind::Clamp,
+            });
+            binary.extend_from_slice(&png);
+            pad_binary(&mut binary);
+            if let Some(info) = mesh_infos.get_mut(i) {
+                info.impostor_image = Some(image_index);
+            }
+        }
+    }
+
+    let json = build_gltf_json(&mesh_infos, &images, binary.len(), config)?;
     Ok(GltfData { json, binary })
+}
+
+/// Texture addressing mode for an embedded image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SamplerKind {
+    /// Wrap both axes — tiling bark/leaf maps.
+    Repeat,
+    /// Clamp — atlas halves must not bleed into each other.
+    Clamp,
+}
+
+/// An embedded image payload inside the binary buffer.
+struct ImageInfo {
+    name: String,
+    offset: usize,
+    len: usize,
+    sampler: SamplerKind,
+}
+
+/// Pad the binary buffer to a 4-byte boundary.
+fn pad_binary(binary: &mut Vec<u8>) {
+    binary.resize((binary.len() + 3) & !3, 0);
+}
+
+/// Append bark/leaf material maps as PNG payloads; returns the image list.
+fn append_material_images(
+    binary: &mut Vec<u8>,
+    images: &mut Vec<ImageInfo>,
+    config: &ExportConfig,
+) -> Result<(), ExportError> {
+    let Some(textures) = &config.textures else {
+        return Ok(());
+    };
+    for (name, tex) in [
+        ("bark_albedo", &textures.bark_albedo),
+        ("bark_normal", &textures.bark_normal),
+        ("leaf_card", &textures.leaf_card),
+    ] {
+        let png = tex.to_png()?;
+        images.push(ImageInfo {
+            name: name.to_string(),
+            offset: binary.len(),
+            len: png.len(),
+            sampler: SamplerKind::Repeat,
+        });
+        binary.extend_from_slice(&png);
+        pad_binary(binary);
+    }
+    Ok(())
 }
 
 struct MeshBufferInfo {
@@ -291,6 +392,8 @@ struct MeshBufferInfo {
     min_pos: [f32; 3],
     max_pos: [f32; 3],
     submeshes: Vec<Submesh>,
+    /// Image index of this LOD's baked impostor atlas, when embedded.
+    impostor_image: Option<usize>,
 }
 
 fn build_positions_buffer(mesh: &Mesh) -> Vec<u8> {
@@ -372,6 +475,7 @@ fn compute_bounds(mesh: &Mesh) -> ([f32; 3], [f32; 3]) {
 
 fn build_gltf_json(
     meshes: &[MeshBufferInfo],
+    images: &[ImageInfo],
     buffer_size: usize,
     config: &ExportConfig,
 ) -> Result<serde_json::Value, serde_json::Error> {
@@ -381,77 +485,75 @@ fn build_gltf_json(
     let mut buffer_views = Vec::new();
     let mut gltf_meshes = Vec::new();
 
-    let mut accessor_idx = 0;
-    let mut buffer_view_idx = 0;
+    // Material table: 0 = bark, 1 = leaves, then impostor materials — one
+    // textured material per embedded atlas, or a single shared untextured
+    // material for impostor submeshes whose LOD has no atlas.
+    let textured = config.textures.is_some();
+    let mut impostor_material: Vec<Option<usize>> = Vec::with_capacity(meshes.len());
+    let mut next_material = 2;
+    let mut shared_untextured: Option<usize> = None;
+    for info in meshes {
+        let has_impostor = info
+            .submeshes
+            .iter()
+            .any(|s| s.material == MaterialType::Impostor);
+        if !has_impostor {
+            impostor_material.push(None);
+            continue;
+        }
+        let index = if info.impostor_image.is_some() {
+            let i = next_material;
+            next_material += 1;
+            i
+        } else {
+            *shared_untextured.get_or_insert_with(|| {
+                let i = next_material;
+                next_material += 1;
+                i
+            })
+        };
+        impostor_material.push(Some(index));
+    }
 
-    for mesh_info in meshes {
+    for (mesh_i, mesh_info) in meshes.iter().enumerate() {
         let vertex_count = mesh_info.vertex_count;
-        let index_count = mesh_info.index_count;
 
         // Buffer views
-        let pos_bv = buffer_view_idx;
-        buffer_view_idx += 1;
-        let norm_bv = buffer_view_idx;
-        buffer_view_idx += 1;
-        let tc0_bv = buffer_view_idx;
-        buffer_view_idx += 1;
-        let tc1_bv = buffer_view_idx;
-        buffer_view_idx += 1;
-        let col_bv = buffer_view_idx;
-        buffer_view_idx += 1;
-        let idx_bv = buffer_view_idx;
-        buffer_view_idx += 1;
+        let pos_bv = buffer_views.len();
+        let norm_bv = pos_bv + 1;
+        let tc0_bv = pos_bv + 2;
+        let tc1_bv = pos_bv + 3;
+        let col_bv = pos_bv + 4;
+        let idx_bv = pos_bv + 5;
 
-        buffer_views.push(json!({
-            "buffer": 0,
-            "byteOffset": mesh_info.positions_offset,
-            "byteLength": vertex_count * 12,
-            "target": 34962  // ARRAY_BUFFER
-        }));
-        buffer_views.push(json!({
-            "buffer": 0,
-            "byteOffset": mesh_info.normals_offset,
-            "byteLength": vertex_count * 12,
-            "target": 34962
-        }));
-        buffer_views.push(json!({
-            "buffer": 0,
-            "byteOffset": mesh_info.texcoord0_offset,
-            "byteLength": vertex_count * 8,
-            "target": 34962
-        }));
-        buffer_views.push(json!({
-            "buffer": 0,
-            "byteOffset": mesh_info.texcoord1_offset,
-            "byteLength": vertex_count * 8,
-            "target": 34962
-        }));
-        buffer_views.push(json!({
-            "buffer": 0,
-            "byteOffset": mesh_info.color0_offset,
-            "byteLength": vertex_count * 16,
-            "target": 34962
-        }));
+        for (offset, len) in [
+            (mesh_info.positions_offset, vertex_count * 12),
+            (mesh_info.normals_offset, vertex_count * 12),
+            (mesh_info.texcoord0_offset, vertex_count * 8),
+            (mesh_info.texcoord1_offset, vertex_count * 8),
+            (mesh_info.color0_offset, vertex_count * 16),
+        ] {
+            buffer_views.push(json!({
+                "buffer": 0,
+                "byteOffset": offset,
+                "byteLength": len,
+                "target": 34962  // ARRAY_BUFFER
+            }));
+        }
         buffer_views.push(json!({
             "buffer": 0,
             "byteOffset": mesh_info.indices_offset,
-            "byteLength": index_count * 4,
+            "byteLength": mesh_info.index_count * 4,
             "target": 34963  // ELEMENT_ARRAY_BUFFER
         }));
 
         // Accessors
-        let pos_acc = accessor_idx;
-        accessor_idx += 1;
-        let norm_acc = accessor_idx;
-        accessor_idx += 1;
-        let tc0_acc = accessor_idx;
-        accessor_idx += 1;
-        let tc1_acc = accessor_idx;
-        accessor_idx += 1;
-        let col_acc = accessor_idx;
-        accessor_idx += 1;
-        let idx_acc = accessor_idx;
-        accessor_idx += 1;
+        let pos_acc = accessors.len();
+        let norm_acc = pos_acc + 1;
+        let tc0_acc = pos_acc + 2;
+        let tc1_acc = pos_acc + 3;
+        let col_acc = pos_acc + 4;
+        let idx_acc = pos_acc + 5;
 
         accessors.push(json!({
             "bufferView": pos_bv,
@@ -488,39 +590,58 @@ fn build_gltf_json(
         accessors.push(json!({
             "bufferView": idx_bv,
             "componentType": 5125,  // UNSIGNED_INT
-            "count": index_count,
+            "count": mesh_info.index_count,
             "type": "SCALAR"
         }));
 
-        // Build primitives for submeshes (or single primitive if no submeshes)
+        let attributes = json!({
+            "POSITION": pos_acc,
+            "NORMAL": norm_acc,
+            "TEXCOORD_0": tc0_acc,
+            "TEXCOORD_1": tc1_acc,
+            "COLOR_0": col_acc
+        });
+
+        // One primitive per submesh so bark/leaf/impostor materials bind to
+        // their own index ranges instead of sharing the first material.
         let primitives = if mesh_info.submeshes.is_empty() {
             vec![json!({
-                "attributes": {
-                    "POSITION": pos_acc,
-                    "NORMAL": norm_acc,
-                    "TEXCOORD_0": tc0_acc,
-                    "TEXCOORD_1": tc1_acc,
-                    "COLOR_0": col_acc
-                },
+                "attributes": attributes,
                 "indices": idx_acc,
                 "mode": 4,  // TRIANGLES
                 "material": 0
             })]
         } else {
-            // For now, use single primitive with all indices
-            // TODO: Split by submesh for proper material assignment
-            vec![json!({
-                "attributes": {
-                    "POSITION": pos_acc,
-                    "NORMAL": norm_acc,
-                    "TEXCOORD_0": tc0_acc,
-                    "TEXCOORD_1": tc1_acc,
-                    "COLOR_0": col_acc
-                },
-                "indices": idx_acc,
-                "mode": 4,
-                "material": 0
-            })]
+            let mut prims = Vec::with_capacity(mesh_info.submeshes.len());
+            for sub in &mesh_info.submeshes {
+                // Slice a dedicated index accessor out of the shared buffer.
+                let sub_bv = buffer_views.len();
+                buffer_views.push(json!({
+                    "buffer": 0,
+                    "byteOffset": mesh_info.indices_offset + sub.index_start as usize * 4,
+                    "byteLength": sub.index_count as usize * 4,
+                    "target": 34963
+                }));
+                let sub_acc = accessors.len();
+                accessors.push(json!({
+                    "bufferView": sub_bv,
+                    "componentType": 5125,
+                    "count": sub.index_count,
+                    "type": "SCALAR"
+                }));
+                let material = match sub.material {
+                    MaterialType::Bark => 0,
+                    MaterialType::Leaves => 1,
+                    MaterialType::Impostor => impostor_material[mesh_i].unwrap_or(1),
+                };
+                prims.push(json!({
+                    "attributes": attributes,
+                    "indices": sub_acc,
+                    "mode": 4,
+                    "material": material
+                }));
+            }
+            prims
         };
 
         gltf_meshes.push(json!({
@@ -529,29 +650,103 @@ fn build_gltf_json(
         }));
     }
 
+    // Image bufferViews come after all mesh views.
+    for image in images {
+        buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": image.offset,
+            "byteLength": image.len
+        }));
+    }
+    let image_view_base = buffer_views.len() - images.len();
+
     // Build materials
-    let materials = vec![
-        json!({
-            "name": "bark",
-            "pbrMetallicRoughness": {
-                "baseColorFactor": [0.4, 0.3, 0.2, 1.0],
-                "metallicFactor": 0.0,
-                "roughnessFactor": 0.85
-            },
-            "doubleSided": false
-        }),
-        json!({
-            "name": "leaves",
-            "pbrMetallicRoughness": {
-                "baseColorFactor": [0.2, 0.5, 0.2, 1.0],
-                "metallicFactor": 0.0,
-                "roughnessFactor": 0.6
-            },
-            "doubleSided": true,
-            "alphaMode": "MASK",
-            "alphaCutoff": 0.5
-        }),
+    let mut materials = vec![
+        if textured {
+            json!({
+                "name": "bark",
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": { "index": 0 },
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.85
+                },
+                "normalTexture": { "index": 1 },
+                "doubleSided": false
+            })
+        } else {
+            json!({
+                "name": "bark",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.4, 0.3, 0.2, 1.0],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.85
+                },
+                "doubleSided": false
+            })
+        },
+        if textured {
+            json!({
+                "name": "leaves",
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": { "index": 2 },
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.6
+                },
+                "doubleSided": true,
+                "alphaMode": "MASK",
+                "alphaCutoff": 0.5
+            })
+        } else {
+            json!({
+                "name": "leaves",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.2, 0.5, 0.2, 1.0],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.6
+                },
+                "doubleSided": true,
+                "alphaMode": "MASK",
+                "alphaCutoff": 0.5
+            })
+        },
     ];
+
+    // Impostor materials fill their pre-assigned slots so shared untextured
+    // materials never misalign the table.
+    let mut impostor_slots: Vec<Option<serde_json::Value>> = vec![None; next_material - 2];
+    for (mesh_i, info) in meshes.iter().enumerate() {
+        let Some(index) = impostor_material[mesh_i] else {
+            continue;
+        };
+        let slot = &mut impostor_slots[index - 2];
+        if slot.is_some() {
+            continue; // shared untextured material already emitted
+        }
+        *slot = Some(if let Some(image_idx) = info.impostor_image {
+            json!({
+                "name": format!("impostor_{}", info.name),
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": { "index": image_idx },
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.8
+                },
+                "doubleSided": true,
+                "alphaMode": "MASK",
+                "alphaCutoff": 0.5
+            })
+        } else {
+            json!({
+                "name": "impostor",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.3, 0.45, 0.2, 1.0],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.8
+                },
+                "doubleSided": true
+            })
+        });
+    }
+    materials.extend(impostor_slots.into_iter().flatten());
 
     // Build nodes (one per mesh)
     let nodes: Vec<_> = (0..meshes.len())
@@ -579,6 +774,48 @@ fn build_gltf_json(
             "byteLength": buffer_size
         }]
     });
+
+    if !images.is_empty() {
+        // Samplers: 0 = repeat+linear (tiling maps), 1 = clamp (atlases).
+        root["samplers"] = json!([
+            {
+                "magFilter": 9729,   // LINEAR
+                "minFilter": 9987,   // LINEAR_MIPMAP_LINEAR
+                "wrapS": 10497,      // REPEAT
+                "wrapT": 10497
+            },
+            {
+                "magFilter": 9729,
+                "minFilter": 9987,
+                "wrapS": 33071,      // CLAMP_TO_EDGE
+                "wrapT": 33071
+            }
+        ]);
+        root["images"] = images
+            .iter()
+            .enumerate()
+            .map(|(i, image)| {
+                json!({
+                    "name": image.name,
+                    "mimeType": "image/png",
+                    "bufferView": image_view_base + i
+                })
+            })
+            .collect();
+        root["textures"] = images
+            .iter()
+            .enumerate()
+            .map(|(i, image)| {
+                json!({
+                    "source": i,
+                    "sampler": match image.sampler {
+                        SamplerKind::Repeat => 0,
+                        SamplerKind::Clamp => 1,
+                    }
+                })
+            })
+            .collect();
+    }
 
     // Add pivot painter extras
     if config.pivot_painter_extras {
@@ -714,7 +951,7 @@ mod tests {
         let config = ExportConfig::default();
         assert_eq!(config.format, ExportFormat::Glb);
         assert!(!config.draco);
-        assert!(!config.embed_textures);
+        assert!(config.textures.is_none());
         assert!(config.pivot_painter_extras);
     }
 
@@ -917,5 +1154,208 @@ mod tests {
 
         let no_mesh_err = ExportError::NoMeshes;
         assert!(no_mesh_err.to_string().contains("No meshes"));
+    }
+
+    fn create_two_material_mesh() -> Mesh {
+        // 3 verts bark + 3 verts leaves = 2 triangles, 2 submeshes.
+        let mut mesh = Mesh::new();
+        for i in 0..6 {
+            mesh.vertices.push(Vertex::new(
+                Vec3::new(i as f32, (i % 3) as f32, 0.0),
+                Vec3::Y,
+                Vec2::new(0.0, 0.0),
+            ));
+        }
+        mesh.indices.extend_from_slice(&[0, 1, 2, 3, 4, 5]);
+        mesh.submeshes.push(Submesh {
+            index_start: 0,
+            index_count: 3,
+            material: MaterialType::Bark,
+        });
+        mesh.submeshes.push(Submesh {
+            index_start: 3,
+            index_count: 3,
+            material: MaterialType::Leaves,
+        });
+        mesh
+    }
+
+    #[test]
+    fn test_submeshes_split_into_primitives_with_materials() {
+        let mesh = create_two_material_mesh();
+        let config = ExportConfig::default();
+        let gltf_data = build_gltf_single(&mesh, &config).unwrap();
+        let json = &gltf_data.json;
+
+        let primitives = json["meshes"][0]["primitives"].as_array().unwrap();
+        assert_eq!(primitives.len(), 2, "one primitive per submesh");
+        assert_eq!(primitives[0]["material"], 0); // bark
+        assert_eq!(primitives[1]["material"], 1); // leaves
+
+        // Each primitive has its own index accessor covering 3 indices.
+        let a0 = primitives[0]["indices"].as_u64().unwrap() as usize;
+        let a1 = primitives[1]["indices"].as_u64().unwrap() as usize;
+        let accessors = json["accessors"].as_array().unwrap();
+        assert_eq!(accessors[a0]["count"], 3);
+        assert_eq!(accessors[a1]["count"], 3);
+        // The leaves primitive views into the shared index buffer at
+        // indices_offset + 3 * 4 (past the bark range).
+        let views = json["bufferViews"].as_array().unwrap();
+        let full_bv = accessors[5]["bufferView"].as_u64().unwrap() as usize;
+        let bv1 = accessors[a1]["bufferView"].as_u64().unwrap() as usize;
+        assert_eq!(
+            views[bv1]["byteOffset"].as_u64().unwrap(),
+            views[full_bv]["byteOffset"].as_u64().unwrap() + 12
+        );
+    }
+
+    #[test]
+    fn test_textured_export_embeds_images_and_materials() {
+        use crate::species::Species;
+        use crate::textures::TextureSet;
+
+        let species = Species::from_toml(
+            r#"
+[species]
+name = "Export Tex Test"
+[trunk]
+height = 4.0
+radius = 0.2
+[textures]
+resolution = 64
+"#,
+        )
+        .unwrap();
+
+        let mesh = create_two_material_mesh();
+        let config = ExportConfig {
+            textures: Some(TextureSet::generate(&species)),
+            ..Default::default()
+        };
+        let gltf_data = build_gltf_single(&mesh, &config).unwrap();
+        let json = &gltf_data.json;
+
+        // 3 embedded PNG images: bark albedo, bark normal, leaf card.
+        let images = json["images"].as_array().unwrap();
+        assert_eq!(images.len(), 3);
+        assert!(images.iter().all(|i| i["mimeType"] == "image/png"));
+        assert!(json["textures"].as_array().unwrap().len() == 3);
+        assert!(json["samplers"].as_array().unwrap().len() == 2);
+
+        let materials = json["materials"].as_array().unwrap();
+        assert_eq!(
+            materials[0]["pbrMetallicRoughness"]["baseColorTexture"]["index"],
+            0
+        );
+        assert_eq!(materials[0]["normalTexture"]["index"], 1);
+        assert_eq!(
+            materials[1]["pbrMetallicRoughness"]["baseColorTexture"]["index"],
+            2
+        );
+        assert_eq!(materials[1]["alphaMode"], "MASK");
+
+        // The PNG payloads sit inside the binary buffer.
+        assert!(gltf_data.binary.len() > 1000);
+    }
+
+    #[test]
+    fn test_impostor_lod_exports_atlas_material() {
+        use crate::lod::LodMesh;
+        use crate::species::Species;
+        use crate::textures::{RgbaTexture, TextureSet};
+
+        let species = Species::from_toml(
+            r#"
+[species]
+name = "Impostor Export"
+[trunk]
+height = 4.0
+radius = 0.2
+[textures]
+resolution = 64
+"#,
+        )
+        .unwrap();
+
+        let mut mesh = create_two_material_mesh();
+        // Add an impostor quad submesh.
+        let base = mesh.vertices.len() as u32;
+        for i in 0..4u32 {
+            mesh.vertices.push(Vertex::new(
+                Vec3::new((i % 2) as f32, (i / 2) as f32 + 2.0, 0.0),
+                Vec3::Z,
+                Vec2::new((i % 2) as f32, (i / 2) as f32),
+            ));
+        }
+        mesh.indices
+            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        mesh.submeshes.push(Submesh {
+            index_start: 6,
+            index_count: 6,
+            material: MaterialType::Impostor,
+        });
+
+        let lod = LodMesh {
+            index: 0,
+            name: "Test".to_string(),
+            mesh,
+            screen_height: 0.5,
+            impostor_atlas: Some(RgbaTexture::new(16, 8)),
+            stats: Default::default(),
+        };
+        let lods = LodMeshSet { meshes: vec![lod] };
+        let config = ExportConfig {
+            textures: Some(TextureSet::generate(&species)),
+            ..Default::default()
+        };
+        let gltf_data = build_gltf_lods(&lods, &config).unwrap();
+        let json = &gltf_data.json;
+
+        // bark_albedo + bark_normal + leaf_card + impostor atlas
+        assert_eq!(json["images"].as_array().unwrap().len(), 4);
+        let materials = json["materials"].as_array().unwrap();
+        assert_eq!(materials.len(), 3); // bark, leaves, impostor
+        assert_eq!(
+            materials[2]["pbrMetallicRoughness"]["baseColorTexture"]["index"],
+            3
+        );
+        assert_eq!(materials[2]["alphaMode"], "MASK");
+
+        let primitives = json["meshes"][0]["primitives"].as_array().unwrap();
+        assert_eq!(primitives.len(), 3);
+        assert_eq!(primitives[2]["material"], 2);
+    }
+
+    #[test]
+    fn test_glb_bytes_contain_png_chunks() {
+        use crate::species::Species;
+        use crate::textures::TextureSet;
+
+        let species = Species::from_toml(
+            r#"
+[species]
+name = "GLB Tex"
+[trunk]
+height = 4.0
+radius = 0.2
+[textures]
+resolution = 64
+"#,
+        )
+        .unwrap();
+        let mesh = create_two_material_mesh();
+        let config = ExportConfig {
+            textures: Some(TextureSet::generate(&species)),
+            ..Default::default()
+        };
+        let data = build_gltf_single(&mesh, &config).unwrap();
+        let glb = build_glb_bytes(&data).unwrap();
+        assert_eq!(&glb[0..4], b"glTF");
+        // PNG magic must appear inside the BIN chunk payload.
+        let png_magic = [0x89, 0x50, 0x4E, 0x47];
+        assert!(
+            glb.windows(4).any(|w| w == png_magic),
+            "GLB should contain embedded PNG data"
+        );
     }
 }

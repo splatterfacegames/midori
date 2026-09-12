@@ -12,8 +12,8 @@
 //! - glTF 2.0 export as single-file GLB or `.gltf` + `.bin` parts
 
 use grove_core::{
-    ExportConfig, Mesh, Species, export_lod_meshes_to_bytes, export_lod_meshes_to_parts,
-    generate_tree as core_generate_tree,
+    ExportConfig, Mesh, Species, TextureSet, export_lod_meshes_to_bytes,
+    export_lod_meshes_to_parts, generate_tree as core_generate_tree,
     lod::{LodGenerationConfig, generate_lod_meshes_with_config},
     mesh::MaterialType,
 };
@@ -130,13 +130,20 @@ impl GroveGenerator {
 
     /// Export tree as GLB binary data.
     ///
-    /// Returns a Uint8Array containing the complete GLB file.
+    /// Returns a Uint8Array containing the complete GLB file. When
+    /// `embed_textures` is true the species' generated material maps (bark
+    /// albedo+normal, leaf card) are embedded; baked impostor atlases are
+    /// always embedded when a LOD uses `crown_impostor`.
     #[wasm_bindgen]
-    pub fn export_glb(&self, seed: u64) -> Result<js_sys::Uint8Array, JsValue> {
+    pub fn export_glb(
+        &self,
+        seed: u64,
+        embed_textures: bool,
+    ) -> Result<js_sys::Uint8Array, JsValue> {
         let tree = core_generate_tree(&self.species, seed);
         let lods = self.generate_lods(&tree);
 
-        let config = ExportConfig::default();
+        let config = self.export_config(embed_textures);
         let glb_bytes = export_lod_meshes_to_bytes(&lods, &config)
             .map_err(|e| JsValue::from_str(&format!("Export error: {}", e)))?;
 
@@ -148,13 +155,19 @@ impl GroveGenerator {
     /// Export tree as separate `.gltf` JSON + `.bin` parts.
     ///
     /// `bin_name` is written into the glTF buffer URI. Returns an object with
-    /// `gltf` and `bin` Uint8Array fields.
+    /// `gltf` and `bin` Uint8Array fields. Embedded images ride inside `.bin`
+    /// via bufferView references.
     #[wasm_bindgen(js_name = exportGltf)]
-    pub fn export_gltf(&self, seed: u64, bin_name: &str) -> Result<JsValue, JsValue> {
+    pub fn export_gltf(
+        &self,
+        seed: u64,
+        bin_name: &str,
+        embed_textures: bool,
+    ) -> Result<JsValue, JsValue> {
         let tree = core_generate_tree(&self.species, seed);
         let lods = self.generate_lods(&tree);
 
-        let config = ExportConfig::default();
+        let config = self.export_config(embed_textures);
         let (gltf, bin) = export_lod_meshes_to_parts(&lods, bin_name, &config)
             .map_err(|e| JsValue::from_str(&format!("Export error: {}", e)))?;
 
@@ -166,6 +179,38 @@ impl GroveGenerator {
         js_sys::Reflect::set(&result, &"gltf".into(), &gltf_array)?;
         js_sys::Reflect::set(&result, &"bin".into(), &bin_array)?;
         Ok(result.into())
+    }
+
+    /// Generate the species' material maps as PNG bytes.
+    ///
+    /// Returns `{ bark_albedo, bark_normal, leaf_card }` Uint8Array PNGs —
+    /// deterministic for the species' `[textures]` parameters. The browser
+    /// has no filesystem, so file-slot overrides are ignored here (procedural
+    /// maps are used); native hosts resolve slots via `TextureSet::resolve`.
+    #[wasm_bindgen(js_name = generateMaps)]
+    pub fn generate_maps(&self) -> Result<JsValue, JsValue> {
+        let textures = TextureSet::generate(&self.species);
+
+        let result = js_sys::Object::new();
+        for (name, png) in [
+            ("bark_albedo", textures.bark_albedo.to_png()),
+            ("bark_normal", textures.bark_normal.to_png()),
+            ("leaf_card", textures.leaf_card.to_png()),
+        ] {
+            let bytes =
+                png.map_err(|e| JsValue::from_str(&format!("Texture encode error: {}", e)))?;
+            let array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
+            array.copy_from(&bytes);
+            js_sys::Reflect::set(&result, &name.into(), &array)?;
+        }
+        Ok(result.into())
+    }
+
+    fn export_config(&self, embed_textures: bool) -> ExportConfig {
+        ExportConfig {
+            textures: embed_textures.then(|| TextureSet::generate(&self.species)),
+            ..ExportConfig::default()
+        }
     }
 
     fn generate_lods(&self, tree: &grove_core::Tree) -> grove_core::LodMeshSet {
@@ -199,6 +244,9 @@ struct LodOutput {
     indices: Vec<u32>,
     /// Material ranges over `indices`, for split bark/leaf rendering.
     submeshes: Vec<SubmeshOutput>,
+    /// Baked impostor atlas as PNG bytes (absent unless crown_impostor).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    impostor_atlas: Option<Vec<u8>>,
     vertex_count: u32,
     triangle_count: u32,
 }
@@ -257,6 +305,7 @@ impl MeshOutput {
                     vertices: VertexData::from_mesh(&lod.mesh),
                     indices: lod.mesh.indices.clone(),
                     submeshes: submesh_outputs(&lod.mesh),
+                    impostor_atlas: lod.impostor_atlas.as_ref().and_then(|a| a.to_png().ok()),
                     vertex_count: lod.stats.vertex_count,
                     triangle_count: lod.stats.triangle_count,
                 })
@@ -287,6 +336,7 @@ fn submesh_outputs(mesh: &Mesh) -> Vec<SubmeshOutput> {
             material: match sub.material {
                 MaterialType::Bark => "bark",
                 MaterialType::Leaves => "leaves",
+                MaterialType::Impostor => "impostor",
             },
         })
         .collect()
