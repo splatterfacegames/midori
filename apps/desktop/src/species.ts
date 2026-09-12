@@ -66,9 +66,23 @@ export interface LeafParamsJson {
   up_influence: number;
 }
 
+export type BarkStyle = 'furrowed' | 'plated' | 'smooth';
+export type LeafShapeName = 'oval' | 'pointed' | 'lobed' | 'needle';
+export type LeafCardLayout = 'single' | 'cluster';
+
 export interface TextureParamsJson {
   bark_prompt: string;
   leaf_prompt: string;
+  resolution: number;
+  seed?: number;
+  bark_style: BarkStyle;
+  leaf_shape: LeafShapeName;
+  leaf_card: LeafCardLayout;
+  bark_color?: [number, number, number];
+  leaf_color?: [number, number, number];
+  bark_albedo?: string;
+  bark_normal?: string;
+  leaf_albedo_alpha?: string;
 }
 
 export interface LodLevelJson {
@@ -137,6 +151,24 @@ export const LOD_PRESETS: { value: LodPresetName; label: string }[] = [
   { value: 'mobile', label: 'Mobile' },
   { value: 'minimal', label: 'Minimal' },
   { value: 'custom', label: 'Custom' },
+];
+
+export const BARK_STYLES: { value: BarkStyle; label: string }[] = [
+  { value: 'furrowed', label: 'Furrowed (oak, ash)' },
+  { value: 'plated', label: 'Plated (pine, spruce)' },
+  { value: 'smooth', label: 'Smooth (beech, birch)' },
+];
+
+export const LEAF_SHAPES: { value: LeafShapeName; label: string }[] = [
+  { value: 'oval', label: 'Oval' },
+  { value: 'pointed', label: 'Pointed' },
+  { value: 'lobed', label: 'Lobed' },
+  { value: 'needle', label: 'Needle' },
+];
+
+export const LEAF_CARD_LAYOUTS: { value: LeafCardLayout; label: string }[] = [
+  { value: 'cluster', label: 'Cluster spray' },
+  { value: 'single', label: 'Single leaf' },
 ];
 
 export const PLATFORM_TARGETS: { value: PlatformTarget; label: string }[] = [
@@ -221,6 +253,22 @@ export const PARAM_SECTIONS: ParamSection[] = [
       { kind: 'enum', key: 'distribution', label: 'Distribution', options: LEAF_DISTRIBUTIONS },
       { kind: 'enum', key: 'geometry', label: 'Geometry', options: LEAF_GEOMETRIES },
       num('up_influence', 'Up influence', { min: 0, max: 1, step: 0.05 }),
+    ],
+  },
+  {
+    id: 'textures',
+    title: 'Textures',
+    fields: [
+      num('resolution', 'Map size', { min: 16, max: 4096, step: 64, unit: 'px', int: true }),
+      num('seed', 'Map seed (0 = from species name)', { min: 0, step: 1, int: true }),
+      { kind: 'enum', key: 'bark_style', label: 'Bark style', options: BARK_STYLES },
+      { kind: 'enum', key: 'leaf_shape', label: 'Leaf shape', options: LEAF_SHAPES },
+      { kind: 'enum', key: 'leaf_card', label: 'Leaf card', options: LEAF_CARD_LAYOUTS },
+      { kind: 'text', key: 'bark_prompt', label: 'Bark prompt' },
+      { kind: 'text', key: 'leaf_prompt', label: 'Leaf prompt' },
+      { kind: 'text', key: 'bark_albedo', label: 'Bark albedo file' },
+      { kind: 'text', key: 'bark_normal', label: 'Bark normal file' },
+      { kind: 'text', key: 'leaf_albedo_alpha', label: 'Leaf card file' },
     ],
   },
   {

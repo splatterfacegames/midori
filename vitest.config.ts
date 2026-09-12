@@ -16,5 +16,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
+    // The model tests run real WASM generation + glTF export; slow shared
+    // runners need more than the 5s default.
+    testTimeout: 30000,
   },
 });

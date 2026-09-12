@@ -27,15 +27,17 @@ export class GroveGenerator {
      * Export tree as separate `.gltf` JSON + `.bin` parts.
      *
      * `bin_name` is written into the glTF buffer URI. Returns an object with
-     * `gltf` and `bin` Uint8Array fields.
+     * `gltf` and `bin` Uint8Array fields. Embedded images ride inside `.bin`
+     * via bufferView references.
      * @param {bigint} seed
      * @param {string} bin_name
+     * @param {boolean} embed_textures
      * @returns {any}
      */
-    exportGltf(seed, bin_name) {
+    exportGltf(seed, bin_name, embed_textures) {
         const ptr0 = passStringToWasm0(bin_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.grovegenerator_exportGltf(this.__wbg_ptr, seed, ptr0, len0);
+        const ret = wasm.grovegenerator_exportGltf(this.__wbg_ptr, seed, ptr0, len0, embed_textures);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -44,12 +46,16 @@ export class GroveGenerator {
     /**
      * Export tree as GLB binary data.
      *
-     * Returns a Uint8Array containing the complete GLB file.
+     * Returns a Uint8Array containing the complete GLB file. When
+     * `embed_textures` is true the species' generated material maps (bark
+     * albedo+normal, leaf card) are embedded; baked impostor atlases are
+     * always embedded when a LOD uses `crown_impostor`.
      * @param {bigint} seed
+     * @param {boolean} embed_textures
      * @returns {Uint8Array}
      */
-    export_glb(seed) {
-        const ret = wasm.grovegenerator_export_glb(this.__wbg_ptr, seed);
+    export_glb(seed, embed_textures) {
+        const ret = wasm.grovegenerator_export_glb(this.__wbg_ptr, seed, embed_textures);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -80,6 +86,22 @@ export class GroveGenerator {
      */
     generate(seed) {
         const ret = wasm.grovegenerator_generate(this.__wbg_ptr, seed);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Generate the species' material maps as PNG bytes.
+     *
+     * Returns `{ bark_albedo, bark_normal, leaf_card }` Uint8Array PNGs —
+     * deterministic for the species' `[textures]` parameters. The browser
+     * has no filesystem, so file-slot overrides are ignored here (procedural
+     * maps are used); native hosts resolve slots via `TextureSet::resolve`.
+     * @returns {any}
+     */
+    generateMaps() {
+        const ret = wasm.grovegenerator_generateMaps(this.__wbg_ptr);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -224,6 +246,12 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
+        __wbg___wbindgen_bigint_get_as_i64_410e28c7b761ad83: function(arg0, arg1) {
+            const v = arg1;
+            const ret = typeof(v) === 'bigint' ? v : undefined;
+            getDataViewMemory0().setBigInt64(arg0 + 8 * 1, isLikeNone(ret) ? BigInt(0) : ret, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, !isLikeNone(ret), true);
+        },
         __wbg___wbindgen_boolean_get_2304fb8c853028c8: function(arg0) {
             const v = arg0;
             const ret = typeof(v) === 'boolean' ? v : undefined;
@@ -238,6 +266,10 @@ function __wbg_get_imports() {
         },
         __wbg___wbindgen_in_07056af4f902c445: function(arg0, arg1) {
             const ret = arg0 in arg1;
+            return ret;
+        },
+        __wbg___wbindgen_is_bigint_aeae3893f30ed54e: function(arg0) {
+            const ret = typeof(arg0) === 'bigint';
             return ret;
         },
         __wbg___wbindgen_is_function_5cd60d5cf78b4eef: function(arg0) {
@@ -255,6 +287,10 @@ function __wbg_get_imports() {
         },
         __wbg___wbindgen_is_undefined_35bb9f4c7fd651d5: function(arg0) {
             const ret = arg0 === undefined;
+            return ret;
+        },
+        __wbg___wbindgen_jsval_eq_c0ed08b3e0f393b9: function(arg0, arg1) {
+            const ret = arg0 === arg1;
             return ret;
         },
         __wbg___wbindgen_jsval_loose_eq_0ad77b7717db155c: function(arg0, arg1) {
@@ -420,6 +456,11 @@ function __wbg_get_imports() {
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
+            return ret;
+        },
+        __wbindgen_cast_0000000000000003: function(arg0) {
+            // Cast intrinsic for `U64 -> Externref`.
+            const ret = BigInt.asUintN(64, arg0);
             return ret;
         },
         __wbindgen_init_externref_table: function() {

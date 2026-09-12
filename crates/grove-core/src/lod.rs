@@ -4,10 +4,12 @@
 //! quality levels for efficient rendering at different distances.
 
 use crate::{
+    impostor::bake_impostor,
     leaves::{LeafConfig, generate_leaf_mesh},
     mesh::{MaterialType, Mesh},
     mesh_builder::{MeshBuilder, MeshConfig},
     species::{LeafGeometry, LodLevel, LodPreset, Species},
+    textures::{RgbaTexture, TextureSet},
     tree::Tree,
 };
 
@@ -377,6 +379,9 @@ pub struct LodMesh {
     pub mesh: Mesh,
     /// Screen height threshold for LOD transition
     pub screen_height: f32,
+    /// Baked crown-impostor atlas when this level uses `crown_impostor`
+    /// (left half = +Z view, right half = +X view).
+    pub impostor_atlas: Option<RgbaTexture>,
     /// Statistics about this LOD
     pub stats: LodStats,
 }
@@ -406,10 +411,17 @@ pub fn generate_lod_meshes_with_config(
     species: &Species,
     config: &LodGenerationConfig,
 ) -> LodMeshSet {
-    let mut meshes = Vec::with_capacity(config.levels.len());
+    // Impostor bakes sample the species' procedural maps; generate them once
+    // per set rather than per impostor level.
+    let impostor_textures = config
+        .levels
+        .iter()
+        .any(|level| level.crown_impostor)
+        .then(|| TextureSet::generate(species));
 
+    let mut meshes = Vec::with_capacity(config.levels.len());
     for level_config in &config.levels {
-        let lod_mesh = generate_single_lod(tree, species, level_config);
+        let lod_mesh = generate_single_lod(tree, species, level_config, impostor_textures.as_ref());
         meshes.push(lod_mesh);
     }
 
@@ -417,7 +429,12 @@ pub fn generate_lod_meshes_with_config(
 }
 
 /// Generate a single LOD level mesh
-fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -> LodMesh {
+fn generate_single_lod(
+    tree: &Tree,
+    species: &Species,
+    level: &LodLevelConfig,
+    impostor_textures: Option<&TextureSet>,
+) -> LodMesh {
     // Count branches that will be included
     let branch_count = tree
         .stems
@@ -438,10 +455,18 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
 
     // Generate leaf mesh based on LOD settings
     let leaf_count;
+    let mut impostor_atlas = None;
     let leaf_mesh = if level.crown_impostor {
-        // TODO: Generate crown impostor billboard
+        // Bake the crown (leaves + cut branches) into a two-view atlas and
+        // replace leaf geometry with two crossed quads.
         leaf_count = 0;
-        Mesh::new()
+        impostor_textures
+            .and_then(|textures| bake_impostor(tree, species, level.branch_levels, textures))
+            .map(|impostor| {
+                impostor_atlas = Some(impostor.atlas);
+                impostor.mesh
+            })
+            .unwrap_or_default()
     } else if level.leaf_geometry != LeafGeometry::None && level.leaf_reduction > 0.0 {
         // Filter leaves based on reduction factor
         let max_leaves = (tree.leaves.len() as f32 * level.leaf_reduction) as usize;
@@ -463,9 +488,14 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
         Mesh::new()
     };
 
-    // Merge branch and leaf meshes
+    // Merge leaf/impostor geometry with its material.
+    let merge_material = if level.crown_impostor {
+        MaterialType::Impostor
+    } else {
+        MaterialType::Leaves
+    };
     if !leaf_mesh.vertices.is_empty() {
-        branch_mesh.merge(&leaf_mesh, MaterialType::Leaves);
+        branch_mesh.merge(&leaf_mesh, merge_material);
     }
 
     let stats = LodStats {
@@ -480,6 +510,7 @@ fn generate_single_lod(tree: &Tree, species: &Species, level: &LodLevelConfig) -
         name: level.name.clone(),
         mesh: branch_mesh,
         screen_height: level.screen_height,
+        impostor_atlas,
         stats,
     }
 }

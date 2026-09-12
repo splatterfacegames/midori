@@ -17,10 +17,12 @@ export interface VertexData {
   colors: number[];
 }
 
+export type MaterialKind = 'bark' | 'leaves' | 'impostor';
+
 export interface SubmeshRange {
   index_start: number;
   index_count: number;
-  material: 'bark' | 'leaves';
+  material: MaterialKind;
 }
 
 export interface LodMesh {
@@ -28,8 +30,18 @@ export interface LodMesh {
   vertices: VertexData;
   indices: number[];
   submeshes: SubmeshRange[];
+  /** Baked crown-impostor atlas as PNG bytes (front | side views side by
+   *  side), present when this LOD level uses `crown_impostor`. */
+  impostor_atlas?: Uint8Array;
   vertex_count: number;
   triangle_count: number;
+}
+
+/** Species material maps as PNG-encoded bytes. */
+export interface MaterialMaps {
+  bark_albedo: Uint8Array;
+  bark_normal: Uint8Array;
+  leaf_card: Uint8Array;
 }
 
 export interface TreeStats {
@@ -98,14 +110,22 @@ export class Generator {
     return this.inner.get_stats(BigInt(seed)) as TreeStats;
   }
 
-  /** Single-file binary glTF for `seed`. */
-  exportGlb(seed: number): Uint8Array {
-    return this.inner.export_glb(BigInt(seed));
+  /** Single-file binary glTF for `seed`. `embedTextures` embeds the species'
+   *  generated material maps (bark albedo+normal, leaf card). Impostor
+   *  atlases are embedded whenever a LOD bakes one. */
+  exportGlb(seed: number, embedTextures: boolean): Uint8Array {
+    return this.inner.export_glb(BigInt(seed), embedTextures);
   }
 
-  /** Separate .gltf JSON + .bin parts. `binName` becomes the buffer URI. */
-  exportGltf(seed: number, binName: string): GltfParts {
-    return this.inner.exportGltf(BigInt(seed), binName) as GltfParts;
+  /** Separate .gltf JSON + .bin parts. `binName` becomes the buffer URI;
+   *  embedded images ride inside the .bin via bufferView references. */
+  exportGltf(seed: number, binName: string, embedTextures: boolean): GltfParts {
+    return this.inner.exportGltf(BigInt(seed), binName, embedTextures) as GltfParts;
+  }
+
+  /** The species' procedural material maps as PNG bytes (deterministic). */
+  generateMaps(): MaterialMaps {
+    return this.inner.generateMaps() as MaterialMaps;
   }
 
   free(): void {

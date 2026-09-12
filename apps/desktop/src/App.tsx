@@ -139,7 +139,7 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
     try {
       const files = request.seeds.flatMap((seed, index) => {
         const base = request.seeds.length > 1 ? `${request.baseName}_${index}` : request.baseName;
-        return model.exportFiles(seed, request.format, base);
+        return model.exportFiles(seed, request.format, base, request.embedTextures);
       });
       const destination = await fileHost.saveFiles(`${request.baseName}.${request.format}`, files);
       if (destination) model.recordExport(files, destination);

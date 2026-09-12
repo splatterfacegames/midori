@@ -20,6 +20,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Self-hosted runners don't source profile files, so the provisioned
+      # toolchain's bin dir isn't on PATH. Covers both conventional locations.
+      - name: Add cargo bin to PATH
+        run: |
+          for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
       - run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
       # grove-desktop is excluded from the workspace (its jethaforge dep needs
       # private auth); these commands cover the engine, CLI, WASM, and FFI.
@@ -33,6 +40,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Add cargo bin to PATH
+        run: |
+          for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
       - run: rustup toolchain install stable --profile minimal
       - run: rustup target add wasm32-unknown-unknown
       # The committed apps/desktop/src/wasm bundle is produced by `npm run wasm`;

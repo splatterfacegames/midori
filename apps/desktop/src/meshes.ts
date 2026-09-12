@@ -1,18 +1,29 @@
 /**
  * Convert engine LOD output into stack viewport descriptors.
  *
- * One MeshDescriptor per material range (bark/leaves); all descriptors of a
- * LOD share the same position/normal buffers and differ only by their index
- * slice, so no vertex data is duplicated.
+ * One MeshDescriptor per material range (bark/leaves/impostor); all
+ * descriptors of a LOD share the same position/normal buffers and differ
+ * only by their index slice, so no vertex data is duplicated.
+ *
+ * The current stack MeshDescriptor has no UV/texture channel — materials
+ * render as flat colors here. Textured preview arrives with the jethaforge
+ * descriptor extension (uvs/map/alphaTest); until then the generated maps
+ * are inspectable in the Objects panel materials strip.
  */
 
 import type { MeshDescriptor } from '@jethac/tools-frontend-stack/viewports';
-import type { LodMesh } from './engine';
+import type { LodMesh, MaterialKind } from './engine';
 
-export const MATERIAL_COLORS = {
+export const MATERIAL_COLORS: Record<MaterialKind, string> = {
   bark: '#6d4c2f',
   leaves: '#3f7a2e',
-} as const;
+  impostor: '#5a8f46',
+};
+
+/** Impostor quads are baked foliage — they ride the leaves layer toggle. */
+function layerFor(material: MaterialKind): 'bark' | 'leaves' {
+  return material === 'bark' ? 'bark' : 'leaves';
+}
 
 export function lodToDescriptors(
   lod: LodMesh,
@@ -30,7 +41,7 @@ export function lodToDescriptors(
 
   const descriptors: MeshDescriptor[] = [];
   for (const [i, range] of ranges.entries()) {
-    if (!layers[range.material]) continue;
+    if (!layers[layerFor(range.material)]) continue;
     descriptors.push({
       entityId: `${lod.name}-${range.material}-${i}`,
       revision,

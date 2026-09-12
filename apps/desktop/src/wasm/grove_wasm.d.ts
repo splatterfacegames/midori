@@ -14,15 +14,19 @@ export class GroveGenerator {
      * Export tree as separate `.gltf` JSON + `.bin` parts.
      *
      * `bin_name` is written into the glTF buffer URI. Returns an object with
-     * `gltf` and `bin` Uint8Array fields.
+     * `gltf` and `bin` Uint8Array fields. Embedded images ride inside `.bin`
+     * via bufferView references.
      */
-    exportGltf(seed: bigint, bin_name: string): any;
+    exportGltf(seed: bigint, bin_name: string, embed_textures: boolean): any;
     /**
      * Export tree as GLB binary data.
      *
-     * Returns a Uint8Array containing the complete GLB file.
+     * Returns a Uint8Array containing the complete GLB file. When
+     * `embed_textures` is true the species' generated material maps (bark
+     * albedo+normal, leaf card) are embedded; baked impostor atlases are
+     * always embedded when a LOD uses `crown_impostor`.
      */
-    export_glb(seed: bigint): Uint8Array;
+    export_glb(seed: bigint, embed_textures: boolean): Uint8Array;
     /**
      * Create a new generator from a species JSON object.
      *
@@ -37,6 +41,15 @@ export class GroveGenerator {
      * LOD generation is driven by the species' `[lod]` configuration.
      */
     generate(seed: bigint): any;
+    /**
+     * Generate the species' material maps as PNG bytes.
+     *
+     * Returns `{ bark_albedo, bark_normal, leaf_card }` Uint8Array PNGs —
+     * deterministic for the species' `[textures]` parameters. The browser
+     * has no filesystem, so file-slot overrides are ignored here (procedural
+     * maps are used); native hosts resolve slots via `TextureSet::resolve`.
+     */
+    generateMaps(): any;
     /**
      * Generate only a specific LOD level.
      */
@@ -86,10 +99,11 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_grovegenerator_free: (a: number, b: number) => void;
     readonly generate_tree_from_toml: (a: number, b: number, c: bigint) => [number, number, number];
-    readonly grovegenerator_exportGltf: (a: number, b: bigint, c: number, d: number) => [number, number, number];
-    readonly grovegenerator_export_glb: (a: number, b: bigint) => [number, number, number];
+    readonly grovegenerator_exportGltf: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
+    readonly grovegenerator_export_glb: (a: number, b: bigint, c: number) => [number, number, number];
     readonly grovegenerator_fromJson: (a: any) => [number, number, number];
     readonly grovegenerator_generate: (a: number, b: bigint) => [number, number, number];
+    readonly grovegenerator_generateMaps: (a: number) => [number, number, number];
     readonly grovegenerator_generate_lod: (a: number, b: bigint, c: number) => [number, number, number];
     readonly grovegenerator_get_stats: (a: number, b: bigint) => [number, number, number];
     readonly grovegenerator_name: (a: number) => [number, number];

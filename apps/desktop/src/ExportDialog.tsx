@@ -5,6 +5,8 @@ export interface ExportRequest {
   format: 'glb' | 'gltf';
   baseName: string;
   seeds: number[];
+  /** Embed the species' material maps (bark albedo+normal, leaf card). */
+  embedTextures: boolean;
 }
 
 export function ExportDialog({
@@ -21,11 +23,12 @@ export function ExportDialog({
     (state.json?.species.name ?? 'tree').toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'tree',
   );
   const [scope, setScope] = useState<'current' | 'all'>('current');
+  const [embedTextures, setEmbedTextures] = useState(true);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const seeds = scope === 'all' ? state.variants : [state.seed];
-    onExport({ format, baseName, seeds });
+    onExport({ format, baseName, seeds, embedTextures });
   };
 
   return (
@@ -62,8 +65,18 @@ export function ExportDialog({
             <option value="all">All {state.variants.length} listed variants</option>
           </select>
         </label>
+        <label className="grove-field grove-field-inline">
+          <input
+            type="checkbox"
+            checked={embedTextures}
+            onChange={(event) => setEmbedTextures(event.target.checked)}
+          />
+          <span className="grove-field-label">Embed material maps</span>
+        </label>
         <p className="grove-subtle">
           Every LOD level is included, with Pivot Painter data in TEXCOORD_1 and COLOR_0.
+          Material maps embed the species' generated bark albedo+normal and leaf card PNGs;
+          baked impostor atlases are always embedded when a LOD uses crown impostors.
         </p>
         <div className="grove-modal-actions">
           <button type="button" onClick={onCancel}>
