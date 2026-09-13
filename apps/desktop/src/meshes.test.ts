@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { lodToDescriptors, MATERIAL_COLORS } from './meshes';
-import type { LodMesh } from './engine';
+import { CUTOUT_ALPHA, lodToDescriptors, MATERIAL_COLORS } from './meshes';
+import type { LodMesh, RgbaMap } from './engine';
 
 const lod: LodMesh = {
   name: 'lod0',
@@ -17,6 +17,11 @@ const lod: LodMesh = {
   vertex_count: 3,
   triangle_count: 1,
 };
+
+/** 2x2 solid-map stub: valid TextureSource shape, opaque pixels. */
+function stubMap(fill = 200): RgbaMap {
+  return { data: new Uint8Array(16).fill(fill), width: 2, height: 2 };
+}
 
 describe('lodToDescriptors', () => {
   it('splits submeshes into colored descriptors sharing vertex buffers', () => {
@@ -59,5 +64,78 @@ describe('lodToDescriptors', () => {
     const barkOnly = lodToDescriptors(withImpostor, 1, { bark: true, leaves: false });
     expect(barkOnly).toHaveLength(1);
     expect(barkOnly[0].color).toBe(MATERIAL_COLORS.bark);
+  });
+
+  it('binds maps + alphaTest for leaves and the baked impostor atlas', () => {
+    const atlas = stubMap(160);
+    const textured: LodMesh = {
+      ...lod,
+      vertices: {
+        positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+        normals: [0, 0, 1, 0, 0, 1, 0, 0, 1],
+        uvs: [0, 0, 1, 0, 0.5, 1],
+        uv2s: [],
+        colors: [],
+      },
+      indices: [0, 1, 2, 0, 2, 1],
+      submeshes: [
+        { index_start: 0, index_count: 3, material: 'leaves' },
+        { index_start: 3, index_count: 3, material: 'impostor' },
+      ],
+      impostor_atlas: { rgba: atlas },
+    };
+    const out = lodToDescriptors(textured, 1, { bark: true, leaves: true }, { leaves: stubMap(), impostor: atlas });
+    expect(out).toHaveLength(2);
+    expect(out[0].map?.data).toBeInstanceOf(Uint8Array);
+    expect(out[0].alphaTest).toBe(CUTOUT_ALPHA);
+    expect(out[0].color).toBe('#ffffff');
+    expect(out[0].uvs).toBeInstanceOf(Float32Array);
+    // The impostor descriptor binds the per-LOD baked atlas.
+    expect(out[1].map).toBe(atlas);
+    expect(out[1].alphaTest).toBe(CUTOUT_ALPHA);
+  });
+
+  it('pre-tiles bark V past 1 into a taller map with rescaled UVs', () => {
+    const bark = stubMap();
+    // Bark verts spanning v 0..6 (a ~6m stem at texture_v_scale 1).
+    const stems: LodMesh = {
+      ...lod,
+      vertices: {
+        positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+        normals: [0, 0, 1, 0, 0, 1, 0, 0, 1],
+        uvs: [0, 0, 0.5, 3.2, 1, 6.0],
+        uv2s: [],
+        colors: [],
+      },
+    };
+    const out = lodToDescriptors(stems, 1, { bark: true, leaves: true }, { bark });
+    expect(out).toHaveLength(1);
+    const d = out[0];
+    expect(d.map?.width).toBe(2);
+    expect(d.map?.height).toBe(12); // 6 tiles of height 2
+    expect(d.map?.data.length).toBe(16 * 6);
+    expect(d.alphaTest).toBeUndefined(); // bark is opaque
+    const uv = [...(d.uvs ?? [])];
+    expect(uv[3]).toBeCloseTo(3.2 / 6, 6);
+    expect(uv[5]).toBeCloseTo(1, 6);
+    // uvs stay shared with no other descriptor.
+    expect(d.uvs).not.toBe(Float32Array.from(stems.vertices.uvs));
+  });
+
+  it('leaves bark untiled when V stays within one tile', () => {
+    const bark = stubMap();
+    const stems: LodMesh = {
+      ...lod,
+      vertices: {
+        positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+        normals: [0, 0, 1, 0, 0, 1, 0, 0, 1],
+        uvs: [0, 0, 0.5, 0.5, 1, 0.9],
+        uv2s: [],
+        colors: [],
+      },
+    };
+    const out = lodToDescriptors(stems, 1, { bark: true, leaves: true }, { bark });
+    expect(out[0].map).toBe(bark);
+    expect([...(out[0].uvs ?? [])][5]).toBeCloseTo(0.9, 6);
   });
 });

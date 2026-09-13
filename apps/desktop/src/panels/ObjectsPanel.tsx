@@ -9,7 +9,8 @@ function useMapUrls(maps: MaterialMaps | null, atlas?: Uint8Array): Record<strin
     const out: Record<string, string> = {};
     if (maps) {
       for (const key of ['bark_albedo', 'bark_normal', 'leaf_card'] as const) {
-        out[key] = URL.createObjectURL(new Blob([maps[key] as BlobPart], { type: 'image/png' }));
+        const png = maps[key].png;
+        if (png) out[key] = URL.createObjectURL(new Blob([png as BlobPart], { type: 'image/png' }));
       }
     }
     if (atlas) {
@@ -40,7 +41,7 @@ export function ObjectsPanel({
   onToggleLayer: (layer: 'bark' | 'leaves') => void;
 }) {
   const selectedLod = state.lods?.[state.selectedLod];
-  const mapUrls = useMapUrls(state.maps, selectedLod?.impostor_atlas);
+  const mapUrls = useMapUrls(state.maps, selectedLod?.impostor_atlas?.png);
 
   return (
     <div className="grove-panel-content">

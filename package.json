@@ -15,7 +15,7 @@
     "desktop:build": "node scripts/desktop.mjs build"
   },
   "dependencies": {
-    "@jethac/tools-frontend-stack": "git+https://github.com/splatterfacegames/jethaforge.git#239eb1fb6161640ff4adf39b5d66a2a6f7d20664",
+    "@jethac/tools-frontend-stack": "git+https://github.com/splatterfacegames/jethaforge.git#81b688afdabb4ed8617c1d3d01f9d54ed1aaf173",
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/plugin-dialog": "2.7.3",
     "lucide-react": "1.41.0",

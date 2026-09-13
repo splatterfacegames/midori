@@ -32,8 +32,9 @@ npm run wasm          # wasm-pack build -> apps/desktop/src/wasm
 
 The Tree panel's **Materials** strip shows the species' generated maps (bark
 albedo, bark normal, leaf card) plus the baked impostor atlas for LODs that
-use `crown_impostor`. The 3D preview itself stays flat-colored until the
-jethaforge `MeshDescriptor` gains a UV/texture channel.
+use `crown_impostor`. The 3D preview binds the same maps — bark albedo,
+alpha-tested leaf cards, and the baked impostor atlas on far LODs — so what
+renders matches the glTF export's materials.
 
 Drag panel headers to re-dock; tap Space over a viewport to maximize; hold
 Space for the hotbox; Cmd/Ctrl+K opens the action palette. Layouts persist

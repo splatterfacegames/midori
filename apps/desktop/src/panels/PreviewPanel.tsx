@@ -17,8 +17,15 @@ export function PreviewPanel({
 }) {
   const lod = state.lods?.[state.selectedLod] ?? null;
   const meshes = useMemo(
-    () => (lod ? lodToDescriptors(lod, state.seed, state.layers) : []),
-    [lod, state.seed, state.layers],
+    () =>
+      lod
+        ? lodToDescriptors(lod, state.seed, state.layers, {
+            bark: state.maps?.bark_albedo.rgba,
+            leaves: state.maps?.leaf_card.rgba,
+            impostor: lod.impostor_atlas?.rgba,
+          })
+        : [],
+    [lod, state.seed, state.layers, state.maps],
   );
   return (
     <Viewport3D

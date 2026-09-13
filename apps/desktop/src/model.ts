@@ -7,7 +7,13 @@
  * it is committed and the tree regenerated.
  */
 
-import { Generator, loadEngine, type LodMesh, type MaterialMaps, type TreeStats } from './engine';
+import {
+  Generator,
+  loadEngine,
+  type LodMesh,
+  type MaterialMaps,
+  type TreeStats,
+} from './engine';
 import { PRESETS } from './presets';
 import { setParam, type BranchLevelId, type SpeciesJson, DEFAULT_BRANCH_PARAMS } from './species';
 
@@ -37,9 +43,10 @@ export interface WorkbenchState {
   sourceError: string | null;
   paramError: string | null;
   layers: { bark: boolean; leaves: boolean };
-  /** Generated material maps (PNG bytes) for the loaded species — bark
-   *  albedo, bark normal, leaf card. Regenerated when `[textures]` params or
-   *  the species name (default map seed) change. */
+  /** Generated material maps for the loaded species — bark albedo, bark
+   *  normal, leaf card, each in `png` (materials strip) + `rgba` (viewport
+   *  textures) encodings from a single bake. Regenerated when `[textures]`
+   *  params or the species name (default map seed) change. */
   maps: MaterialMaps | null;
   log: string[];
 }

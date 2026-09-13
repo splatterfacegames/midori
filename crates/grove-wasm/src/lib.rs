@@ -12,7 +12,7 @@
 //! - glTF 2.0 export as single-file GLB or `.gltf` + `.bin` parts
 
 use grove_core::{
-    ExportConfig, Mesh, Species, TextureSet, export_lod_meshes_to_bytes,
+    ExportConfig, Mesh, RgbaTexture, Species, TextureSet, export_lod_meshes_to_bytes,
     export_lod_meshes_to_parts, generate_tree as core_generate_tree,
     lod::{LodGenerationConfig, generate_lod_meshes_with_config},
     mesh::MaterialType,
@@ -180,29 +180,28 @@ impl GroveGenerator {
         Ok(result.into())
     }
 
-    /// Generate the species' material maps as PNG bytes.
+    /// Generate the species' material maps.
     ///
-    /// Returns `{ bark_albedo, bark_normal, leaf_card }` Uint8Array PNGs —
-    /// deterministic for the species' `[textures]` parameters. The browser
+    /// Returns `{ bark_albedo, bark_normal, leaf_card }`, each a
+    /// `GeneratedMap`: `png` carries PNG bytes for blob URLs and file
+    /// inspection; `rgba` carries the same image as `{ data, width, height }`
+    /// raw RGBA8 (top row first — the glTF/`TextureSource` V convention) for
+    /// hosts that upload textures directly to the GPU. One `TextureSet` bake
+    /// serves both encodings; `data`/`png` cross as Uint8Arrays.
+    ///
+    /// Deterministic for the species' `[textures]` parameters. The browser
     /// has no filesystem, so file-slot overrides are ignored here (procedural
     /// maps are used); native hosts resolve slots via `TextureSet::resolve`.
     #[wasm_bindgen(js_name = generateMaps)]
     pub fn generate_maps(&self) -> Result<JsValue, JsValue> {
         let textures = TextureSet::generate(&self.species);
-
-        let result = js_sys::Object::new();
-        for (name, png) in [
-            ("bark_albedo", textures.bark_albedo.to_png()),
-            ("bark_normal", textures.bark_normal.to_png()),
-            ("leaf_card", textures.leaf_card.to_png()),
-        ] {
-            let bytes =
-                png.map_err(|e| JsValue::from_str(&format!("Texture encode error: {e}")))?;
-            let array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
-            array.copy_from(&bytes);
-            js_sys::Reflect::set(&result, &name.into(), &array)?;
-        }
-        Ok(result.into())
+        let result = MapsOutput {
+            bark_albedo: GeneratedMap::strict(&textures.bark_albedo)?,
+            bark_normal: GeneratedMap::strict(&textures.bark_normal)?,
+            leaf_card: GeneratedMap::strict(&textures.leaf_card)?,
+        };
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
     }
 
     fn export_config(&self, embed_textures: bool) -> ExportConfig {
@@ -243,11 +242,71 @@ struct LodOutput {
     indices: Vec<u32>,
     /// Material ranges over `indices`, for split bark/leaf rendering.
     submeshes: Vec<SubmeshOutput>,
-    /// Baked impostor atlas as PNG bytes (absent unless crown_impostor).
+    /// Baked impostor atlas as a `GeneratedMap` (absent unless crown_impostor).
     #[serde(skip_serializing_if = "Option::is_none")]
-    impostor_atlas: Option<Vec<u8>>,
+    impostor_atlas: Option<GeneratedMap>,
     vertex_count: u32,
     triangle_count: u32,
+}
+
+/// Raw RGBA8 image: `{ data, width, height }`, row-major, top row first
+/// (v = 0 at the top — the glTF UV origin). `data` crosses the boundary as
+/// a Uint8Array.
+#[derive(serde::Serialize)]
+struct RgbaOutput {
+    data: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+impl From<&RgbaTexture> for RgbaOutput {
+    fn from(tex: &RgbaTexture) -> Self {
+        Self {
+            data: tex.pixels.clone(),
+            width: tex.width,
+            height: tex.height,
+        }
+    }
+}
+
+/// A generated image in both encodings: `png` for blob URLs and file
+/// inspection, `rgba` for direct GPU texture upload.
+#[derive(serde::Serialize)]
+struct GeneratedMap {
+    /// PNG-encoded bytes (absent only if encoding failed — the atlas path
+    /// tolerates it, `generateMaps` does not).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    png: Option<Vec<u8>>,
+    rgba: RgbaOutput,
+}
+
+impl GeneratedMap {
+    /// Both encodings; PNG encode failure is an error.
+    fn strict(tex: &RgbaTexture) -> Result<Self, JsValue> {
+        Ok(Self {
+            png: Some(
+                tex.to_png()
+                    .map_err(|e| JsValue::from_str(&format!("Texture encode error: {e}")))?,
+            ),
+            rgba: RgbaOutput::from(tex),
+        })
+    }
+
+    /// Both encodings; a failed PNG encode just omits `png`.
+    fn lossy_png(tex: &RgbaTexture) -> Self {
+        Self {
+            png: tex.to_png().ok(),
+            rgba: RgbaOutput::from(tex),
+        }
+    }
+}
+
+/// All generated material maps.
+#[derive(serde::Serialize)]
+struct MapsOutput {
+    bark_albedo: GeneratedMap,
+    bark_normal: GeneratedMap,
+    leaf_card: GeneratedMap,
 }
 
 /// Single mesh output (for generate_lod).
@@ -304,7 +363,7 @@ impl MeshOutput {
                     vertices: VertexData::from_mesh(&lod.mesh),
                     indices: lod.mesh.indices.clone(),
                     submeshes: submesh_outputs(&lod.mesh),
-                    impostor_atlas: lod.impostor_atlas.as_ref().and_then(|a| a.to_png().ok()),
+                    impostor_atlas: lod.impostor_atlas.as_ref().map(GeneratedMap::lossy_png),
                     vertex_count: lod.stats.vertex_count,
                     triangle_count: lod.stats.triangle_count,
                 })
