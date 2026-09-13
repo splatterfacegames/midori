@@ -88,6 +88,8 @@ describe('lodToDescriptors', () => {
     expect(out).toHaveLength(2);
     expect(out[0].map?.data).toBeInstanceOf(Uint8Array);
     expect(out[0].alphaTest).toBe(CUTOUT_ALPHA);
+    expect(out[0].mapFilter).toBe('linear');
+    expect(out[0].mapWrap).toBeUndefined(); // cards clamp at the card edge
     expect(out[0].color).toBe('#ffffff');
     expect(out[0].uvs).toBeInstanceOf(Float32Array);
     // The impostor descriptor binds the per-LOD baked atlas.
@@ -95,7 +97,7 @@ describe('lodToDescriptors', () => {
     expect(out[1].alphaTest).toBe(CUTOUT_ALPHA);
   });
 
-  it('pre-tiles bark V past 1 into a taller map with rescaled UVs', () => {
+  it('binds bark with repeat wrap, original UVs, and no alphaTest', () => {
     const bark = stubMap();
     // Bark verts spanning v 0..6 (a ~6m stem at texture_v_scale 1).
     const stems: LodMesh = {
@@ -111,18 +113,17 @@ describe('lodToDescriptors', () => {
     const out = lodToDescriptors(stems, 1, { bark: true, leaves: true }, { bark });
     expect(out).toHaveLength(1);
     const d = out[0];
-    expect(d.map?.width).toBe(2);
-    expect(d.map?.height).toBe(12); // 6 tiles of height 2
-    expect(d.map?.data.length).toBe(16 * 6);
+    expect(d.map).toBe(bark); // original map, no baked tiling
+    expect(d.mapWrap).toBe('repeat');
+    expect(d.mapFilter).toBe('linear');
     expect(d.alphaTest).toBeUndefined(); // bark is opaque
+    // UVs pass through unscaled — REPEAT sampling wraps them.
     const uv = [...(d.uvs ?? [])];
-    expect(uv[3]).toBeCloseTo(3.2 / 6, 6);
-    expect(uv[5]).toBeCloseTo(1, 6);
-    // uvs stay shared with no other descriptor.
-    expect(d.uvs).not.toBe(Float32Array.from(stems.vertices.uvs));
+    expect(uv[3]).toBeCloseTo(3.2, 6);
+    expect(uv[5]).toBeCloseTo(6.0, 6);
   });
 
-  it('leaves bark untiled when V stays within one tile', () => {
+  it('binds bark identically when V stays within one tile', () => {
     const bark = stubMap();
     const stems: LodMesh = {
       ...lod,
@@ -136,6 +137,7 @@ describe('lodToDescriptors', () => {
     };
     const out = lodToDescriptors(stems, 1, { bark: true, leaves: true }, { bark });
     expect(out[0].map).toBe(bark);
+    expect(out[0].mapWrap).toBe('repeat');
     expect([...(out[0].uvs ?? [])][5]).toBeCloseTo(0.9, 6);
   });
 });

@@ -66,8 +66,8 @@ exporter embeds it, and the RGBA8 copy uploads straight to the viewport.
 The viewport preview binds the generated maps on each material's
 `MeshDescriptor` (`uvs` + RGBA8 `map`, `alphaTest` cutout for leaves and
 impostors — the `rgba` half of each `GeneratedMap`). Bark V coordinates are
-metres along the stem, so `meshes.ts` bakes the repeat into a taller map
-and rescales V while the stack descriptor has no wrap field. When maps are
+metres along the stem, so bark binds `mapWrap: 'repeat'`; all bound maps
+use `mapFilter: 'linear'` for trilinear minification. When maps are
 absent the viewport falls back to flat per-material colors, and the maps
 remain inspectable in the Objects panel materials strip.
 

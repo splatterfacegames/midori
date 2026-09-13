@@ -3628,7 +3628,7 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 [[package]]
 name = "tools-frontend-contracts"
 version = "0.1.0"
-source = "git+https://github.com/splatterfacegames/jethaforge.git?rev=81b688afdabb4ed8617c1d3d01f9d54ed1aaf173#81b688afdabb4ed8617c1d3d01f9d54ed1aaf173"
+source = "git+https://github.com/splatterfacegames/jethaforge.git?rev=304d283815d831be4458178fa8918c33703b4323#304d283815d831be4458178fa8918c33703b4323"
 dependencies = [
  "flatbuffers",
  "serde",
@@ -3638,7 +3638,7 @@ dependencies = [
 [[package]]
 name = "tools-frontend-host-tauri"
 version = "0.1.0"
-source = "git+https://github.com/splatterfacegames/jethaforge.git?rev=81b688afdabb4ed8617c1d3d01f9d54ed1aaf173#81b688afdabb4ed8617c1d3d01f9d54ed1aaf173"
+source = "git+https://github.com/splatterfacegames/jethaforge.git?rev=304d283815d831be4458178fa8918c33703b4323#304d283815d831be4458178fa8918c33703b4323"
 dependencies = [
  "flatbuffers",
  "serde",
