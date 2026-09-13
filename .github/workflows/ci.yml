@@ -64,10 +64,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # No `cache: npm` — the post-job cache save stalls at 0 MB/s on the
+      # self-hosted box and can fail an otherwise-green job at teardown.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24.15.0
-          cache: npm
       # The jethaforge stack dep is a private git repository. Three things are
       # needed: rewrite the lockfile's ssh:// URLs to https, supply a token via
       # a credential helper, and drop checkout's local extraheader — it carries
