@@ -17,7 +17,7 @@ path = "src/main.rs"
 [dependencies]
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2"
-tools-frontend-host-tauri = { git = "https://github.com/splatterfacegames/jethaforge.git", rev = "239eb1fb6161640ff4adf39b5d66a2a6f7d20664" }
+tools-frontend-host-tauri = { git = "https://github.com/splatterfacegames/jethaforge.git", rev = "304d283815d831be4458178fa8918c33703b4323" }
 serde_json = "1"
 
 [build-dependencies]

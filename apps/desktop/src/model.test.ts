@@ -32,10 +32,20 @@ describe('GroveModel', () => {
   it('generates deterministic material maps for the loaded species', () => {
     const maps = model.getState().maps;
     expect(maps).not.toBeNull();
-    for (const bytes of [maps!.bark_albedo, maps!.bark_normal, maps!.leaf_card]) {
-      // PNG magic
-      expect([...bytes.slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    for (const map of [maps!.bark_albedo, maps!.bark_normal, maps!.leaf_card]) {
+      // PNG encoding for the materials strip / file inspection.
+      expect(map.png).toBeInstanceOf(Uint8Array);
+      expect([...map.png!.slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+      // Raw RGBA8 for direct viewport texture upload — the same bake.
+      const rgba = map.rgba;
+      expect(rgba.width).toBeGreaterThan(0);
+      expect(rgba.height).toBeGreaterThan(0);
+      expect(rgba.data).toBeInstanceOf(Uint8Array);
+      expect(rgba.data.length).toBe(rgba.width * rgba.height * 4);
     }
+    // Map resolution follows the species' [textures] params.
+    const oak = model.getState().json;
+    expect(oak?.textures.resolution).toBe(maps!.bark_albedo.rgba.width);
   });
 
   it('bakes a crown impostor on the last balanced LOD', () => {
@@ -46,7 +56,13 @@ describe('GroveModel', () => {
     expect(impostor).toBeDefined();
     expect(impostor!.index_count).toBeGreaterThan(0);
     expect(last.impostor_atlas).toBeDefined();
-    expect([...last.impostor_atlas!.slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    // PNG encoding for the materials strip.
+    expect([...last.impostor_atlas!.png!.slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    // Raw RGBA8 copy for direct viewport upload: 2:1 front|side atlas.
+    const atlas = last.impostor_atlas!.rgba;
+    expect(atlas.width).toBe(atlas.height * 2);
+    expect(atlas.data.length).toBe(atlas.width * atlas.height * 4);
+    expect(atlas.data.some((b, i) => i % 4 === 3 && b > 0)).toBe(true);
   });
 
   it('is deterministic for the same seed', () => {

@@ -59,13 +59,17 @@ same vertex buffers — cheap switching, no duplicated geometry.
 Levels flagged `crown_impostor` replace per-leaf geometry with two crossed
 quads sampling a baked front+side atlas (`impostor.rs` — an in-engine
 z-buffered rasterizer over the same leaf cards and cut branches the nearer
-LODs draw). The atlas PNG rides on the `LodMesh` (`impostor_atlas`) so the
-workbench can inspect it and the exporter embeds it.
+LODs draw). The atlas rides on the `LodMesh` as a `GeneratedMap`
+(`impostor_atlas` = `png` + `rgba`): the workbench inspects the PNG, the
+exporter embeds it, and the RGBA8 copy uploads straight to the viewport.
 
-The stack `MeshDescriptor` has no UV/texture channel yet, so the viewport
-renders flat colors; generated maps are inspectable in the Objects panel
-materials strip. Textured preview lands with the jethaforge descriptor
-extension.
+The viewport preview binds the generated maps on each material's
+`MeshDescriptor` (`uvs` + RGBA8 `map`, `alphaTest` cutout for leaves and
+impostors — the `rgba` half of each `GeneratedMap`). Bark V coordinates are
+metres along the stem, so bark binds `mapWrap: 'repeat'`; all bound maps
+use `mapFilter: 'linear'` for trilinear minification. When maps are
+absent the viewport falls back to flat per-material colors, and the maps
+remain inspectable in the Objects panel materials strip.
 
 ## Material maps
 
@@ -73,8 +77,9 @@ extension.
 and leaf albedo+alpha card PNGs from `[textures]` params — no external art
 dependency. `TextureSet::resolve(species, dir)` lets native hosts substitute
 file-slot paths (relative to the species document); WASM always generates.
-`generateMaps()` returns the three PNGs for inspection; exports embed them
-when requested.
+`generateMaps()` bakes the `TextureSet` once and returns all three maps as
+`GeneratedMap`s — PNG bytes for inspection plus raw RGBA8 for direct GPU
+upload; exports embed the PNGs when requested.
 
 ## Export flow
 

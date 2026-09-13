@@ -42,10 +42,16 @@ export class GroveGenerator {
      */
     generate(seed: bigint): any;
     /**
-     * Generate the species' material maps as PNG bytes.
+     * Generate the species' material maps.
      *
-     * Returns `{ bark_albedo, bark_normal, leaf_card }` Uint8Array PNGs —
-     * deterministic for the species' `[textures]` parameters. The browser
+     * Returns `{ bark_albedo, bark_normal, leaf_card }`, each a
+     * `GeneratedMap`: `png` carries PNG bytes for blob URLs and file
+     * inspection; `rgba` carries the same image as `{ data, width, height }`
+     * raw RGBA8 (top row first — the glTF/`TextureSource` V convention) for
+     * hosts that upload textures directly to the GPU. One `TextureSet` bake
+     * serves both encodings; `data`/`png` cross as Uint8Arrays.
+     *
+     * Deterministic for the species' `[textures]` parameters. The browser
      * has no filesystem, so file-slot overrides are ignored here (procedural
      * maps are used); native hosts resolve slots via `TextureSet::resolve`.
      */

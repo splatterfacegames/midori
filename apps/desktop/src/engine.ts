@@ -19,6 +19,23 @@ export interface VertexData {
 
 export type MaterialKind = 'bark' | 'leaves' | 'impostor';
 
+/** Raw RGBA8 pixels, row-major with the top row first (v = 0 at the top —
+ *  the glTF/`TextureSource` UV origin). */
+export interface RgbaMap {
+  data: Uint8Array;
+  width: number;
+  height: number;
+}
+
+/** A generated image in both encodings: `png` for blob URLs and file
+ *  inspection, `rgba` for direct viewport texture upload. `png` is absent
+ *  only when the engine's PNG encode failed (the impostor atlas tolerates
+ *  it; `generateMaps` errors instead). */
+export interface GeneratedMap {
+  png?: Uint8Array;
+  rgba: RgbaMap;
+}
+
 export interface SubmeshRange {
   index_start: number;
   index_count: number;
@@ -30,18 +47,19 @@ export interface LodMesh {
   vertices: VertexData;
   indices: number[];
   submeshes: SubmeshRange[];
-  /** Baked crown-impostor atlas as PNG bytes (front | side views side by
-   *  side), present when this LOD level uses `crown_impostor`. */
-  impostor_atlas?: Uint8Array;
+  /** Baked crown-impostor atlas (front | side views side by side), present
+   *  when this LOD level uses `crown_impostor`. */
+  impostor_atlas?: GeneratedMap;
   vertex_count: number;
   triangle_count: number;
 }
 
-/** Species material maps as PNG-encoded bytes. */
+/** Species material maps, each in both encodings — the wasm `generateMaps`
+ *  bakes the `TextureSet` once and returns `png` + `rgba` for all three. */
 export interface MaterialMaps {
-  bark_albedo: Uint8Array;
-  bark_normal: Uint8Array;
-  leaf_card: Uint8Array;
+  bark_albedo: GeneratedMap;
+  bark_normal: GeneratedMap;
+  leaf_card: GeneratedMap;
 }
 
 export interface TreeStats {
@@ -54,6 +72,19 @@ export interface TreeStats {
 export interface GltfParts {
   gltf: Uint8Array;
   bin: Uint8Array;
+}
+
+/** serde-wasm-bindgen crosses `Vec<u8>` fields as plain number arrays, not
+ *  Uint8Array — normalize at the boundary so Blobs and TextureSource data
+ *  get real typed arrays. */
+function asBytes(data: Uint8Array | number[]): Uint8Array {
+  return data instanceof Uint8Array ? data : Uint8Array.from(data);
+}
+
+/** Normalize a `GeneratedMap` that crossed the boundary as plain arrays. */
+function normalizeMap(map: GeneratedMap): void {
+  if (map.png) map.png = asBytes(map.png);
+  map.rgba.data = asBytes(map.rgba.data);
 }
 
 let moduleReady: Promise<unknown> | null = null;
@@ -102,6 +133,9 @@ export class Generator {
   /** Generate all LOD levels for `seed`. */
   generate(seed: number): LodMesh[] {
     const out = this.inner.generate(BigInt(seed)) as { lods: LodMesh[] };
+    for (const lod of out.lods) {
+      if (lod.impostor_atlas) normalizeMap(lod.impostor_atlas);
+    }
     return out.lods;
   }
 
@@ -123,9 +157,14 @@ export class Generator {
     return this.inner.exportGltf(BigInt(seed), binName, embedTextures) as GltfParts;
   }
 
-  /** The species' procedural material maps as PNG bytes (deterministic). */
+  /** The species' procedural material maps — `png` + `rgba` encodings from
+   *  a single bake (deterministic). */
   generateMaps(): MaterialMaps {
-    return this.inner.generateMaps() as MaterialMaps;
+    const maps = this.inner.generateMaps() as MaterialMaps;
+    normalizeMap(maps.bark_albedo);
+    normalizeMap(maps.bark_normal);
+    normalizeMap(maps.leaf_card);
+    return maps;
   }
 
   free(): void {
