@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+# The self-hosted box shares one rustup home across all repo jobs; a
+# concurrent job's `rustup default` (e.g. an MSRV leg) can flip the global
+# default between our steps. Pinning here makes every rustup shim resolve
+# stable explicitly. (Same flake class matthias hit on this box.)
+env:
+  RUSTUP_TOOLCHAIN: stable
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
