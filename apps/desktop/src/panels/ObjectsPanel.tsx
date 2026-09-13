@@ -1,11 +1,14 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Dice5, Eye, EyeOff } from 'lucide-react';
 import type { MaterialMaps } from '../engine';
 import type { WorkbenchState } from '../model';
 
-/** Blob URLs for a map set, revoked when the inputs change. */
+/** Blob URLs for a map set, revoked when the inputs change. Creation lives
+ *  in the effect — under StrictMode's remount a useMemo-made URL set would
+ *  be revoked by the first cleanup while the DOM still references it. */
 function useMapUrls(maps: MaterialMaps | null, atlas?: Uint8Array): Record<string, string> {
-  const urls = useMemo(() => {
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
     const out: Record<string, string> = {};
     if (maps) {
       for (const key of ['bark_albedo', 'bark_normal', 'leaf_card'] as const) {
@@ -16,14 +19,11 @@ function useMapUrls(maps: MaterialMaps | null, atlas?: Uint8Array): Record<strin
     if (atlas) {
       out.impostor = URL.createObjectURL(new Blob([atlas as BlobPart], { type: 'image/png' }));
     }
-    return out;
+    setUrls(out);
+    return () => {
+      for (const url of Object.values(out)) URL.revokeObjectURL(url);
+    };
   }, [maps, atlas]);
-  useEffect(
-    () => () => {
-      for (const url of Object.values(urls)) URL.revokeObjectURL(url);
-    },
-    [urls],
-  );
   return urls;
 }
 
