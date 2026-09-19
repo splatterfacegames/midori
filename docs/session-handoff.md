@@ -15,7 +15,8 @@ This note is the cold-start handoff for picking up the Midori nature/mobile-cons
   - `c778e59 feat(engine): add Unity and Unreal nature validation handoff`
   - `62f4e53 feat(core)!: rebrand Grove crates and add nature packages`
 - The old Grove crate names were replaced by Midori crate names.
-- Generated outputs remain ignored under `target/`, `web/build/`, `web/node_modules/`, `web/target/`, and Python `__pycache__/`.
+- The Svelte `web/` previewer has been retired and deleted. The Vite desktop app under `apps/desktop/` is now the only preview UI; it ships the nature-aware `midori-wasm` bundle and the `generateNaturePreview` helper.
+- Generated outputs remain ignored under `target/`, `apps/desktop/node_modules/`, `apps/desktop/dist/`, and Python `__pycache__/`.
 
 ## Goal Status
 
@@ -69,8 +70,9 @@ Do not fabricate the missing reports, screenshots, or profile notes. The strict 
 Core implementation:
 
 - [`crates/midori-core/src/nature.rs`](../crates/midori-core/src/nature.rs): `NaturePatch`, terrain fields, maps, prototypes, scatter, package writer, package validation, and most nature tests.
-- [`crates/midori-cli/src/main.rs`](../crates/midori-cli/src/main.rs): `midori nature` and `midori validate-nature` CLI paths.
-- [`crates/midori-wasm/src/lib.rs`](../crates/midori-wasm/src/lib.rs): web-facing generation bindings.
+- [`crates/midori-cli/src/main.rs`](../crates/midori-cli/src/main.rs): `midori nature`, `midori validate-nature`, and `midori verify` CLI paths.
+- [`crates/midori-cli/src/evidence/`](../crates/midori-cli/src/evidence): native Rust evidence verifier used by `midori verify`, replacing `scripts/verify_engine_evidence.py`.
+- [`crates/midori-wasm/src/lib.rs`](../crates/midori-wasm/src/lib.rs): desktop-facing generation bindings, including `MidoriNatureGenerator` and `generate_nature_preview_from_toml`.
 
 Representative presets:
 
@@ -84,19 +86,17 @@ Engine integration and evidence:
 - [`integrations/unity/Editor/MidoriNaturePackageImporter.cs`](../integrations/unity/Editor/MidoriNaturePackageImporter.cs)
 - [`integrations/unreal/midori_nature_importer.py`](../integrations/unreal/midori_nature_importer.py)
 - [`scripts/validate_engine_imports.ps1`](../scripts/validate_engine_imports.ps1)
-- [`scripts/verify_engine_evidence.py`](../scripts/verify_engine_evidence.py)
 - [`scripts/export_engine_validation_handoff.ps1`](../scripts/export_engine_validation_handoff.ps1)
 - [`scripts/import_engine_validation_handoff.ps1`](../scripts/import_engine_validation_handoff.ps1)
 - [`docs/validation/midori-nature-unity-unreal.md`](validation/midori-nature-unity-unreal.md)
 - [`docs/validation/midori-nature-engine-profile-notes.template.md`](validation/midori-nature-engine-profile-notes.template.md)
 
-Web/editor:
+Desktop app:
 
-- [`web/src/lib/stores/tree.ts`](../web/src/lib/stores/tree.ts)
-- [`web/src/lib/components/Preview3D.svelte`](../web/src/lib/components/Preview3D.svelte)
-- [`web/src/lib/components/Inspector.svelte`](../web/src/lib/components/Inspector.svelte)
-- [`web/src/lib/midori/wasm.ts`](../web/src/lib/midori/wasm.ts)
-- [`web/scripts/browser-smoke.mjs`](../web/scripts/browser-smoke.mjs)
+- [`apps/desktop/src/engine.ts`](../apps/desktop/src/engine.ts): typed WASM boundary, `generateNaturePreview` included.
+- [`apps/desktop/src/naturePresets.ts`](../apps/desktop/src/naturePresets.ts): bundled `presets/nature/*.toml` documents.
+- [`apps/desktop/src/model.ts`](../apps/desktop/src/model.ts): `MidoriModel` state facade over the engine.
+- [`apps/desktop/src/wasm/`](../apps/desktop/src/wasm): generated `midori-wasm` package; rebuild with `node scripts/build-wasm.mjs`.
 
 Planning and audits:
 
@@ -112,15 +112,24 @@ Run these from the repo root unless noted.
 Core checks:
 
 ```bash
-cargo fmt --check
-cargo test
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 ```
 
-Web build:
+Desktop app checks:
 
 ```bash
-cd web
+cd apps/desktop
+npm ci
+npm test
 npm run build
+```
+
+Rebuild the committed WASM bundle:
+
+```bash
+node scripts/build-wasm.mjs
 ```
 
 Regenerate local engine validation outputs and current summary:
@@ -134,13 +143,13 @@ Use `-SkipUnrealEditor` on this host because no Unreal Editor is installed. With
 Refresh the allow-pending evidence report:
 
 ```bash
-python scripts/verify_engine_evidence.py --validation-root target/midori_engine_validation --allow-pending --output target/midori_engine_validation/engine_evidence_verification.json
+cargo run -p midori-cli -- verify --validation-root target/midori_engine_validation --allow-pending --output target/midori_engine_validation/engine_evidence_verification.json
 ```
 
 Strict verifier, expected to fail until real editor evidence exists:
 
 ```bash
-python scripts/verify_engine_evidence.py --validation-root target/midori_engine_validation
+cargo run -p midori-cli -- verify --validation-root target/midori_engine_validation
 ```
 
 The expected strict result right now is exit code `1`, with `1610` passing checks, `7` missing checks, and `0` failed checks.
@@ -192,37 +201,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import_engine_valida
 Then run:
 
 ```bash
-python scripts/verify_engine_evidence.py --validation-root target/midori_engine_validation
+cargo run -p midori-cli -- verify --validation-root target/midori_engine_validation
 ```
 
 Phase 7 is complete only when that strict verifier exits `0`.
-
-## Known Warnings
-
-`npm run build` currently passes but reports existing warnings:
-
-- `OutputNode.svelte` has an unused exported `id` property.
-- SvelteKit dependency export warnings appear from the installed Svelte/SvelteKit package combination.
-- One client chunk is larger than 500 kB after minification.
-
-These warnings were present when the current commits were made and do not block the current handoff.
 
 ## Commit/Working Tree Guidance
 
 If continuing from this handoff:
 
 - Check `git status --short` first.
-- Do not commit generated `target/`, `web/build/`, `web/node_modules/`, `web/target/`, or `__pycache__/` files.
+- Do not commit generated `target/`, `apps/desktop/node_modules/`, `apps/desktop/dist/`, or `__pycache__/` files.
 - Commit returned real editor evidence only after `scripts/import_engine_validation_handoff.ps1` accepts it.
-- Use semantic commits; the recent stack uses `feat(core)!`, `feat(engine)`, `feat(web)`, `chore`, and `docs`.
+- Use semantic commits; the recent stack uses `feat(core)!`, `feat(engine)`, `chore`, and `docs`.
 
 ## Completion Criteria
 
 Do not mark the goal complete unless all of these are true:
 
-- `cargo fmt --check` passes.
-- `cargo test` passes.
-- `npm run build` passes.
-- `python scripts/verify_engine_evidence.py --validation-root target/midori_engine_validation` exits `0`.
+- `cargo fmt --all -- --check` passes.
+- `cargo test --workspace` passes.
+- `npm run build` (under `apps/desktop`) passes.
+- `cargo run -p midori-cli -- verify --validation-root target/midori_engine_validation` exits `0`.
 - The seven editor-only artifacts named above exist and are verified.
 - `docs/validation/midori-nature-engine-profile-notes.md` contains real profile observations, not template placeholders.

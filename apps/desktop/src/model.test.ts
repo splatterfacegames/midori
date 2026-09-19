@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, beforeAll } from 'vitest';
 import { MidoriModel } from './model';
 import { PRESETS } from './presets';
+import { NATURE_PRESETS } from './naturePresets';
+import { generateNaturePreview } from './engine';
 import { getParam, setParam } from './species';
 import type { SpeciesJson } from './species';
 
@@ -161,6 +163,15 @@ describe('MidoriModel', () => {
     const plainNames = plainGltf.materials.map((m: { name?: string }) => m.name);
     expect(plainNames.slice(0, 2)).toEqual(['bark', 'leaves']);
     expect(plainNames[2]).toMatch(/^impostor_/);
+  });
+
+  it('generates a nature preview for a bundled NaturePatch', () => {
+    const preview = generateNaturePreview(NATURE_PRESETS[0].toml) as {
+      stats: { prototype_count: number };
+      terrain: { indices: number[] };
+    };
+    expect(preview.stats.prototype_count).toBeGreaterThan(0);
+    expect(preview.terrain.indices.length).toBeGreaterThan(0);
   });
 });
 

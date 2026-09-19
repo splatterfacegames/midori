@@ -7,7 +7,10 @@
  * produced by `toJson()` / consumed by `fromJson()`.
  */
 
-import init, { MidoriGenerator } from './wasm/midori_wasm.js';
+import init, {
+  MidoriGenerator,
+  generate_nature_preview_from_toml,
+} from './wasm/midori_wasm.js';
 
 export interface VertexData {
   positions: number[];
@@ -99,6 +102,18 @@ type WasmInput = Parameters<typeof init>[0];
 export function loadEngine(input?: WasmInput): Promise<unknown> {
   moduleReady ??= Promise.resolve(init(input ? { module_or_path: input } : undefined));
   return moduleReady;
+}
+
+/** Raw nature preview (terrain, prototypes, scatter sets, stats) for a
+ *  NaturePatch TOML document. The module must already be initialised via
+ *  `loadEngine()`; the return value is the raw JS projection — callers
+ *  normalize it. */
+export function generateNaturePreview(
+  toml: string,
+  previewResolution = 32,
+  scatterChunkSize = 8,
+): unknown {
+  return generate_nature_preview_from_toml(toml, previewResolution, scatterChunkSize);
 }
 
 /**

@@ -67,6 +67,10 @@ export class MidoriGenerator {
      */
     get_stats(seed: bigint): any;
     /**
+     * Get parsed species metadata for editor/tooling use.
+     */
+    metadata(): any;
+    /**
      * Create a new generator from a TOML species definition string.
      */
     constructor(toml: string);
@@ -88,6 +92,31 @@ export class MidoriGenerator {
 }
 
 /**
+ * Nature patch generator that holds a parsed NaturePatch definition.
+ */
+export class MidoriNatureGenerator {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Create a new nature generator from a TOML NaturePatch definition string.
+     */
+    constructor(toml: string);
+    /**
+     * Generate terrain, prototype, scatter, and manifest data for browser preview.
+     */
+    preview(preview_resolution: number, scatter_chunk_size: number): any;
+    /**
+     * Get the patch display name.
+     */
+    readonly name: string;
+}
+
+/**
+ * Convenience function for one-off nature preview generation.
+ */
+export function generate_nature_preview_from_toml(toml: string, preview_resolution: number, scatter_chunk_size: number): any;
+
+/**
  * Quick generation without creating a generator instance.
  *
  * Convenience function for one-off tree generation.
@@ -104,6 +133,8 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_midorigenerator_free: (a: number, b: number) => void;
+    readonly __wbg_midorinaturegenerator_free: (a: number, b: number) => void;
+    readonly generate_nature_preview_from_toml: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly generate_tree_from_toml: (a: number, b: number, c: bigint) => [number, number, number];
     readonly midorigenerator_exportGltf: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
     readonly midorigenerator_export_glb: (a: number, b: bigint, c: number) => [number, number, number];
@@ -112,10 +143,14 @@ export interface InitOutput {
     readonly midorigenerator_generateMaps: (a: number) => [number, number, number];
     readonly midorigenerator_generate_lod: (a: number, b: bigint, c: number) => [number, number, number];
     readonly midorigenerator_get_stats: (a: number, b: bigint) => [number, number, number];
+    readonly midorigenerator_metadata: (a: number) => [number, number, number];
     readonly midorigenerator_name: (a: number) => [number, number];
     readonly midorigenerator_new: (a: number, b: number) => [number, number, number];
     readonly midorigenerator_toJson: (a: number) => [number, number, number];
     readonly midorigenerator_toToml: (a: number) => [number, number, number, number];
+    readonly midorinaturegenerator_name: (a: number) => [number, number];
+    readonly midorinaturegenerator_new: (a: number, b: number) => [number, number, number];
+    readonly midorinaturegenerator_preview: (a: number, b: number, c: number) => [number, number, number];
     readonly init: () => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

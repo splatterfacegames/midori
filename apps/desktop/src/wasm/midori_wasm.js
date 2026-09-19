@@ -141,6 +141,17 @@ export class MidoriGenerator {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * Get parsed species metadata for editor/tooling use.
+     * @returns {any}
+     */
+    metadata() {
+        const ret = wasm.midorigenerator_metadata(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Get the species name.
      * @returns {string}
      */
@@ -209,6 +220,84 @@ export class MidoriGenerator {
     }
 }
 if (Symbol.dispose) MidoriGenerator.prototype[Symbol.dispose] = MidoriGenerator.prototype.free;
+
+/**
+ * Nature patch generator that holds a parsed NaturePatch definition.
+ */
+export class MidoriNatureGenerator {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        MidoriNatureGeneratorFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_midorinaturegenerator_free(ptr, 0);
+    }
+    /**
+     * Get the patch display name.
+     * @returns {string}
+     */
+    get name() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.midorinaturegenerator_name(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Create a new nature generator from a TOML NaturePatch definition string.
+     * @param {string} toml
+     */
+    constructor(toml) {
+        const ptr0 = passStringToWasm0(toml, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.midorinaturegenerator_new(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        MidoriNatureGeneratorFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Generate terrain, prototype, scatter, and manifest data for browser preview.
+     * @param {number} preview_resolution
+     * @param {number} scatter_chunk_size
+     * @returns {any}
+     */
+    preview(preview_resolution, scatter_chunk_size) {
+        const ret = wasm.midorinaturegenerator_preview(this.__wbg_ptr, preview_resolution, scatter_chunk_size);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+}
+if (Symbol.dispose) MidoriNatureGenerator.prototype[Symbol.dispose] = MidoriNatureGenerator.prototype.free;
+
+/**
+ * Convenience function for one-off nature preview generation.
+ * @param {string} toml
+ * @param {number} preview_resolution
+ * @param {number} scatter_chunk_size
+ * @returns {any}
+ */
+export function generate_nature_preview_from_toml(toml, preview_resolution, scatter_chunk_size) {
+    const ptr0 = passStringToWasm0(toml, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.generate_nature_preview_from_toml(ptr0, len0, preview_resolution, scatter_chunk_size);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
 
 /**
  * Quick generation without creating a generator instance.
@@ -488,6 +577,9 @@ function __wbg_get_imports() {
 const MidoriGeneratorFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_midorigenerator_free(ptr, 1));
+const MidoriNatureGeneratorFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_midorinaturegenerator_free(ptr, 1));
 
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();
