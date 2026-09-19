@@ -1,6 +1,6 @@
 # Workbench guide
 
-The workbench is the interactive front-end for the Grove engine: edit
+The workbench is the interactive front-end for the Midori engine: edit
 Weber–Penn parameters, preview LODs in 3D, and export glTF.
 
 ## Run it
@@ -12,8 +12,8 @@ npm run desktop       # Tauri dev build (native window)
 npm run desktop:build # packaged app (NSIS installer on Windows)
 ```
 
-Regenerate the WASM bundle after changing `crates/grove-wasm` or
-`crates/grove-core`:
+Regenerate the WASM bundle after changing `crates/midori-wasm` or
+`crates/midori-core`:
 
 ```bash
 npm run wasm          # wasm-pack build -> apps/desktop/src/wasm
@@ -40,6 +40,20 @@ Drag panel headers to re-dock; tap Space over a viewport to maximize; hold
 Space for the hotbox; Cmd/Ctrl+K opens the action palette. Layouts persist
 per window. In the desktop build, panels can be detached into real native
 windows.
+
+## Nature panel
+
+The Nature panel previews the scatter presets bundled from
+`presets/nature/*.toml` (Temperate Forest Floor, Flowering Meadow, Arid
+Scrub). Selecting a preset renders its terrain tile plus a bounded,
+deterministic sample of scatter instances as plain meshes with the instance
+transform baked in — the default cap is 400 instances. The LOD selector
+picks which prototype LOD is drawn.
+
+Full-density scatter and GPU instancing are not yet supported by the
+viewport; that work is tracked separately. The same TOML file feeds the
+`midori nature` CLI subcommand, so what the panel samples is what the
+pipeline builds.
 
 ## Export
 
