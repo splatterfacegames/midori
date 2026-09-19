@@ -1,6 +1,6 @@
 # Species TOML format
 
-A species document is the authoritative input to every Grove surface (CLI,
+A species document is the authoritative input to every Midori surface (CLI,
 WASM workbench, C FFI). This file documents the schema; `presets/species/`
 contains complete examples.
 
@@ -91,7 +91,7 @@ target = "modern_pc"               # modern_pc | mobile | switch | quest |
 
 ## Material maps
 
-Grove generates the three maps a tree needs — bark albedo, bark normal, and a
+Midori generates the three maps a tree needs — bark albedo, bark normal, and a
 leaf albedo+alpha card — deterministically from `[textures]`, with no external
 art dependency. Generated maps are what glTF exports embed (when textures are
 requested) and what the crown-impostor baker samples.

@@ -328,50 +328,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "grove-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "grove-core",
-]
-
-[[package]]
-name = "grove-core"
-version = "0.1.0"
-dependencies = [
- "glam",
- "gltf",
- "image",
- "rayon",
- "serde",
- "serde_json",
- "tempfile",
- "toml",
-]
-
-[[package]]
-name = "grove-ffi"
-version = "0.1.0"
-dependencies = [
- "grove-core",
- "tempfile",
-]
-
-[[package]]
-name = "grove-wasm"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "grove-core",
- "js-sys",
- "serde",
- "serde-wasm-bindgen",
- "toml",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -467,6 +423,50 @@ name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
+
+[[package]]
+name = "midori-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "midori-core",
+]
+
+[[package]]
+name = "midori-core"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "gltf",
+ "image",
+ "rayon",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
+name = "midori-ffi"
+version = "0.1.0"
+dependencies = [
+ "midori-core",
+ "tempfile",
+]
+
+[[package]]
+name = "midori-wasm"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "js-sys",
+ "midori-core",
+ "serde",
+ "serde-wasm-bindgen",
+ "toml",
+ "wasm-bindgen",
+ "web-sys",
+]
 
 [[package]]
 name = "miniz_oxide"

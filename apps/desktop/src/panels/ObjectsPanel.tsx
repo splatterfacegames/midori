@@ -44,19 +44,19 @@ export function ObjectsPanel({
   const mapUrls = useMapUrls(state.maps, selectedLod?.impostor_atlas?.png);
 
   return (
-    <div className="grove-panel-content">
-      <div className="grove-section-title">
+    <div className="midori-panel-content">
+      <div className="midori-section-title">
         LOD LEVELS <span>{state.lods?.length ?? 0}</span>
       </div>
-      {!state.lods?.length && <p className="grove-subtle">No meshes generated.</p>}
-      <div className="grove-object-list" role="radiogroup" aria-label="Preview LOD level">
+      {!state.lods?.length && <p className="midori-subtle">No meshes generated.</p>}
+      <div className="midori-object-list" role="radiogroup" aria-label="Preview LOD level">
         {state.lods?.map((lod, index) => (
           <button
             key={lod.name}
             type="button"
             role="radio"
             aria-checked={state.selectedLod === index}
-            className="grove-object-row"
+            className="midori-object-row"
             onClick={() => onSelectLod(index)}
           >
             <span>{lod.name}</span>
@@ -68,8 +68,8 @@ export function ObjectsPanel({
         ))}
       </div>
 
-      <div className="grove-section-title">LAYERS</div>
-      <div className="grove-layer-row">
+      <div className="midori-section-title">LAYERS</div>
+      <div className="midori-layer-row">
         {(['bark', 'leaves'] as const).map((layer) => (
           <button
             key={layer}
@@ -83,9 +83,9 @@ export function ObjectsPanel({
         ))}
       </div>
 
-      <div className="grove-section-title">MATERIALS</div>
+      <div className="midori-section-title">MATERIALS</div>
       {state.maps ? (
-        <div className="grove-materials-strip">
+        <div className="midori-materials-strip">
           {(
             [
               ['bark_albedo', 'Bark'],
@@ -93,39 +93,39 @@ export function ObjectsPanel({
               ['leaf_card', 'Leaf card'],
             ] as const
           ).map(([key, label]) => (
-            <figure key={key} className="grove-material-thumb">
+            <figure key={key} className="midori-material-thumb">
               <img src={mapUrls[key]} alt={label} />
               <figcaption>{label}</figcaption>
             </figure>
           ))}
           {mapUrls.impostor ? (
-            <figure className="grove-material-thumb grove-material-thumb-wide">
+            <figure className="midori-material-thumb midori-material-thumb-wide">
               <img src={mapUrls.impostor} alt="Impostor atlas" />
               <figcaption>Impostor · {selectedLod?.name}</figcaption>
             </figure>
           ) : null}
         </div>
       ) : (
-        <p className="grove-subtle">No maps generated yet.</p>
+        <p className="midori-subtle">No maps generated yet.</p>
       )}
 
-      <div className="grove-section-title">
+      <div className="midori-section-title">
         VARIANTS <span>{state.variants.length}</span>
       </div>
-      <div className="grove-variant-grid" role="radiogroup" aria-label="Variant seed">
+      <div className="midori-variant-grid" role="radiogroup" aria-label="Variant seed">
         {state.variants.map((seed) => (
           <button
             key={seed}
             type="button"
             role="radio"
             aria-checked={state.seed === seed}
-            className="grove-variant"
+            className="midori-variant"
             onClick={() => onSelectVariant(seed)}
           >
             {seed}
           </button>
         ))}
-        <button type="button" className="grove-variant grove-variant-new" onClick={onNewVariant} title="Generate next seed">
+        <button type="button" className="midori-variant midori-variant-new" onClick={onNewVariant} title="Generate next seed">
           <Dice5 size={14} aria-hidden="true" />
         </button>
       </div>

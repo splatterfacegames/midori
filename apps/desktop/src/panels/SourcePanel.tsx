@@ -22,12 +22,12 @@ export function SourcePanel({
   }, [state.sourceDraft, state.sourceDirty]);
 
   return (
-    <div className="grove-source">
-      <div className="grove-source-toolbar">
-        <span className="grove-subtle">
+    <div className="midori-source">
+      <div className="midori-source-toolbar">
+        <span className="midori-subtle">
           species.toml {state.sourceDirty ? '· modified' : '· applied'}
         </span>
-        <div className="grove-source-actions">
+        <div className="midori-source-actions">
           <button type="button" disabled={!state.sourceDirty} onClick={onRevert} title="Revert to applied source">
             <Undo2 size={13} aria-hidden="true" /> Revert
           </button>
@@ -43,14 +43,14 @@ export function SourcePanel({
       </div>
       <textarea
         ref={areaRef}
-        className="grove-source-editor"
+        className="midori-source-editor"
         defaultValue={state.sourceDraft}
         spellCheck={false}
         aria-label="Species TOML source"
         onChange={(event) => onEdit(event.target.value)}
       />
       {state.sourceError ? (
-        <p className="grove-error" role="alert">
+        <p className="midori-error" role="alert">
           {state.sourceError}
         </p>
       ) : null}

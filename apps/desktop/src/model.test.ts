@@ -2,19 +2,19 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, beforeAll } from 'vitest';
-import { GroveModel } from './model';
+import { MidoriModel } from './model';
 import { PRESETS } from './presets';
 import { getParam, setParam } from './species';
 import type { SpeciesJson } from './species';
 
-const wasmPath = fileURLToPath(new URL('./wasm/grove_wasm_bg.wasm', import.meta.url));
+const wasmPath = fileURLToPath(new URL('./wasm/midori_wasm_bg.wasm', import.meta.url));
 const wasmBytes = () => readFileSync(wasmPath);
 
-describe('GroveModel', () => {
-  let model: GroveModel;
+describe('MidoriModel', () => {
+  let model: MidoriModel;
 
   beforeAll(async () => {
-    model = await GroveModel.create(wasmBytes());
+    model = await MidoriModel.create(wasmBytes());
   });
 
   it('loads the oak preset and generates LOD meshes', () => {

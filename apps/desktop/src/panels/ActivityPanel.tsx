@@ -15,8 +15,8 @@ export function ActivityPanel({ state }: { state: WorkbenchState }) {
   const totalTris = lods.reduce((sum, lod) => sum + lod.triangle_count, 0);
   const bounds = formatBounds(state);
   return (
-    <div className="grove-activity">
-      <div className="grove-activity-summary">
+    <div className="midori-activity">
+      <div className="midori-activity-summary">
         <strong>{state.generating ? 'Generating…' : state.lods ? 'Generated' : 'Idle'}</strong>
         <p>
           {state.stats
@@ -26,7 +26,7 @@ export function ActivityPanel({ state }: { state: WorkbenchState }) {
           {state.lods ? ` · seed ${state.seed}` : ''}
         </p>
       </div>
-      <div className="grove-log" role="log" aria-label="Activity log">
+      <div className="midori-log" role="log" aria-label="Activity log">
         {state.log.map((line, index) => (
           <p key={index}>{line}</p>
         ))}
@@ -41,5 +41,5 @@ function ExportSizeNote({ lods }: { lods: WorkbenchState['lods'] }) {
   const lod0 = lods[0];
   const approx =
     lod0.vertex_count * (12 + 12 + 8 + 8 + 16) + lod0.indices.length * 4;
-  return <p className="grove-subtle">LOD0 payload ≈ {formatBytes(approx)} before glTF packaging.</p>;
+  return <p className="midori-subtle">LOD0 payload ≈ {formatBytes(approx)} before glTF packaging.</p>;
 }

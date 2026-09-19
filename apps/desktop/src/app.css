@@ -1,10 +1,10 @@
-.grove-app {
+.midori-app {
   height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-.grove-panel-content {
+.midori-panel-content {
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -12,13 +12,13 @@
   font-size: 12px;
 }
 
-.grove-eyebrow {
+.midori-eyebrow {
   font-size: 10px;
   letter-spacing: 0.12em;
   opacity: 0.6;
 }
 
-.grove-section-title {
+.midori-section-title {
   font-size: 10px;
   letter-spacing: 0.1em;
   opacity: 0.6;
@@ -27,20 +27,20 @@
   margin-top: 4px;
 }
 
-.grove-subtle {
+.midori-subtle {
   opacity: 0.65;
   margin: 0;
   line-height: 1.5;
 }
 
-.grove-error {
+.midori-error {
   color: var(--fg-danger, #e06c75);
   font-size: 11px;
   margin: 4px 0 0;
   white-space: pre-wrap;
 }
 
-.grove-error-inline {
+.midori-error-inline {
   color: var(--fg-danger, #e06c75);
   font-style: normal;
   font-size: 11px;
@@ -48,13 +48,13 @@
 
 /* ---- species library ---- */
 
-.grove-preset-list {
+.midori-preset-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.grove-preset {
+.midori-preset {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -63,22 +63,22 @@
   text-align: left;
 }
 
-.grove-preset small {
+.midori-preset small {
   margin-left: auto;
   opacity: 0.5;
 }
 
-.grove-action-stack {
+.midori-action-stack {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.grove-action-stack button,
-.grove-layer-row button,
-.grove-variant,
-.grove-source-actions button,
-.grove-modal-actions button {
+.midori-action-stack button,
+.midori-layer-row button,
+.midori-variant,
+.midori-source-actions button,
+.midori-modal-actions button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -87,13 +87,13 @@
 
 /* ---- objects panel ---- */
 
-.grove-object-list {
+.midori-object-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.grove-object-row {
+.midori-object-row {
   display: flex;
   justify-content: space-between;
   gap: 8px;
@@ -102,22 +102,22 @@
   text-align: left;
 }
 
-.grove-object-row small {
+.midori-object-row small {
   opacity: 0.55;
 }
 
-.grove-layer-row {
+.midori-layer-row {
   display: flex;
   gap: 6px;
 }
 
-.grove-variant-grid {
+.midori-variant-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-.grove-variant {
+.midori-variant {
   min-width: 40px;
   padding: 4px 6px;
   border-radius: 4px;
@@ -125,7 +125,7 @@
 
 /* ---- params inspector ---- */
 
-.grove-section summary {
+.midori-section summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -136,72 +136,72 @@
   list-style: none;
 }
 
-.grove-section summary::before {
+.midori-section summary::before {
   content: '▸';
   margin-right: 6px;
   opacity: 0.5;
 }
 
-.grove-section[open] summary::before {
+.midori-section[open] summary::before {
   content: '▾';
 }
 
-.grove-section-toggle {
+.midori-section-toggle {
   display: inline-flex;
   padding: 2px;
 }
 
-.grove-fields {
+.midori-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px 10px;
   padding: 4px 0 8px;
 }
 
-.grove-field {
+.midori-field {
   display: flex;
   flex-direction: column;
   gap: 3px;
   min-width: 0;
 }
 
-.grove-field-label {
+.midori-field-label {
   font-size: 10px;
   opacity: 0.65;
   display: flex;
   justify-content: space-between;
 }
 
-.grove-field-label em {
+.midori-field-label em {
   font-style: normal;
   opacity: 0.7;
 }
 
-.grove-field input,
-.grove-field select {
+.midori-field input,
+.midori-field select {
   width: 100%;
   box-sizing: border-box;
 }
 
-.grove-field-inline {
+.midori-field-inline {
   flex-direction: row;
   align-items: center;
   gap: 8px;
 }
 
-.grove-field-inline input[type='checkbox'] {
+.midori-field-inline input[type='checkbox'] {
   width: auto;
 }
 
 /* ---- materials strip ---- */
 
-.grove-materials-strip {
+.midori-materials-strip {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.grove-material-thumb {
+.midori-material-thumb {
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -209,11 +209,11 @@
   width: 72px;
 }
 
-.grove-material-thumb-wide {
+.midori-material-thumb-wide {
   width: 148px;
 }
 
-.grove-material-thumb img {
+.midori-material-thumb img {
   display: block;
   width: 100%;
   aspect-ratio: 1;
@@ -225,24 +225,24 @@
     repeating-conic-gradient(#8884 0% 25%, transparent 0% 50%) 0 0 / 12px 12px;
 }
 
-.grove-material-thumb-wide img {
+.midori-material-thumb-wide img {
   aspect-ratio: 2;
 }
 
-.grove-material-thumb figcaption {
+.midori-material-thumb figcaption {
   font-size: 10px;
   opacity: 0.65;
 }
 
 /* ---- source panel ---- */
 
-.grove-source {
+.midori-source {
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
-.grove-source-toolbar {
+.midori-source-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -250,12 +250,12 @@
   border-bottom: 1px solid var(--border-subtle, #3333);
 }
 
-.grove-source-actions {
+.midori-source-actions {
   display: flex;
   gap: 6px;
 }
 
-.grove-source-editor {
+.midori-source-editor {
   flex: 1;
   width: 100%;
   box-sizing: border-box;
@@ -272,7 +272,7 @@
 
 /* ---- viewport ---- */
 
-.grove-view-badge {
+.midori-view-badge {
   position: absolute;
   bottom: 26px;
   left: 10px;
@@ -282,7 +282,7 @@
   pointer-events: none;
 }
 
-.grove-viewport-empty {
+.midori-viewport-empty {
   position: absolute;
   inset: 0;
   display: flex;
@@ -294,19 +294,19 @@
   pointer-events: none;
 }
 
-.grove-viewport-empty span {
+.midori-viewport-empty span {
   font-size: 40px;
   font-weight: 200;
 }
 
-.grove-view-tools {
+.midori-view-tools {
   display: flex;
   gap: 4px;
 }
 
 /* ---- activity ---- */
 
-.grove-activity {
+.midori-activity {
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -316,12 +316,12 @@
   box-sizing: border-box;
 }
 
-.grove-activity p {
+.midori-activity p {
   margin: 0;
   opacity: 0.7;
 }
 
-.grove-log {
+.midori-log {
   flex: 1;
   overflow-y: auto;
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
@@ -329,19 +329,19 @@
   opacity: 0.85;
 }
 
-.grove-log p {
+.midori-log p {
   margin: 0;
   line-height: 1.6;
 }
 
 /* ---- header / status ---- */
 
-.grove-header-species {
+.midori-header-species {
   font-size: 12px;
   opacity: 0.8;
 }
 
-.grove-status-dot {
+.midori-status-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -349,18 +349,18 @@
   display: inline-block;
 }
 
-.grove-status-busy {
+.midori-status-busy {
   background: #d19a3d;
 }
 
-.grove-status-right {
+.midori-status-right {
   margin-left: auto;
   opacity: 0.55;
 }
 
 /* ---- modal ---- */
 
-.grove-modal-backdrop {
+.midori-modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
@@ -370,7 +370,7 @@
   z-index: 100;
 }
 
-.grove-modal {
+.midori-modal {
   background: var(--bg-elevated, #23282d);
   color: inherit;
   border: 1px solid var(--border-subtle, #3a4048);
@@ -382,12 +382,12 @@
   gap: 10px;
 }
 
-.grove-modal h2 {
+.midori-modal h2 {
   margin: 0;
   font-size: 14px;
 }
 
-.grove-modal-actions {
+.midori-modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;

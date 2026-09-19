@@ -1,4 +1,4 @@
-# Grove
+# Midori
 
 A procedural tree generator for real-time game engines. Generates 3D tree
 meshes with LOD support and Pivot Painter wind data, and exports to glTF 2.0.
@@ -40,10 +40,10 @@ seeded variants, and exports `.glb`/`.gltf`. See [docs/workbench.md](docs/workbe
 ### CLI
 
 ```bash
-cargo build --release -p grove-cli
-grove generate -s presets/species/oak.toml -o tree.glb --seed 42 --textures
-grove maps -s presets/species/oak.toml -o maps/
-grove info -s presets/species/willow.toml
+cargo build --release -p midori-cli
+midori generate -s presets/species/oak.toml -o tree.glb --seed 42 --textures
+midori maps -s presets/species/oak.toml -o maps/
+midori info -s presets/species/willow.toml
 ```
 
 | Option | Description | Default |
@@ -58,14 +58,14 @@ grove info -s presets/species/willow.toml
 | `--textures` | Embed material maps in the export | off |
 | `-v, --verbose` | Verbose output | off |
 
-`grove maps` writes the species' material maps (`*_bark_albedo.png`,
+`midori maps` writes the species' material maps (`*_bark_albedo.png`,
 `*_bark_normal.png`, `*_leaf_card.png`) without generating a tree — useful for
 inspecting `[textures]` output or handing maps to an art pipeline.
 
 ### Library
 
 ```rust
-use grove_core::{Species, generate_tree, generate_lod_meshes, export_lod_meshes, ExportConfig};
+use midori_core::{Species, generate_tree, generate_lod_meshes, export_lod_meshes, ExportConfig};
 use std::path::Path;
 
 let species = Species::from_file(Path::new("oak.toml"))?;
@@ -79,11 +79,11 @@ export_lod_meshes(&lods, Path::new("tree.glb"), &ExportConfig::default())?;
 ```
 midori/
 ├── crates/
-│   ├── grove-core/     # Generation engine: species TOML -> tree -> LODs -> glTF
-│   ├── grove-cli/      # `grove` command-line binary
-│   ├── grove-wasm/     # wasm-bindgen bindings for the workbench webview
-│   ├── grove-ffi/      # C ABI for engine plugins (parse/generate/export)
-│   └── grove-desktop/  # Tauri 2 host (windowing + bounded file commands)
+│   ├── midori-core/     # Generation engine: species TOML -> tree -> LODs -> glTF
+│   ├── midori-cli/      # `midori` command-line binary
+│   ├── midori-wasm/     # wasm-bindgen bindings for the workbench webview
+│   ├── midori-ffi/      # C ABI for engine plugins (parse/generate/export)
+│   └── midori-desktop/  # Tauri 2 host (windowing + bounded file commands)
 ├── apps/desktop/       # React 19 + Vite workbench on the jethaforge stack
 │   └── src/wasm/       # Committed wasm-pack build (`npm run wasm` to rebuild)
 ├── presets/species/    # Authoritative species TOML documents
@@ -166,7 +166,7 @@ See `presets/species/` for complete examples and
 
 ## Output format
 
-Grove exports glTF 2.0 with one mesh per LOD level and attributes
+Midori exports glTF 2.0 with one mesh per LOD level and attributes
 `POSITION`, `NORMAL`, `TEXCOORD_0`, `TEXCOORD_1`, `COLOR_0`. Each submesh is
 its own primitive: bark (albedo + normal), leaves (alpha-masked card), and
 impostor (alpha-masked baked atlas) get separate PBR materials. Material maps
@@ -188,7 +188,7 @@ LOD bakes one. Normal maps use the glTF OpenGL +Y convention.
 cargo fmt --all -- --check                # formatting
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace                    # 140+ tests (engine, CLI, WASM, FFI)
-cargo test --manifest-path crates/grove-desktop/Cargo.toml  # desktop shell tests
+cargo test --manifest-path crates/midori-desktop/Cargo.toml  # desktop shell tests
 npm run typecheck                         # tsc --noEmit
 npm test                                  # vitest (model + mesh tests run the real WASM engine)
 npm run build                             # production web build -> dist/
@@ -196,7 +196,7 @@ npm run wasm                              # rebuild committed WASM bundle
 npm run desktop:build                     # Tauri package (NSIS on Windows)
 ```
 
-`grove-desktop` is a standalone crate (excluded from the workspace) because it
+`midori-desktop` is a standalone crate (excluded from the workspace) because it
 consumes the private `jethaforge` git dependency; the engine workspace resolves
 and builds with no private credentials required.
 
@@ -205,9 +205,9 @@ and the app typecheck/test/build on every PR.
 
 ### Engine plugin FFI
 
-`grove-ffi` builds a `cdylib`/`staticlib` C API:
-`grove_species_parse` → `grove_tree_generate` → `grove_tree_export_glb` →
-`grove_tree_free` / `grove_species_free`. Handles are opaque pointers; strings
+`midori-ffi` builds a `cdylib`/`staticlib` C API:
+`midori_species_parse` → `midori_tree_generate` → `midori_tree_export_glb` →
+`midori_tree_free` / `midori_species_free`. Handles are opaque pointers; strings
 are `(ptr, len)` UTF-8 pairs.
 
 ## License

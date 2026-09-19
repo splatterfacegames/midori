@@ -1,5 +1,5 @@
 /**
- * Grove workbench model.
+ * Midori workbench model.
  *
  * Owns the species document lifecycle: TOML source text is authoritative, the
  * serde JSON projection drives the parameter inspector, and every mutation is
@@ -53,7 +53,7 @@ export interface WorkbenchState {
 
 const MAX_LOG_LINES = 200;
 
-export class GroveModel {
+export class MidoriModel {
   private state: WorkbenchState;
   private listeners = new Set<() => void>();
   private generator: Generator | null = null;
@@ -66,9 +66,9 @@ export class GroveModel {
   }
 
   /** Load the WASM module and the default preset. */
-  static async create(wasmInput?: Parameters<typeof loadEngine>[0]): Promise<GroveModel> {
+  static async create(wasmInput?: Parameters<typeof loadEngine>[0]): Promise<MidoriModel> {
     await loadEngine(wasmInput);
-    const model = new GroveModel({
+    const model = new MidoriModel({
       ready: true,
       generating: false,
       label: 'Untitled',

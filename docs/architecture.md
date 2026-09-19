@@ -1,34 +1,34 @@
 # Architecture
 
-Grove is a procedural tree generator (Weber–Penn model) with a Rust engine,
+Midori is a procedural tree generator (Weber–Penn model) with a Rust engine,
 a CLI, a desktop workbench, and a C FFI surface for engine plugins.
 
 ```
 midori/
 ├── crates/
-│   ├── grove-core/      # Generation engine: species TOML -> tree -> LOD meshes -> glTF
-│   ├── grove-cli/       # `grove` binary: generate / info
-│   ├── grove-wasm/      # wasm-bindgen bindings used by the workbench webview
-│   ├── grove-ffi/       # C API for engine plugins (cdylib/staticlib)
-│   └── grove-desktop/   # Tauri 2 host: windowing + bounded file commands
+│   ├── midori-core/      # Generation engine: species TOML -> tree -> LOD meshes -> glTF
+│   ├── midori-cli/       # `midori` binary: generate / info
+│   ├── midori-wasm/      # wasm-bindgen bindings used by the workbench webview
+│   ├── midori-ffi/       # C API for engine plugins (cdylib/staticlib)
+│   └── midori-desktop/   # Tauri 2 host: windowing + bounded file commands
 │                        #   (standalone crate — excluded from the workspace so the
 │                        #    engine builds without the private jethaforge dep)
 ├── apps/desktop/        # React 19 + Vite workbench UI (jethaforge stack)
-│   └── src/wasm/        # Committed wasm-pack build of grove-wasm
+│   └── src/wasm/        # Committed wasm-pack build of midori-wasm
 ├── presets/species/     # Authoritative species TOML documents
 └── scripts/             # build-wasm.mjs, desktop.mjs, make-icon.mjs
 ```
 
 ## The one engine rule
 
-There is exactly one generation engine: `grove-core`. Every surface consumes
+There is exactly one generation engine: `midori-core`. Every surface consumes
 the same code:
 
-- `grove-cli` links it natively.
-- `grove-wasm` compiles it to WebAssembly for the webview.
-- `grove-ffi` exposes it over C ABI.
-- `grove-desktop` deliberately does **not** embed the engine — the desktop app
-  runs the same `grove-wasm` build inside the Tauri webview, so preview and
+- `midori-cli` links it natively.
+- `midori-wasm` compiles it to WebAssembly for the webview.
+- `midori-ffi` exposes it over C ABI.
+- `midori-desktop` deliberately does **not** embed the engine — the desktop app
+  runs the same `midori-wasm` build inside the Tauri webview, so preview and
   export are byte-identical between browser dev and the packaged app.
 
 ## Document flow
@@ -50,7 +50,7 @@ parser and no duplicated parameter list outside `apps/desktop/src/species.ts`
 
 ## LOD previews
 
-`GroveGenerator.generate(seed)` produces one `LodMesh` per level in the
+`MidoriGenerator.generate(seed)` produces one `LodMesh` per level in the
 species' `[lod]` config (preset or custom levels). Each LOD carries flat
 vertex arrays plus `submeshes` material ranges. The viewport splits each LOD
 into one `MeshDescriptor` per material (bark / leaves / impostor) sharing the

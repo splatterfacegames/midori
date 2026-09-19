@@ -1,13 +1,13 @@
 /**
- * Engine boundary for the Grove workbench.
+ * Engine boundary for the Midori workbench.
  *
- * The grove-wasm WebAssembly build is the same grove-core code that powers the
+ * The midori-wasm WebAssembly build is the same midori-core code that powers the
  * CLI and FFI crates, compiled for the webview. Species documents cross the
  * boundary as TOML text (authoritative) or as the serde JSON projection
  * produced by `toJson()` / consumed by `fromJson()`.
  */
 
-import init, { GroveGenerator } from './wasm/grove_wasm.js';
+import init, { MidoriGenerator } from './wasm/midori_wasm.js';
 
 export interface VertexData {
   positions: number[];
@@ -93,7 +93,7 @@ type WasmInput = Parameters<typeof init>[0];
 
 /**
  * Initialize the WASM module once. `input` overrides where the module bytes
- * come from (tests pass a Buffer; the browser resolves `grove_wasm_bg.wasm`
+ * come from (tests pass a Buffer; the browser resolves `midori_wasm_bg.wasm`
  * next to the bundle via import.meta.url).
  */
 export function loadEngine(input?: WasmInput): Promise<unknown> {
@@ -106,14 +106,14 @@ export function loadEngine(input?: WasmInput): Promise<unknown> {
  * species changes; seeds are cheap and per-call.
  */
 export class Generator {
-  private constructor(private readonly inner: GroveGenerator) {}
+  private constructor(private readonly inner: MidoriGenerator) {}
 
   static fromToml(toml: string): Generator {
-    return new Generator(new GroveGenerator(toml));
+    return new Generator(new MidoriGenerator(toml));
   }
 
   static fromJson(json: unknown): Generator {
-    return new Generator(GroveGenerator.fromJson(json));
+    return new Generator(MidoriGenerator.fromJson(json));
   }
 
   get name(): string {
