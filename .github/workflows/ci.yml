@@ -59,9 +59,14 @@ jobs:
       - run: cargo build -p midori-wasm --target wasm32-unknown-unknown --locked
 
   # The PowerShell orchestration (scripts/validate_engine_imports.ps1, real
-  # editor evidence) stays manual — see issues #19 and #8. This job runs the
-  # Python static checks and the nature CLI pipeline that don't need an
-  # editor install.
+  # editor evidence) stays manual — see issues #19 and #8. So does
+  # scripts/test_project_scaffold_static.py: its project_scaffold_summary.json
+  # is only written by scripts/create_engine_validation_projects.ps1, so it
+  # can never pass on a fresh checkout. This job runs the Python checks and
+  # the nature CLI pipeline that don't need an editor install. The nature
+  # step uses the same resolutions as validate_engine_imports.ps1 so the
+  # generated package satisfies the 26-chunk / 222-instance contract the
+  # importer checks assert.
   validation:
     name: Nature validation
     runs-on: [self-hosted, linux, x64]
@@ -78,12 +83,11 @@ jobs:
         with:
           python-version: '3.12'
       - run: python3 scripts/test_profile_notes_verifier.py
-      - run: python3 scripts/test_project_scaffold_static.py
-      - run: python3 scripts/test_unity_importer_compile_stub.py
-      - run: python3 scripts/test_unity_importer_static.py
-      - run: python3 scripts/test_unreal_importer_fake_editor.py
-      - run: cargo run -p midori-cli --locked -- nature --patch presets/nature/temperate_forest_floor.toml --output target/nature_ci
+      - run: cargo run -p midori-cli --locked -- nature --patch presets/nature/temperate_forest_floor.toml --output target/nature_ci --map-resolution 8 --preview-resolution 8 --scatter-chunk-size 8
       - run: cargo run -p midori-cli --locked -- validate-nature --input target/nature_ci --report target/nature_ci/report.json
+      - run: python3 scripts/test_unity_importer_static.py --package-dir target/nature_ci
+      - run: python3 scripts/test_unity_importer_compile_stub.py --package-dir target/nature_ci
+      - run: python3 scripts/test_unreal_importer_fake_editor.py --package target/nature_ci
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nature-ci-report
