@@ -490,7 +490,7 @@ fn card_leaves(layout: LeafCardLayout, shape: LeafShape, rng: &mut Rng) -> Vec<C
             // A pinnate spray: leaflets alternate along a curved rachis,
             // wider at the base like a compound leaf or small twig.
             let count = match shape {
-                LeafShape::Needle => 13 + rng.index(5),
+                LeafShape::Needle | LeafShape::Willow => 13 + rng.index(5),
                 _ => 9 + rng.index(4),
             };
             let mut leaves = Vec::with_capacity(count + 1);
@@ -785,9 +785,27 @@ bark_albedo = "maps/bark.png"
         assert_eq!(t.resolution, 256);
         assert_eq!(t.seed, Some(7));
         assert_eq!(t.bark_style, BarkStyle::Plated);
-        assert_eq!(t.leaf_shape, LeafShape::Lobed);
+        assert_eq!(t.leaf_shape, LeafShape::OakLobed);
         assert_eq!(t.leaf_card, LeafCardLayout::Single);
         assert_eq!(t.bark_color, Some([0.4, 0.3, 0.2]));
         assert_eq!(t.bark_albedo, "maps/bark.png");
+    }
+
+    #[test]
+    fn leaf_card_bakes_every_shape() {
+        for &shape in &[
+            LeafShape::Oval,
+            LeafShape::Pointed,
+            LeafShape::Needle,
+            LeafShape::OakLobed,
+            LeafShape::Maple,
+            LeafShape::Serrated,
+            LeafShape::Willow,
+            LeafShape::Heart,
+            LeafShape::Palmate,
+        ] {
+            let card = leaf_card(shape, LeafCardLayout::Cluster, None, 7, 32);
+            assert_eq!(card.width, 32, "{shape:?}");
+        }
     }
 }

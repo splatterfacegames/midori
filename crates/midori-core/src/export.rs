@@ -1,6 +1,7 @@
 //! glTF 2.0 export for tree meshes.
 
 use crate::{LodMeshSet, Mesh, mesh::MaterialType, mesh::Submesh, textures::TextureSet};
+use glam::{Vec3, Vec4};
 use std::io::Write;
 use std::path::Path;
 
@@ -18,6 +19,21 @@ pub struct ExportConfig {
     pub textures: Option<TextureSet>,
     /// Add pivot_painter flag in extras
     pub pivot_painter_extras: bool,
+    /// Optional asset metadata for node naming and glTF extras.
+    pub metadata: Option<ExportMetadata>,
+}
+
+/// Optional metadata to carry through glTF export.
+#[derive(Debug, Clone, Default)]
+pub struct ExportMetadata {
+    /// Species common name.
+    pub species_name: String,
+    /// Latin/scientific name.
+    pub scientific_name: String,
+    /// Generation seed.
+    pub seed: Option<u64>,
+    /// LOD screen-height thresholds, ordered by LOD index.
+    pub lod_screen_heights: Vec<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -36,6 +52,7 @@ impl Default for ExportConfig {
             draco: false,
             textures: None,
             pivot_painter_extras: true,
+            metadata: None,
         }
     }
 }
@@ -200,6 +217,10 @@ fn build_gltf_single(mesh: &Mesh, config: &ExportConfig) -> Result<GltfData, Exp
     let normals = build_normals_buffer(mesh);
     binary.extend_from_slice(&normals);
 
+    let tangents_offset = binary.len();
+    let tangents = build_tangents_buffer(mesh);
+    binary.extend_from_slice(&tangents);
+
     let texcoord0_offset = binary.len();
     let texcoord0 = build_texcoord0_buffer(mesh);
     binary.extend_from_slice(&texcoord0);
@@ -226,11 +247,12 @@ fn build_gltf_single(mesh: &Mesh, config: &ExportConfig) -> Result<GltfData, Exp
     // Build glTF JSON
     let json = build_gltf_json(
         &[MeshBufferInfo {
-            name: "tree_lod0".to_string(),
+            name: lod_node_name(config, 0),
             vertex_count: mesh.vertices.len(),
             index_count: mesh.indices.len(),
             positions_offset,
             normals_offset,
+            tangents_offset,
             texcoord0_offset,
             texcoord1_offset,
             color0_offset,
@@ -264,6 +286,9 @@ fn build_gltf_lods(lods: &LodMeshSet, config: &ExportConfig) -> Result<GltfData,
         let normals_offset = binary.len();
         binary.extend_from_slice(&build_normals_buffer(mesh));
 
+        let tangents_offset = binary.len();
+        binary.extend_from_slice(&build_tangents_buffer(mesh));
+
         let texcoord0_offset = binary.len();
         binary.extend_from_slice(&build_texcoord0_buffer(mesh));
 
@@ -279,11 +304,12 @@ fn build_gltf_lods(lods: &LodMeshSet, config: &ExportConfig) -> Result<GltfData,
         let (min_pos, max_pos) = compute_bounds(mesh);
 
         mesh_infos.push(MeshBufferInfo {
-            name: format!("tree_lod{}", lod.index),
+            name: lod_node_name(config, lod.index),
             vertex_count: mesh.vertices.len(),
             index_count: mesh.indices.len(),
             positions_offset,
             normals_offset,
+            tangents_offset,
             texcoord0_offset,
             texcoord1_offset,
             color0_offset,
@@ -385,6 +411,7 @@ struct MeshBufferInfo {
     index_count: usize,
     positions_offset: usize,
     normals_offset: usize,
+    tangents_offset: usize,
     texcoord0_offset: usize,
     texcoord1_offset: usize,
     color0_offset: usize,
@@ -414,6 +441,101 @@ fn build_normals_buffer(mesh: &Mesh) -> Vec<u8> {
         data.extend_from_slice(&v.normal.z.to_le_bytes());
     }
     data
+}
+
+fn build_tangents_buffer(mesh: &Mesh) -> Vec<u8> {
+    let tangents = compute_vertex_tangents(mesh);
+    let mut data = Vec::with_capacity(tangents.len() * 16);
+    for tangent in tangents {
+        data.extend_from_slice(&tangent.x.to_le_bytes());
+        data.extend_from_slice(&tangent.y.to_le_bytes());
+        data.extend_from_slice(&tangent.z.to_le_bytes());
+        data.extend_from_slice(&tangent.w.to_le_bytes());
+    }
+    data
+}
+
+fn compute_vertex_tangents(mesh: &Mesh) -> Vec<Vec4> {
+    let mut tan1 = vec![Vec3::ZERO; mesh.vertices.len()];
+    let mut tan2 = vec![Vec3::ZERO; mesh.vertices.len()];
+
+    for triangle in mesh.indices.chunks(3) {
+        if triangle.len() != 3 {
+            continue;
+        }
+
+        let i0 = triangle[0] as usize;
+        let i1 = triangle[1] as usize;
+        let i2 = triangle[2] as usize;
+        if i0 >= mesh.vertices.len() || i1 >= mesh.vertices.len() || i2 >= mesh.vertices.len() {
+            continue;
+        }
+
+        let v0 = &mesh.vertices[i0];
+        let v1 = &mesh.vertices[i1];
+        let v2 = &mesh.vertices[i2];
+
+        let edge1 = v1.position - v0.position;
+        let edge2 = v2.position - v0.position;
+        let uv1 = v1.uv - v0.uv;
+        let uv2 = v2.uv - v0.uv;
+        let determinant = uv1.x * uv2.y - uv2.x * uv1.y;
+        if determinant.abs() <= 1.0e-8 {
+            continue;
+        }
+
+        let inv_det = 1.0 / determinant;
+        let tangent = (edge1 * uv2.y - edge2 * uv1.y) * inv_det;
+        let bitangent = (edge2 * uv1.x - edge1 * uv2.x) * inv_det;
+
+        tan1[i0] += tangent;
+        tan1[i1] += tangent;
+        tan1[i2] += tangent;
+        tan2[i0] += bitangent;
+        tan2[i1] += bitangent;
+        tan2[i2] += bitangent;
+    }
+
+    mesh.vertices
+        .iter()
+        .enumerate()
+        .map(|(index, vertex)| {
+            let normal = normalized_or_fallback(vertex.normal, Vec3::Y);
+            let tangent3 = orthonormal_tangent(normal, tan1[index]);
+            let handedness = if normal.cross(tangent3).dot(tan2[index]) < 0.0 {
+                -1.0
+            } else {
+                1.0
+            };
+            Vec4::new(tangent3.x, tangent3.y, tangent3.z, handedness)
+        })
+        .collect()
+}
+
+fn orthonormal_tangent(normal: Vec3, tangent: Vec3) -> Vec3 {
+    let projected = tangent - normal * normal.dot(tangent);
+    if projected.length_squared() > 1.0e-8 {
+        projected.normalize()
+    } else {
+        fallback_tangent(normal)
+    }
+}
+
+fn fallback_tangent(normal: Vec3) -> Vec3 {
+    let helper = if normal.y.abs() < 0.9 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
+    normal.cross(helper).normalize_or_zero()
+}
+
+fn normalized_or_fallback(value: Vec3, fallback: Vec3) -> Vec3 {
+    if value.length_squared() > 1.0e-8 {
+        value.normalize()
+    } else {
+        fallback
+    }
 }
 
 fn build_texcoord0_buffer(mesh: &Mesh) -> Vec<u8> {
@@ -485,6 +607,9 @@ fn build_gltf_json(
     let mut buffer_views = Vec::new();
     let mut gltf_meshes = Vec::new();
 
+    let mut accessor_idx = 0;
+    let mut buffer_view_idx = 0;
+
     // Material table: 0 = bark, 1 = leaves, then impostor materials — one
     // textured material per embedded atlas, or a single shared untextured
     // material for impostor submeshes whose LOD has no atlas.
@@ -517,29 +642,60 @@ fn build_gltf_json(
 
     for (mesh_i, mesh_info) in meshes.iter().enumerate() {
         let vertex_count = mesh_info.vertex_count;
+        let index_count = mesh_info.index_count;
 
         // Buffer views
-        let pos_bv = buffer_views.len();
-        let norm_bv = pos_bv + 1;
-        let tc0_bv = pos_bv + 2;
-        let tc1_bv = pos_bv + 3;
-        let col_bv = pos_bv + 4;
-        let idx_bv = pos_bv + 5;
+        let pos_bv = buffer_view_idx;
+        buffer_view_idx += 1;
+        let norm_bv = buffer_view_idx;
+        buffer_view_idx += 1;
+        let tan_bv = buffer_view_idx;
+        buffer_view_idx += 1;
+        let tc0_bv = buffer_view_idx;
+        buffer_view_idx += 1;
+        let tc1_bv = buffer_view_idx;
+        buffer_view_idx += 1;
+        let col_bv = buffer_view_idx;
+        buffer_view_idx += 1;
+        let idx_bv = buffer_view_idx;
+        buffer_view_idx += 1;
 
-        for (offset, len) in [
-            (mesh_info.positions_offset, vertex_count * 12),
-            (mesh_info.normals_offset, vertex_count * 12),
-            (mesh_info.texcoord0_offset, vertex_count * 8),
-            (mesh_info.texcoord1_offset, vertex_count * 8),
-            (mesh_info.color0_offset, vertex_count * 16),
-        ] {
-            buffer_views.push(json!({
-                "buffer": 0,
-                "byteOffset": offset,
-                "byteLength": len,
-                "target": 34962  // ARRAY_BUFFER
-            }));
-        }
+        buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": mesh_info.positions_offset,
+            "byteLength": vertex_count * 12,
+            "target": 34962  // ARRAY_BUFFER
+        }));
+        buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": mesh_info.normals_offset,
+            "byteLength": vertex_count * 12,
+            "target": 34962
+        }));
+        buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": mesh_info.tangents_offset,
+            "byteLength": vertex_count * 16,
+            "target": 34962
+        }));
+        buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": mesh_info.texcoord0_offset,
+            "byteLength": vertex_count * 8,
+            "target": 34962
+        }));
+        buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": mesh_info.texcoord1_offset,
+            "byteLength": vertex_count * 8,
+            "target": 34962
+        }));
+        buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": mesh_info.color0_offset,
+            "byteLength": vertex_count * 16,
+            "target": 34962
+        }));
         buffer_views.push(json!({
             "buffer": 0,
             "byteOffset": mesh_info.indices_offset,
@@ -548,12 +704,18 @@ fn build_gltf_json(
         }));
 
         // Accessors
-        let pos_acc = accessors.len();
-        let norm_acc = pos_acc + 1;
-        let tc0_acc = pos_acc + 2;
-        let tc1_acc = pos_acc + 3;
-        let col_acc = pos_acc + 4;
-        let idx_acc = pos_acc + 5;
+        let pos_acc = accessor_idx;
+        accessor_idx += 1;
+        let norm_acc = accessor_idx;
+        accessor_idx += 1;
+        let tan_acc = accessor_idx;
+        accessor_idx += 1;
+        let tc0_acc = accessor_idx;
+        accessor_idx += 1;
+        let tc1_acc = accessor_idx;
+        accessor_idx += 1;
+        let col_acc = accessor_idx;
+        accessor_idx += 1;
 
         accessors.push(json!({
             "bufferView": pos_bv,
@@ -568,6 +730,12 @@ fn build_gltf_json(
             "componentType": 5126,
             "count": vertex_count,
             "type": "VEC3"
+        }));
+        accessors.push(json!({
+            "bufferView": tan_bv,
+            "componentType": 5126,
+            "count": vertex_count,
+            "type": "VEC4"
         }));
         accessors.push(json!({
             "bufferView": tc0_bv,
@@ -587,61 +755,57 @@ fn build_gltf_json(
             "count": vertex_count,
             "type": "VEC4"
         }));
-        accessors.push(json!({
-            "bufferView": idx_bv,
-            "componentType": 5125,  // UNSIGNED_INT
-            "count": mesh_info.index_count,
-            "type": "SCALAR"
-        }));
-
         let attributes = json!({
             "POSITION": pos_acc,
             "NORMAL": norm_acc,
+            "TANGENT": tan_acc,
             "TEXCOORD_0": tc0_acc,
             "TEXCOORD_1": tc1_acc,
             "COLOR_0": col_acc
         });
 
-        // One primitive per submesh so bark/leaf/impostor materials bind to
-        // their own index ranges instead of sharing the first material.
+        let mut push_index_accessor = |start: u32, count: u32| {
+            let idx_acc = accessor_idx;
+            accessor_idx += 1;
+            accessors.push(json!({
+                "bufferView": idx_bv,
+                "byteOffset": (start as usize) * 4,
+                "componentType": 5125,  // UNSIGNED_INT
+                "count": count as usize,
+                "type": "SCALAR"
+            }));
+            idx_acc
+        };
+
+        // Build primitives for submeshes, preserving material assignment.
         let primitives = if mesh_info.submeshes.is_empty() {
+            let idx_acc = push_index_accessor(0, index_count as u32);
             vec![json!({
-                "attributes": attributes,
+                "attributes": attributes.clone(),
                 "indices": idx_acc,
                 "mode": 4,  // TRIANGLES
                 "material": 0
             })]
         } else {
-            let mut prims = Vec::with_capacity(mesh_info.submeshes.len());
-            for sub in &mesh_info.submeshes {
-                // Slice a dedicated index accessor out of the shared buffer.
-                let sub_bv = buffer_views.len();
-                buffer_views.push(json!({
-                    "buffer": 0,
-                    "byteOffset": mesh_info.indices_offset + sub.index_start as usize * 4,
-                    "byteLength": sub.index_count as usize * 4,
-                    "target": 34963
-                }));
-                let sub_acc = accessors.len();
-                accessors.push(json!({
-                    "bufferView": sub_bv,
-                    "componentType": 5125,
-                    "count": sub.index_count,
-                    "type": "SCALAR"
-                }));
-                let material = match sub.material {
-                    MaterialType::Bark => 0,
-                    MaterialType::Leaves => 1,
-                    MaterialType::Impostor => impostor_material[mesh_i].unwrap_or(1),
-                };
-                prims.push(json!({
-                    "attributes": attributes,
-                    "indices": sub_acc,
-                    "mode": 4,
-                    "material": material
-                }));
-            }
-            prims
+            mesh_info
+                .submeshes
+                .iter()
+                .filter(|submesh| submesh.index_count > 0)
+                .map(|submesh| {
+                    let idx_acc = push_index_accessor(submesh.index_start, submesh.index_count);
+                    let material = match submesh.material {
+                        MaterialType::Bark => 0,
+                        MaterialType::Leaves => 1,
+                        MaterialType::Impostor => impostor_material[mesh_i].unwrap_or(1),
+                    };
+                    json!({
+                        "attributes": attributes.clone(),
+                        "indices": idx_acc,
+                        "mode": 4,
+                        "material": material
+                    })
+                })
+                .collect()
         };
 
         gltf_meshes.push(json!({
@@ -754,7 +918,7 @@ fn build_gltf_json(
         .collect();
 
     let scene = json!({
-        "name": "Tree",
+        "name": scene_name(config),
         "nodes": (0..meshes.len()).collect::<Vec<_>>()
     });
 
@@ -825,7 +989,65 @@ fn build_gltf_json(
         });
     }
 
+    if let Some(metadata) = &config.metadata {
+        if root.get("extras").is_none() {
+            root["extras"] = json!({});
+        }
+        root["extras"]["midori"] = json!({
+            "species_name": metadata.species_name,
+            "scientific_name": metadata.scientific_name,
+            "seed": metadata.seed,
+            "lod_screen_heights": metadata.lod_screen_heights,
+        });
+    }
+
     Ok(root)
+}
+
+fn scene_name(config: &ExportConfig) -> String {
+    config
+        .metadata
+        .as_ref()
+        .and_then(|metadata| {
+            if metadata.species_name.is_empty() {
+                None
+            } else {
+                Some(metadata.species_name.clone())
+            }
+        })
+        .unwrap_or_else(|| "Tree".to_string())
+}
+
+fn lod_node_name(config: &ExportConfig, lod_index: u32) -> String {
+    let base = config
+        .metadata
+        .as_ref()
+        .and_then(|metadata| {
+            if metadata.species_name.is_empty() {
+                None
+            } else {
+                Some(metadata.species_name.as_str())
+            }
+        })
+        .unwrap_or("Tree");
+    format!("{}_LOD{}", sanitize_name(base), lod_index)
+}
+
+fn sanitize_name(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    let trimmed = out.trim_matches('_');
+    if trimmed.is_empty() {
+        "Tree".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 fn write_gltf(path: &Path, data: &GltfData, format: ExportFormat) -> Result<(), std::io::Error> {
@@ -904,7 +1126,7 @@ fn write_gltf_separate(path: &Path, data: &GltfData) -> Result<(), std::io::Erro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Vertex, mesh::MaterialType};
+    use crate::{LodMesh, LodStats, Vertex, mesh::MaterialType};
     use glam::{Vec2, Vec3, Vec4};
     use std::fs;
     use tempfile::tempdir;
@@ -944,6 +1166,132 @@ mod tests {
         });
 
         mesh
+    }
+
+    fn create_multi_material_mesh() -> Mesh {
+        let mut mesh = Mesh::new();
+
+        mesh.vertices
+            .push(Vertex::new(Vec3::ZERO, Vec3::Y, Vec2::ZERO));
+        mesh.vertices
+            .push(Vertex::new(Vec3::X, Vec3::Y, Vec2::ZERO));
+        mesh.vertices
+            .push(Vertex::new(Vec3::Y, Vec3::Y, Vec2::ZERO));
+        mesh.vertices
+            .push(Vertex::new(Vec3::Z, Vec3::Y, Vec2::ZERO));
+        mesh.vertices
+            .push(Vertex::new(Vec3::new(1.0, 0.0, 1.0), Vec3::Y, Vec2::ZERO));
+        mesh.vertices
+            .push(Vertex::new(Vec3::new(0.0, 1.0, 1.0), Vec3::Y, Vec2::ZERO));
+
+        mesh.indices.extend_from_slice(&[0, 1, 2, 3, 4, 5]);
+        mesh.submeshes.push(Submesh {
+            index_start: 0,
+            index_count: 3,
+            material: MaterialType::Bark,
+        });
+        mesh.submeshes.push(Submesh {
+            index_start: 3,
+            index_count: 3,
+            material: MaterialType::Leaves,
+        });
+
+        mesh
+    }
+
+    fn create_lod_mesh_set_for_export() -> LodMeshSet {
+        let high_mesh = create_multi_material_mesh();
+        let low_mesh = create_multi_material_mesh();
+
+        LodMeshSet {
+            meshes: vec![
+                LodMesh {
+                    index: 0,
+                    name: "High".to_string(),
+                    screen_height: 0.3,
+                    stats: LodStats {
+                        vertex_count: high_mesh.vertex_count() as u32,
+                        triangle_count: high_mesh.triangle_count() as u32,
+                        branch_count: 1,
+                        leaf_count: 1,
+                    },
+                    mesh: high_mesh,
+                    impostor_atlas: None,
+                },
+                LodMesh {
+                    index: 1,
+                    name: "Low".to_string(),
+                    screen_height: 0.1,
+                    stats: LodStats {
+                        vertex_count: low_mesh.vertex_count() as u32,
+                        triangle_count: low_mesh.triangle_count() as u32,
+                        branch_count: 1,
+                        leaf_count: 1,
+                    },
+                    mesh: low_mesh,
+                    impostor_atlas: None,
+                },
+            ],
+        }
+    }
+
+    fn parse_glb(glb: &[u8]) -> (serde_json::Value, &[u8]) {
+        assert!(glb.len() >= 28, "GLB should contain header and two chunks");
+        assert_eq!(&glb[0..4], b"glTF");
+        assert_eq!(read_u32(glb, 4), 2);
+        assert_eq!(read_u32(glb, 8) as usize, glb.len());
+
+        let json_chunk_len = read_u32(glb, 12) as usize;
+        let json_chunk_type = read_u32(glb, 16);
+        assert_eq!(json_chunk_type, 0x4E4F534A);
+        let json_start = 20;
+        let json_end = json_start + json_chunk_len;
+        assert!(json_end + 8 <= glb.len());
+
+        let bin_chunk_len = read_u32(glb, json_end) as usize;
+        let bin_chunk_type = read_u32(glb, json_end + 4);
+        assert_eq!(bin_chunk_type, 0x004E4942);
+        let bin_start = json_end + 8;
+        let bin_end = bin_start + bin_chunk_len;
+        assert!(bin_end <= glb.len());
+
+        let json = std::str::from_utf8(&glb[json_start..json_end])
+            .unwrap()
+            .trim_end_matches(' ');
+        let parsed = serde_json::from_str(json).unwrap();
+
+        (parsed, &glb[bin_start..bin_end])
+    }
+
+    fn read_u32(bytes: &[u8], offset: usize) -> u32 {
+        u32::from_le_bytes([
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+        ])
+    }
+
+    fn assert_primitive_attributes(json: &serde_json::Value, primitive: &serde_json::Value) {
+        let attributes = primitive["attributes"].as_object().unwrap();
+        for name in [
+            "POSITION",
+            "NORMAL",
+            "TANGENT",
+            "TEXCOORD_0",
+            "TEXCOORD_1",
+            "COLOR_0",
+        ] {
+            let accessor_index = attributes[name].as_u64().unwrap() as usize;
+            assert!(
+                json["accessors"].get(accessor_index).is_some(),
+                "{name} accessor should exist"
+            );
+        }
+
+        let index_accessor = primitive["indices"].as_u64().unwrap() as usize;
+        assert_eq!(json["accessors"][index_accessor]["type"], "SCALAR");
+        assert_eq!(json["accessors"][index_accessor]["componentType"], 5125);
     }
 
     #[test]
@@ -1003,6 +1351,25 @@ mod tests {
         let buffer = build_normals_buffer(&mesh);
 
         assert_eq!(buffer.len(), 36);
+    }
+
+    #[test]
+    fn test_build_tangents_buffer() {
+        let mesh = create_test_mesh();
+        let buffer = build_tangents_buffer(&mesh);
+
+        // 3 vertices * 4 floats * 4 bytes = 48 bytes
+        assert_eq!(buffer.len(), 48);
+        for chunk in buffer.as_chunks::<16>().0 {
+            let x = f32::from_le_bytes(chunk[0..4].try_into().unwrap());
+            let y = f32::from_le_bytes(chunk[4..8].try_into().unwrap());
+            let z = f32::from_le_bytes(chunk[8..12].try_into().unwrap());
+            let w = f32::from_le_bytes(chunk[12..16].try_into().unwrap());
+            let length = (x * x + y * y + z * z).sqrt();
+            assert!((length - 1.0).abs() < 0.001);
+            assert!(y.abs() < 0.001);
+            assert_eq!(w.abs(), 1.0);
+        }
     }
 
     #[test]
@@ -1136,6 +1503,120 @@ mod tests {
     }
 
     #[test]
+    fn test_gltf_primitives_split_by_submesh_material() {
+        let mesh = create_multi_material_mesh();
+        let config = ExportConfig::default();
+        let gltf_data = build_gltf_single(&mesh, &config).unwrap();
+
+        let primitives = gltf_data.json["meshes"][0]["primitives"]
+            .as_array()
+            .unwrap();
+        assert_eq!(primitives.len(), 2);
+        assert_eq!(primitives[0]["material"], 0);
+        assert_eq!(primitives[1]["material"], 1);
+
+        let accessors = gltf_data.json["accessors"].as_array().unwrap();
+        let first_indices = primitives[0]["indices"].as_u64().unwrap() as usize;
+        let second_indices = primitives[1]["indices"].as_u64().unwrap() as usize;
+        assert_eq!(accessors[first_indices]["count"], 3);
+        assert_eq!(accessors[second_indices]["count"], 3);
+        assert_eq!(accessors[second_indices]["byteOffset"], 12);
+    }
+
+    #[test]
+    fn test_gltf_metadata_and_lod_node_name() {
+        let mesh = create_test_mesh();
+        let config = ExportConfig {
+            metadata: Some(ExportMetadata {
+                species_name: "English Oak".to_string(),
+                scientific_name: "Quercus robur".to_string(),
+                seed: Some(42),
+                lod_screen_heights: vec![0.3],
+            }),
+            ..Default::default()
+        };
+        let gltf_data = build_gltf_single(&mesh, &config).unwrap();
+        let json = &gltf_data.json;
+
+        assert_eq!(json["nodes"][0]["name"], "English_Oak_LOD0");
+        assert_eq!(json["scenes"][0]["name"], "English Oak");
+        assert_eq!(json["extras"]["midori"]["species_name"], "English Oak");
+        assert_eq!(json["extras"]["midori"]["scientific_name"], "Quercus robur");
+        assert_eq!(json["extras"]["midori"]["seed"], 42);
+        let screen_height = json["extras"]["midori"]["lod_screen_heights"][0]
+            .as_f64()
+            .unwrap();
+        assert!((screen_height - 0.3).abs() < 0.0001);
+        assert_eq!(json["extras"]["pivot_painter"], true);
+    }
+
+    #[test]
+    fn test_export_lod_glb_bytes_parse_with_materials_lods_accessors_and_extras() {
+        let lods = create_lod_mesh_set_for_export();
+        let config = ExportConfig {
+            metadata: Some(ExportMetadata {
+                species_name: "English Oak".to_string(),
+                scientific_name: "Quercus robur".to_string(),
+                seed: Some(42),
+                lod_screen_heights: vec![0.3, 0.1],
+            }),
+            ..Default::default()
+        };
+
+        let glb = export_lod_meshes_to_bytes(&lods, &config).unwrap();
+        let (json, bin) = parse_glb(&glb);
+
+        assert_eq!(json["asset"]["version"], "2.0");
+        assert_eq!(json["asset"]["generator"], "midori");
+        assert_eq!(
+            json["buffers"][0]["byteLength"].as_u64().unwrap() as usize,
+            bin.len()
+        );
+
+        assert_eq!(json["extras"]["pivot_painter"], true);
+        assert_eq!(json["extras"]["midori"]["species_name"], "English Oak");
+        assert_eq!(json["extras"]["midori"]["scientific_name"], "Quercus robur");
+        assert_eq!(json["extras"]["midori"]["seed"], 42);
+        let screen_heights = json["extras"]["midori"]["lod_screen_heights"]
+            .as_array()
+            .unwrap();
+        assert!((screen_heights[0].as_f64().unwrap() - 0.3).abs() < 0.0001);
+        assert!((screen_heights[1].as_f64().unwrap() - 0.1).abs() < 0.0001);
+
+        let materials = json["materials"].as_array().unwrap();
+        assert_eq!(materials[0]["name"], "bark");
+        assert_eq!(materials[1]["name"], "leaves");
+
+        assert_eq!(json["scenes"][0]["name"], "English Oak");
+        assert_eq!(
+            json["scenes"][0]["nodes"].as_array().unwrap(),
+            &[serde_json::json!(0), serde_json::json!(1)]
+        );
+        assert_eq!(json["nodes"][0]["name"], "English_Oak_LOD0");
+        assert_eq!(json["nodes"][1]["name"], "English_Oak_LOD1");
+
+        let meshes = json["meshes"].as_array().unwrap();
+        assert_eq!(meshes.len(), 2);
+        for (mesh_index, mesh) in meshes.iter().enumerate() {
+            assert_eq!(mesh["name"], format!("English_Oak_LOD{}", mesh_index));
+            let primitives = mesh["primitives"].as_array().unwrap();
+            assert_eq!(primitives.len(), 2);
+            assert_eq!(primitives[0]["material"], 0);
+            assert_eq!(primitives[1]["material"], 1);
+            for primitive in primitives {
+                assert_primitive_attributes(&json, primitive);
+            }
+        }
+
+        let buffer_byte_length = json["buffers"][0]["byteLength"].as_u64().unwrap() as usize;
+        for view in json["bufferViews"].as_array().unwrap() {
+            let offset = view["byteOffset"].as_u64().unwrap() as usize;
+            let length = view["byteLength"].as_u64().unwrap() as usize;
+            assert!(offset + length <= buffer_byte_length);
+        }
+    }
+
+    #[test]
     fn test_export_without_pivot_painter_extras() {
         let mesh = create_test_mesh();
         let config = ExportConfig {
@@ -1198,15 +1679,13 @@ mod tests {
         let accessors = json["accessors"].as_array().unwrap();
         assert_eq!(accessors[a0]["count"], 3);
         assert_eq!(accessors[a1]["count"], 3);
-        // The leaves primitive views into the shared index buffer at
-        // indices_offset + 3 * 4 (past the bark range).
-        let views = json["bufferViews"].as_array().unwrap();
-        let full_bv = accessors[5]["bufferView"].as_u64().unwrap() as usize;
-        let bv1 = accessors[a1]["bufferView"].as_u64().unwrap() as usize;
+        // Both primitives share the index bufferView; the leaves primitive's
+        // accessor is offset 12 bytes in (past the bark range).
         assert_eq!(
-            views[bv1]["byteOffset"].as_u64().unwrap(),
-            views[full_bv]["byteOffset"].as_u64().unwrap() + 12
+            accessors[a0]["bufferView"], accessors[a1]["bufferView"],
+            "both primitives share the index bufferView"
         );
+        assert_eq!(accessors[a1]["byteOffset"].as_u64().unwrap(), 12);
     }
 
     #[test]

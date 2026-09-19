@@ -36,6 +36,7 @@ pub mod lod;
 pub mod math;
 pub mod mesh;
 pub mod mesh_builder;
+pub mod nature;
 pub mod rng;
 pub mod species;
 pub mod textures;
@@ -43,20 +44,34 @@ pub mod tree;
 
 pub use constants::*;
 pub use export::{
-    ExportConfig, ExportError, ExportFormat, export_lod_meshes, export_lod_meshes_to_bytes,
-    export_lod_meshes_to_parts, export_mesh,
+    ExportConfig, ExportError, ExportFormat, ExportMetadata, export_lod_meshes,
+    export_lod_meshes_to_bytes, export_lod_meshes_to_parts, export_mesh,
 };
 pub use generation::generate_tree;
 pub use impostor::{Impostor, bake_impostor};
-pub use leaves::{LeafConfig, LeafShape, add_leaves_to_tree, generate_leaf_mesh, place_leaves};
+pub use leaves::{LeafConfig, add_leaves_to_tree, generate_leaf_mesh, place_leaves};
 pub use lod::{
     LodGenerationConfig, LodLevelConfig, LodMesh, LodMeshSet, LodStats, generate_lod_meshes,
     generate_lod_meshes_with_config,
 };
 pub use mesh::{MaterialType, Mesh, Submesh, Vertex};
 pub use mesh_builder::{MeshBuilder, MeshConfig, build_mesh, build_mesh_with_config};
+pub use nature::{
+    AxisConventions, GroundcoverConfig, GroundcoverKind, GroundcoverLayer, GroundcoverPrototype,
+    GroundcoverPrototypeLod, GroundcoverPrototypeLodManifest, GroundcoverPrototypeManifest,
+    MapChannel, MaskSample, MaterialSlotManifest, NatureAssetInfo, NatureExportManifest,
+    NatureMapSet, NaturePackageConfig, NaturePackageSummary, NaturePackageValidationReport,
+    NaturePatch, NaturePatchError, NatureProfile, NatureProfiles, NormalConventions, PatchParams,
+    ScatterBinaryFileManifest, ScatterBinaryFormatManifest, ScatterChunk, ScatterInstance,
+    ScatterManifest, ScatterSet, SoilCracks, SoilParams, TerrainField, TerrainManifest,
+    TerrainSample, UnityImportHints, UnrealImportHints, WindPackingManifest, WindParams,
+    validate_nature_package,
+};
 pub use rng::Rng;
-pub use species::{BarkStyle, LeafCardLayout, Species, TextureParams};
+pub use species::{
+    BarkStyle, ControlGroup, ControlSpec, GeneratorConfig, GeneratorFamily, LeafCardLayout,
+    LeafShape, MaterialPlaceholders, Species, TextureParams,
+};
 pub use textures::{RgbaTexture, TextureError, TextureSet, species_texture_seed};
 pub use tree::{BoundingBox, Leaf, Segment, Stem, Tree};
 
@@ -191,6 +206,7 @@ radius = 0.3
             ring_resolution: [8, 6, 4, 3],
             texture_v_scale: 2.0,
             pivot_painter: false,
+            ..MeshConfig::default()
         };
         let mesh = build_mesh_with_config(&tree, config);
 

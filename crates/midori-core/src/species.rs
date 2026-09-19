@@ -17,6 +17,9 @@ use serde::{Deserialize, Serialize};
 pub struct Species {
     /// Basic species identification
     pub species: SpeciesInfo,
+    /// Generator family and family-specific routing metadata
+    #[serde(default)]
+    pub generator: GeneratorConfig,
     /// Trunk geometry parameters
     pub trunk: TrunkParams,
     /// Branch parameters for each level
@@ -31,6 +34,15 @@ pub struct Species {
     /// AI texture generation prompts
     #[serde(default)]
     pub textures: TextureParams,
+    /// Material placeholder names and notes.
+    ///
+    /// This is intentionally metadata only. Texture/PBR asset generation is a
+    /// separate parked workflow.
+    #[serde(default)]
+    pub materials: MaterialPlaceholders,
+    /// Optional editor control groups for mapping friendly UI controls to raw parameters.
+    #[serde(default)]
+    pub control_groups: Vec<ControlGroup>,
     /// Level of detail configuration
     #[serde(default)]
     pub lod: LodConfig,
@@ -48,6 +60,94 @@ pub struct SpeciesInfo {
     /// Scientific name (e.g., "Quercus robur")
     #[serde(default)]
     pub scientific: String,
+    /// Latin/binomial name alias for workflows that prefer `latin`.
+    #[serde(default)]
+    pub latin: String,
+    /// Broad biome label such as `temperate`, `desert`, or `tropical`.
+    #[serde(default)]
+    pub biome: String,
+    /// Search/classification tags for editor filtering and future preset tooling.
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Generator family selector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GeneratorFamily {
+    /// Current branch/trunk/leaf tree path.
+    #[default]
+    WeberPenn,
+    /// Planned fork grammar path for rosette plants and other dichotomous forms.
+    Dichotomous,
+    /// Reserved for explicit cactus/ribbed-column implementations.
+    Cactus,
+    /// Reserved for pad/segment chain plants.
+    PadChain,
+    /// Explicit custom family marker for external tooling.
+    Custom,
+}
+
+/// Generator routing metadata.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct GeneratorConfig {
+    /// Family of generator used for this species.
+    #[serde(default = "default_generator_family")]
+    pub family: GeneratorFamily,
+    /// Optional note explaining why this family was selected.
+    #[serde(default)]
+    pub notes: String,
+}
+
+/// Placeholder material identifiers.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct MaterialPlaceholders {
+    /// Bark/stem material placeholder name.
+    #[serde(default)]
+    pub bark: String,
+    /// Leaf/foliage material placeholder name.
+    #[serde(default)]
+    pub foliage: String,
+    /// Human notes for future material work. No texture/PBR pipeline behavior.
+    #[serde(default)]
+    pub notes: String,
+}
+
+/// Editor control group metadata.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct ControlGroup {
+    /// Stable group key.
+    #[serde(default)]
+    pub key: String,
+    /// User-facing group label.
+    #[serde(default)]
+    pub label: String,
+    /// Controls in this group.
+    #[serde(default)]
+    pub controls: Vec<ControlSpec>,
+}
+
+/// Editor control metadata mapping a friendly control to a raw parameter path.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct ControlSpec {
+    /// Stable control key.
+    #[serde(default)]
+    pub key: String,
+    /// User-facing label.
+    #[serde(default)]
+    pub label: String,
+    /// Dotted path to the underlying species parameter.
+    #[serde(default)]
+    pub parameter: String,
+    /// Minimum numeric value when applicable.
+    #[serde(default)]
+    pub min: Option<f32>,
+    /// Maximum numeric value when applicable.
+    #[serde(default)]
+    pub max: Option<f32>,
+    /// Step size when applicable.
+    #[serde(default)]
+    pub step: Option<f32>,
 }
 
 /// Trunk geometry parameters.
@@ -66,6 +166,9 @@ pub struct TrunkParams {
     /// Taper factor (0.0 = cylinder, 1.0 = cone)
     #[serde(default = "default_taper")]
     pub taper: f32,
+    /// Profile used to apply taper along trunk height.
+    #[serde(default = "default_trunk_taper_profile")]
+    pub taper_profile: TaperProfile,
     /// Curvature of the trunk in degrees
     #[serde(default)]
     pub curve: f32,
@@ -114,6 +217,18 @@ pub struct BranchParams {
     /// Ratio of branch radius to parent radius
     #[serde(default = "default_radius_ratio")]
     pub radius_ratio: f32,
+    /// Child radius model: direct ratio or pipe-model sibling split.
+    #[serde(default)]
+    pub radius_model: BranchRadiusModel,
+    /// Exponent used by pipe-model radius splitting.
+    #[serde(default = "default_pipe_exponent")]
+    pub pipe_exponent: f32,
+    /// Branch taper factor (0.0 = cylinder, 1.0 = taper to minimum radius)
+    #[serde(default = "default_branch_taper")]
+    pub taper: f32,
+    /// Profile used to apply taper along branch length.
+    #[serde(default = "default_branch_taper_profile")]
+    pub taper_profile: TaperProfile,
     /// Angle from parent branch in degrees
     #[serde(default = "default_branch_angle")]
     pub angle: f32,
@@ -135,6 +250,32 @@ pub struct BranchParams {
     /// Number of segments along branch length
     #[serde(default = "default_branch_segments")]
     pub segments: u32,
+}
+
+/// Child branch radius calculation model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BranchRadiusModel {
+    /// Child radius is parent radius multiplied by `radius_ratio`.
+    #[default]
+    Ratio,
+    /// Child radii are split across siblings using a pipe-model exponent.
+    Pipe,
+}
+
+/// Radius taper curve along a trunk or branch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaperProfile {
+    /// Interpolate directly from base to tip radius.
+    #[default]
+    Linear,
+    /// Smoothstep curve, retaining more thickness near the base and tip.
+    Smooth,
+    /// Exponential curve for fast early narrowing with a controlled tip ratio.
+    Exponential,
+    /// Legacy per-segment multiplicative taper, kept for branch compatibility.
+    Compound,
 }
 
 /// Crown shape enumeration.
@@ -198,6 +339,46 @@ pub enum LeafGeometry {
     None,
 }
 
+/// Leaf shape for polygon generation using SDF.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeafShape {
+    /// Elliptical leaf shape (common in many trees)
+    Oval,
+    /// Egg-shaped leaf, narrower at tip (default)
+    #[default]
+    Pointed,
+    /// Long thin needle (pine, spruce, fir)
+    Needle,
+    /// Oak-style with 7 rounded lobes
+    #[serde(alias = "lobed")]
+    OakLobed,
+    /// 5-point maple leaf
+    Maple,
+    /// Serrated oval (birch, elm)
+    Serrated,
+    /// Long narrow willow-style leaf
+    Willow,
+    /// Heart-shaped leaf (linden, redbud)
+    Heart,
+    /// Compound palmate (horse chestnut style)
+    Palmate,
+}
+
+impl LeafShape {
+    /// Get the recommended polygon resolution for this shape
+    pub fn recommended_resolution(&self) -> u32 {
+        match self {
+            LeafShape::Oval | LeafShape::Pointed | LeafShape::Heart => 12,
+            LeafShape::Needle | LeafShape::Willow => 8,
+            LeafShape::Serrated => 24,
+            LeafShape::OakLobed => 20,
+            LeafShape::Maple => 30,
+            LeafShape::Palmate => 36,
+        }
+    }
+}
+
 /// Leaf rendering parameters.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -220,6 +401,9 @@ pub struct LeafParams {
     /// Rendering geometry type
     #[serde(default = "default_leaf_geometry")]
     pub geometry: LeafGeometry,
+    /// Leaf shape for polygon generation
+    #[serde(default)]
+    pub shape: LeafShape,
     /// Influence of upward direction on leaf orientation (0.0 - 1.0)
     #[serde(default)]
     pub up_influence: f32,
@@ -311,6 +495,10 @@ pub enum LodPreset {
     Mobile,
     /// Minimal LOD for low-end devices
     Minimal,
+    /// Optimized for open-world forests (10-50 trees on screen)
+    OpenWorld,
+    /// High detail for single prominent/hero trees
+    HeroTree,
     /// Custom LOD configuration
     Custom,
 }
@@ -401,6 +589,9 @@ fn default_trunk_radius() -> f32 {
 fn default_taper() -> f32 {
     0.75
 }
+fn default_trunk_taper_profile() -> TaperProfile {
+    TaperProfile::Linear
+}
 fn default_segments() -> u32 {
     8
 }
@@ -412,6 +603,15 @@ fn default_branch_length() -> f32 {
 }
 fn default_radius_ratio() -> f32 {
     0.5
+}
+fn default_pipe_exponent() -> f32 {
+    2.0
+}
+fn default_branch_taper() -> f32 {
+    0.7
+}
+fn default_branch_taper_profile() -> TaperProfile {
+    TaperProfile::Compound
 }
 fn default_branch_angle() -> f32 {
     45.0
@@ -458,6 +658,9 @@ fn default_platform() -> PlatformTarget {
 fn default_texture_resolution() -> u32 {
     512
 }
+fn default_generator_family() -> GeneratorFamily {
+    GeneratorFamily::WeberPenn
+}
 
 // Default implementations
 impl Default for CrownParams {
@@ -480,6 +683,7 @@ impl Default for LeafParams {
             size_variance: 0.0,
             distribution: default_distribution(),
             geometry: default_leaf_geometry(),
+            shape: LeafShape::default(),
             up_influence: 0.0,
         }
     }
@@ -609,7 +813,21 @@ impl Species {
             LodPreset::Balanced => generate_balanced_lods(),
             LodPreset::Mobile => generate_mobile_lods(),
             LodPreset::Minimal => generate_minimal_lods(),
+            LodPreset::OpenWorld => generate_open_world_lods(),
+            LodPreset::HeroTree => generate_hero_tree_lods(),
             LodPreset::Custom => Vec::new(), // Custom but no levels defined
+        }
+    }
+
+    /// Get the effective Latin/binomial name.
+    ///
+    /// `species.scientific` is the original field. `species.latin` is an alias
+    /// added for richer metadata workflows.
+    pub fn latin_name(&self) -> &str {
+        if self.species.latin.is_empty() {
+            &self.species.scientific
+        } else {
+            &self.species.latin
         }
     }
 }
@@ -848,6 +1066,90 @@ fn generate_minimal_lods() -> Vec<LodLevel> {
     ]
 }
 
+/// Generate open-world forest optimized LOD levels.
+fn generate_open_world_lods() -> Vec<LodLevel> {
+    vec![
+        LodLevel {
+            index: 0,
+            name: "Near".to_string(),
+            target_triangles: 8000,
+            max_triangles: Some(10000),
+            branch_levels: 4,
+            leaf_geometry: LeafGeometry::CrossBillboard,
+            leaf_reduction: 1.0,
+            ring_resolution: Some([20, 14, 8, 5]),
+            screen_height: 0.25,
+            crown_impostor: false,
+        },
+        LodLevel {
+            index: 1,
+            name: "Medium".to_string(),
+            target_triangles: 3000,
+            max_triangles: Some(4000),
+            branch_levels: 3,
+            leaf_geometry: LeafGeometry::Billboard,
+            leaf_reduction: 0.5,
+            ring_resolution: Some([12, 8, 5, 4]),
+            screen_height: 0.08,
+            crown_impostor: false,
+        },
+        LodLevel {
+            index: 2,
+            name: "Far".to_string(),
+            target_triangles: 800,
+            max_triangles: Some(1200),
+            branch_levels: 2,
+            leaf_geometry: LeafGeometry::Billboard,
+            leaf_reduction: 0.2,
+            ring_resolution: Some([8, 5, 4, 3]),
+            screen_height: 0.03,
+            crown_impostor: false,
+        },
+        LodLevel {
+            index: 3,
+            name: "Distant".to_string(),
+            target_triangles: 200,
+            max_triangles: Some(400),
+            branch_levels: 1,
+            leaf_geometry: LeafGeometry::None,
+            leaf_reduction: 0.0,
+            ring_resolution: Some([4, 3, 3, 3]),
+            screen_height: 0.01,
+            crown_impostor: true,
+        },
+    ]
+}
+
+/// Generate hero tree LOD levels for prominent single trees.
+fn generate_hero_tree_lods() -> Vec<LodLevel> {
+    vec![
+        LodLevel {
+            index: 0,
+            name: "Hero".to_string(),
+            target_triangles: 25000,
+            max_triangles: Some(35000),
+            branch_levels: 4,
+            leaf_geometry: LeafGeometry::Polygon,
+            leaf_reduction: 1.0,
+            ring_resolution: Some([32, 24, 16, 10]),
+            screen_height: 0.4,
+            crown_impostor: false,
+        },
+        LodLevel {
+            index: 1,
+            name: "Medium".to_string(),
+            target_triangles: 12000,
+            max_triangles: Some(16000),
+            branch_levels: 4,
+            leaf_geometry: LeafGeometry::CrossBillboard,
+            leaf_reduction: 0.8,
+            ring_resolution: Some([24, 16, 10, 6]),
+            screen_height: 0.15,
+            crown_impostor: false,
+        },
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -864,6 +1166,13 @@ height = 5.0
 [species]
 name = "Oak"
 scientific = "Quercus robur"
+latin = "Quercus robur"
+biome = "temperate"
+tags = ["broadleaf", "deciduous"]
+
+[generator]
+family = "weber_penn"
+notes = "Broadleaf tree path."
 
 [trunk]
 height = 6.0
@@ -881,6 +1190,10 @@ count_variance = 2
 length = 4.5
 length_variance = 0.25
 radius_ratio = 0.55
+radius_model = "pipe"
+pipe_exponent = 2.0
+taper = 0.6
+taper_profile = "smooth"
 angle = 45.0
 angle_variance = 20.0
 rotation = 137.5
@@ -935,6 +1248,23 @@ geometry = "cross_billboard"
 bark_prompt = "Rough oak bark with deep fissures"
 leaf_prompt = "Oak leaf with rounded lobes"
 
+[materials]
+bark = "oak_bark"
+foliage = "oak_leaf"
+notes = "Placeholders only; texture/PBR pipeline is parked."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 3.0
+max = 20.0
+step = 0.1
+
 [lod]
 preset = "balanced"
 
@@ -960,6 +1290,11 @@ target = "modern_pc"
         // Species info
         assert_eq!(species.species.name, "Oak");
         assert_eq!(species.species.scientific, "Quercus robur");
+        assert_eq!(species.species.latin, "Quercus robur");
+        assert_eq!(species.species.biome, "temperate");
+        assert_eq!(species.species.tags, vec!["broadleaf", "deciduous"]);
+        assert_eq!(species.latin_name(), "Quercus robur");
+        assert_eq!(species.generator.family, GeneratorFamily::WeberPenn);
 
         // Trunk
         assert_eq!(species.trunk.height, 6.0);
@@ -972,9 +1307,15 @@ target = "modern_pc"
         assert_eq!(level1.count, 6);
         assert_eq!(level1.length, 4.5);
         assert_eq!(level1.rotation, 137.5);
+        assert_eq!(level1.radius_model, BranchRadiusModel::Pipe);
+        assert_eq!(level1.pipe_exponent, 2.0);
+        assert_eq!(level1.taper, 0.6);
+        assert_eq!(level1.taper_profile, TaperProfile::Smooth);
 
         let level2 = species.get_branch_level(2).unwrap();
         assert_eq!(level2.count, 4);
+        assert_eq!(level2.radius_model, BranchRadiusModel::Ratio);
+        assert_eq!(level2.taper_profile, TaperProfile::Compound);
 
         let level3 = species.get_branch_level(3).unwrap();
         assert_eq!(level3.count, 3);
@@ -991,6 +1332,15 @@ target = "modern_pc"
 
         // Textures
         assert!(species.textures.bark_prompt.contains("oak bark"));
+
+        // Material placeholders and controls
+        assert_eq!(species.materials.bark, "oak_bark");
+        assert_eq!(species.materials.foliage, "oak_leaf");
+        assert_eq!(species.control_groups.len(), 1);
+        assert_eq!(
+            species.control_groups[0].controls[0].parameter,
+            "trunk.height"
+        );
 
         // LOD
         assert_eq!(species.lod.preset, LodPreset::Balanced);
@@ -1156,6 +1506,43 @@ preset = "{preset}"
     }
 
     #[test]
+    fn test_generator_family_metadata() {
+        let toml = r#"
+[species]
+name = "Joshua Prototype"
+latin = "Yucca brevifolia"
+biome = "desert"
+tags = ["rosette", "desert"]
+
+[generator]
+family = "dichotomous"
+
+[trunk]
+"#;
+
+        let species = Species::from_toml(toml).unwrap();
+        assert_eq!(species.generator.family, GeneratorFamily::Dichotomous);
+        assert_eq!(species.latin_name(), "Yucca brevifolia");
+        assert_eq!(species.species.biome, "desert");
+    }
+
+    #[test]
+    fn test_invalid_generator_family_errors() {
+        let toml = r#"
+[species]
+name = "Invalid"
+
+[generator]
+family = "space_magic"
+
+[trunk]
+"#;
+
+        let err = Species::from_toml(toml).unwrap_err().to_string();
+        assert!(err.contains("space_magic"));
+    }
+
+    #[test]
     fn test_platform_targets() {
         let toml = |target| {
             format!(
@@ -1279,6 +1666,7 @@ name = "Defaults Test"
         assert_eq!(species.trunk.height, 8.0);
         assert_eq!(species.trunk.radius, 0.45);
         assert_eq!(species.trunk.taper, 0.75);
+        assert_eq!(species.trunk.taper_profile, TaperProfile::Linear);
         assert_eq!(species.trunk.segments, 8);
 
         // Crown defaults

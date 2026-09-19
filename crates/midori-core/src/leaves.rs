@@ -13,7 +13,6 @@ use crate::{
     tree::{Leaf, Stem, Tree},
 };
 use glam::{Quat, Vec2, Vec3, Vec4};
-use serde::{Deserialize, Serialize};
 
 /// Leaf generation configuration
 #[derive(Debug, Clone)]
@@ -22,7 +21,9 @@ pub struct LeafConfig {
     pub max_leaves: u32,
     /// Leaf geometry type
     pub geometry: LeafGeometry,
-    /// Polygon resolution for polygon leaves (vertices around perimeter)
+    /// Leaf shape for polygon generation
+    pub shape: LeafShape,
+    /// Polygon resolution override (0 = use shape's recommended resolution)
     pub polygon_resolution: u32,
     /// Up influence factor (-1 to 1, how much leaves point upward)
     pub up_influence: f32,
@@ -35,7 +36,8 @@ impl Default for LeafConfig {
         Self {
             max_leaves: 3000,
             geometry: LeafGeometry::CrossBillboard,
-            polygon_resolution: 10,
+            shape: LeafShape::default(),
+            polygon_resolution: 0, // Use shape's recommended resolution
             up_influence: 0.25,
             pivot_painter: true,
         }
@@ -48,31 +50,25 @@ impl LeafConfig {
         Self {
             max_leaves: species.leaves.count,
             geometry: species.leaves.geometry,
-            polygon_resolution: 10,
+            shape: species.leaves.shape,
+            polygon_resolution: 0,
             up_influence: species.leaves.up_influence,
             pivot_painter: true,
         }
     }
+
+    /// Get the effective polygon resolution (shape default or override)
+    pub fn effective_resolution(&self) -> u32 {
+        if self.polygon_resolution > 0 {
+            self.polygon_resolution
+        } else {
+            self.shape.recommended_resolution()
+        }
+    }
 }
 
-/// Leaf shape for polygon generation and leaf-card textures.
-///
-/// Shared by leaf geometry (`leaves.geometry = "polygon"`) and the procedural
-/// `[textures]` pipeline (`leaf_shape`), so a species describes one silhouette
-/// vocabulary across surfaces.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum LeafShape {
-    /// Elliptical leaf shape (common in many trees)
-    Oval,
-    /// Egg-shaped leaf, narrower at tip
-    #[default]
-    Pointed,
-    /// Oak-style leaf with wavy edges
-    Lobed,
-    /// Long thin needle (pine, spruce)
-    Needle,
-}
+// LeafShape is defined in species.rs and re-exported from there
+pub use crate::species::LeafShape;
 
 /// Place leaves on the tree structure
 ///
@@ -265,10 +261,10 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
 /// This produces higher quality leaves but uses more triangles.
 fn generate_polygon_leaves(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> Mesh {
     let mut mesh = Mesh::new();
-    let resolution = config.polygon_resolution.max(6);
+    let resolution = config.effective_resolution().max(6);
 
-    // Generate leaf outline vertices using SDF
-    let outline = generate_leaf_outline(LeafShape::Pointed, resolution);
+    // Generate leaf outline vertices using SDF for the configured shape
+    let outline = generate_leaf_outline(config.shape, resolution);
 
     for leaf in leaves {
         let base_idx = mesh.vertices.len() as u32;
@@ -498,16 +494,98 @@ pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
             let r = 0.5 - p.y * 0.3;
             p.length() - r.max(0.1)
         }
-        LeafShape::Lobed => {
-            // Oak-style with sine wave edge
-            let angle = p.y.atan2(p.x);
-            let r = 0.4 + 0.1 * (angle * 5.0).sin();
-            p.length() - r
-        }
         LeafShape::Needle => {
-            // Long thin ellipse
-            let scaled = Vec2::new(p.x * 0.1, p.y * 1.0);
+            // Long thin ellipse for conifer needles
+            let scaled = Vec2::new(p.x * 0.08, p.y * 1.0);
             scaled.length() - 0.5
+        }
+        LeafShape::OakLobed => {
+            // Oak leaf with 7 rounded lobes
+            let angle = p.y.atan2(p.x);
+            let lobe_count = 7.0;
+            // Create rounded lobes using smooth sine wave
+            let lobe_depth = 0.12;
+            let base_r = 0.38 + lobe_depth * (angle * lobe_count).sin().abs();
+            // Taper toward the stem end (negative Y)
+            let taper = 1.0 - ((-p.y) * 0.4).max(0.0);
+            // Slight taper at tip too
+            let tip_taper = 1.0 - (p.y * 0.2).max(0.0);
+            p.length() - base_r * taper * tip_taper
+        }
+        LeafShape::Maple => {
+            // 5-pointed maple leaf
+            let angle = p.y.atan2(p.x);
+            let lobe_count = 5.0;
+            // Sharp pointed lobes
+            let lobe_angle = (angle * lobe_count + PI * 0.5).rem_euclid(TAU) - PI;
+            let lobe_sharpness = 1.0 - (lobe_angle.abs() / (PI / lobe_count)).min(1.0);
+            let lobe_r = 0.25 + 0.25 * lobe_sharpness.powf(0.6);
+            // Center depression between lobes
+            let center_factor = 1.0 - p.length() * 0.3;
+            p.length() - lobe_r * center_factor.max(0.5)
+        }
+        LeafShape::Serrated => {
+            // Serrated oval (birch, elm) - oval with small teeth
+            let angle = p.y.atan2(p.x);
+            let tooth_count = 16.0;
+            let tooth_depth = 0.04;
+            // Base oval shape
+            let scaled = Vec2::new(p.x * 0.9, p.y * 0.55);
+            let base_dist = scaled.length() - 0.45;
+            // Add serration
+            let serration = tooth_depth * (angle * tooth_count).sin();
+            base_dist - serration
+        }
+        LeafShape::Willow => {
+            // Long narrow willow leaf (lanceolate)
+            // Pointed at both ends, widest in middle
+            let y_factor = 1.0 - (p.y * 2.0).abs().min(1.0);
+            let width = 0.12 * y_factor.powf(0.5);
+            let scaled = Vec2::new(p.x / width.max(0.02), p.y * 1.2);
+            scaled.length() - 0.5
+        }
+        LeafShape::Heart => {
+            // Heart-shaped leaf (cordate)
+            // Two rounded lobes at top, pointed tip at bottom
+            let px = p.x.abs(); // Mirror on X axis
+            let py = p.y;
+
+            // Upper lobes (two circles)
+            if py > 0.0 {
+                let lobe_center = Vec2::new(0.18, 0.1);
+                let to_lobe = Vec2::new(px, py) - lobe_center;
+                to_lobe.length() - 0.28
+            } else {
+                // Lower pointed section
+                let tip_factor = 1.0 + py * 1.5; // Narrows toward bottom
+                let width = 0.35 * tip_factor.max(0.0);
+                if width < 0.01 {
+                    p.length() - 0.01 // Point at very bottom
+                } else {
+                    px - width
+                }
+            }
+        }
+        LeafShape::Palmate => {
+            // Compound palmate leaf (5-7 leaflets radiating from center)
+            let angle = p.y.atan2(p.x);
+            let leaflet_count = 7.0;
+
+            // Each leaflet is an elongated oval
+            let leaflet_angle = (angle * leaflet_count / TAU * PI).rem_euclid(PI) - PI * 0.5;
+            let in_leaflet = leaflet_angle.abs() < PI * 0.35;
+
+            if in_leaflet {
+                // Inside a leaflet - elongated shape
+                let dist_from_center = p.length();
+                let leaflet_width = 0.08 * (1.0 - dist_from_center * 0.8).max(0.0);
+                let side_dist = leaflet_angle.abs() * dist_from_center - leaflet_width;
+                let tip_dist = dist_from_center - 0.5;
+                side_dist.max(tip_dist)
+            } else {
+                // Between leaflets
+                p.length() - 0.1
+            }
         }
     }
 }
@@ -725,19 +803,36 @@ geometry = "cross_billboard"
     fn test_leaf_sdf_shapes() {
         // Test that SDF returns negative inside, positive outside
         let center = Vec2::ZERO;
-
-        // All shapes should have negative SDF at center
-        assert!(leaf_sdf(center, LeafShape::Oval) < 0.0);
-        assert!(leaf_sdf(center, LeafShape::Pointed) < 0.0);
-        assert!(leaf_sdf(center, LeafShape::Lobed) < 0.0);
-        assert!(leaf_sdf(center, LeafShape::Needle) < 0.0);
-
-        // Points far from center should be outside
         let far = Vec2::new(2.0, 2.0);
-        assert!(leaf_sdf(far, LeafShape::Oval) > 0.0);
-        assert!(leaf_sdf(far, LeafShape::Pointed) > 0.0);
-        assert!(leaf_sdf(far, LeafShape::Lobed) > 0.0);
-        assert!(leaf_sdf(far, LeafShape::Needle) > 0.0);
+
+        // Test all shapes
+        let shapes = [
+            LeafShape::Oval,
+            LeafShape::Pointed,
+            LeafShape::Needle,
+            LeafShape::OakLobed,
+            LeafShape::Maple,
+            LeafShape::Serrated,
+            LeafShape::Willow,
+            LeafShape::Heart,
+            LeafShape::Palmate,
+        ];
+
+        for shape in shapes {
+            // All shapes should have negative SDF at center (inside)
+            assert!(
+                leaf_sdf(center, shape) < 0.0,
+                "{:?} should be negative at center",
+                shape
+            );
+
+            // Points far from center should be outside
+            assert!(
+                leaf_sdf(far, shape) > 0.0,
+                "{:?} should be positive far from center",
+                shape
+            );
+        }
     }
 
     #[test]

@@ -46,6 +46,7 @@ pub fn bake_impostor(
     let leaf_config = LeafConfig {
         max_leaves: u32::MAX,
         geometry: LeafGeometry::CrossBillboard,
+        shape: species.leaves.shape,
         polygon_resolution: 10,
         up_influence: species.leaves.up_influence,
         pivot_painter: false,
@@ -56,6 +57,7 @@ pub fn bake_impostor(
         ring_resolution: [6, 5, 4, 3],
         texture_v_scale: 1.0,
         pivot_painter: false,
+        ..MeshConfig::default()
     };
     let stem_mesh =
         MeshBuilder::new(tree, stem_config).build_stems_from_level(kept_branch_level + 1);
@@ -271,7 +273,7 @@ fn content_bounds(mesh: &Mesh) -> (Vec3, Vec3) {
 /// (normal +Z) and a ZY quad at its x-center (normal +X). Both get front
 /// and back faces so the impostor reads from every direction without
 /// relying on a double-sided material flag.
-fn impostor_quads(min: Vec3, max: Vec3) -> Mesh {
+pub(crate) fn impostor_quads(min: Vec3, max: Vec3) -> Mesh {
     let c = (min + max) * 0.5;
     let mut mesh = Mesh::new();
 
