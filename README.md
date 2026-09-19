@@ -129,6 +129,25 @@ cd target/midori_engine_validation_handoff
 
 Then complete `docs/validation/midori-nature-engine-profile-notes.md`, rerun `.\run_editor_validation.ps1 -VerifyOnly`, and ingest the returned bundle with `scripts/import_engine_validation_handoff.ps1`.
 
+### Native profile-notes check (partial tooling migration)
+
+```powershell
+$env:CARGO_TARGET_DIR = 'C:/Users/jetha/AppData/Local/Temp/lab-midori-cargo-target'
+cargo run -p midori-cli -- verify-profile-notes --profile-notes docs/validation/midori-nature-engine-profile-notes.md --output C:/midori-build/profile-notes-only.json
+cargo test -p midori-cli --test profile_notes
+```
+
+This native command checks the complete profile-note text policy only. It does
+not verify images, GLBs, scatter buffers, recipes, checksums or real engine
+execution, and its report is not a Phase 7 completion report. The full existing
+Python evidence verifier and engine/handoff wrappers remain required until
+their separate migrations pass review; this checkout is not yet Python-free.
+
+Missing/empty notes produce `pending` and exit 1, or exit 0 with
+`--allow-pending`. Failed checks always exit 1, even with that flag. This fixes
+the legacy verifier's success-on-failed-report exit bug without changing its
+JSON finding shape. The old full Python command itself is unchanged here.
+
 For a cold-start resume guide with current blockers, key files, and verification commands, see `docs/session-handoff.md`.
 
 ### Library

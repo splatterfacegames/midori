@@ -13,7 +13,8 @@
 //! midori info -s species/oak.toml
 //! ```
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use midori_cli::evidence::FullEvidenceOptions;
 use midori_core::{
     ExportConfig, ExportFormat, ExportMetadata, LodGenerationConfig, NaturePackageConfig,
     NaturePatch, Species, TextureSet, export_lod_meshes, export_mesh,
@@ -151,6 +152,124 @@ enum Commands {
         #[arg(short, long)]
         verbose: bool,
     },
+
+    /// Verify profile-note completeness only; not full engine evidence
+    VerifyProfileNotes {
+        #[arg(
+            long,
+            default_value = "docs/validation/midori-nature-engine-profile-notes.md"
+        )]
+        profile_notes: PathBuf,
+        /// Optional profile-only JSON report path
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Permit missing notes, never failed checks
+        #[arg(long)]
+        allow_pending: bool,
+    },
+
+    /// Verify recorded Unity/Unreal engine evidence
+    ///
+    /// Reads only the evidence files already on disk: it does not launch or
+    /// prove real engines, and a passing report is not proof that a Unity or
+    /// Unreal editor was ever executed.
+    // Boxed because eleven optional path overrides would otherwise make this
+    // variant several times larger than every other subcommand; clap supplies
+    // `impl<T: Args> Args for Box<T>`, so the parsed surface is unchanged.
+    VerifyEngineEvidence(Box<VerifyEngineEvidenceArgs>),
+}
+
+#[derive(Args)]
+struct VerifyEngineEvidenceArgs {
+    /// Directory holding the recorded engine validation reports
+    #[arg(long, default_value = "target/midori_engine_validation")]
+    validation_root: PathBuf,
+
+    /// Override the Midori package validation report path
+    #[arg(long)]
+    midori_report: Option<PathBuf>,
+
+    /// Override the engine validation summary path
+    #[arg(long)]
+    summary: Option<PathBuf>,
+
+    /// Override the Unity import report path
+    #[arg(long)]
+    unity_report: Option<PathBuf>,
+
+    /// Override the Unreal dry-run report path
+    #[arg(long)]
+    unreal_dry_run_report: Option<PathBuf>,
+
+    /// Override the Unreal editor report path
+    #[arg(long)]
+    unreal_report: Option<PathBuf>,
+
+    /// Override the Unity import screenshot path
+    #[arg(long)]
+    unity_import_screenshot: Option<PathBuf>,
+
+    /// Override the Unity density screenshot path
+    #[arg(long)]
+    unity_density_screenshot: Option<PathBuf>,
+
+    /// Override the Unreal import screenshot path
+    #[arg(long)]
+    unreal_import_screenshot: Option<PathBuf>,
+
+    /// Override the Unreal foliage settings screenshot path
+    #[arg(long)]
+    unreal_foliage_settings_screenshot: Option<PathBuf>,
+
+    /// Override the engine profile notes path
+    #[arg(long)]
+    profile_notes: Option<PathBuf>,
+
+    /// Optional JSON report path; written before stdout
+    #[arg(long)]
+    output: Option<PathBuf>,
+
+    /// Permit missing evidence, never failed checks
+    #[arg(long)]
+    allow_pending: bool,
+}
+
+impl VerifyEngineEvidenceArgs {
+    fn options(&self) -> FullEvidenceOptions {
+        let mut options = FullEvidenceOptions::from_validation_root(self.validation_root.clone());
+        for (target, override_path) in [
+            (&mut options.midori_report, &self.midori_report),
+            (&mut options.summary, &self.summary),
+            (&mut options.unity_report, &self.unity_report),
+            (
+                &mut options.unreal_dry_run_report,
+                &self.unreal_dry_run_report,
+            ),
+            (&mut options.unreal_report, &self.unreal_report),
+            (
+                &mut options.unity_import_screenshot,
+                &self.unity_import_screenshot,
+            ),
+            (
+                &mut options.unity_density_screenshot,
+                &self.unity_density_screenshot,
+            ),
+            (
+                &mut options.unreal_import_screenshot,
+                &self.unreal_import_screenshot,
+            ),
+            (
+                &mut options.unreal_foliage_settings_screenshot,
+                &self.unreal_foliage_settings_screenshot,
+            ),
+            (&mut options.profile_notes, &self.profile_notes),
+        ] {
+            if let Some(path) = override_path {
+                *target = path.clone();
+            }
+        }
+        options
+    }
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -253,6 +372,18 @@ fn main() {
             report,
             verbose,
         } => run_validate_nature(&input, report.as_ref(), verbose),
+        Commands::VerifyProfileNotes {
+            profile_notes,
+            output,
+            allow_pending,
+        } => match run_verify_profile_notes(&profile_notes, output.as_deref(), allow_pending) {
+            Ok(code) => std::process::exit(code),
+            Err(error) => Err(error),
+        },
+        Commands::VerifyEngineEvidence(args) => match run_verify_engine_evidence(&args) {
+            Ok(code) => std::process::exit(code),
+            Err(error) => Err(error),
+        },
     };
 
     if let Err(e) = result {
@@ -672,6 +803,49 @@ fn run_validate_nature(
     println!("Validation completed in {:?}", start.elapsed());
 
     Ok(())
+}
+
+/// Serialize one evidence report as pretty JSON plus a trailing newline,
+/// writing the requested output file before stdout so an unwritable report path
+/// is an error rather than a silently discarded artifact.
+fn emit_evidence_report(
+    report: &midori_cli::evidence::EvidenceReport,
+    output: Option<&std::path::Path>,
+    allow_pending: bool,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    use std::io::Write;
+
+    let mut json = serde_json::to_vec_pretty(report)?;
+    json.push(b'\n');
+    if let Some(output) = output {
+        if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| format!("cannot create report directory {parent:?}: {error}"))?;
+        }
+        std::fs::write(output, &json)
+            .map_err(|error| format!("cannot write report {output:?}: {error}"))?;
+    }
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    handle.write_all(&json)?;
+    handle.flush()?;
+    Ok(report.exit_code(allow_pending))
+}
+
+fn run_verify_profile_notes(
+    path: &std::path::Path,
+    output: Option<&std::path::Path>,
+    allow_pending: bool,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    let report = midori_cli::evidence::verify_profile_notes(path);
+    emit_evidence_report(&report, output, allow_pending)
+}
+
+fn run_verify_engine_evidence(
+    args: &VerifyEngineEvidenceArgs,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    let report = midori_cli::evidence::verify_engine_evidence(&args.options());
+    emit_evidence_report(&report, args.output.as_deref(), args.allow_pending)
 }
 
 #[cfg(test)]
