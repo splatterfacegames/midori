@@ -57,10 +57,14 @@ if (!chromePath) {
   process.exit(1);
 }
 
+// Spawn vite directly (not via npx — the shim makes vite a grandchild whose
+// inherited stdout pipe would keep this process's event loop alive after
+// the child is killed).
+const viteBin = resolve(root, 'node_modules/vite/bin/vite.js');
 const server = spawn(
-  process.platform === 'win32' ? 'npx.cmd' : 'npx',
+  process.execPath,
   [
-    'vite',
+    viteBin,
     'preview',
     '--config',
     'vite.config.ts',
@@ -142,3 +146,7 @@ try {
   ]);
   if (server.exitCode === null && server.signalCode === null) server.kill('SIGKILL');
 }
+
+// Don't rely on the event loop draining — a lingering pipe or socket handle
+// would hold the CI job open until its timeout.
+process.exit(process.exitCode ?? 0);
