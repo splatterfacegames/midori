@@ -5,6 +5,8 @@ members = [
     "crates/midori-cli",
     "crates/midori-wasm",
     "crates/midori-ffi",
+    "crates/midori-contracts",
+    "crates/midori-ui-domain",
 ]
 # midori-desktop is intentionally outside the workspace: it consumes the private
 # jethaforge stack (tools-frontend-host-tauri), while the engine workspace must

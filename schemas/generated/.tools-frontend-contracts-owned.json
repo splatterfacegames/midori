@@ -1,0 +1,11 @@
+{
+  "files": {
+    "catalog.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "json-schema.json": "e96d6907ff695e3002f53270023c6a52fe157c47dae2e9faec7f94c003a92358",
+    "projection.json": "656f4ce184ac7be6dc858ff2d1c35b143c1abb733bae22e7cd1c499271e7014d",
+    "tree.bfbs": "b5fddc6191b5b10c5e22dd21f60e628d65c8864ee6f77a60fb598e2e58f59235",
+    "tree.json": "c576d38697fc14d5ff47505503d32328e97ccfc9a9f62ec2027bdb3ad9c94522"
+  },
+  "generator_version": 1,
+  "kind": "descriptors"
+}

@@ -1,0 +1,1328 @@
+{
+  "objects": [
+    {
+      "name": "Midori.Tree.V1.ArtifactRef",
+      "fields": [
+        {
+          "name": "byte_count",
+          "type": {
+            "base_type": "ULong",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 8,
+            "element_size": 1
+          },
+          "id": 2,
+          "offset": 8,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "2"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "kind",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 0,
+          "offset": 4,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "0"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "sha256",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 1,
+          "offset": 6,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "1"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        }
+      ],
+      "is_struct": false,
+      "minalign": 1,
+      "bytesize": 0,
+      "documentation": [
+        " A bounded, digest-verified reference to bytes held outside this envelope."
+      ],
+      "declaration_file": "//tree.fbs"
+    },
+    {
+      "name": "Midori.Tree.V1.EngineIdentity",
+      "fields": [
+        {
+          "name": "build_id",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 1,
+          "offset": 6,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "1"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "source_revision",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 0,
+          "offset": 4,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "0"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        }
+      ],
+      "is_struct": false,
+      "minalign": 1,
+      "bytesize": 0,
+      "documentation": [
+        " The engine that produced a result. Caller-supplied provenance: this contract",
+        " carries the value and does not attest to its truth. A test fixture value is",
+        " not build attestation and must not be presented as release evidence."
+      ],
+      "declaration_file": "//tree.fbs"
+    },
+    {
+      "name": "Midori.Tree.V1.LodLevel",
+      "fields": [
+        {
+          "name": "index",
+          "type": {
+            "base_type": "UInt",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 0,
+          "offset": 4,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "index_count",
+          "type": {
+            "base_type": "UInt",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 4,
+          "offset": 12,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "4"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "name",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 1,
+          "offset": 6,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "1"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "screen_height",
+          "type": {
+            "base_type": "Float",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 2,
+          "offset": 8,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "2"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "submeshes",
+          "type": {
+            "base_type": "Vector",
+            "element": "Obj",
+            "index": 3,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 4
+          },
+          "id": 5,
+          "offset": 14,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "5"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "vertex_count",
+          "type": {
+            "base_type": "UInt",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 3,
+          "offset": 10,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "3"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        }
+      ],
+      "is_struct": false,
+      "minalign": 1,
+      "bytesize": 0,
+      "documentation": [
+        " One balanced-LOD level. `name` and `screen_height` carry the exporter's own",
+        " LOD identity; the GLB names its nodes `<Species>_LOD<index>` and records the",
+        " thresholds in root extras, rather than using an MSFT_lod hierarchy."
+      ],
+      "declaration_file": "//tree.fbs"
+    },
+    {
+      "name": "Midori.Tree.V1.SubmeshRange",
+      "fields": [
+        {
+          "name": "index_count",
+          "type": {
+            "base_type": "UInt",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 2,
+          "offset": 8,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "2"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "index_offset",
+          "type": {
+            "base_type": "UInt",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 1,
+          "offset": 6,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "1"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "material",
+          "type": {
+            "base_type": "UByte",
+            "element": "None",
+            "index": 0,
+            "fixed_length": 0,
+            "base_size": 1,
+            "element_size": 1
+          },
+          "id": 0,
+          "offset": 4,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        }
+      ],
+      "is_struct": false,
+      "minalign": 1,
+      "bytesize": 0,
+      "documentation": [
+        " One contiguous index range of a LOD mesh drawn with a single material."
+      ],
+      "declaration_file": "//tree.fbs"
+    },
+    {
+      "name": "Midori.Tree.V1.TreeComputeRequest",
+      "fields": [
+        {
+          "name": "display_name",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 3,
+          "offset": 10,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "3"
+            }
+          ],
+          "optional": true,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "schema",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 0,
+          "offset": 4,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "0"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "seed",
+          "type": {
+            "base_type": "ULong",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 8,
+            "element_size": 1
+          },
+          "id": 2,
+          "offset": 8,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "2"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "source",
+          "type": {
+            "base_type": "Vector",
+            "element": "UByte",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 1,
+          "offset": 6,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "1"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        }
+      ],
+      "is_struct": false,
+      "minalign": 1,
+      "bytesize": 0,
+      "documentation": [
+        " A request to generate one tree from one source and one seed.",
+        "",
+        " `source` is the exact imported UTF-8 species TOML. `display_name` is",
+        " provenance for the UI only and is never part of document identity \u2014 two",
+        " requests with identical `source` and `seed` describe the same computation",
+        " whatever they are called."
+      ],
+      "declaration_file": "//tree.fbs"
+    },
+    {
+      "name": "Midori.Tree.V1.TreeComputeResult",
+      "fields": [
+        {
+          "name": "engine",
+          "type": {
+            "base_type": "Obj",
+            "element": "None",
+            "index": 1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 3,
+          "offset": 10,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "3"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "glb",
+          "type": {
+            "base_type": "Obj",
+            "element": "None",
+            "index": 0,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 6,
+          "offset": 16,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "6"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "lods",
+          "type": {
+            "base_type": "Vector",
+            "element": "Obj",
+            "index": 2,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 4
+          },
+          "id": 5,
+          "offset": 14,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "5"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "schema",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 0,
+          "offset": 4,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "0"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "seed",
+          "type": {
+            "base_type": "ULong",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 8,
+            "element_size": 1
+          },
+          "id": 2,
+          "offset": 8,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "2"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "source_sha256",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 1,
+          "offset": 6,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "1"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "summary",
+          "type": {
+            "base_type": "Obj",
+            "element": "None",
+            "index": 6,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 4,
+          "offset": 12,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "4"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        }
+      ],
+      "is_struct": false,
+      "minalign": 1,
+      "bytesize": 0,
+      "documentation": [
+        " The result of one accepted request.",
+        "",
+        " `source_sha256` digests the exact request bytes, so a consumer can prove a",
+        " result belongs to the input it holds and reject a stale one. `glb` is a",
+        " reference, not the payload. `lods` is ordered by ascending LOD index."
+      ],
+      "declaration_file": "//tree.fbs"
+    },
+    {
+      "name": "Midori.Tree.V1.TreeSummary",
+      "fields": [
+        {
+          "name": "bounds_max",
+          "type": {
+            "base_type": "Vector",
+            "element": "Float",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 4
+          },
+          "id": 6,
+          "offset": 16,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "6"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "bounds_min",
+          "type": {
+            "base_type": "Vector",
+            "element": "Float",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 4
+          },
+          "id": 5,
+          "offset": 14,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "5"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "branch_count",
+          "type": {
+            "base_type": "ULong",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 8,
+            "element_size": 1
+          },
+          "id": 3,
+          "offset": 10,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "3"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "leaf_count",
+          "type": {
+            "base_type": "ULong",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 8,
+            "element_size": 1
+          },
+          "id": 4,
+          "offset": 12,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "4"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "scientific_name",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 1,
+          "offset": 6,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "1"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "species_name",
+          "type": {
+            "base_type": "String",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 4,
+            "element_size": 1
+          },
+          "id": 0,
+          "offset": 4,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": true,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "0"
+            },
+            {
+              "key": "required",
+              "value": "0"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        },
+        {
+          "name": "stem_count",
+          "type": {
+            "base_type": "ULong",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 8,
+            "element_size": 1
+          },
+          "id": 2,
+          "offset": 8,
+          "default_integer": 0,
+          "default_real": 0.0,
+          "deprecated": false,
+          "required": false,
+          "key": false,
+          "attributes": [
+            {
+              "key": "id",
+              "value": "2"
+            }
+          ],
+          "optional": false,
+          "padding": 0,
+          "offset64": false
+        }
+      ],
+      "is_struct": false,
+      "minalign": 1,
+      "bytesize": 0,
+      "documentation": [
+        " Derived description of a generated tree. Every field is computed from the one",
+        " generation that produced the referenced GLB."
+      ],
+      "declaration_file": "//tree.fbs"
+    }
+  ],
+  "enums": [
+    {
+      "name": "Midori.Tree.V1.MaterialRole",
+      "values": [
+        {
+          "name": "Bark",
+          "value": 0,
+          "union_type": {
+            "base_type": "None",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 1,
+            "element_size": 1
+          }
+        },
+        {
+          "name": "Leaves",
+          "value": 1,
+          "union_type": {
+            "base_type": "None",
+            "element": "None",
+            "index": -1,
+            "fixed_length": 0,
+            "base_size": 1,
+            "element_size": 1
+          }
+        }
+      ],
+      "is_union": false,
+      "underlying_type": {
+        "base_type": "UByte",
+        "element": "None",
+        "index": 0,
+        "fixed_length": 0,
+        "base_size": 1,
+        "element_size": 1
+      },
+      "documentation": [
+        " Which core material a submesh range draws with. These are the only two roles",
+        " public `midori_core::MaterialType` has. The legacy Svelte frontend also",
+        " displayed Twig and Frond labels; those are not engine variants and must not",
+        " be added here without a corresponding core change."
+      ],
+      "declaration_file": "//tree.fbs"
+    }
+  ],
+  "file_ident": "MTR1",
+  "file_ext": "",
+  "root_table": {
+    "name": "Midori.Tree.V1.TreeComputeResult",
+    "fields": [
+      {
+        "name": "engine",
+        "type": {
+          "base_type": "Obj",
+          "element": "None",
+          "index": 1,
+          "fixed_length": 0,
+          "base_size": 4,
+          "element_size": 1
+        },
+        "id": 3,
+        "offset": 10,
+        "default_integer": 0,
+        "default_real": 0.0,
+        "deprecated": false,
+        "required": true,
+        "key": false,
+        "attributes": [
+          {
+            "key": "id",
+            "value": "3"
+          },
+          {
+            "key": "required",
+            "value": "0"
+          }
+        ],
+        "optional": false,
+        "padding": 0,
+        "offset64": false
+      },
+      {
+        "name": "glb",
+        "type": {
+          "base_type": "Obj",
+          "element": "None",
+          "index": 0,
+          "fixed_length": 0,
+          "base_size": 4,
+          "element_size": 1
+        },
+        "id": 6,
+        "offset": 16,
+        "default_integer": 0,
+        "default_real": 0.0,
+        "deprecated": false,
+        "required": true,
+        "key": false,
+        "attributes": [
+          {
+            "key": "id",
+            "value": "6"
+          },
+          {
+            "key": "required",
+            "value": "0"
+          }
+        ],
+        "optional": false,
+        "padding": 0,
+        "offset64": false
+      },
+      {
+        "name": "lods",
+        "type": {
+          "base_type": "Vector",
+          "element": "Obj",
+          "index": 2,
+          "fixed_length": 0,
+          "base_size": 4,
+          "element_size": 4
+        },
+        "id": 5,
+        "offset": 14,
+        "default_integer": 0,
+        "default_real": 0.0,
+        "deprecated": false,
+        "required": true,
+        "key": false,
+        "attributes": [
+          {
+            "key": "id",
+            "value": "5"
+          },
+          {
+            "key": "required",
+            "value": "0"
+          }
+        ],
+        "optional": false,
+        "padding": 0,
+        "offset64": false
+      },
+      {
+        "name": "schema",
+        "type": {
+          "base_type": "String",
+          "element": "None",
+          "index": -1,
+          "fixed_length": 0,
+          "base_size": 4,
+          "element_size": 1
+        },
+        "id": 0,
+        "offset": 4,
+        "default_integer": 0,
+        "default_real": 0.0,
+        "deprecated": false,
+        "required": true,
+        "key": false,
+        "attributes": [
+          {
+            "key": "id",
+            "value": "0"
+          },
+          {
+            "key": "required",
+            "value": "0"
+          }
+        ],
+        "optional": false,
+        "padding": 0,
+        "offset64": false
+      },
+      {
+        "name": "seed",
+        "type": {
+          "base_type": "ULong",
+          "element": "None",
+          "index": -1,
+          "fixed_length": 0,
+          "base_size": 8,
+          "element_size": 1
+        },
+        "id": 2,
+        "offset": 8,
+        "default_integer": 0,
+        "default_real": 0.0,
+        "deprecated": false,
+        "required": false,
+        "key": false,
+        "attributes": [
+          {
+            "key": "id",
+            "value": "2"
+          }
+        ],
+        "optional": false,
+        "padding": 0,
+        "offset64": false
+      },
+      {
+        "name": "source_sha256",
+        "type": {
+          "base_type": "String",
+          "element": "None",
+          "index": -1,
+          "fixed_length": 0,
+          "base_size": 4,
+          "element_size": 1
+        },
+        "id": 1,
+        "offset": 6,
+        "default_integer": 0,
+        "default_real": 0.0,
+        "deprecated": false,
+        "required": true,
+        "key": false,
+        "attributes": [
+          {
+            "key": "id",
+            "value": "1"
+          },
+          {
+            "key": "required",
+            "value": "0"
+          }
+        ],
+        "optional": false,
+        "padding": 0,
+        "offset64": false
+      },
+      {
+        "name": "summary",
+        "type": {
+          "base_type": "Obj",
+          "element": "None",
+          "index": 6,
+          "fixed_length": 0,
+          "base_size": 4,
+          "element_size": 1
+        },
+        "id": 4,
+        "offset": 12,
+        "default_integer": 0,
+        "default_real": 0.0,
+        "deprecated": false,
+        "required": true,
+        "key": false,
+        "attributes": [
+          {
+            "key": "id",
+            "value": "4"
+          },
+          {
+            "key": "required",
+            "value": "0"
+          }
+        ],
+        "optional": false,
+        "padding": 0,
+        "offset64": false
+      }
+    ],
+    "is_struct": false,
+    "minalign": 1,
+    "bytesize": 0,
+    "documentation": [
+      " The result of one accepted request.",
+      "",
+      " `source_sha256` digests the exact request bytes, so a consumer can prove a",
+      " result belongs to the input it holds and reject a stale one. `glb` is a",
+      " reference, not the payload. `lods` is ordered by ascending LOD index."
+    ],
+    "declaration_file": "//tree.fbs"
+  },
+  "services": [
+
+  ],
+  "advanced_features": 0,
+  "fbs_files": [
+    {
+      "filename": "//tree.fbs",
+      "included_filenames": [
+
+      ]
+    }
+  ]
+}

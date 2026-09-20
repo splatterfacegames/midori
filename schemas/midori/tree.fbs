@@ -1,0 +1,105 @@
+// Midori tree-compute contract, version 1.
+//
+// This is the single cross-language wire authority for the tree slice. Transient
+// React state and the Rust return value are projections of these tables, not a
+// second hand-maintained protocol.
+//
+// Two rules govern the shape:
+//
+//   - Large payloads stay OUT of the control envelope. The generated GLB is
+//     referenced by digest and byte count, never carried inline. Mesh vertex and
+//     index data is likewise absent: a LOD level reports counts and material
+//     ranges so a consumer can validate what it received, and fetches the bytes
+//     over a bounded, digest-checked transfer.
+//   - Identity is exact. The seed is a ulong and crosses a JS boundary as a
+//     canonical decimal string through the shared codec projection, never as a
+//     lossy JS number. Source provenance is the digest of the exact imported
+//     UTF-8 bytes, not of a normalized or reparsed form.
+
+namespace Midori.Tree.V1;
+
+/// Which core material a submesh range draws with. These are the only two roles
+/// public `midori_core::MaterialType` has. The legacy Svelte frontend also
+/// displayed Twig and Frond labels; those are not engine variants and must not
+/// be added here without a corresponding core change.
+enum MaterialRole : ubyte {
+  Bark,
+  Leaves,
+}
+
+/// A bounded, digest-verified reference to bytes held outside this envelope.
+table ArtifactRef {
+  kind : string (required, id: 0);
+  sha256 : string (required, id: 1);
+  byte_count : ulong (id: 2);
+}
+
+/// The engine that produced a result. Caller-supplied provenance: this contract
+/// carries the value and does not attest to its truth. A test fixture value is
+/// not build attestation and must not be presented as release evidence.
+table EngineIdentity {
+  source_revision : string (required, id: 0);
+  build_id : string (required, id: 1);
+}
+
+/// One contiguous index range of a LOD mesh drawn with a single material.
+table SubmeshRange {
+  material : MaterialRole (id: 0);
+  index_offset : uint (id: 1);
+  index_count : uint (id: 2);
+}
+
+/// One balanced-LOD level. `name` and `screen_height` carry the exporter's own
+/// LOD identity; the GLB names its nodes `<Species>_LOD<index>` and records the
+/// thresholds in root extras, rather than using an MSFT_lod hierarchy.
+table LodLevel {
+  index : uint (id: 0);
+  name : string (required, id: 1);
+  screen_height : float (id: 2);
+  vertex_count : uint (id: 3);
+  index_count : uint (id: 4);
+  submeshes : [SubmeshRange] (required, id: 5);
+}
+
+/// Derived description of a generated tree. Every field is computed from the one
+/// generation that produced the referenced GLB.
+table TreeSummary {
+  species_name : string (required, id: 0);
+  scientific_name : string (required, id: 1);
+  stem_count : ulong (id: 2);
+  branch_count : ulong (id: 3);
+  leaf_count : ulong (id: 4);
+  bounds_min : [float] (required, id: 5);
+  bounds_max : [float] (required, id: 6);
+}
+
+/// A request to generate one tree from one source and one seed.
+///
+/// `source` is the exact imported UTF-8 species TOML. `display_name` is
+/// provenance for the UI only and is never part of document identity — two
+/// requests with identical `source` and `seed` describe the same computation
+/// whatever they are called.
+table TreeComputeRequest {
+  schema : string (required, id: 0);
+  source : [ubyte] (required, id: 1);
+  seed : ulong (id: 2);
+  display_name : string (id: 3);
+}
+
+/// The result of one accepted request.
+///
+/// `source_sha256` digests the exact request bytes, so a consumer can prove a
+/// result belongs to the input it holds and reject a stale one. `glb` is a
+/// reference, not the payload. `lods` is ordered by ascending LOD index.
+table TreeComputeResult {
+  schema : string (required, id: 0);
+  source_sha256 : string (required, id: 1);
+  seed : ulong (id: 2);
+  engine : EngineIdentity (required, id: 3);
+  summary : TreeSummary (required, id: 4);
+  lods : [LodLevel] (required, id: 5);
+  glb : ArtifactRef (required, id: 6);
+}
+
+root_type TreeComputeResult;
+file_identifier "MTR1";
