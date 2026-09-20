@@ -1,16 +1,18 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/grove-core",
-    "crates/grove-cli",
-    "crates/grove-wasm",
-    "crates/grove-ffi",
+    "crates/midori-core",
+    "crates/midori-cli",
+    "crates/midori-wasm",
+    "crates/midori-ffi",
+    "crates/midori-contracts",
+    "crates/midori-ui-domain",
 ]
-# grove-desktop is intentionally outside the workspace: it consumes the private
+# midori-desktop is intentionally outside the workspace: it consumes the private
 # jethaforge stack (tools-frontend-host-tauri), while the engine workspace must
 # resolve and build with no private dependencies. Build/test it via
-# `cargo test --manifest-path crates/grove-desktop/Cargo.toml` or `npm run desktop`.
-exclude = ["crates/grove-desktop"]
+# `cargo test --manifest-path crates/midori-desktop/Cargo.toml` or `npm run desktop`.
+exclude = ["crates/midori-desktop"]
 
 [workspace.package]
 version = "0.1.0"

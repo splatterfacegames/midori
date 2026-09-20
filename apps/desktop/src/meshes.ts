@@ -87,3 +87,87 @@ export function lodToDescriptors(
   }
   return descriptors;
 }
+
+/* ── Nature patch preview ────────────────────────────────────────────────
+ *
+ * Terrain becomes one descriptor; each scatter_set's prototype contributes
+ * up to SCATTER_SAMPLE_LIMIT per-kind descriptors (one per sampled instance,
+ * placed via `transform`). Viewport3D has no instanced drawing yet — the
+ * sample keeps the frame interactive at real densities.
+ */
+
+import type { NaturePreview, NatureMesh, ScatterInstance } from './engine';
+
+/** Per-set cap on scatter instances pushed into the viewport. */
+export const SCATTER_SAMPLE_LIMIT = 240;
+
+const KIND_COLORS: Record<string, string> = {
+  grass: '#4a7d34',
+  forb: '#7d9a3a',
+  shrub: '#3c6b33',
+  rock: '#8a8578',
+  log: '#6b5233',
+  litter: '#7a6a42',
+};
+
+function natureMeshDescriptor(
+  mesh: NatureMesh,
+  entityId: string,
+  revision: number,
+  color: string,
+): MeshDescriptor {
+  return {
+    entityId,
+    revision,
+    positions: Float32Array.from(mesh.vertices.positions),
+    normals: Float32Array.from(mesh.vertices.normals),
+    indices: Uint32Array.from(mesh.indices),
+    color,
+  };
+}
+
+function natureKindColor(kind: string): string {
+  return KIND_COLORS[kind] ?? '#5f7a45';
+}
+
+export function natureToDescriptors(
+  preview: NaturePreview,
+  revision: number,
+): MeshDescriptor[] {
+  const descriptors: MeshDescriptor[] = [
+    natureMeshDescriptor(preview.terrain, 'nature-terrain', revision, '#4f6641'),
+  ];
+
+  for (const [setIndex, set] of preview.scatter_sets.entries()) {
+    const prototype = preview.prototypes[set.layer_index] ??
+      preview.prototypes.find((p) => p.name === set.layer_name || p.kind === set.kind);
+    const geometry = prototype?.lods.at(-1) ?? prototype?.lods[0];
+    if (!geometry) continue;
+
+    const positions = Float32Array.from(geometry.vertices.positions);
+    const normals = Float32Array.from(geometry.vertices.normals);
+    const indices = Uint32Array.from(geometry.indices);
+
+    let placed = 0;
+    outer: for (const chunk of set.chunks) {
+      for (const inst of chunk.instances as ScatterInstance[]) {
+        if (placed >= SCATTER_SAMPLE_LIMIT) break outer;
+        descriptors.push({
+          entityId: `nature-scatter-${setIndex}-${placed}`,
+          revision,
+          positions,
+          normals,
+          indices,
+          color: natureKindColor(set.kind),
+          transform: {
+            position: inst.position,
+            rotation: [0, inst.yaw, 0],
+            scale: [inst.width, inst.height, inst.width],
+          },
+        });
+        placed += 1;
+      }
+    }
+  }
+  return descriptors;
+}

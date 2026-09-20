@@ -1,5 +1,5 @@
 /**
- * Grove workbench model.
+ * Midori workbench model.
  *
  * Owns the species document lifecycle: TOML source text is authoritative, the
  * serde JSON projection drives the parameter inspector, and every mutation is
@@ -9,13 +9,16 @@
 
 import {
   Generator,
+  generateNaturePreview,
   loadEngine,
   type LodMesh,
   type MaterialMaps,
+  type NaturePreview,
   type TreeStats,
 } from './engine';
-import { PRESETS } from './presets';
+import { NATURE_PRESETS, PRESETS } from './presets';
 import { setParam, type BranchLevelId, type SpeciesJson, DEFAULT_BRANCH_PARAMS } from './species';
+import { SCATTER_SAMPLE_LIMIT as SCATTER_LIMIT } from './meshes';
 
 export interface ExportFile {
   name: string;
@@ -25,6 +28,13 @@ export interface ExportFile {
 export interface WorkbenchState {
   ready: boolean;
   generating: boolean;
+  /** 'species' edits a Species document; 'nature' previews a NaturePatch. */
+  mode: 'species' | 'nature';
+  /** NaturePatch TOML + preview output while in nature mode. */
+  natureToml: string | null;
+  naturePreview: NaturePreview | null;
+  /** Scatter instances actually handed to the viewport (sampled). */
+  natureScatterSampled: number;
   /** Display label for the loaded species document. */
   label: string;
   /** Committed species TOML source. */
@@ -53,7 +63,7 @@ export interface WorkbenchState {
 
 const MAX_LOG_LINES = 200;
 
-export class GroveModel {
+export class MidoriModel {
   private state: WorkbenchState;
   private listeners = new Set<() => void>();
   private generator: Generator | null = null;
@@ -66,11 +76,15 @@ export class GroveModel {
   }
 
   /** Load the WASM module and the default preset. */
-  static async create(wasmInput?: Parameters<typeof loadEngine>[0]): Promise<GroveModel> {
+  static async create(wasmInput?: Parameters<typeof loadEngine>[0]): Promise<MidoriModel> {
     await loadEngine(wasmInput);
-    const model = new GroveModel({
+    const model = new MidoriModel({
       ready: true,
       generating: false,
+      mode: 'species',
+      natureToml: null,
+      naturePreview: null,
+      natureScatterSampled: 0,
       label: 'Untitled',
       toml: '',
       json: null,
@@ -116,8 +130,53 @@ export class GroveModel {
     this.commitToml(preset.toml, `Preset · ${preset.label}`);
   }
 
+  loadNaturePreset(id: string): void {
+    const preset = NATURE_PRESETS.find((entry) => entry.id === id);
+    if (!preset) return;
+    this.loadNatureToml(preset.toml, `Preset · ${preset.label}`);
+  }
+
   importToml(text: string, label: string): boolean {
-    return this.commitToml(text, `Custom · ${label}`);
+    if (this.commitToml(text, `Custom · ${label}`)) return true;
+    return this.loadNatureToml(text, `Custom · ${label}`);
+  }
+
+  /** Parse + preview a NaturePatch document; returns false on failure. */
+  loadNatureToml(toml: string, label: string): boolean {
+    try {
+      const preview = generateNaturePreview(toml);
+      const sampled = Math.min(
+        preview.scatter_sets.reduce(
+          (n, set) => n + set.chunks.reduce((m, c) => m + c.instances.length, 0),
+          0,
+        ),
+        preview.scatter_sets.length * SCATTER_LIMIT,
+      );
+      this.emit({
+        mode: 'nature',
+        label,
+        natureToml: toml,
+        naturePreview: preview,
+        natureScatterSampled: sampled,
+        toml,
+        sourceDraft: toml,
+        sourceDirty: false,
+        sourceError: null,
+        paramError: null,
+        lods: null,
+        stats: null,
+        maps: null,
+      });
+      this.pushLog(
+        `Loaded nature patch · ${preview.stats.prototype_count} prototypes, ${preview.stats.scatter_instance_count} scatter instances`,
+      );
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.emit({ sourceError: message });
+      this.pushLog(`Nature load failed: ${message}`);
+      return false;
+    }
   }
 
   /** Parse + commit TOML; returns false and records the error on failure. */
@@ -128,6 +187,10 @@ export class GroveModel {
       this.generator = generator;
       const json = generator.toJson() as SpeciesJson;
       this.emit({
+        mode: 'species',
+        natureToml: null,
+        naturePreview: null,
+        natureScatterSampled: 0,
         label,
         toml,
         json,
@@ -168,6 +231,10 @@ export class GroveModel {
   // ---- generation ----------------------------------------------------------
 
   regenerate(): void {
+    if (this.state.mode === 'nature') {
+      if (this.state.natureToml) this.loadNatureToml(this.state.natureToml, this.state.label);
+      return;
+    }
     if (!this.generator) return;
     this.emit({ generating: true });
     try {
@@ -257,6 +324,9 @@ export class GroveModel {
 
   applySource(): boolean {
     const draft = this.state.sourceDraft;
+    if (this.state.mode === 'nature') {
+      return this.loadNatureToml(draft, this.state.label);
+    }
     try {
       const generator = Generator.fromToml(draft);
       this.generator?.free();

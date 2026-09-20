@@ -32,17 +32,17 @@ export function ExportDialog({
   };
 
   return (
-    <div className="grove-modal-backdrop" role="presentation" onClick={onCancel}>
+    <div className="midori-modal-backdrop" role="presentation" onClick={onCancel}>
       <form
-        className="grove-modal"
+        className="midori-modal"
         role="dialog"
         aria-label="Export glTF"
         onClick={(event) => event.stopPropagation()}
         onSubmit={submit}
       >
         <h2>Export glTF</h2>
-        <label className="grove-field">
-          <span className="grove-field-label">File name</span>
+        <label className="midori-field">
+          <span className="midori-field-label">File name</span>
           <input
             type="text"
             value={baseName}
@@ -51,34 +51,34 @@ export function ExportDialog({
             required
           />
         </label>
-        <label className="grove-field">
-          <span className="grove-field-label">Format</span>
+        <label className="midori-field">
+          <span className="midori-field-label">Format</span>
           <select value={format} onChange={(event) => setFormat(event.target.value as 'glb' | 'gltf')}>
             <option value="glb">.glb — single binary</option>
             <option value="gltf">.gltf + .bin — separate files</option>
           </select>
         </label>
-        <label className="grove-field">
-          <span className="grove-field-label">Variants</span>
+        <label className="midori-field">
+          <span className="midori-field-label">Variants</span>
           <select value={scope} onChange={(event) => setScope(event.target.value as 'current' | 'all')}>
             <option value="current">Current (seed {state.seed})</option>
             <option value="all">All {state.variants.length} listed variants</option>
           </select>
         </label>
-        <label className="grove-field grove-field-inline">
+        <label className="midori-field midori-field-inline">
           <input
             type="checkbox"
             checked={embedTextures}
             onChange={(event) => setEmbedTextures(event.target.checked)}
           />
-          <span className="grove-field-label">Embed material maps</span>
+          <span className="midori-field-label">Embed material maps</span>
         </label>
-        <p className="grove-subtle">
+        <p className="midori-subtle">
           Every LOD level is included, with Pivot Painter data in TEXCOORD_1 and COLOR_0.
           Material maps embed the species' generated bark albedo+normal and leaf card PNGs;
           baked impostor atlases are always embedded when a LOD uses crown impostors.
         </p>
-        <div className="grove-modal-actions">
+        <div className="midori-modal-actions">
           <button type="button" onClick={onCancel}>
             Cancel
           </button>

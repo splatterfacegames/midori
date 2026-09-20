@@ -42,8 +42,8 @@ function NumberField({
     }
   };
   return (
-    <label className="grove-field">
-      <span className="grove-field-label">
+    <label className="midori-field">
+      <span className="midori-field-label">
         {field.label}
         {field.unit ? <em>{field.unit}</em> : null}
       </span>
@@ -76,13 +76,13 @@ function Section({
 }) {
   const enabled = !section.branchLevel || json.branches[section.branchLevel] != null;
   return (
-    <details className="grove-section" open>
+    <details className="midori-section" open>
       <summary>
         {section.title}
         {section.branchLevel ? (
           <button
             type="button"
-            className="grove-section-toggle"
+            className="midori-section-toggle"
             title={enabled ? `Remove ${section.branchLevel}` : `Add ${section.branchLevel}`}
             onClick={(event) => {
               event.preventDefault();
@@ -94,14 +94,14 @@ function Section({
         ) : null}
       </summary>
       {enabled ? (
-        <div className="grove-fields">
+        <div className="midori-fields">
           {section.fields.map((field) => {
             const path = `${section.id}.${field.key}`;
             const value = getParam(json, path);
             if (field.kind === 'enum') {
               return (
-                <label key={field.key} className="grove-field">
-                  <span className="grove-field-label">{field.label}</span>
+                <label key={field.key} className="midori-field">
+                  <span className="midori-field-label">{field.label}</span>
                   <select
                     value={String(value ?? '')}
                     onChange={(event) => onCommit(path, event.target.value)}
@@ -117,8 +117,8 @@ function Section({
             }
             if (field.kind === 'text') {
               return (
-                <label key={field.key} className="grove-field">
-                  <span className="grove-field-label">{field.label}</span>
+                <label key={field.key} className="midori-field">
+                  <span className="midori-field-label">{field.label}</span>
                   <input
                     type="text"
                     value={String(value ?? '')}
@@ -139,7 +139,7 @@ function Section({
           })}
         </div>
       ) : (
-        <p className="grove-subtle">Disabled — no {section.branchLevel} branches generated.</p>
+        <p className="midori-subtle">Disabled — no {section.branchLevel} branches generated.</p>
       )}
     </details>
   );
@@ -157,25 +157,25 @@ export function ParamsPanel({
   const json = state.json;
   if (!json) {
     return (
-      <div className="grove-panel-content">
-        <p className="grove-subtle">No species loaded.</p>
+      <div className="midori-panel-content">
+        <p className="midori-subtle">No species loaded.</p>
       </div>
     );
   }
   return (
-    <div className="grove-panel-content" aria-label="Species parameters">
-      <div className="grove-eyebrow">WEBER–PENN PARAMETERS</div>
-      <div className="grove-fields">
-        <label className="grove-field">
-          <span className="grove-field-label">Name</span>
+    <div className="midori-panel-content" aria-label="Species parameters">
+      <div className="midori-eyebrow">WEBER–PENN PARAMETERS</div>
+      <div className="midori-fields">
+        <label className="midori-field">
+          <span className="midori-field-label">Name</span>
           <input
             type="text"
             value={json.species.name}
             onChange={(event) => onCommit('species.name', event.target.value)}
           />
         </label>
-        <label className="grove-field">
-          <span className="grove-field-label">Scientific</span>
+        <label className="midori-field">
+          <span className="midori-field-label">Scientific</span>
           <input
             type="text"
             value={json.species.scientific}
@@ -193,7 +193,7 @@ export function ParamsPanel({
         />
       ))}
       {state.paramError ? (
-        <p className="grove-error" role="alert">
+        <p className="midori-error" role="alert">
           {state.paramError}
         </p>
       ) : null}

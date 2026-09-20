@@ -29,7 +29,7 @@ try {
     run('node_modules/vite/bin/vite.js', ['--config', 'vite.config.ts', '--host', '127.0.0.1'])
       .once('exit', (code) => { if (code) { stop(); process.exitCode = code; } });
   }
-  await completion(run('node_modules/@tauri-apps/cli/tauri.js', [mode, ...process.argv.slice(3)], resolve(root, 'crates/grove-desktop')));
+  await completion(run('node_modules/@tauri-apps/cli/tauri.js', [mode, ...process.argv.slice(3)], resolve(root, 'crates/midori-desktop')));
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;

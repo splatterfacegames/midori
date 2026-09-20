@@ -1,104 +1,48 @@
-# Architecture
+# Midori Architecture
 
-Grove is a procedural tree generator (Weber–Penn model) with a Rust engine,
-a CLI, a desktop workbench, and a C FFI surface for engine plugins.
+Midori has four main ownership boundaries:
 
-```
-midori/
-├── crates/
-│   ├── grove-core/      # Generation engine: species TOML -> tree -> LOD meshes -> glTF
-│   ├── grove-cli/       # `grove` binary: generate / info
-│   ├── grove-wasm/      # wasm-bindgen bindings used by the workbench webview
-│   ├── grove-ffi/       # C API for engine plugins (cdylib/staticlib)
-│   └── grove-desktop/   # Tauri 2 host: windowing + bounded file commands
-│                        #   (standalone crate — excluded from the workspace so the
-│                        #    engine builds without the private jethaforge dep)
-├── apps/desktop/        # React 19 + Vite workbench UI (jethaforge stack)
-│   └── src/wasm/        # Committed wasm-pack build of grove-wasm
-├── presets/species/     # Authoritative species TOML documents
-└── scripts/             # build-wasm.mjs, desktop.mjs, make-icon.mjs
-```
+- `midori-core`: parses species TOML, generates deterministic tree data, builds meshes, generates LOD sets, and exports glTF/GLB.
+- `midori-cli`: loads species files from disk, chooses generation/export options, and writes assets for command-line workflows.
+- `midori-wasm`: wraps `midori-core` for the workbench, returning JS-friendly mesh arrays, stats, metadata, and GLB bytes.
+- `midori-contracts` / `midori-ui-domain`: FlatBuffers tree-compute wire contract and source-bound composition helpers for UI adapters (mined from the ui-domain line; not yet consumed by the workbench).
+- `apps/desktop`: React + Tauri workbench on the private jethaforge frontend stack. Loads species presets or TOML, calls the WASM package, previews generated LOD meshes and nature-patch scatter, and downloads GLB exports. `crates/midori-desktop` is the Tauri host crate, excluded from the workspace.
 
-## The one engine rule
+## Data Flow
 
-There is exactly one generation engine: `grove-core`. Every surface consumes
-the same code:
+1. A species TOML file is parsed into `Species`.
+2. `generate_tree` dispatches by `species.generator.family`, then creates deterministic stems, leaves, bounds, and seed metadata through the selected family.
+3. `generate_lod_meshes` converts the generated tree into one mesh per LOD.
+4. `midori-wasm` serializes LOD mesh arrays for the editor preview.
+5. The Three preview builds renderable geometry/materials from WASM mesh data.
+6. Export calls build glTF/GLB from the same LOD mesh set.
 
-- `grove-cli` links it natively.
-- `grove-wasm` compiles it to WebAssembly for the webview.
-- `grove-ffi` exposes it over C ABI.
-- `grove-desktop` deliberately does **not** embed the engine — the desktop app
-  runs the same `grove-wasm` build inside the Tauri webview, so preview and
-  export are byte-identical between browser dev and the packaged app.
+## Determinism
 
-## Document flow
+Generation is seed-driven. Tests should treat fixed-seed stem counts, leaf counts, bounds, LOD vertex counts, and LOD triangle counts as compatibility signals. If an intentional generator change updates those values, the fixture tests should be updated in the same patch with a clear reason.
 
-`species.toml` is the authoritative document. In the workbench:
+## Generator Boundary
 
-```
-params panel ──edit──> species JSON ──fromJson──> engine validates
-source panel ──edit──> TOML text  ──fromToml──> engine validates
-        ▲                                          │
-        └────────── toJson() / toToml() ◄──────────┘
-                         then regenerate + re-render
-```
+Generator families own morphology-specific skeleton construction, but they must return the shared `Tree` output. Mesh building, LOD generation, WASM serialization, preview rendering, and export should not branch on plant family unless a future feature has a concrete downstream contract.
 
-Edits in either view are validated by the engine before being committed; the
-other view is re-synced from the engine output. There is no JS-side TOML
-parser and no duplicated parameter list outside `apps/desktop/src/species.ts`
-(which only describes *how to render* fields, not their meaning).
+Shared radius and taper semantics belong at the species/generation boundary. Generator families may choose where branches attach and how many siblings they create, but branch radius models and taper profiles should stay schema-driven so Weber-Penn, dichotomous, and future families do not drift into incompatible controls.
 
-## LOD previews
+## Mesh Boundary
 
-`GroveGenerator.generate(seed)` produces one `LodMesh` per level in the
-species' `[lod]` config (preset or custom levels). Each LOD carries flat
-vertex arrays plus `submeshes` material ranges. The viewport splits each LOD
-into one `MeshDescriptor` per material (bark / leaves / impostor) sharing the
-same vertex buffers — cheap switching, no duplicated geometry.
+The mesh builder owns family-agnostic surface quality: transported ring frames, exact seam duplicates, coincident side-surface normal averaging, base flare and branch-base swell, parent attachment rings at visible child offsets, cap normals, UVs, submesh assignment, and Pivot Painter attributes. Generator families should emit stable stems and foliage attachment data; they should not duplicate mesh-level seam, normal, or export concerns.
 
-Levels flagged `crown_impostor` replace per-leaf geometry with two crossed
-quads sampling a baked front+side atlas (`impostor.rs` — an in-engine
-z-buffered rasterizer over the same leaf cards and cut branches the nearer
-LODs draw). The atlas rides on the `LodMesh` as a `GeneratedMap`
-(`impostor_atlas` = `png` + `rgba`): the workbench inspects the PNG, the
-exporter embeds it, and the RGBA8 copy uploads straight to the viewport.
+LOD filtering applies before attachment-ring generation. If a child branch is excluded from a lower LOD, the parent does not keep hidden junction rings for that child, and the parent tip is capped unless an included child actually continues from the tip.
 
-The viewport preview binds the generated maps on each material's
-`MeshDescriptor` (`uvs` + RGBA8 `map`, `alphaTest` cutout for leaves and
-impostors — the `rgba` half of each `GeneratedMap`). Bark V coordinates are
-metres along the stem, so bark binds `mapWrap: 'repeat'`; all bound maps
-use `mapFilter: 'linear'` for trilinear minification. When maps are
-absent the viewport falls back to flat per-material colors, and the maps
-remain inspectable in the Objects panel materials strip.
+Cap center vertices are excluded from coincident normal averaging so terminal cuts keep axial normals while side-surface seam vertices can be smoothed together.
 
-## Material maps
+## Export Boundary
 
-`textures.rs` generates deterministic bark albedo, bark normal (OpenGL +Y),
-and leaf albedo+alpha card PNGs from `[textures]` params — no external art
-dependency. `TextureSet::resolve(species, dir)` lets native hosts substitute
-file-slot paths (relative to the species document); WASM always generates.
-`generateMaps()` bakes the `TextureSet` once and returns all three maps as
-`GeneratedMap`s — PNG bytes for inspection plus raw RGBA8 for direct GPU
-upload; exports embed the PNGs when requested.
+Export tests should validate both builder-level JSON and real GLB bytes. The byte-level path must parse the GLB header, chunks, embedded JSON, materials, LOD node names, primitive attributes, accessors, buffer views, scene nodes, and Midori extras so exporter regressions are caught at the same boundary used by CLI and WASM downloads.
 
-## Export flow
+## Workbench Validation Boundary
 
-- **glb**: `export_glb(seed, embed_textures)` → single binary file.
-- **gltf**: `exportGltf(seed, binName, embed_textures)` → `.gltf` JSON +
-  `.bin` pair (images ride inside the `.bin` via bufferViews).
-- Each submesh becomes its own primitive with the right material — bark,
-  leaves (alpha-masked), impostor (alpha-masked, atlas-textured).
-- Browser host: files download via anchor.
-- Tauri host: `plugin-dialog` picks the destination, then the `save_export`
-  command writes raw bytes (`[u32 path_len][path][payload]` frame).
+`apps/desktop` is covered by `npm test` (vitest) for model/engine logic and `npm run build` for the Vite bundle; the wasm bundle in `apps/desktop/src/wasm/` is regenerated with `node scripts/build-wasm.mjs`. There is no browser smoke test on this line; visual checks of PreviewPanel/NaturePanel are manual.
 
-## Host boundaries
+## Parked Work
 
-The Tauri shell exposes two commands only:
-
-- `read_text_file(path)` — bounded to 1 MiB, UTF-8 (species import).
-- `save_export(raw frame)` — bounded to 512 MiB (glTF export).
-
-Panel detachment to real native windows is provided by the stack's
-`tools-frontend-host-tauri` plugin; the browser host falls back to
-`createBrowserWindowHost`.
+Texture/PBR asset generation is not part of the active architecture work. Species and material metadata may carry placeholders, but image generation, alpha extraction, and derived PBR/translucency maps remain parked.

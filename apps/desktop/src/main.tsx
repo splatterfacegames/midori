@@ -4,8 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { createBrowserWindowHost, createTauriWindowHost } from '@jethac/tools-frontend-stack/host';
-import { GroveApp } from './App';
-import { GroveModel } from './model';
+import { MidoriApp } from './App';
+import { MidoriModel } from './model';
 import { createBrowserFileHost, createTauriFileHost, type FileHost } from './files';
 
 const PANEL_IDS = ['library', 'view-3d', 'view-2d', 'objects', 'inspector', 'bottom'];
@@ -16,8 +16,8 @@ async function bootstrap() {
 
   let capturedLayout = '';
   const hostOptions = {
-    appId: 'grove',
-    projectId: 'grove-workbench',
+    appId: 'midori',
+    projectId: 'midori-workbench',
     panelIds: PANEL_IDS,
     captureLayout: () => capturedLayout,
   };
@@ -31,11 +31,11 @@ async function bootstrap() {
     ? createTauriFileHost({ invoke, save, open })
     : createBrowserFileHost();
 
-  const model = await GroveModel.create();
+  const model = await MidoriModel.create();
   const root = createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <GroveApp
+      <MidoriApp
         model={model}
         fileHost={fileHost}
         windowHost={windowHost}
@@ -52,7 +52,7 @@ void bootstrap().catch((error: unknown) => {
   const root = document.getElementById('root');
   if (root) {
     const message = document.createElement('p');
-    message.textContent = `Grove could not start: ${error instanceof Error ? error.message : String(error)}`;
+    message.textContent = `Midori could not start: ${error instanceof Error ? error.message : String(error)}`;
     message.setAttribute('role', 'alert');
     root.replaceChildren(message);
   }

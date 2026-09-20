@@ -34,8 +34,17 @@ jobs:
           for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
             if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
           done
+      - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
-      # grove-desktop is excluded from the workspace (its jethaforge dep needs
+      # midori-desktop is excluded from the workspace (its jethaforge dep needs
       # private auth); these commands cover the engine, CLI, WASM, and FFI.
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -52,11 +61,29 @@ jobs:
           for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
             if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
           done
+      - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup toolchain install stable --profile minimal
+      - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup target add wasm32-unknown-unknown
       # The committed apps/desktop/src/wasm bundle is produced by `npm run wasm`;
       # this step verifies the crate still compiles for wasm32.
-      - run: cargo build -p grove-wasm --target wasm32-unknown-unknown --locked
+      - run: cargo build -p midori-wasm --target wasm32-unknown-unknown --locked
 
   app:
     name: Workbench app
@@ -85,3 +112,46 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  integrations:
+    name: Importer + evidence scripts
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Add cargo bin to PATH
+        run: |
+          for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Ensure dotnet 8 SDK (self-hosted runner cannot write /usr/share/dotnet)
+        run: |
+          if command -v dotnet >/dev/null 2>&1; then dotnet --version; exit 0; fi
+          curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+          bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet"
+          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+      - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo install --path crates/midori-cli --locked --force
+      - name: Generate a forest-floor nature package
+        run: midori nature --patch presets/nature/temperate_forest_floor.toml --output target/midori_engine_validation/forest_floor
+      - run: midori validate-nature --input target/midori_engine_validation/forest_floor --report target/nature-validate.json
+      - run: python scripts/test_profile_notes_verifier.py
+      - run: python scripts/test_unity_importer_static.py
+      - run: python scripts/test_unreal_importer_fake_editor.py
+      - run: python scripts/test_unity_importer_compile_stub.py --package-dir target/midori_engine_validation/forest_floor
+      - run: python scripts/verify_engine_evidence.py --allow-pending
+      # scripts/test_project_scaffold_static.py needs an editor-generated
+      # project_scaffold_summary.json (real Unity/Unreal installs) — covered by
+      # the manual engine-validation docs, not this job.

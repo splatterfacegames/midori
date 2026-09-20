@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "midori-workbench",
+  "description": "Workbench and detached panel windows",
+  "windows": ["main", "host-*"],
+  "permissions": ["core:default", "dialog:default", "tools-frontend-host:default"]
+}

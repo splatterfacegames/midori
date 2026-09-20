@@ -1,5 +1,5 @@
 /**
- * Generate the Grove application icon (icons/icon.png) with no dependencies —
+ * Generate the Midori application icon (icons/icon.png) with no dependencies —
  * a flat-design tree mark: dark ground, brown trunk, layered green canopy.
  */
 
@@ -72,7 +72,7 @@ const png = Buffer.concat([
   chunk('IEND', Buffer.alloc(0)),
 ]);
 
-const out = resolve(root, 'crates/grove-desktop/icons');
+const out = resolve(root, 'crates/midori-desktop/icons');
 mkdirSync(out, { recursive: true });
 writeFileSync(resolve(out, 'icon.png'), png);
 console.log(`Wrote ${resolve(out, 'icon.png')} (${png.length} bytes)`);

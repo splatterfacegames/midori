@@ -69,6 +69,7 @@ size = 0.06
 size_variance = 0.2
 distribution = "along_branch"
 geometry = "billboard"
+shape = "willow"
 up_influence = -0.2
 
 [textures]

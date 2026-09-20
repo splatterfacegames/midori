@@ -1,13 +1,16 @@
 /**
- * Engine boundary for the Grove workbench.
+ * Engine boundary for the Midori workbench.
  *
- * The grove-wasm WebAssembly build is the same grove-core code that powers the
+ * The midori-wasm WebAssembly build is the same midori-core code that powers the
  * CLI and FFI crates, compiled for the webview. Species documents cross the
  * boundary as TOML text (authoritative) or as the serde JSON projection
  * produced by `toJson()` / consumed by `fromJson()`.
  */
 
-import init, { GroveGenerator } from './wasm/grove_wasm.js';
+import init, {
+  MidoriGenerator,
+  generate_nature_preview_from_toml,
+} from './wasm/midori_wasm.js';
 
 export interface VertexData {
   positions: number[];
@@ -93,7 +96,7 @@ type WasmInput = Parameters<typeof init>[0];
 
 /**
  * Initialize the WASM module once. `input` overrides where the module bytes
- * come from (tests pass a Buffer; the browser resolves `grove_wasm_bg.wasm`
+ * come from (tests pass a Buffer; the browser resolves `midori_wasm_bg.wasm`
  * next to the bundle via import.meta.url).
  */
 export function loadEngine(input?: WasmInput): Promise<unknown> {
@@ -106,14 +109,14 @@ export function loadEngine(input?: WasmInput): Promise<unknown> {
  * species changes; seeds are cheap and per-call.
  */
 export class Generator {
-  private constructor(private readonly inner: GroveGenerator) {}
+  private constructor(private readonly inner: MidoriGenerator) {}
 
   static fromToml(toml: string): Generator {
-    return new Generator(new GroveGenerator(toml));
+    return new Generator(new MidoriGenerator(toml));
   }
 
   static fromJson(json: unknown): Generator {
-    return new Generator(GroveGenerator.fromJson(json));
+    return new Generator(MidoriGenerator.fromJson(json));
   }
 
   get name(): string {
@@ -170,4 +173,74 @@ export class Generator {
   free(): void {
     this.inner.free();
   }
+}
+
+/* ── Nature patch preview ─────────────────────────────────────────────── */
+
+export interface NatureMesh {
+  name: string;
+  vertices: VertexData;
+  indices: number[];
+  submeshes: { index_start: number; index_count: number; material: MaterialKind }[];
+  vertex_count: number;
+  triangle_count: number;
+}
+
+export interface NaturePrototype {
+  name: string;
+  kind: string;
+  lods: NatureMesh[];
+}
+
+export interface ScatterInstance {
+  position: [number, number, number];
+  yaw: number;
+  height: number;
+  width: number;
+  phase: number;
+  color_variation: number;
+}
+
+export interface ScatterChunk {
+  chunk_x: number;
+  chunk_z: number;
+  bounds_min: [number, number, number];
+  bounds_max: [number, number, number];
+  instances: ScatterInstance[];
+}
+
+export interface ScatterSet {
+  layer_index: number;
+  layer_name: string;
+  kind: string;
+  chunks: ScatterChunk[];
+}
+
+export interface NaturePreview {
+  manifest: unknown;
+  terrain: NatureMesh;
+  prototypes: NaturePrototype[];
+  scatter_sets: ScatterSet[];
+  stats: {
+    tile_size: number;
+    terrain_vertex_count: number;
+    terrain_triangle_count: number;
+    prototype_count: number;
+    scatter_instance_count: number;
+  };
+}
+
+/** Preview a NaturePatch document: terrain mesh, groundcover prototype LODs,
+ *  and chunked scatter placements. `previewResolution` is the terrain grid
+ *  resolution; `scatterChunkSize` the world-space chunk edge in metres. */
+export function generateNaturePreview(
+  toml: string,
+  previewResolution = 48,
+  scatterChunkSize = 16,
+): NaturePreview {
+  return generate_nature_preview_from_toml(
+    toml,
+    previewResolution,
+    scatterChunkSize,
+  ) as NaturePreview;
 }

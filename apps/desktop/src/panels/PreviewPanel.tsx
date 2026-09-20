@@ -35,11 +35,11 @@ export function PreviewPanel({
       onReady={onReady}
       onError={onError}
     >
-      <div className="grove-view-badge">
+      <div className="midori-view-badge">
         {lod ? `${lod.name.toUpperCase()} · ${lod.triangle_count.toLocaleString()} TRIS` : 'NO MESH'}
       </div>
       {!lod && (
-        <div className="grove-viewport-empty">
+        <div className="midori-viewport-empty">
           <span>3D</span>
           <p>Generated LODs appear here.</p>
         </div>

@@ -1,8 +1,8 @@
 /**
  * TypeScript view model for a species document.
  *
- * The TOML document (via grove-core serde) is the authority. These interfaces
- * mirror the JSON projection produced by `GroveGenerator.toJson()` so the
+ * The TOML document (via midori-core serde) is the authority. These interfaces
+ * mirror the JSON projection produced by `MidoriGenerator.toJson()` so the
  * inspector can render and edit every parameter without a parallel schema.
  */
 

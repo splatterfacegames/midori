@@ -9,6 +9,8 @@
 # Backup files
 *.bak
 *~
+__pycache__/
+*.py[cod]
 
 # IDE and editor files
 .idea/
@@ -34,16 +36,15 @@ Thumbs.db
 # WebAssembly build output (root pkg dir)
 pkg/
 
-# Workbench app
-node_modules/
-dist/
-apps/desktop/node_modules/
-.playwright-mcp/
+# Web project
+web/node_modules/
+web/.svelte-kit/
+web/build/
 
-# Tauri generated ACL schemas
-crates/*/gen/
-
-# Committed WASM bundle lives in apps/desktop/src/wasm/ (regenerate with `npm run wasm`)
+# Keep WASM output in web/src/lib/wasm/
+!web/src/lib/wasm/*.wasm
+!web/src/lib/wasm/*.js
+!web/src/lib/wasm/*.d.ts
 
 # Generated output
 output/
@@ -69,3 +70,8 @@ criterion/
 
 # Generated preset files (keep templates)
 presets/generated/
+
+# Node / desktop app
+node_modules/
+dist/
+apps/desktop/node_modules/

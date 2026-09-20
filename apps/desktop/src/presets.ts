@@ -20,3 +20,18 @@ export const PRESETS: SpeciesPreset[] = [
   { id: 'palm', label: 'Palm', toml: palmToml },
   { id: 'willow', label: 'Willow', toml: willowToml },
 ];
+
+/**
+ * Built-in NaturePatch presets, bundled straight from the repository's
+ * `presets/nature/` TOML documents — the same files `midori nature` consumes.
+ */
+
+import aridScrubToml from '../../../presets/nature/arid_scrub.toml?raw';
+import floweringMeadowToml from '../../../presets/nature/flowering_meadow.toml?raw';
+import temperateForestFloorToml from '../../../presets/nature/temperate_forest_floor.toml?raw';
+
+export const NATURE_PRESETS: SpeciesPreset[] = [
+  { id: 'arid_scrub', label: 'Arid scrub', toml: aridScrubToml },
+  { id: 'flowering_meadow', label: 'Flowering meadow', toml: floweringMeadowToml },
+  { id: 'temperate_forest_floor', label: 'Temperate forest floor', toml: temperateForestFloorToml },
+];

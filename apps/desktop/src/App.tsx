@@ -11,19 +11,20 @@ import {
 } from '@jethac/tools-frontend-stack/ui';
 import type { WindowHostSession } from '@jethac/tools-frontend-stack/host';
 import type { Viewport3DController } from '@jethac/tools-frontend-stack/viewports';
-import { GroveModel } from './model';
+import { MidoriModel } from './model';
 import type { FileHost } from './files';
 import { ExportDialog, type ExportRequest } from './ExportDialog';
 import { SpeciesLibrary } from './panels/SpeciesLibrary';
 import { ObjectsPanel } from './panels/ObjectsPanel';
 import { ParamsPanel } from './panels/ParamsPanel';
 import { PreviewPanel } from './panels/PreviewPanel';
+import { NaturePanel } from './panels/NaturePanel';
 import { SourcePanel } from './panels/SourcePanel';
 import { ActivityPanel } from './panels/ActivityPanel';
 import './app.css';
 
-export interface GroveAppProps {
-  model: GroveModel;
+export interface MidoriAppProps {
+  model: MidoriModel;
   fileHost: FileHost;
   windowHost?: WindowHostSession;
   onDockLayoutChange?: (layout: DockLayout) => void;
@@ -56,7 +57,7 @@ const menus: MenuDefinition[] = [
   },
 ];
 
-export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: GroveAppProps) {
+export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: MidoriAppProps) {
   const state = useSyncExternalStore(model.subscribe, model.getState);
   const [theme, setTheme] = useState<ThemeName>('dark');
   const [grid, setGrid] = useState(true);
@@ -77,7 +78,7 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
       read: base.read,
       write: async (appId, version, values) => {
         const result = await base.write(appId, version, values);
-        if (result.ok && appId === 'grove') {
+        if (result.ok && appId === 'midori') {
           if (values.theme === 'dark' || values.theme === 'light') setTheme(values.theme);
           if (typeof values.grid === 'boolean') setGrid(values.grid);
         }
@@ -87,7 +88,7 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
   }, []);
 
   useEffect(() => {
-    void preferences.read('grove', 1).then((result) => {
+    void preferences.read('midori', 1).then((result) => {
       if (result.values.theme === 'dark' || result.values.theme === 'light') setTheme(result.values.theme);
       if (typeof result.values.grid === 'boolean') setGrid(result.values.grid);
     });
@@ -105,7 +106,7 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
 
   const settings = useMemo<SettingsRegistration>(
     () => ({
-      appId: 'grove',
+      appId: 'midori',
       version: 1,
       preferenceAdapter: preferences,
       appearance: { fieldId: 'theme', onValueChange: (value) => setTheme(value === 'light' ? 'light' : 'dark') },
@@ -181,12 +182,12 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
   ];
 
   const docking = useMemo(
-    () => ({ appId: 'grove', preferenceAdapter: preferences, windowHost }),
+    () => ({ appId: 'midori', preferenceAdapter: preferences, windowHost }),
     [preferences, windowHost],
   );
 
   const viewToolbar = (
-    <div className="grove-view-tools">
+    <div className="midori-view-tools">
       {state.lods?.map((lod, index) => (
         <button
           key={lod.name}
@@ -205,9 +206,9 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
   );
 
   return (
-    <div className="grove-app" data-theme={theme}>
+    <div className="midori-app" data-theme={theme}>
       <WorkspaceShell
-        title="Grove"
+        title="Midori"
         theme={theme}
         actions={actions}
         menus={menus}
@@ -215,7 +216,7 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
         docking={docking}
         onDockLayoutChange={onDockLayoutChange}
         initialLayout={{ libraryWidth: 220, rightDockWidth: 300, bottomHeight: 150 }}
-        library={<SpeciesLibrary state={state} onLoadPreset={(id) => model.loadPreset(id)} onImport={() => void runImport()} />}
+        library={<SpeciesLibrary state={state} onLoadPreset={(id) => model.loadPreset(id)} onLoadNaturePreset={(id) => model.loadNaturePreset(id)} onImport={() => void runImport()} />}
         objects={
           <ObjectsPanel
             state={state}
@@ -234,14 +235,25 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
         }
         bottom={<ActivityPanel state={state} />}
         view3d={
-          <PreviewPanel
-            state={state}
-            grid={grid}
-            onReady={(controller) => {
-              viewport.current = controller;
-            }}
-            onError={(error) => setViewportError(error.message)}
-          />
+          state.mode === 'nature' ? (
+            <NaturePanel
+              state={state}
+              grid={grid}
+              onReady={(controller) => {
+                viewport.current = controller;
+              }}
+              onError={(error) => setViewportError(error.message)}
+            />
+          ) : (
+            <PreviewPanel
+              state={state}
+              grid={grid}
+              onReady={(controller) => {
+                viewport.current = controller;
+              }}
+              onError={(error) => setViewportError(error.message)}
+            />
+          )
         }
         view2d={
           <SourcePanel
@@ -257,19 +269,22 @@ export function GroveApp({ model, fileHost, windowHost, onDockLayoutChange }: Gr
           inspector: 'Parameters',
           bottom: 'Activity',
         }}
-        viewLabels={{ primary: 'LOD preview', secondary: 'Species source' }}
+        viewLabels={{
+          primary: state.mode === 'nature' ? 'Patch preview' : 'LOD preview',
+          secondary: 'TOML source',
+        }}
         viewToolbars={{ primary: viewToolbar }}
         headerTools={
-          <span className="grove-header-species" title={state.label}>
-            {state.json?.species.name ?? 'Grove'}
-            {viewportError ? <em className="grove-error-inline"> · viewport: {viewportError}</em> : null}
+          <span className="midori-header-species" title={state.label}>
+            {state.json?.species.name ?? 'Midori'}
+            {viewportError ? <em className="midori-error-inline"> · viewport: {viewportError}</em> : null}
           </span>
         }
         status={
           <>
-            <span className={`grove-status-dot${state.generating ? ' grove-status-busy' : ''}`} />
+            <span className={`midori-status-dot${state.generating ? ' midori-status-busy' : ''}`} />
             {state.generating ? 'Generating…' : `${state.label} · seed ${state.seed}`}
-            <span className="grove-status-right">
+            <span className="midori-status-right">
               {state.lods ? `${state.lods.length} LODs · ` : ''}Weber–Penn engine · WASM
             </span>
           </>
