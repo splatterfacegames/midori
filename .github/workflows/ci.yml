@@ -86,6 +86,29 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Boots the production build in headless Chrome (SwiftShader WebGL) and
+  # asserts the engine generates a tree with no page or viewport errors.
+  browser-smoke:
+    name: Browser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      - name: Configure git auth for private jethaforge dep
+        run: |
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global credential.helper \
+            '!f() { echo "username=x-access-token"; echo "password=${{ secrets.JETHAFORGE_TOKEN }}"; }; f'
+          git ls-remote https://github.com/splatterfacegames/jethaforge.git HEAD >/dev/null
+      - run: npm ci
+      - run: npm run build
+      - name: Smoke test (google-chrome preinstalled on ubuntu-latest)
+        run: node scripts/browser-smoke.mjs
+
   integrations:
     name: Importer + evidence scripts
     runs-on: [self-hosted, linux, x64]
