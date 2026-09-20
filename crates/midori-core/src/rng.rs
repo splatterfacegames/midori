@@ -25,7 +25,7 @@ impl Rng {
     /// Generate next random u64
     fn next_u64(&mut self) -> u64 {
         // xoshiro256** algorithm:
-        let result = rotl(self.state[1].wrapping_mul(5), 7).wrapping_mul(9);
+        let result = self.state[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
 
         let t = self.state[1] << 17;
 
@@ -35,7 +35,7 @@ impl Rng {
         self.state[0] ^= self.state[3];
 
         self.state[2] ^= t;
-        self.state[3] = rotl(self.state[3], 45);
+        self.state[3] = self.state[3].rotate_left(45);
 
         result
     }
@@ -76,11 +76,6 @@ fn splitmix64(x: &mut u64) -> u64 {
     z ^ (z >> 31)
 }
 
-/// Rotate left helper function
-fn rotl(x: u64, k: u32) -> u64 {
-    (x << k) | (x >> (64 - k))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,7 +106,7 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.next_f32();
-            assert!(v >= 0.0 && v < 1.0, "next_f32() out of range: {}", v);
+            assert!((0.0..1.0).contains(&v), "next_f32() out of range: {}", v);
         }
     }
 
@@ -121,7 +116,7 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.range(10.0, 20.0);
-            assert!(v >= 10.0 && v < 20.0, "range() out of bounds: {}", v);
+            assert!((10.0..20.0).contains(&v), "range() out of bounds: {}", v);
         }
     }
 
@@ -131,7 +126,11 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.variance_mul(0.1);
-            assert!(v >= 0.9 && v <= 1.1, "variance_mul() out of bounds: {}", v);
+            assert!(
+                (0.9..=1.1).contains(&v),
+                "variance_mul() out of bounds: {}",
+                v
+            );
         }
     }
 
@@ -141,7 +140,11 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.variance_add(0.5);
-            assert!(v >= -0.5 && v <= 0.5, "variance_add() out of bounds: {}", v);
+            assert!(
+                (-0.5..=0.5).contains(&v),
+                "variance_add() out of bounds: {}",
+                v
+            );
         }
     }
 

@@ -836,10 +836,10 @@ fn write_gltf_separate(path: &Path, data: &GltfData) -> Result<(), std::io::Erro
 
     // Update JSON to reference external buffer
     let mut json = data.json.clone();
-    if let Some(buffers) = json.get_mut("buffers").and_then(|b| b.as_array_mut()) {
-        if let Some(buffer) = buffers.first_mut() {
-            buffer["uri"] = serde_json::Value::String(bin_filename.clone());
-        }
+    if let Some(buffers) = json.get_mut("buffers").and_then(|b| b.as_array_mut())
+        && let Some(buffer) = buffers.first_mut()
+    {
+        buffer["uri"] = serde_json::Value::String(bin_filename.clone());
     }
 
     // Write JSON file
@@ -1089,6 +1089,7 @@ mod tests {
 
         // 3 vertices * 4 floats * 4 bytes = 48 bytes
         assert_eq!(buffer.len(), 48);
+        #[allow(clippy::chunks_exact_to_as_chunks)]
         for chunk in buffer.chunks_exact(16) {
             let x = f32::from_le_bytes(chunk[0..4].try_into().unwrap());
             let y = f32::from_le_bytes(chunk[4..8].try_into().unwrap());

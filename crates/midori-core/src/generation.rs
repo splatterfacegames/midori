@@ -15,6 +15,18 @@ use crate::{
 };
 use glam::Vec3;
 
+/// Parameters describing a single branch to generate
+struct BranchSpec<'a> {
+    parent_id: u32,
+    parent_offset: f32,
+    position: Vec3,
+    direction: Vec3,
+    params: &'a BranchParams,
+    length_modifier: f32,
+    level: u8,
+    sibling_count: u32,
+}
+
 /// Generator context for tree creation
 pub struct TreeGenerator<'a> {
     species: &'a Species,
@@ -162,16 +174,16 @@ impl<'a> TreeGenerator<'a> {
             let length_mod = self.crown_length_modifier(t);
 
             // Generate the branch stem
-            let branch = self.generate_branch(
+            let branch = self.generate_branch(BranchSpec {
                 parent_id,
-                t,
-                spawn_pos,
-                branch_dir,
-                &branch_params,
-                length_mod,
+                parent_offset: t,
+                position: spawn_pos,
+                direction: branch_dir,
+                params: &branch_params,
+                length_modifier: length_mod,
                 level,
-                count,
-            );
+                sibling_count: count,
+            });
 
             // Only add branch if it has segments
             if branch.segments.is_empty() {
@@ -191,52 +203,44 @@ impl<'a> TreeGenerator<'a> {
     }
 
     /// Generate a single branch stem
-    fn generate_branch(
-        &mut self,
-        parent_id: u32,
-        parent_offset: f32,
-        position: Vec3,
-        direction: Vec3,
-        params: &BranchParams,
-        length_modifier: f32,
-        level: u8,
-        sibling_count: u32,
-    ) -> Stem {
-        let mut stem = Stem::new(self.next_stem_id(), level);
-        stem.parent_id = Some(parent_id);
-        stem.parent_offset = parent_offset;
+    fn generate_branch(&mut self, spec: BranchSpec<'_>) -> Stem {
+        let mut stem = Stem::new(self.next_stem_id(), spec.level);
+        stem.parent_id = Some(spec.parent_id);
+        stem.parent_offset = spec.parent_offset;
 
         // Calculate branch length with variance and crown modifier
-        let length =
-            params.length * self.rng.variance_mul(params.length_variance) * length_modifier;
+        let length = spec.params.length
+            * self.rng.variance_mul(spec.params.length_variance)
+            * spec.length_modifier;
 
         if length < MIN_LENGTH {
             return stem;
         }
 
         // Get parent radius at spawn point
-        let parent = match self.tree.get_stem(parent_id) {
+        let parent = match self.tree.get_stem(spec.parent_id) {
             Some(p) => p,
             None => return stem,
         };
-        let parent_radius = parent.radius_at(parent_offset);
+        let parent_radius = parent.radius_at(spec.parent_offset);
 
-        let segment_count = params.segments.max(2);
+        let segment_count = spec.params.segments.max(2);
         let segment_length = length / segment_count as f32;
 
-        let mut pos = position;
-        let mut dir = direction;
-        let mut radius = branch_base_radius(parent_radius, params, sibling_count);
+        let mut pos = spec.position;
+        let mut dir = spec.direction;
+        let mut radius = branch_base_radius(parent_radius, spec.params, spec.sibling_count);
         let base_radius = radius;
 
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
 
             // Calculate curve with variance
-            let curve_amount = self.calculate_curve(t, params.curve, params.curve_variance, 0.0);
+            let curve_amount =
+                self.calculate_curve(t, spec.params.curve, spec.params.curve_variance, 0.0);
 
             // Apply gravity influence
-            let gravity_influence = params.gravity * segment_length;
+            let gravity_influence = spec.params.gravity * segment_length;
 
             dir = self.apply_curve_and_gravity(dir, curve_amount, gravity_influence);
 
@@ -245,9 +249,9 @@ impl<'a> TreeGenerator<'a> {
             let next_radius = tapered_radius(
                 base_radius,
                 radius,
-                params.taper,
+                spec.params.taper,
                 next_t,
-                params.taper_profile,
+                spec.params.taper_profile,
             );
 
             let end = pos + dir * segment_length;
@@ -489,9 +493,16 @@ impl<'a> DichotomousGenerator<'a> {
             let rotation_angle = self.fork_rotation(i, fork_count, &params, level);
             let branch_dir =
                 self.calculate_branch_direction(parent_dir, branch_angle, rotation_angle);
-            let branch = self.generate_branch(
-                parent_id, spawn_pos, branch_dir, &params, length_mod, level, fork_count,
-            );
+            let branch = self.generate_branch(BranchSpec {
+                parent_id,
+                parent_offset: 1.0,
+                position: spawn_pos,
+                direction: branch_dir,
+                params: &params,
+                length_modifier: length_mod,
+                level,
+                sibling_count: fork_count,
+            });
 
             if branch.segments.is_empty() {
                 continue;
@@ -522,52 +533,45 @@ impl<'a> DichotomousGenerator<'a> {
         index as f32 * spread + level_offset + self.rng.variance_add(radians(10.0))
     }
 
-    fn generate_branch(
-        &mut self,
-        parent_id: u32,
-        position: Vec3,
-        direction: Vec3,
-        params: &BranchParams,
-        length_modifier: f32,
-        level: u8,
-        sibling_count: u32,
-    ) -> Stem {
-        let mut stem = Stem::new(self.next_stem_id(), level);
-        stem.parent_id = Some(parent_id);
-        stem.parent_offset = 1.0;
+    fn generate_branch(&mut self, spec: BranchSpec<'_>) -> Stem {
+        let mut stem = Stem::new(self.next_stem_id(), spec.level);
+        stem.parent_id = Some(spec.parent_id);
+        stem.parent_offset = spec.parent_offset;
 
-        let length =
-            params.length * self.rng.variance_mul(params.length_variance) * length_modifier;
+        let length = spec.params.length
+            * self.rng.variance_mul(spec.params.length_variance)
+            * spec.length_modifier;
         if length < MIN_LENGTH {
             return stem;
         }
 
-        let parent = match self.tree.get_stem(parent_id) {
+        let parent = match self.tree.get_stem(spec.parent_id) {
             Some(parent) => parent,
             None => return stem,
         };
-        let parent_radius = parent.radius_at(1.0);
+        let parent_radius = parent.radius_at(spec.parent_offset);
 
-        let segment_count = params.segments.max(2);
+        let segment_count = spec.params.segments.max(2);
         let segment_length = length / segment_count as f32;
-        let mut pos = position;
-        let mut dir = direction;
-        let mut radius = branch_base_radius(parent_radius, params, sibling_count);
+        let mut pos = spec.position;
+        let mut dir = spec.direction;
+        let mut radius = branch_base_radius(parent_radius, spec.params, spec.sibling_count);
         let base_radius = radius;
 
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
-            let curve_amount = self.calculate_curve(t, params.curve, params.curve_variance, 0.0);
-            let gravity_influence = params.gravity * segment_length;
+            let curve_amount =
+                self.calculate_curve(t, spec.params.curve, spec.params.curve_variance, 0.0);
+            let gravity_influence = spec.params.gravity * segment_length;
             dir = self.apply_curve_and_gravity(dir, curve_amount, gravity_influence);
 
             let next_t = (i + 1) as f32 / segment_count as f32;
             let next_radius = tapered_radius(
                 base_radius,
                 radius,
-                params.taper,
+                spec.params.taper,
                 next_t,
-                params.taper_profile,
+                spec.params.taper_profile,
             );
             let end = pos + dir * segment_length;
 

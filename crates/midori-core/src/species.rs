@@ -86,7 +86,7 @@ pub enum GeneratorFamily {
 }
 
 /// Generator routing metadata.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct GeneratorConfig {
     /// Family of generator used for this species.
     #[serde(default = "default_generator_family")]
@@ -244,20 +244,22 @@ pub struct BranchParams {
 }
 
 /// Child branch radius calculation model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BranchRadiusModel {
     /// Child radius is parent radius multiplied by `radius_ratio`.
+    #[default]
     Ratio,
     /// Child radii are split across siblings using a pipe-model exponent.
     Pipe,
 }
 
 /// Radius taper curve along a trunk or branch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaperProfile {
     /// Interpolate directly from base to tip radius.
+    #[default]
     Linear,
     /// Smoothstep curve, retaining more thickness near the base and tip.
     Smooth,
@@ -313,12 +315,13 @@ pub enum LeafDistribution {
 }
 
 /// Leaf rendering geometry type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LeafGeometry {
     /// Full polygon mesh leaves
     Polygon,
     /// Two crossed billboard quads
+    #[default]
     CrossBillboard,
     /// Single camera-facing billboard
     Billboard,
@@ -617,15 +620,6 @@ impl Default for LodConfig {
     }
 }
 
-impl Default for GeneratorConfig {
-    fn default() -> Self {
-        Self {
-            family: default_generator_family(),
-            notes: String::new(),
-        }
-    }
-}
-
 impl Default for PlatformConfig {
     fn default() -> Self {
         Self {
@@ -634,27 +628,9 @@ impl Default for PlatformConfig {
     }
 }
 
-impl Default for LeafGeometry {
-    fn default() -> Self {
-        LeafGeometry::CrossBillboard
-    }
-}
-
 impl Default for GeneratorFamily {
     fn default() -> Self {
         default_generator_family()
-    }
-}
-
-impl Default for BranchRadiusModel {
-    fn default() -> Self {
-        BranchRadiusModel::Ratio
-    }
-}
-
-impl Default for TaperProfile {
-    fn default() -> Self {
-        TaperProfile::Linear
     }
 }
 

@@ -19,7 +19,7 @@ use midori_core::{
     NaturePatch, Species, export_lod_meshes, export_mesh, generate_lod_meshes_with_config,
     generate_tree, validate_nature_package,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 /// Midori - Procedural Nature Generator
@@ -134,7 +134,7 @@ enum Commands {
     },
 }
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, Copy, ValueEnum)]
 enum LodOption {
     /// Export all LOD levels
     All,
@@ -152,7 +152,7 @@ enum LodOption {
     Lod3,
 }
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, Copy, ValueEnum)]
 enum OutputFormat {
     /// Binary glTF (.glb)
     Glb,
@@ -160,7 +160,7 @@ enum OutputFormat {
     Gltf,
 }
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, Copy, ValueEnum)]
 enum LodPreset {
     /// Ultra quality (5 LOD levels)
     Ultra,
@@ -188,9 +188,16 @@ fn main() {
             format,
             lod_preset,
             verbose,
-        } => run_generate(
-            &species, &output, count, seed, lod, format, lod_preset, verbose,
-        ),
+        } => run_generate(&GenerateOptions {
+            species_path: &species,
+            output_path: &output,
+            count,
+            seed,
+            lod,
+            format,
+            lod_preset,
+            verbose,
+        }),
         Commands::Info { species } => run_info(&species),
         Commands::Nature {
             patch,
@@ -203,9 +210,9 @@ fn main() {
             no_scatter,
             no_scatter_binary,
             verbose,
-        } => run_nature(
-            &patch,
-            &output,
+        } => run_nature(&NatureOptions {
+            patch_path: &patch,
+            output_path: &output,
             map_resolution,
             preview_resolution,
             scatter_chunk_size,
@@ -214,7 +221,7 @@ fn main() {
             no_scatter,
             no_scatter_binary,
             verbose,
-        ),
+        }),
         Commands::ValidateNature {
             input,
             report,
@@ -228,17 +235,24 @@ fn main() {
     }
 }
 
-fn run_generate(
-    species_path: &PathBuf,
-    output_path: &PathBuf,
+struct GenerateOptions<'a> {
+    species_path: &'a Path,
+    output_path: &'a Path,
     count: u32,
     seed: Option<u64>,
     lod: LodOption,
     format: OutputFormat,
     lod_preset: LodPreset,
     verbose: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+}
+
+fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
+    let species_path = options.species_path;
+    let output_path = options.output_path;
+    let count = options.count;
+    let seed = options.seed;
+    let verbose = options.verbose;
 
     // Load species
     if verbose {
@@ -252,7 +266,7 @@ fn run_generate(
     );
 
     // Get LOD config
-    let lod_config = match lod_preset {
+    let lod_config = match options.lod_preset {
         LodPreset::Ultra => LodGenerationConfig::ultra(),
         LodPreset::HighQuality => LodGenerationConfig::high_quality(),
         LodPreset::Balanced => LodGenerationConfig::balanced(),
@@ -262,7 +276,7 @@ fn run_generate(
 
     // Get export config
     let export_config = ExportConfig {
-        format: match format {
+        format: match options.format {
             OutputFormat::Glb => ExportFormat::Glb,
             OutputFormat::Gltf => ExportFormat::GlTf,
         },
@@ -311,7 +325,7 @@ fn run_generate(
                 .unwrap_or("glb");
             output_path.with_file_name(format!("{}_{}.{}", stem, i, ext))
         } else {
-            output_path.clone()
+            output_path.to_path_buf()
         };
 
         // Generate LOD meshes
@@ -342,12 +356,12 @@ fn run_generate(
 
         // Export based on LOD option
         let export_start = Instant::now();
-        match lod {
+        match options.lod {
             LodOption::All => {
                 export_lod_meshes(&lod_meshes, &tree_output, &tree_export_config)?;
             }
             LodOption::Lod0 | LodOption::Lod1 | LodOption::Lod2 | LodOption::Lod3 => {
-                let level = match lod {
+                let level = match options.lod {
                     LodOption::Lod0 => 0,
                     LodOption::Lod1 => 1,
                     LodOption::Lod2 => 2,
@@ -375,7 +389,7 @@ fn run_generate(
     Ok(())
 }
 
-fn run_info(species_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let species = Species::from_file(species_path)?;
 
     println!(
@@ -447,9 +461,9 @@ fn run_info(species_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_nature(
-    patch_path: &PathBuf,
-    output_path: &PathBuf,
+struct NatureOptions<'a> {
+    patch_path: &'a Path,
+    output_path: &'a Path,
     map_resolution: u32,
     preview_resolution: u32,
     scatter_chunk_size: f32,
@@ -458,7 +472,20 @@ fn run_nature(
     no_scatter: bool,
     no_scatter_binary: bool,
     verbose: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+}
+
+fn run_nature(options: &NatureOptions) -> Result<(), Box<dyn std::error::Error>> {
+    let patch_path = options.patch_path;
+    let output_path = options.output_path;
+    let map_resolution = options.map_resolution;
+    let preview_resolution = options.preview_resolution;
+    let scatter_chunk_size = options.scatter_chunk_size;
+    let no_preview = options.no_preview;
+    let no_prototypes = options.no_prototypes;
+    let no_scatter = options.no_scatter;
+    let no_scatter_binary = options.no_scatter_binary;
+    let verbose = options.verbose;
+
     if map_resolution < 2 {
         return Err("map resolution must be at least 2".into());
     }
@@ -552,12 +579,13 @@ fn run_validate_nature(
         "  Scatter binary instances: {}",
         report.scatter_binary_instances
     );
+    if let Some(path) = report_path
+        && let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
     if let Some(path) = report_path {
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)?;
-            }
-        }
         let file = std::fs::File::create(path)?;
         serde_json::to_writer_pretty(file, &report)?;
         println!("  Report: {:?}", path);

@@ -17,7 +17,7 @@ A procedural nature asset generator for real-time game engines. Midori generates
 ### From source
 
 ```bash
-git clone https://github.com/jethac/midori.git
+git clone https://github.com/splatterfacegames/midori.git
 cd midori
 cargo build --release
 ```

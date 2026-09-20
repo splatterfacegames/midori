@@ -2410,15 +2410,15 @@ impl NaturePatch {
         self.groundcover
             .layers
             .iter()
-            .filter_map(|layer| match layer.kind {
-                GroundcoverKind::Grass => Some(generate_grass_prototype(layer)),
-                GroundcoverKind::Moss => Some(generate_moss_prototype(layer)),
-                GroundcoverKind::Flower => Some(generate_flower_prototype(layer)),
-                GroundcoverKind::Weed => Some(generate_weed_prototype(layer)),
-                GroundcoverKind::Litter => Some(generate_litter_prototype(layer)),
-                GroundcoverKind::Shrub => Some(generate_shrub_prototype(layer)),
-                GroundcoverKind::Rock => Some(generate_rock_prototype(layer)),
-                GroundcoverKind::Log => Some(generate_log_prototype(layer)),
+            .map(|layer| match layer.kind {
+                GroundcoverKind::Grass => generate_grass_prototype(layer),
+                GroundcoverKind::Moss => generate_moss_prototype(layer),
+                GroundcoverKind::Flower => generate_flower_prototype(layer),
+                GroundcoverKind::Weed => generate_weed_prototype(layer),
+                GroundcoverKind::Litter => generate_litter_prototype(layer),
+                GroundcoverKind::Shrub => generate_shrub_prototype(layer),
+                GroundcoverKind::Rock => generate_rock_prototype(layer),
+                GroundcoverKind::Log => generate_log_prototype(layer),
             })
             .collect()
     }
@@ -3241,6 +3241,7 @@ fn estimated_memory_footprint(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // private aggregation helper; args are one cohesive manifest input set
 fn package_memory_footprint(
     package_directory: &Path,
     config: &NaturePackageConfig,
@@ -4710,6 +4711,7 @@ fn validate_scatter_binary_file(
     )
 }
 
+#[allow(clippy::too_many_arguments)] // private validation helper; args describe one scatter chunk
 fn summarize_scatter_chunk(
     source: &str,
     path: &Path,

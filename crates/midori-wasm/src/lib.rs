@@ -131,17 +131,19 @@ impl MidoriGenerator {
         let lods = generate_lod_meshes_with_config(&tree, &self.species, &lod_config);
 
         // Export to GLB bytes
-        let mut config = ExportConfig::default();
-        config.metadata = Some(ExportMetadata {
-            species_name: self.species.species.name.clone(),
-            scientific_name: self.species.latin_name().to_string(),
-            seed: Some(seed),
-            lod_screen_heights: lods
-                .meshes
-                .iter()
-                .map(|lod_mesh| lod_mesh.screen_height)
-                .collect(),
-        });
+        let config = ExportConfig {
+            metadata: Some(ExportMetadata {
+                species_name: self.species.species.name.clone(),
+                scientific_name: self.species.latin_name().to_string(),
+                seed: Some(seed),
+                lod_screen_heights: lods
+                    .meshes
+                    .iter()
+                    .map(|lod_mesh| lod_mesh.screen_height)
+                    .collect(),
+            }),
+            ..Default::default()
+        };
         let glb_bytes = export_lod_meshes_to_bytes(&lods, &config)
             .map_err(|e| JsValue::from_str(&format!("Export error: {}", e)))?;
 
