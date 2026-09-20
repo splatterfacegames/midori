@@ -1151,9 +1151,7 @@ mod tests {
         // V coordinates should scale proportionally
         assert!(
             (max_v2 / max_v1 - 2.0).abs() < 0.01,
-            "V scale not applied correctly: {} vs {}",
-            max_v1,
-            max_v2
+            "V scale not applied correctly: {max_v1} vs {max_v2}"
         );
     }
 

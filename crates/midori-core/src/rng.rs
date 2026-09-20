@@ -106,7 +106,7 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.next_f32();
-            assert!((0.0..1.0).contains(&v), "next_f32() out of range: {}", v);
+            assert!((0.0..1.0).contains(&v), "next_f32() out of range: {v}");
         }
     }
 
@@ -116,7 +116,7 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.range(10.0, 20.0);
-            assert!((10.0..20.0).contains(&v), "range() out of bounds: {}", v);
+            assert!((10.0..20.0).contains(&v), "range() out of bounds: {v}");
         }
     }
 
@@ -128,8 +128,7 @@ mod tests {
             let v = rng.variance_mul(0.1);
             assert!(
                 (0.9..=1.1).contains(&v),
-                "variance_mul() out of bounds: {}",
-                v
+                "variance_mul() out of bounds: {v}"
             );
         }
     }
@@ -142,8 +141,7 @@ mod tests {
             let v = rng.variance_add(0.5);
             assert!(
                 (-0.5..=0.5).contains(&v),
-                "variance_add() out of bounds: {}",
-                v
+                "variance_add() out of bounds: {v}"
             );
         }
     }
@@ -154,7 +152,7 @@ mod tests {
 
         for _ in 0..1000 {
             let v = rng.index(10);
-            assert!(v < 10, "index() out of bounds: {}", v);
+            assert!(v < 10, "index() out of bounds: {v}");
         }
     }
 

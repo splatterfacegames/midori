@@ -726,8 +726,8 @@ impl From<toml::de::Error> for SpeciesError {
 impl std::fmt::Display for SpeciesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SpeciesError::Io(e) => write!(f, "IO error: {}", e),
-            SpeciesError::Parse(e) => write!(f, "Parse error: {}", e),
+            SpeciesError::Io(e) => write!(f, "IO error: {e}"),
+            SpeciesError::Parse(e) => write!(f, "Parse error: {e}"),
         }
     }
 }
@@ -1353,9 +1353,8 @@ target = "modern_pc"
 name = "Test"
 [trunk]
 [crown]
-shape = "{}"
-"#,
-                shape
+shape = "{shape}"
+"#
             )
         };
 
@@ -1393,9 +1392,8 @@ shape = "{}"
 name = "Test"
 [trunk]
 [leaves]
-distribution = "{}"
-"#,
-                dist
+distribution = "{dist}"
+"#
             )
         };
 
@@ -1431,9 +1429,8 @@ distribution = "{}"
 name = "Test"
 [trunk]
 [leaves]
-geometry = "{}"
-"#,
-                geom
+geometry = "{geom}"
+"#
             )
         };
 
@@ -1473,9 +1470,8 @@ geometry = "{}"
 name = "Test"
 [trunk]
 [lod]
-preset = "{}"
-"#,
-                preset
+preset = "{preset}"
+"#
             )
         };
 
@@ -1550,9 +1546,8 @@ family = "space_magic"
 name = "Test"
 [trunk]
 [platform]
-target = "{}"
-"#,
-                target
+target = "{target}"
+"#
             )
         };
 

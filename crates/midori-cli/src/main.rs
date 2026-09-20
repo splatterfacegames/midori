@@ -256,7 +256,7 @@ fn main() {
     };
 
     if let Err(e) = result {
-        eprintln!("Error: {}", e);
+        eprintln!("Error: {e}");
         std::process::exit(1);
     }
 }
@@ -283,7 +283,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
 
     // Load species
     if verbose {
-        println!("Loading species from {:?}...", species_path);
+        println!("Loading species from {species_path:?}...");
     }
     let species = Species::from_file(species_path)?;
     println!(
@@ -360,7 +360,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
                 .extension()
                 .and_then(|s| s.to_str())
                 .unwrap_or("glb");
-            output_path.with_file_name(format!("{}_{}.{}", stem, i, ext))
+            output_path.with_file_name(format!("{stem}_{i}.{ext}"))
         } else {
             output_path.to_path_buf()
         };
@@ -408,7 +408,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
                 if let Some(lod_mesh) = lod_meshes.get(level) {
                     export_mesh(&lod_mesh.mesh, &tree_output, &tree_export_config)?;
                 } else {
-                    return Err(format!("LOD level {} not available", level).into());
+                    return Err(format!("LOD level {level} not available").into());
                 }
             }
         }
@@ -417,11 +417,11 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
             println!("  Exported in {:?}", export_start.elapsed());
         }
 
-        println!("Exported: {:?}", tree_output);
+        println!("Exported: {tree_output:?}");
     }
 
     let elapsed = start.elapsed();
-    println!("Generated {} tree(s) in {:?}", count, elapsed);
+    println!("Generated {count} tree(s) in {elapsed:?}");
 
     Ok(())
 }
@@ -450,7 +450,7 @@ fn run_maps(
         ("bark_normal", &textures.bark_normal),
         ("leaf_card", &textures.leaf_card),
     ] {
-        let path = output_dir.join(format!("{}_{}.png", prefix, name));
+        let path = output_dir.join(format!("{prefix}_{name}.png"));
         std::fs::write(&path, tex.to_png()?)?;
         println!("Wrote {:?} ({}x{})", path, tex.width, tex.height);
     }
@@ -497,7 +497,7 @@ fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("Branches:");
     for level in 1..=3 {
         if let Some(params) = species.get_branch_level(level) {
-            println!("  Level {}:", level);
+            println!("  Level {level}:");
             println!("    Count: {} (+/-{})", params.count, params.count_variance);
             println!(
                 "    Length: {:.2}m (+/-{:.0}%)",
@@ -546,7 +546,7 @@ fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         ("leaf_albedo_alpha", &t.leaf_albedo_alpha),
     ] {
         if !slot.is_empty() {
-            println!("  {}: {}", label, slot);
+            println!("  {label}: {slot}");
         }
     }
 
