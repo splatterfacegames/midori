@@ -1,0 +1,186 @@
+name: Release
+
+# Builds release artifacts when a `v*` tag is pushed: `midori` CLI binaries
+# for linux/windows/macos, the wasm npm tarball (wasm-opt'd, size reported),
+# the workbench app bundle, and a crates.io dry-run of the publishable crates.
+# See docs/releasing.md for the full process.
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  WASM_PACK_VERSION: 0.15.0
+  BINARYEN_VERSION: 132.0.0
+  HAS_CRATES_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+
+jobs:
+  # Tag must match the workspace version before anything builds.
+  version-check:
+    name: Tag matches workspace version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      - run: node scripts/check-version.mjs "${{ github.ref_name }}"
+
+  cli:
+    name: midori ${{ matrix.name }}
+    needs: version-check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: x86_64-unknown-linux-gnu, os: ubuntu-latest, ext: tar.gz }
+          - { name: x86_64-pc-windows-msvc, os: windows-latest, ext: zip }
+          - { name: x86_64-apple-darwin, os: macos-13, ext: tar.gz }
+          - { name: aarch64-apple-darwin, os: macos-latest, ext: tar.gz }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build midori
+        run: cargo build --release --locked -p midori-cli
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="midori-${{ github.ref_name }}-${{ matrix.name }}"
+          mkdir -p "release/$name"
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            cp target/release/midori.exe "release/$name/"
+            (cd release && 7z a "$name.zip" "$name")
+          else
+            cp target/release/midori "release/$name/"
+            cp README.md LICENSE* "release/$name/" 2>/dev/null || true
+            tar -C release -czf "release/$name.tar.gz" "$name"
+          fi
+          ls -la release/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cli-${{ matrix.name }}
+          path: |
+            release/*.tar.gz
+            release/*.zip
+          if-no-files-found: error
+
+  wasm-package:
+    name: midori-wasm npm tarball
+    needs: version-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      - name: Install pinned wasm-pack
+        run: |
+          curl -L -o /tmp/wasm-pack.tar.gz \
+            "https://github.com/wasm-bindgen/wasm-pack/releases/download/v${WASM_PACK_VERSION}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          tar -xzf /tmp/wasm-pack.tar.gz -C /tmp
+          mkdir -p "$HOME/.cargo/bin"
+          cp "/tmp/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "$HOME/.cargo/bin/"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          wasm-pack --version
+      - name: Build wasm package
+        run: wasm-pack build crates/midori-wasm --target web --release --out-dir "$PWD/pkg-release"
+      - name: wasm-opt -O2 and report size
+        run: |
+          npm i --prefix /tmp/binaryen --no-save binaryen@${BINARYEN_VERSION}
+          wasm=pkg-release/midori_wasm_bg.wasm
+          before=$(stat -c%s "$wasm")
+          /tmp/binaryen/node_modules/.bin/wasm-opt -O2 -o "$wasm.opt" "$wasm"
+          mv "$wasm.opt" "$wasm"
+          after=$(stat -c%s "$wasm")
+          mkdir -p release
+          echo "wasm-opt -O2: $before -> $after bytes" | tee release/wasm-size.txt
+      - name: npm pack
+        run: |
+          set -euo pipefail
+          version="${{ github.ref_name }}"; version="${version#v}"
+          cd pkg-release
+          npm pkg set name="@midori/wasm" version="$version"
+          npm pack --pack-destination ../release
+          mv ../release/midori-wasm-*.tgz "../release/midori-wasm-${{ github.ref_name }}.tgz"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wasm-npm
+          path: |
+            release/*.tgz
+            release/wasm-size.txt
+
+  workbench:
+    name: workbench bundle
+    needs: version-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      - name: Configure git auth for private jethaforge dep
+        run: |
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global credential.helper \
+            '!f() { echo "username=x-access-token"; echo "password=${{ secrets.JETHAFORGE_TOKEN }}"; }; f'
+          git ls-remote https://github.com/splatterfacegames/jethaforge.git HEAD >/dev/null
+      - run: npm ci
+      - run: npm run build
+      # vite.config.ts emits the bundle to repo-root `dist/`.
+      - run: |
+          mkdir -p release
+          tar -czf "release/midori-workbench-${{ github.ref_name }}.tar.gz" -C dist .
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: workbench
+          path: release/*.tar.gz
+
+  crates-dry-run:
+    name: cargo publish --dry-run
+    needs: version-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: cargo publish --dry-run
+        if: ${{ env.HAS_CRATES_TOKEN == 'true' }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --dry-run --locked -p midori-core -p midori-contracts -p midori-ui-domain
+      - name: note
+        if: ${{ env.HAS_CRATES_TOKEN != 'true' }}
+        run: echo "CARGO_REGISTRY_TOKEN not set — skipping crates.io dry-run"
+
+  github-release:
+    name: GitHub Release
+    needs: [version-check, cli, wasm-package, workbench]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: artifacts
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          files=$(find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.tgz' \) | sort)
+          echo "Artifacts:"; echo "$files"
+          # Release notes = this version's CHANGELOG section.
+          v="${{ github.ref_name }}"; v="${v#v}"
+          awk -v v="$v" 'BEGIN{p=0} /^## \[/{ if(p) exit; if(index($0, "[" v "]")) p=1 } p' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "See CHANGELOG.md" > notes.md
+          gh release create "${{ github.ref_name }}" \
+            --title "Midori ${{ github.ref_name }}" \
+            --notes-file notes.md \
+            $files
