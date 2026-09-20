@@ -72,6 +72,12 @@ up_influence = 0.1
 [textures]
 bark_prompt = "Scots pine bark, reddish-brown upper, grey fissured lower, scaly plates"
 leaf_prompt = "Pine needle cluster, blue-green needles in pairs, 5cm long"
+resolution = 512
+bark_style = "plated"
+leaf_shape = "needle"
+leaf_card = "cluster"
+bark_color = [0.44, 0.26, 0.16]
+leaf_color = [0.24, 0.42, 0.3]
 
 [lod]
 preset = "balanced"

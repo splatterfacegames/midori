@@ -16,8 +16,8 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use midori_core::{
     ExportConfig, ExportFormat, ExportMetadata, LodGenerationConfig, NaturePackageConfig,
-    NaturePatch, Species, export_lod_meshes, export_mesh, generate_lod_meshes_with_config,
-    generate_tree, validate_nature_package,
+    NaturePatch, Species, TextureSet, export_lod_meshes, export_mesh,
+    generate_lod_meshes_with_config, generate_tree, validate_nature_package,
 };
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -63,9 +63,28 @@ enum Commands {
         #[arg(long, default_value = "balanced")]
         lod_preset: LodPreset,
 
+        /// Embed material maps (procedural or file-slot overrides) into the export
+        #[arg(long)]
+        textures: bool,
+
         /// Verbose output
         #[arg(short, long)]
         verbose: bool,
+    },
+
+    /// Write the species' material maps (bark albedo, bark normal, leaf card) as PNGs
+    Maps {
+        /// Species TOML file
+        #[arg(short, long)]
+        species: PathBuf,
+
+        /// Output directory (default: ./maps)
+        #[arg(short, long, default_value = "maps")]
+        output: PathBuf,
+
+        /// Filename prefix (default: species name in snake_case)
+        #[arg(long)]
+        prefix: Option<String>,
     },
 
     /// Show information about a species file
@@ -187,6 +206,7 @@ fn main() {
             lod,
             format,
             lod_preset,
+            textures,
             verbose,
         } => run_generate(&GenerateOptions {
             species_path: &species,
@@ -196,8 +216,14 @@ fn main() {
             lod,
             format,
             lod_preset,
+            textures,
             verbose,
         }),
+        Commands::Maps {
+            species,
+            output,
+            prefix,
+        } => run_maps(&species, &output, prefix.as_deref()),
         Commands::Info { species } => run_info(&species),
         Commands::Nature {
             patch,
@@ -243,6 +269,7 @@ struct GenerateOptions<'a> {
     lod: LodOption,
     format: OutputFormat,
     lod_preset: LodPreset,
+    textures: bool,
     verbose: bool,
 }
 
@@ -274,6 +301,16 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         LodPreset::Minimal => LodGenerationConfig::minimal(),
     };
 
+    // Resolve material maps when embedding: file-slot paths in the species
+    // resolve relative to the species file's directory; empty slots generate
+    // procedurally.
+    let textures = if options.textures {
+        let dir = species_path.parent().unwrap_or_else(|| Path::new("."));
+        Some(TextureSet::resolve(&species, dir)?)
+    } else {
+        None
+    };
+
     // Get export config
     let export_config = ExportConfig {
         format: match options.format {
@@ -281,7 +318,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
             OutputFormat::Gltf => ExportFormat::GlTf,
         },
         draco: false,
-        embed_textures: false,
+        textures,
         pivot_painter_extras: true,
         metadata: None,
     };
@@ -389,6 +426,38 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+fn run_maps(
+    species_path: &Path,
+    output_dir: &Path,
+    prefix: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let species = Species::from_file(species_path)?;
+    println!(
+        "Species: {} ({})",
+        species.species.name, species.species.scientific
+    );
+
+    let dir = species_path.parent().unwrap_or_else(|| Path::new("."));
+    let textures = TextureSet::resolve(&species, dir)?;
+
+    std::fs::create_dir_all(output_dir)?;
+    let prefix = prefix
+        .map(|p| p.to_string())
+        .unwrap_or_else(|| species.species.name.to_lowercase().replace(' ', "_"));
+
+    for (name, tex) in [
+        ("bark_albedo", &textures.bark_albedo),
+        ("bark_normal", &textures.bark_normal),
+        ("leaf_card", &textures.leaf_card),
+    ] {
+        let path = output_dir.join(format!("{}_{}.png", prefix, name));
+        std::fs::write(&path, tex.to_png()?)?;
+        println!("Wrote {:?} ({}x{})", path, tex.width, tex.height);
+    }
+
+    Ok(())
+}
+
 fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let species = Species::from_file(species_path)?;
 
@@ -457,6 +526,29 @@ fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     );
     println!("  Distribution: {:?}", species.leaves.distribution);
     println!("  Geometry: {:?}", species.leaves.geometry);
+    println!();
+
+    println!("Textures:");
+    let t = &species.textures;
+    println!("  Resolution: {}px", t.resolution);
+    println!(
+        "  Seed: {}",
+        t.seed
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "from species name".to_string())
+    );
+    println!("  Bark style: {:?}", t.bark_style);
+    println!("  Leaf shape: {:?}", t.leaf_shape);
+    println!("  Leaf card: {:?}", t.leaf_card);
+    for (label, slot) in [
+        ("bark_albedo", &t.bark_albedo),
+        ("bark_normal", &t.bark_normal),
+        ("leaf_albedo_alpha", &t.leaf_albedo_alpha),
+    ] {
+        if !slot.is_empty() {
+            println!("  {}: {}", label, slot);
+        }
+    }
 
     Ok(())
 }

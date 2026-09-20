@@ -75,6 +75,12 @@ up_influence = -0.2
 [textures]
 bark_prompt = "Weeping willow bark, grey-brown, deep ridged furrows, rough texture"
 leaf_prompt = "Willow leaf, narrow lanceolate, light green, fine serrated edge"
+resolution = 512
+bark_style = "furrowed"
+leaf_shape = "pointed"
+leaf_card = "cluster"
+bark_color = [0.4, 0.34, 0.27]
+leaf_color = [0.45, 0.58, 0.28]
 
 [lod]
 preset = "balanced"

@@ -30,6 +30,7 @@
 pub mod constants;
 pub mod export;
 pub mod generation;
+pub mod impostor;
 pub mod leaves;
 pub mod lod;
 pub mod math;
@@ -38,6 +39,7 @@ pub mod mesh_builder;
 pub mod nature;
 pub mod rng;
 pub mod species;
+pub mod textures;
 pub mod tree;
 
 pub use constants::*;
@@ -46,6 +48,7 @@ pub use export::{
     export_lod_meshes_to_bytes, export_lod_meshes_to_parts, export_mesh,
 };
 pub use generation::generate_tree;
+pub use impostor::{Impostor, bake_impostor};
 pub use leaves::{LeafConfig, add_leaves_to_tree, generate_leaf_mesh, place_leaves};
 pub use lod::{
     LodGenerationConfig, LodLevelConfig, LodMesh, LodMeshSet, LodStats, generate_lod_meshes,
@@ -67,8 +70,10 @@ pub use nature::{
 pub use rng::Rng;
 pub use species::Species;
 pub use species::{
-    ControlGroup, ControlSpec, GeneratorConfig, GeneratorFamily, LeafShape, MaterialPlaceholders,
+    BarkStyle, ControlGroup, ControlSpec, GeneratorConfig, GeneratorFamily, LeafCardLayout,
+    LeafShape, MaterialPlaceholders, TextureParams,
 };
+pub use textures::{RgbaTexture, TextureError, TextureSet, species_texture_seed};
 pub use tree::{BoundingBox, Leaf, Segment, Stem, Tree};
 
 #[cfg(test)]

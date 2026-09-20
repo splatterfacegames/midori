@@ -480,7 +480,8 @@ fn find_sdf_edge(dir: Vec2, shape: LeafShape, min: f32, max: f32, iterations: u3
 /// Signed distance function for leaf shapes
 ///
 /// Returns negative values inside the shape, positive outside.
-fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
+/// `pub(crate)` so the texture pipeline can stamp the same silhouettes.
+pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
     match shape {
         LeafShape::Oval => {
             // Ellipse: wider in X, narrower in Y

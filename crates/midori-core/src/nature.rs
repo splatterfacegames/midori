@@ -5521,7 +5521,7 @@ fn nature_mesh_export_config() -> ExportConfig {
     ExportConfig {
         format: ExportFormat::Glb,
         draco: false,
-        embed_textures: false,
+        textures: None,
         pivot_painter_extras: true,
         metadata: None,
     }

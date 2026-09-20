@@ -163,6 +163,32 @@ impl<'a> MeshBuilder<'a> {
         self.mesh
     }
 
+    /// Build stems at or below min_level depth — the branches a LOD cut
+    /// away. The impostor baker rasterizes these into the crown atlas so
+    /// the baked card still shows the twiggy interior.
+    ///
+    /// # Arguments
+    ///
+    /// * `min_level` - Minimum branch level to include
+    pub fn build_stems_from_level(mut self, min_level: u32) -> Mesh {
+        for stem in &self.tree.stems {
+            if stem.level as u32 >= min_level {
+                self.build_stem(stem);
+            }
+        }
+
+        // Add bark submesh for all branch geometry
+        if !self.mesh.indices.is_empty() {
+            self.mesh.submeshes.push(Submesh {
+                index_start: 0,
+                index_count: self.mesh.indices.len() as u32,
+                material: MaterialType::Bark,
+            });
+        }
+
+        self.mesh
+    }
+
     fn build_stem(&mut self, stem: &Stem) {
         if stem.segments.is_empty() {
             return;

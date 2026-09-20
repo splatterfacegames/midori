@@ -344,6 +344,7 @@ pub enum LeafShape {
     /// Long thin needle (pine, spruce, fir)
     Needle,
     /// Oak-style with 7 rounded lobes
+    #[serde(alias = "lobed")]
     OakLobed,
     /// 5-point maple leaf
     Maple,
@@ -400,15 +401,75 @@ pub struct LeafParams {
     pub up_influence: f32,
 }
 
-/// AI texture generation parameters.
+/// Bark relief style for generated bark maps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BarkStyle {
+    /// Deep vertical furrows and ridges (oak, ash)
+    #[default]
+    Furrowed,
+    /// Scaly plated bark (pine, spruce)
+    Plated,
+    /// Smooth bark with lenticel dashes (beech, birch, palm)
+    Smooth,
+}
+
+/// Leaf card layout — how leaf silhouettes are arranged on the card texture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeafCardLayout {
+    /// A single leaf filling the card. Best for `polygon` leaf geometry.
+    Single,
+    /// A spray of several leaves — gives billboard quads foliage volume.
+    #[default]
+    Cluster,
+}
+
+/// Texture material slots and generation parameters.
+///
+/// Midori can procedurally generate bark albedo+normal and a leaf albedo+alpha
+/// card from these parameters (deterministic, license-clean), or consume
+/// host-provided image files via the slot paths — the same slots the project
+/// sidecar fills when maps arrive over the studio tool bus.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct TextureParams {
-    /// Prompt for bark texture generation
+    /// Prompt for bark texture generation (authoring hint for art pipelines)
     #[serde(default)]
     pub bark_prompt: String,
     /// Prompt for leaf texture generation
     #[serde(default)]
     pub leaf_prompt: String,
+    /// Generated map resolution in pixels (square), default 512
+    #[serde(default = "default_texture_resolution")]
+    pub resolution: u32,
+    /// Seed for procedural maps; when unset, derived from the species name
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed: Option<u64>,
+    /// Bark relief style for generated maps
+    #[serde(default)]
+    pub bark_style: BarkStyle,
+    /// Leaf silhouette stamped into generated cards
+    #[serde(default)]
+    pub leaf_shape: LeafShape,
+    /// Leaf card layout: single leaf or cluster spray
+    #[serde(default)]
+    pub leaf_card: LeafCardLayout,
+    /// Base bark color as sRGB 0-1 triple; default is a mid brown
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bark_color: Option<[f32; 3]>,
+    /// Base leaf color as sRGB 0-1 triple; default is a mid green
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leaf_color: Option<[f32; 3]>,
+    /// Optional bark albedo+alpha override, resolved relative to the species
+    /// document by native hosts (empty = generate procedurally)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub bark_albedo: String,
+    /// Optional bark normal override (OpenGL +Y, glTF convention)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub bark_normal: String,
+    /// Optional leaf albedo+alpha card override
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub leaf_albedo_alpha: String,
 }
 
 /// LOD preset enumeration.
@@ -584,6 +645,10 @@ fn default_platform() -> PlatformTarget {
 }
 fn default_generator_family() -> GeneratorFamily {
     GeneratorFamily::WeberPenn
+}
+
+fn default_texture_resolution() -> u32 {
+    512
 }
 
 // Default implementations

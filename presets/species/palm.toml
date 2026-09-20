@@ -51,6 +51,12 @@ up_influence = 0.0
 [textures]
 bark_prompt = "Coconut palm trunk, grey-brown, horizontal ring scars, fibrous texture"
 leaf_prompt = "Palm frond leaflet, long narrow blade, parallel venation, glossy green"
+resolution = 512
+bark_style = "smooth"
+leaf_shape = "pointed"
+leaf_card = "single"
+bark_color = [0.45, 0.4, 0.33]
+leaf_color = [0.15, 0.4, 0.14]
 
 [lod]
 preset = "balanced"
