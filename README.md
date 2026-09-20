@@ -191,7 +191,7 @@ Midori's nature pipeline is in active development. The first slice adds `NatureP
 The texture/PBR asset generation pipeline is intentionally parked. Current nature outputs focus on geometry, masks, density, normal conventions, JSON and binary scatter data, and import metadata that can be consumed by Unity and Unreal pipelines.
 
 Use `midori nature -p <patch.toml> -o <package_dir>` to write the current package layout, then `midori validate-nature -i <package_dir>` to run the package conformance gate.
-In the web editor, choose `Forest Floor` from Presets to inspect the representative nature patch with Rust/WASM terrain, prototype, and scatter data.
+In the desktop workbench, choose a patch under NATURE PATCHES in the species library with Rust/WASM terrain, prototype, and scatter data.
 
 See `docs/midori-nature-mobile-console-goal.md` and `presets/nature/temperate_forest_floor.toml`.
 
@@ -251,10 +251,15 @@ For wind animation in game engines:
 ```
 midori/
 ├── crates/
-│   ├── midori-core/    # Core generation library
-│   ├── midori-cli/     # Command-line interface
-│   ├── midori-wasm/    # WebAssembly bindings (WIP)
-│   └── midori-ffi/     # C FFI for engine plugins (WIP)
+│   ├── midori-core/       # Core generation library
+│   ├── midori-cli/        # Command-line interface
+│   ├── midori-wasm/       # WebAssembly bindings (WIP)
+│   ├── midori-ffi/        # C FFI for engine plugins (WIP)
+│   ├── midori-contracts/  # FlatBuffers tree-compute wire contract (WIP)
+│   ├── midori-ui-domain/  # UI-facing composition helpers (WIP)
+│   └── midori-desktop/    # Tauri host (excluded from the workspace)
+├── apps/
+│   └── desktop/        # React + Tauri workbench (Vite, private jethaforge stack)
 └── presets/
     ├── species/        # Species TOML files
     └── nature/         # Nature patch TOML files
@@ -269,21 +274,16 @@ cargo fmt --check
 cargo test
 ```
 
-Web checks:
+Workbench checks (`apps/desktop`, private `@jethac/tools-frontend-stack` git dep):
 
 ```bash
-cd web
+npm ci
+npm run typecheck
+npm test
 npm run build
 ```
 
-The browser smoke test requires the editor to be running, then validates Oak and Joshua Prototype previews through Chrome or Edge:
-
-```bash
-npm run dev
-npm run test:browser
-```
-
-Set `MIDORI_VISUAL_URL` if the editor is running on a different URL.
+Run the workbench in dev mode with `npm run dev`; package the Tauri app with `npm run desktop`.
 
 ## Library Usage
 

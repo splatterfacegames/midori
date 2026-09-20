@@ -6,8 +6,8 @@ This note is the cold-start handoff for picking up the Midori nature/mobile-cons
 
 ## Current Repository State
 
-- Branch: `master`
-- Working tree at handoff time: clean
+- Branch: `reconcile` — merges the nature line and the upstream engine/UI line; `master` gains this tree via the reconcile PR.
+- The old Svelte `web/` editor is retired; the workbench is `apps/desktop` (React + Tauri on the private jethaforge stack).
 - Recent semantic commits:
   - `af1cb46 docs: document Midori mission and source audits`
   - `547a6a0 chore: ignore Python cache files`
@@ -15,7 +15,7 @@ This note is the cold-start handoff for picking up the Midori nature/mobile-cons
   - `c778e59 feat(engine): add Unity and Unreal nature validation handoff`
   - `62f4e53 feat(core)!: rebrand crates and add nature packages`
 - The old crate names were replaced by Midori crate names (rename commit history).
-- Generated outputs remain ignored under `target/`, `web/build/`, `web/node_modules/`, `web/target/`, and Python `__pycache__/`.
+- Generated outputs remain ignored under `target/`, `dist/`, `node_modules/`, and Python `__pycache__/`.
 
 ## Goal Status
 
@@ -92,11 +92,11 @@ Engine integration and evidence:
 
 Web/editor:
 
-- [`web/src/lib/stores/tree.ts`](../web/src/lib/stores/tree.ts)
-- [`web/src/lib/components/Preview3D.svelte`](../web/src/lib/components/Preview3D.svelte)
-- [`web/src/lib/components/Inspector.svelte`](../web/src/lib/components/Inspector.svelte)
-- [`web/src/lib/midori/wasm.ts`](../web/src/lib/midori/wasm.ts)
-- [`web/scripts/browser-smoke.mjs`](../web/scripts/browser-smoke.mjs)
+- [`apps/desktop/src/model.ts`](../apps/desktop/src/model.ts)
+- [`apps/desktop/src/panels/PreviewPanel.tsx`](../apps/desktop/src/panels/PreviewPanel.tsx)
+- [`apps/desktop/src/panels/NaturePanel.tsx`](../apps/desktop/src/panels/NaturePanel.tsx)
+- [`apps/desktop/src/engine.ts`](../apps/desktop/src/engine.ts)
+- [`apps/desktop/src/meshes.ts`](../apps/desktop/src/meshes.ts)
 
 Planning and audits:
 
@@ -201,8 +201,7 @@ Phase 7 is complete only when that strict verifier exits `0`.
 
 `npm run build` currently passes but reports existing warnings:
 
-- `OutputNode.svelte` has an unused exported `id` property.
-- SvelteKit dependency export warnings appear from the installed Svelte/SvelteKit package combination.
+- The Svelte editor and its open nits were retired with `web/`; track workbench debt in issues instead.
 - One client chunk is larger than 500 kB after minification.
 
 These warnings were present when the current commits were made and do not block the current handoff.
@@ -212,7 +211,7 @@ These warnings were present when the current commits were made and do not block 
 If continuing from this handoff:
 
 - Check `git status --short` first.
-- Do not commit generated `target/`, `web/build/`, `web/node_modules/`, `web/target/`, or `__pycache__/` files.
+- Do not commit generated `target/`, `dist/`, `node_modules/`, or `__pycache__/` files. The workbench wasm bundle under `apps/desktop/src/wasm/` IS committed — regenerate it with `node scripts/build-wasm.mjs` after changing `midori-wasm`.
 - Commit returned real editor evidence only after `scripts/import_engine_validation_handoff.ps1` accepts it.
 - Use semantic commits; the recent stack uses `feat(core)!`, `feat(engine)`, `feat(web)`, `chore`, and `docs`.
 

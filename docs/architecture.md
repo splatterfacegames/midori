@@ -4,8 +4,9 @@ Midori has four main ownership boundaries:
 
 - `midori-core`: parses species TOML, generates deterministic tree data, builds meshes, generates LOD sets, and exports glTF/GLB.
 - `midori-cli`: loads species files from disk, chooses generation/export options, and writes assets for command-line workflows.
-- `midori-wasm`: wraps `midori-core` for browser use, returning JS-friendly mesh arrays, stats, metadata, and GLB bytes.
-- `web`: Svelte/Three editor that loads presets or TOML, calls the WASM package, previews generated LOD meshes, applies wind materials, and downloads GLB exports.
+- `midori-wasm`: wraps `midori-core` for the workbench, returning JS-friendly mesh arrays, stats, metadata, and GLB bytes.
+- `midori-contracts` / `midori-ui-domain`: FlatBuffers tree-compute wire contract and source-bound composition helpers for UI adapters (mined from the ui-domain line; not yet consumed by the workbench).
+- `apps/desktop`: React + Tauri workbench on the private jethaforge frontend stack. Loads species presets or TOML, calls the WASM package, previews generated LOD meshes and nature-patch scatter, and downloads GLB exports. `crates/midori-desktop` is the Tauri host crate, excluded from the workspace.
 
 ## Data Flow
 
@@ -38,11 +39,9 @@ Cap center vertices are excluded from coincident normal averaging so terminal cu
 
 Export tests should validate both builder-level JSON and real GLB bytes. The byte-level path must parse the GLB header, chunks, embedded JSON, materials, LOD node names, primitive attributes, accessors, buffer views, scene nodes, and Midori extras so exporter regressions are caught at the same boundary used by CLI and WASM downloads.
 
-## Browser Validation Boundary
+## Workbench Validation Boundary
 
-`web/scripts/browser-smoke.mjs` owns browser-level editor validation. It expects a running editor URL, defaults to `http://127.0.0.1:5173`, launches Chrome or Edge through the DevTools protocol, and exercises the same browser path a user sees: preset loading, LOD forcing, scale reference toggling, export-panel status, and Three canvas rendering.
-
-The smoke test writes screenshots to `web/target/browser-smoke/` and decodes the PNG data to check that the sampled canvas region is not blank. It does not validate artistic quality, texture assets, or PBR behavior; those remain outside this boundary.
+`apps/desktop` is covered by `npm test` (vitest) for model/engine logic and `npm run build` for the Vite bundle; the wasm bundle in `apps/desktop/src/wasm/` is regenerated with `node scripts/build-wasm.mjs`. There is no browser smoke test on this line; visual checks of PreviewPanel/NaturePanel are manual.
 
 ## Parked Work
 

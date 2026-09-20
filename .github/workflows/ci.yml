@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+# The self-hosted box shares one rustup home across all repo jobs; a
+# concurrent job's `rustup default` (e.g. an MSRV leg) can flip the global
+# default between our steps. Pinning here makes every rustup shim resolve
+# stable explicitly. (Same flake class matthias hit on this box.)
+env:
+  RUSTUP_TOOLCHAIN: stable
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust workspace
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Self-hosted runners don't source profile files, so the provisioned
+      # toolchain's bin dir isn't on PATH. Covers both conventional locations.
+      - name: Add cargo bin to PATH
+        run: |
+          for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
+      - run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
+      # midori-desktop is excluded from the workspace (its jethaforge dep needs
+      # private auth); these commands cover the engine, CLI, WASM, and FFI.
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+
+  wasm:
+    name: WASM crate
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Add cargo bin to PATH
+        run: |
+          for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup target add wasm32-unknown-unknown
+      # The committed apps/desktop/src/wasm bundle is produced by `npm run wasm`;
+      # this step verifies the crate still compiles for wasm32.
+      - run: cargo build -p midori-wasm --target wasm32-unknown-unknown --locked
+
+  app:
+    name: Workbench app
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # No `cache: npm` — the post-job cache save stalls at 0 MB/s on the
+      # self-hosted box and can fail an otherwise-green job at teardown.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      # The jethaforge stack dep is a private git repository. Three things are
+      # needed: rewrite the lockfile's ssh:// URLs to https, supply a token via
+      # a credential helper, and drop checkout's local extraheader — it carries
+      # the midori-scoped GITHUB_TOKEN, which overrides the helper for ANY
+      # github.com URL fetched from this worktree (causing 404s on jethaforge).
+      - name: Configure git auth for private jethaforge dep
+        run: |
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global credential.helper \
+            '!f() { echo "username=x-access-token"; echo "password=${{ secrets.JETHAFORGE_TOKEN }}"; }; f'
+          git ls-remote https://github.com/splatterfacegames/jethaforge.git HEAD >/dev/null
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  integrations:
+    name: Importer + evidence scripts
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Add cargo bin to PATH
+        run: |
+          for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
+      - uses: actions/setup-python@a26ff69c30b78f9c54ecd1c04bf793e546e55c4b # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-dotnet@67a35b5be61b2f4f6ff06b68696e239a4f47d10e # v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo install --path crates/midori-cli --locked
+      - name: Generate a forest-floor nature package
+        run: midori nature --patch presets/nature/temperate_forest_floor.toml --output target/midori_engine_validation/forest_floor
+      - run: midori validate-nature --input target/midori_engine_validation/forest_floor --report target/nature-validate.json
+      - run: python scripts/test_profile_notes_verifier.py
+      - run: python scripts/test_unity_importer_static.py
+      - run: python scripts/test_unreal_importer_fake_editor.py
+      - run: python scripts/test_unity_importer_compile_stub.py --package-dir target/midori_engine_validation/forest_floor
+      - run: python scripts/verify_engine_evidence.py --allow-pending
+      # scripts/test_project_scaffold_static.py needs an editor-generated
+      # project_scaffold_summary.json (real Unity/Unreal installs) — covered by
+      # the manual engine-validation docs, not this job.
