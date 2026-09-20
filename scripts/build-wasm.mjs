@@ -26,6 +26,16 @@ const remap = [
   `--remap-path-prefix=${resolve(root)}=/midori`,
   ...(home ? [`--remap-path-prefix=${resolve(home)}/.cargo=/cargo`] : []),
 ];
+// When the rust-src component is installed, rustc embeds real toolchain
+// paths (~/.rustup/toolchains/...) instead of virtual /rustc/<commit> ones.
+// Remap the sysroot src dir so both cases produce identical bytes.
+const v = spawnSync('rustc', ['-vV'], { encoding: 'utf8' });
+const s = spawnSync('rustc', ['--print', 'sysroot'], { encoding: 'utf8' });
+const sysroot = s.stdout?.trim();
+const commit = v.stdout?.match(/^commit-hash: ([0-9a-f]+)$/m)?.[1];
+if (sysroot && commit) {
+  remap.push(`--remap-path-prefix=${sysroot}/lib/rustlib/src/rust=/rustc/${commit}`);
+}
 const rustflags = [process.env.RUSTFLAGS ?? '', ...remap].filter(Boolean).join(' ');
 
 const WASM_PACK_VERSION = '0.15.0';
