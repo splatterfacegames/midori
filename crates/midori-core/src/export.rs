@@ -892,9 +892,23 @@ fn build_gltf_json(
     }
     materials.extend(impostor_slots.into_iter().flatten());
 
-    // Build nodes (one per mesh)
+    // Build nodes (one per mesh). The first (highest-detail) LOD node carries
+    // MSFT_lod: ids = the lower-detail LOD nodes in coarsening order, so
+    // engines that understand the extension pick up the whole LOD chain.
+    let lod_ids: Vec<usize> = (1..meshes.len()).collect();
     let nodes: Vec<_> = (0..meshes.len())
-        .map(|i| json!({ "mesh": i, "name": &meshes[i].name }))
+        .map(|i| {
+            let mut node = json!({ "mesh": i, "name": &meshes[i].name });
+            if i == 0 && !lod_ids.is_empty() {
+                node["extensions"]["MSFT_lod"]["ids"] = json!(lod_ids);
+                if let Some(heights) = config.metadata.as_ref().map(|m| &m.lod_screen_heights)
+                    && !heights.is_empty()
+                {
+                    node["extras"]["MSFT_screencoverage"] = json!(heights);
+                }
+            }
+            node
+        })
         .collect();
 
     let scene = json!({
@@ -959,6 +973,10 @@ fn build_gltf_json(
                 })
             })
             .collect();
+    }
+
+    if meshes.len() > 1 {
+        root["extensionsUsed"] = json!(["MSFT_lod"]);
     }
 
     // Add pivot painter extras
@@ -1582,6 +1600,20 @@ mod tests {
         );
         assert_eq!(json["nodes"][0]["name"], "English_Oak_LOD0");
         assert_eq!(json["nodes"][1]["name"], "English_Oak_LOD1");
+
+        // MSFT_lod: the highest-detail node links the coarser chain in order.
+        assert_eq!(json["extensionsUsed"], serde_json::json!(["MSFT_lod"]));
+        assert_eq!(
+            json["nodes"][0]["extensions"]["MSFT_lod"]["ids"],
+            serde_json::json!([1])
+        );
+        assert!(json["nodes"][1].get("extensions").is_none());
+        let coverage = json["nodes"][0]["extras"]["MSFT_screencoverage"]
+            .as_array()
+            .unwrap();
+        assert_eq!(coverage.len(), 2);
+        assert!((coverage[0].as_f64().unwrap() - 0.3).abs() < 0.0001);
+        assert!((coverage[1].as_f64().unwrap() - 0.1).abs() < 0.0001);
 
         let meshes = json["meshes"].as_array().unwrap();
         assert_eq!(meshes.len(), 2);
