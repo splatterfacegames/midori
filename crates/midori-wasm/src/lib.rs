@@ -405,15 +405,12 @@ struct LodOutput {
     screen_height: f32,
 }
 
-/// Submesh output for multi-material rendering.
+/// A material range over the index buffer.
 #[derive(serde::Serialize)]
 struct SubmeshOutput {
-    /// Starting index in the indices array
-    start: u32,
-    /// Number of indices in this submesh
-    count: u32,
-    /// Material type: 0 = Bark, 1 = Leaf
-    material_type: u32,
+    index_start: u32,
+    index_count: u32,
+    material: &'static str,
 }
 
 /// Raw RGBA8 image: `{ data, width, height }`, row-major, top row first
@@ -597,12 +594,12 @@ fn submesh_outputs(mesh: &Mesh) -> Vec<SubmeshOutput> {
     mesh.submeshes
         .iter()
         .map(|s| SubmeshOutput {
-            start: s.index_start,
-            count: s.index_count,
-            material_type: match s.material {
-                midori_core::MaterialType::Bark => 0,
-                midori_core::MaterialType::Leaves => 1,
-                midori_core::MaterialType::Impostor => 2,
+            index_start: s.index_start,
+            index_count: s.index_count,
+            material: match s.material {
+                midori_core::MaterialType::Bark => "bark",
+                midori_core::MaterialType::Leaves => "leaves",
+                midori_core::MaterialType::Impostor => "impostor",
             },
         })
         .collect()

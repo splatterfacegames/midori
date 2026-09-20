@@ -70,3 +70,8 @@ criterion/
 
 # Generated preset files (keep templates)
 presets/generated/
+
+# Node / desktop app
+node_modules/
+dist/
+apps/desktop/node_modules/

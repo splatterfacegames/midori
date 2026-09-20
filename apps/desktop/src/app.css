@@ -1,0 +1,394 @@
+.midori-app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.midori-panel-content {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.midori-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  opacity: 0.6;
+}
+
+.midori-section-title {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.midori-subtle {
+  opacity: 0.65;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.midori-error {
+  color: var(--fg-danger, #e06c75);
+  font-size: 11px;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+
+.midori-error-inline {
+  color: var(--fg-danger, #e06c75);
+  font-style: normal;
+  font-size: 11px;
+}
+
+/* ---- species library ---- */
+
+.midori-preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.midori-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.midori-preset small {
+  margin-left: auto;
+  opacity: 0.5;
+}
+
+.midori-action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.midori-action-stack button,
+.midori-layer-row button,
+.midori-variant,
+.midori-source-actions button,
+.midori-modal-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+/* ---- objects panel ---- */
+
+.midori-object-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.midori-object-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.midori-object-row small {
+  opacity: 0.55;
+}
+
+.midori-layer-row {
+  display: flex;
+  gap: 6px;
+}
+
+.midori-variant-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.midori-variant {
+  min-width: 40px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+/* ---- params inspector ---- */
+
+.midori-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.midori-section summary::before {
+  content: '▸';
+  margin-right: 6px;
+  opacity: 0.5;
+}
+
+.midori-section[open] summary::before {
+  content: '▾';
+}
+
+.midori-section-toggle {
+  display: inline-flex;
+  padding: 2px;
+}
+
+.midori-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  padding: 4px 0 8px;
+}
+
+.midori-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.midori-field-label {
+  font-size: 10px;
+  opacity: 0.65;
+  display: flex;
+  justify-content: space-between;
+}
+
+.midori-field-label em {
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.midori-field input,
+.midori-field select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.midori-field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.midori-field-inline input[type='checkbox'] {
+  width: auto;
+}
+
+/* ---- materials strip ---- */
+
+.midori-materials-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.midori-material-thumb {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 72px;
+}
+
+.midori-material-thumb-wide {
+  width: 148px;
+}
+
+.midori-material-thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, #3333);
+  /* Checkerboard so alpha reads at a glance. */
+  background:
+    repeating-conic-gradient(#8884 0% 25%, transparent 0% 50%) 0 0 / 12px 12px;
+}
+
+.midori-material-thumb-wide img {
+  aspect-ratio: 2;
+}
+
+.midori-material-thumb figcaption {
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+/* ---- source panel ---- */
+
+.midori-source {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.midori-source-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-subtle, #3333);
+}
+
+.midori-source-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.midori-source-editor {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  border: none;
+  padding: 8px 10px;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  background: transparent;
+  color: inherit;
+  outline: none;
+}
+
+/* ---- viewport ---- */
+
+.midori-view-badge {
+  position: absolute;
+  bottom: 26px;
+  left: 10px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.midori-viewport-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.midori-viewport-empty span {
+  font-size: 40px;
+  font-weight: 200;
+}
+
+.midori-view-tools {
+  display: flex;
+  gap: 4px;
+}
+
+/* ---- activity ---- */
+
+.midori-activity {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11.5px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.midori-activity p {
+  margin: 0;
+  opacity: 0.7;
+}
+
+.midori-log {
+  flex: 1;
+  overflow-y: auto;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 10.5px;
+  opacity: 0.85;
+}
+
+.midori-log p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ---- header / status ---- */
+
+.midori-header-species {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.midori-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4c8a3d;
+  display: inline-block;
+}
+
+.midori-status-busy {
+  background: #d19a3d;
+}
+
+.midori-status-right {
+  margin-left: auto;
+  opacity: 0.55;
+}
+
+/* ---- modal ---- */
+
+.midori-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.midori-modal {
+  background: var(--bg-elevated, #23282d);
+  color: inherit;
+  border: 1px solid var(--border-subtle, #3a4048);
+  border-radius: 8px;
+  padding: 16px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.midori-modal h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.midori-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

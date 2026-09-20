@@ -2,8 +2,8 @@
 
 Usage from the Unreal Python console:
 
-    py "B:/workshop/trees/grove/integrations/unreal/midori_nature_importer.py" \
-        "B:/workshop/trees/grove/target/midori_nature_validation_smoke" \
+    py "B:/workshop/trees/midori/integrations/unreal/midori_nature_importer.py" \
+        "B:/workshop/trees/midori/target/midori_nature_validation_smoke" \
         "/Game/Midori/Imported"
 
 Dry-run from CPython when Unreal Editor is not installed on the validation host:

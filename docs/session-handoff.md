@@ -13,8 +13,8 @@ This note is the cold-start handoff for picking up the Midori nature/mobile-cons
   - `547a6a0 chore: ignore Python cache files`
   - `c695bfa feat(web): add Midori nature previewer`
   - `c778e59 feat(engine): add Unity and Unreal nature validation handoff`
-  - `62f4e53 feat(core)!: rebrand Grove crates and add nature packages`
-- The old Grove crate names were replaced by Midori crate names.
+  - `62f4e53 feat(core)!: rebrand crates and add nature packages`
+- The old crate names were replaced by Midori crate names (rename commit history).
 - Generated outputs remain ignored under `target/`, `web/build/`, `web/node_modules/`, `web/target/`, and Python `__pycache__/`.
 
 ## Goal Status

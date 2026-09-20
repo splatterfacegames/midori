@@ -320,7 +320,7 @@ Helper script:
 Run from the Unreal Python console:
 
 ```python
-py "B:/workshop/trees/grove/integrations/unreal/midori_nature_importer.py" "B:/workshop/trees/grove/target/midori_nature_validation_smoke" "/Game/Midori/Imported" --import-screenshot "B:/workshop/trees/grove/docs/validation/screenshots/unreal_forest_floor_import.png" --foliage-settings-screenshot "B:/workshop/trees/grove/docs/validation/screenshots/unreal_forest_floor_foliage_settings.png"
+py "B:/workshop/trees/midori/integrations/unreal/midori_nature_importer.py" "B:/workshop/trees/midori/target/midori_nature_validation_smoke" "/Game/Midori/Imported" --import-screenshot "B:/workshop/trees/midori/docs/validation/screenshots/unreal_forest_floor_import.png" --foliage-settings-screenshot "B:/workshop/trees/midori/docs/validation/screenshots/unreal_forest_floor_foliage_settings.png"
 ```
 
 Run from the validation runner when Unreal Editor and a project are available:

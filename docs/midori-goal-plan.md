@@ -21,7 +21,7 @@ Do not spend this goal on image-generation prompts, alpha extraction, PBR deriva
 
 Status as of 2026-07-05:
 
-- The Grove to Midori rename is complete across Rust crates, CLI binary, WASM package, generated web bindings, web UI labels, package metadata, and docs. The remaining `grove` source hit is this plan's rename guardrail reminder.
+- The crate rename to Midori is complete across Rust crates, CLI binary, WASM package, generated bindings, UI labels, package metadata, and docs.
 - Phase 0 is partly landed: `docs/architecture.md` documents ownership and data flow, fixture tests cover a representative oak preset plus a minimal species with fixed-seed structure, LOD counts, and bounds, and export validation now parses real GLB bytes to check the embedded JSON and binary buffer contract.
 - Phase 1 is partly landed: species TOML now accepts `generator.family`, `species.latin`, `species.biome`, `species.tags`, material placeholders, and `control_groups`; CLI and WASM expose the metadata; invalid generator families are tested.
 - Phase 2 is partly landed: `generate_tree` dispatches by `generator.family`, the `dichotomous` family emits the shared `Tree` output, and `presets/species/joshua_prototype.toml` plus the web preset exercise a terminal fork prototype through LOD, WASM, CLI, and GLB export.
@@ -228,7 +228,7 @@ Phase 2 can move earlier if the next target species is Joshua tree, saguaro, yuc
 
 ## Risks
 
-- Renaming crates and wasm artifacts can leave stale generated files. Keep `rg "grove|Grove"` as a standard check until the rename is old history.
+- Renaming crates and wasm artifacts can leave stale generated files; keep a case-insensitive leftover-name search as a standard check.
 - glTF LOD extensions vary by engine. Prefer clear node names and valid core glTF before adding optional extensions.
 - Editor-side impostor baking can become browser-specific. Keep the first far LOD simple and geometry-only before attempting richer bakes.
 - New generator families can leak special cases into shared code. Keep family dispatch explicit and outputs shared.
