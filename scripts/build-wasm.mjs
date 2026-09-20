@@ -43,7 +43,11 @@ if (found !== WASM_PACK_VERSION) {
 
 const result = spawnSync(
   'wasm-pack',
-  ['build', 'crates/midori-wasm', '--target', 'web', '--release', '--out-dir', outDir],
+  // --no-opt: wasm-pack's bundled wasm-opt (binaryen 117) emits different
+  // bytes across machines; skipping it keeps the committed bundle
+  // reproducible (the wasm-repro CI leg depends on it). The release tarball
+  // is optimized separately — release.yml runs a pinned wasm-opt -O2.
+  ['build', 'crates/midori-wasm', '--target', 'web', '--release', '--no-opt', '--out-dir', outDir],
   { cwd: root, stdio: 'inherit', env: { ...process.env, RUSTFLAGS: rustflags } },
 );
 if (result.error) throw result.error;
