@@ -2,6 +2,7 @@
 name = "midori-ui-domain"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "Source-bound tree composition for Midori UI adapters"
 
