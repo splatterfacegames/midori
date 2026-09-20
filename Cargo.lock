@@ -760,6 +760,7 @@ name = "midori-ffi"
 version = "0.1.0"
 dependencies = [
  "midori-core",
+ "tempfile",
 ]
 
 [[package]]
@@ -771,6 +772,7 @@ dependencies = [
  "midori-core",
  "serde",
  "serde-wasm-bindgen",
+ "toml",
  "wasm-bindgen",
  "web-sys",
 ]

@@ -125,6 +125,30 @@ pub fn export_lod_meshes_to_bytes(
     build_glb_bytes(&gltf_data)
 }
 
+/// Export LOD mesh set as separate `.gltf` JSON + `.bin` parts (in-memory)
+///
+/// Returns `(gltf_json, bin)` bytes. `bin_name` is recorded as the buffer URI
+/// inside the glTF document, matching what `write_gltf_separate` produces on disk.
+pub fn export_lod_meshes_to_parts(
+    lods: &LodMeshSet,
+    bin_name: &str,
+    config: &ExportConfig,
+) -> Result<(Vec<u8>, Vec<u8>), ExportError> {
+    if lods.meshes.is_empty() {
+        return Err(ExportError::NoMeshes);
+    }
+
+    let gltf_data = build_gltf_lods(lods, config)?;
+    let mut json = gltf_data.json;
+    if let Some(buffers) = json.get_mut("buffers").and_then(|b| b.as_array_mut())
+        && let Some(buffer) = buffers.first_mut()
+    {
+        buffer["uri"] = serde_json::Value::String(bin_name.to_string());
+    }
+    let json_bytes = serde_json::to_vec_pretty(&json)?;
+    Ok((json_bytes, gltf_data.binary))
+}
+
 /// Build GLB file format in memory
 fn build_glb_bytes(data: &GltfData) -> Result<Vec<u8>, ExportError> {
     let json_bytes = serde_json::to_vec(&data.json)?;

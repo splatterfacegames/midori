@@ -43,7 +43,7 @@ pub mod tree;
 pub use constants::*;
 pub use export::{
     ExportConfig, ExportError, ExportFormat, ExportMetadata, export_lod_meshes,
-    export_lod_meshes_to_bytes, export_mesh,
+    export_lod_meshes_to_bytes, export_lod_meshes_to_parts, export_mesh,
 };
 pub use generation::generate_tree;
 pub use leaves::{LeafConfig, add_leaves_to_tree, generate_leaf_mesh, place_leaves};

@@ -183,10 +183,13 @@ pub struct TrunkParams {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct BranchLevels {
     /// Primary branches off the trunk
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub level1: Option<BranchParams>,
     /// Secondary branches
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub level2: Option<BranchParams>,
     /// Tertiary branches (twigs)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub level3: Option<BranchParams>,
 }
 
@@ -437,7 +440,7 @@ pub struct LodConfig {
     #[serde(default = "default_lod_preset")]
     pub preset: LodPreset,
     /// Override number of LOD levels
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub count: Option<u32>,
     /// Custom LOD level definitions
     #[serde(default)]
@@ -455,7 +458,7 @@ pub struct LodLevel {
     /// Target triangle count
     pub target_triangles: u32,
     /// Maximum allowed triangles
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_triangles: Option<u32>,
     /// Number of branch levels to include
     #[serde(default = "default_branch_levels")]
@@ -467,7 +470,7 @@ pub struct LodLevel {
     #[serde(default = "default_one")]
     pub leaf_reduction: f32,
     /// Ring resolution for trunk/branches [trunk, level1, level2, level3]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ring_resolution: Option<[u32; 4]>,
     /// Screen height threshold for LOD switching
     #[serde(default)]
