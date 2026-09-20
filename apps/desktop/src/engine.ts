@@ -147,6 +147,16 @@ export class Generator {
     return this.inner.get_stats(BigInt(seed)) as TreeStats;
   }
 
+  /** Worst-case stem/leaf counts — call before generating to refuse
+   *  over-budget species cheaply. Throws a structured `Error` with `kind`
+   *  when the estimate exceeds the engine budget. */
+  estimate(): { max_stems: number; max_leaves: number } {
+    return this.inner.estimateGeneration() as {
+      max_stems: number;
+      max_leaves: number;
+    };
+  }
+
   /** Single-file binary glTF for `seed`. `embedTextures` embeds the species'
    *  generated material maps (bark albedo+normal, leaf card). Impostor
    *  atlases are embedded whenever a LOD bakes one. */

@@ -14,7 +14,7 @@ fn workspace_preset(path: &str) -> PathBuf {
 #[test]
 fn oak_preset_seed_42_snapshot() {
     let species = Species::from_file(&workspace_preset("presets/species/oak.toml")).unwrap();
-    let tree = generate_tree(&species, 42);
+    let tree = generate_tree(&species, 42).unwrap();
 
     assert_eq!(tree.stem_count(), 147);
     assert_eq!(tree.leaf_count(), 2936);
@@ -61,7 +61,7 @@ segments = 4
 "#,
     )
     .unwrap();
-    let tree = generate_tree(&species, 7);
+    let tree = generate_tree(&species, 7).unwrap();
 
     assert_eq!(tree.stem_count(), 1);
     assert_eq!(tree.leaf_count(), 0);

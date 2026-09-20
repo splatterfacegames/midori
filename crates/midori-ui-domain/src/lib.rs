@@ -28,6 +28,7 @@ pub enum TreeError {
     Seed,
     Utf8(std::str::Utf8Error),
     Species(String),
+    Generation(midori_core::GenerationError),
     Export(midori_core::ExportError),
 }
 
@@ -37,6 +38,7 @@ impl std::fmt::Display for TreeError {
             Self::Seed => f.write_str("seed must be a canonical unsigned decimal u64"),
             Self::Utf8(error) => write!(f, "source is not UTF-8: {error}"),
             Self::Species(error) => write!(f, "species TOML: {error}"),
+            Self::Generation(error) => write!(f, "generation budget: {error}"),
             Self::Export(error) => write!(f, "GLB export: {error}"),
         }
     }
@@ -46,6 +48,7 @@ impl std::error::Error for TreeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Utf8(error) => Some(error),
+            Self::Generation(error) => Some(error),
             Self::Export(error) => Some(error),
             Self::Seed | Self::Species(_) => None,
         }
@@ -128,7 +131,7 @@ pub fn compose_tree(
     }
     let text = std::str::from_utf8(source).map_err(TreeError::Utf8)?;
     let species = Species::from_toml(text).map_err(|e| TreeError::Species(e.to_string()))?;
-    let tree = generate_tree(&species, seed);
+    let tree = generate_tree(&species, seed).map_err(TreeError::Generation)?;
     let lod_config = LodGenerationConfig::balanced();
     let lods = generate_lod_meshes_with_config(&tree, &species, &lod_config);
     let summary = TreeSummary {

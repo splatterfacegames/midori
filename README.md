@@ -41,6 +41,8 @@ midori generate -s presets/species/pine.toml -n 10 --seed 42 -o forest/pine.glb
 
 Output files will be named `pine_0.glb`, `pine_1.glb`, etc.
 
+**Seed rule:** each generated variant uses its own seed — variant `i` uses `seed + i`. Keep a single base seed per species to get reproducible, uncorrelated variants.
+
 ### Generate a nature package
 
 ```bash
@@ -66,7 +68,25 @@ midori info -s presets/species/willow.toml
 | `--lod <all\|0\|1\|2\|3>` | LOD level(s) to export | `all` |
 | `--format <glb\|gltf>` | Output format | `glb` |
 | `--lod-preset <PRESET>` | LOD quality preset | `balanced` |
+| `--max-stems <N>` | Stem budget (0 = unbounded) | `50000` |
+| `--max-leaves <N>` | Leaf budget (0 = unbounded) | `250000` |
+| `--max-vertices <N>` | Vertex budget across all LODs (0 = unbounded) | `500000` |
+| `--max-triangles <N>` | Triangle budget across all LODs (0 = unbounded) | `1000000` |
 | `-v, --verbose` | Verbose output | off |
+
+### Global Flags and Exit Codes
+
+`--quiet` suppresses progress output on every command; `--json` emits machine-readable output (for `generate`, a JSON summary of every exported file with its byte size, LOD level, screen coverage, and sha256) and turns errors into `{"error": {"kind": ..., "message": ...}}` on stderr.
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Success |
+| `2` | Bad command-line arguments |
+| `3` | Invalid input (species/patch parse or validation failure, generation budget exceeded) |
+| `4` | I/O error (missing file, unwritable output) |
+| `1` | Anything else |
+
+Invalid species reject with a per-field report; e.g. `trunk.height: must be positive and finite`. Generation refuses to start when the estimated worst-case stem or leaf count exceeds the budget, and fails mid-flight if the actual counts pass it — the budget protects downstream consumers from unbounded output.
 
 ### Nature Package Options
 
