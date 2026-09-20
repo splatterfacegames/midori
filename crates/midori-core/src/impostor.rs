@@ -362,7 +362,7 @@ resolution = 64
     #[test]
     fn impostor_bakes_quads_and_atlas() {
         let species = crown_species();
-        let tree = generate_tree(&species, 7);
+        let tree = generate_tree(&species, 7).unwrap();
         let textures = TextureSet::generate(&species);
 
         let imp = bake_impostor(&tree, &species, 0, &textures).expect("crown should bake");

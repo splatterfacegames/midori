@@ -12,12 +12,51 @@
 //! - glTF 2.0 export as single-file GLB or `.gltf` + `.bin` parts
 
 use midori_core::{
-    ExportConfig, ExportMetadata, GeneratorFamily, GroundcoverKind, Mesh, NatureExportManifest,
-    NaturePatch, RgbaTexture, ScatterSet, Species, TextureSet, export_lod_meshes_to_bytes,
+    ExportConfig, ExportMetadata, GenerationBudget, GenerationError, GeneratorFamily,
+    GroundcoverKind, Mesh, NatureExportManifest, NaturePatch, RgbaTexture, ScatterSet, Species,
+    SpeciesError, SpeciesFieldError, TextureSet, estimate_tree, export_lod_meshes_to_bytes,
     export_lod_meshes_to_parts, generate_tree as core_generate_tree,
     lod::{LodGenerationConfig, generate_lod_meshes_with_config},
 };
 use wasm_bindgen::prelude::*;
+
+/// Structured error thrown to JS callers.
+///
+/// The thrown value is a real `Error` (so `err.message` and
+/// `error instanceof Error` work in TypeScript), with extra properties:
+/// `kind` categorizes the failure (`"input" | "validation" | "generation" |
+/// "export" | "internal"`), and `fields` — present on `"validation"` errors —
+/// is `[{ field, message }]` with `field` the dotted species path so editors
+/// can highlight the offending control.
+fn js_error(kind: &str, message: impl std::fmt::Display) -> JsValue {
+    js_error_with_fields(kind, message, Vec::new())
+}
+
+fn js_error_with_fields(
+    kind: &str,
+    message: impl std::fmt::Display,
+    fields: Vec<SpeciesFieldError>,
+) -> JsValue {
+    let err = js_sys::Error::new(&message.to_string());
+    let _ = js_sys::Reflect::set(&err, &"kind".into(), &JsValue::from_str(kind));
+    if !fields.is_empty()
+        && let Ok(value) = serde_wasm_bindgen::to_value(&fields)
+    {
+        let _ = js_sys::Reflect::set(&err, &"fields".into(), &value);
+    }
+    err.into()
+}
+
+fn species_js_error(e: &SpeciesError) -> JsValue {
+    match e {
+        SpeciesError::Validation(fields) => js_error_with_fields("validation", e, fields.clone()),
+        SpeciesError::Parse(_) | SpeciesError::Io(_) => js_error("input", e),
+    }
+}
+
+fn generation_js_error(e: &GenerationError) -> JsValue {
+    js_error("generation", e)
+}
 
 /// Initialize panic hook for better error messages in WASM.
 #[wasm_bindgen(start)]
@@ -45,8 +84,7 @@ impl MidoriGenerator {
     /// Create a new generator from a TOML species definition string.
     #[wasm_bindgen(constructor)]
     pub fn new(toml: &str) -> Result<MidoriGenerator, JsValue> {
-        let species = Species::from_toml(toml)
-            .map_err(|e| JsValue::from_str(&format!("Parse error: {e}")))?;
+        let species = Species::from_toml(toml).map_err(|e| species_js_error(&e))?;
         Ok(Self { species })
     }
 
@@ -57,7 +95,8 @@ impl MidoriGenerator {
     #[wasm_bindgen(js_name = fromJson)]
     pub fn from_json(value: JsValue) -> Result<MidoriGenerator, JsValue> {
         let species = serde_wasm_bindgen::from_value::<Species>(value)
-            .map_err(|e| JsValue::from_str(&format!("Invalid species: {e}")))?;
+            .map_err(|e| js_error("input", format_args!("Invalid species: {e}")))?;
+        species.validate().map_err(|e| species_js_error(&e))?;
         Ok(Self { species })
     }
 
@@ -68,14 +107,14 @@ impl MidoriGenerator {
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
         serde_wasm_bindgen::to_value(&self.species)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
     }
 
     /// Serialize the species definition back to TOML.
     #[wasm_bindgen(js_name = toToml)]
     pub fn to_toml(&self) -> Result<String, JsValue> {
         toml::to_string_pretty(&self.species)
-            .map_err(|e| JsValue::from_str(&format!("TOML serialization error: {e}")))
+            .map_err(|e| js_error("internal", format_args!("TOML serialization error: {e}")))
     }
 
     /// Get the species name.
@@ -89,7 +128,7 @@ impl MidoriGenerator {
     pub fn metadata(&self) -> Result<JsValue, JsValue> {
         let metadata = SpeciesMetadata::from_species(&self.species);
         serde_wasm_bindgen::to_value(&metadata)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
     }
 
     /// Generate a tree and return mesh data as a JavaScript object.
@@ -97,29 +136,30 @@ impl MidoriGenerator {
     /// Returns an object containing all LOD levels with their mesh data.
     #[wasm_bindgen]
     pub fn generate(&self, seed: u64) -> Result<JsValue, JsValue> {
-        let tree = core_generate_tree(&self.species, seed);
-        let lods = self.generate_lods(&tree);
+        let tree = self.generate_tree(seed)?;
+        let lods = self.generate_lods(&tree)?;
 
         // Convert to JS-friendly format
         let result = MeshOutput::from_lods(&lods);
         serde_wasm_bindgen::to_value(&result)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
     }
 
     /// Generate only a specific LOD level.
     #[wasm_bindgen]
     pub fn generate_lod(&self, seed: u64, lod_level: u32) -> Result<JsValue, JsValue> {
-        let tree = core_generate_tree(&self.species, seed);
-        let lods = self.generate_lods(&tree);
+        let tree = self.generate_tree(seed)?;
+        let lods = self.generate_lods(&tree)?;
 
         if let Some(lod) = lods.get(lod_level) {
             let result = SingleMeshOutput::from_mesh(&lod.mesh, &lod.name);
             serde_wasm_bindgen::to_value(&result)
-                .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+                .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
         } else {
-            Err(JsValue::from_str(&format!(
-                "LOD level {lod_level} not found"
-            )))
+            Err(js_error(
+                "input",
+                format_args!("LOD level {lod_level} not found"),
+            ))
         }
     }
 
@@ -128,7 +168,7 @@ impl MidoriGenerator {
     /// Useful for previewing tree complexity before generating full mesh.
     #[wasm_bindgen]
     pub fn get_stats(&self, seed: u64) -> Result<JsValue, JsValue> {
-        let tree = core_generate_tree(&self.species, seed);
+        let tree = self.generate_tree(seed)?;
 
         let stats = TreeStats {
             stem_count: tree.stems.len() as u32,
@@ -139,7 +179,7 @@ impl MidoriGenerator {
         };
 
         serde_wasm_bindgen::to_value(&stats)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
     }
 
     /// Export tree as GLB binary data.
@@ -154,8 +194,8 @@ impl MidoriGenerator {
         seed: u64,
         embed_textures: bool,
     ) -> Result<js_sys::Uint8Array, JsValue> {
-        let tree = core_generate_tree(&self.species, seed);
-        let lods = self.generate_lods(&tree);
+        let tree = self.generate_tree(seed)?;
+        let lods = self.generate_lods(&tree)?;
 
         // Export to GLB bytes
         let mut config = self.export_config(embed_textures);
@@ -170,7 +210,7 @@ impl MidoriGenerator {
                 .collect(),
         });
         let glb_bytes = export_lod_meshes_to_bytes(&lods, &config)
-            .map_err(|e| JsValue::from_str(&format!("Export error: {e}")))?;
+            .map_err(|e| js_error("export", format_args!("Export error: {e}")))?;
 
         // Convert to JS Uint8Array
         let array = js_sys::Uint8Array::new_with_length(glb_bytes.len() as u32);
@@ -190,12 +230,12 @@ impl MidoriGenerator {
         bin_name: &str,
         embed_textures: bool,
     ) -> Result<JsValue, JsValue> {
-        let tree = core_generate_tree(&self.species, seed);
-        let lods = self.generate_lods(&tree);
+        let tree = self.generate_tree(seed)?;
+        let lods = self.generate_lods(&tree)?;
 
         let config = self.export_config(embed_textures);
         let (gltf, bin) = export_lod_meshes_to_parts(&lods, bin_name, &config)
-            .map_err(|e| JsValue::from_str(&format!("Export error: {e}")))?;
+            .map_err(|e| js_error("export", format_args!("Export error: {e}")))?;
 
         let result = js_sys::Object::new();
         let gltf_array = js_sys::Uint8Array::new_with_length(gltf.len() as u32);
@@ -228,7 +268,28 @@ impl MidoriGenerator {
             leaf_card: GeneratedMap::strict(&textures.leaf_card)?,
         };
         serde_wasm_bindgen::to_value(&result)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
+    }
+
+    /// Generate a tree under the default [`GenerationBudget`].
+    ///
+    /// The estimate is checked first so pathological species are refused
+    /// before spending any time, then the real stem/leaf counts are enforced
+    /// during generation. Both failures throw a `"generation"` error.
+    fn generate_tree(&self, seed: u64) -> Result<midori_core::Tree, JsValue> {
+        let budget = GenerationBudget::default();
+        budget
+            .check_estimate(&estimate_tree(&self.species))
+            .map_err(|e| generation_js_error(&e))?;
+        core_generate_tree(&self.species, seed).map_err(|e| generation_js_error(&e))
+    }
+
+    /// Estimate worst-case generation cost (`{ max_stems, max_leaves }`)
+    /// without generating — lets the editor warn or refuse cheaply.
+    #[wasm_bindgen(js_name = estimateGeneration)]
+    pub fn estimate_generation(&self) -> Result<JsValue, JsValue> {
+        serde_wasm_bindgen::to_value(&estimate_tree(&self.species))
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
     }
 
     fn export_config(&self, embed_textures: bool) -> ExportConfig {
@@ -238,9 +299,14 @@ impl MidoriGenerator {
         }
     }
 
-    fn generate_lods(&self, tree: &midori_core::Tree) -> midori_core::LodMeshSet {
+    fn generate_lods(&self, tree: &midori_core::Tree) -> Result<midori_core::LodMeshSet, JsValue> {
         let lod_config = LodGenerationConfig::from_species(&self.species);
-        generate_lod_meshes_with_config(tree, &self.species, &lod_config)
+        let lods = generate_lod_meshes_with_config(tree, &self.species, &lod_config);
+        let stats = lods.total_stats();
+        GenerationBudget::default()
+            .check_mesh_stats(stats.vertex_count as usize, stats.triangle_count as usize)
+            .map_err(|e| generation_js_error(&e))?;
+        Ok(lods)
     }
 }
 
@@ -250,7 +316,7 @@ impl MidoriNatureGenerator {
     #[wasm_bindgen(constructor)]
     pub fn new(toml: &str) -> Result<MidoriNatureGenerator, JsValue> {
         let patch = NaturePatch::from_toml(toml)
-            .map_err(|e| JsValue::from_str(&format!("Nature patch parse error: {}", e)))?;
+            .map_err(|e| js_error("input", format_args!("Nature patch error: {e}")))?;
         Ok(Self { patch })
     }
 
@@ -268,10 +334,11 @@ impl MidoriNatureGenerator {
         scatter_chunk_size: f32,
     ) -> Result<JsValue, JsValue> {
         if preview_resolution < 2 {
-            return Err(JsValue::from_str("preview resolution must be at least 2"));
+            return Err(js_error("input", "preview resolution must be at least 2"));
         }
         if scatter_chunk_size <= 0.0 || !scatter_chunk_size.is_finite() {
-            return Err(JsValue::from_str(
+            return Err(js_error(
+                "input",
                 "scatter chunk size must be a positive finite number",
             ));
         }
@@ -316,7 +383,7 @@ impl MidoriNatureGenerator {
         };
 
         serde_wasm_bindgen::to_value(&result)
-            .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
     }
 }
 
@@ -450,7 +517,7 @@ impl GeneratedMap {
         Ok(Self {
             png: Some(
                 tex.to_png()
-                    .map_err(|e| JsValue::from_str(&format!("Texture encode error: {e}")))?,
+                    .map_err(|e| js_error("internal", format_args!("Texture encode error: {e}")))?,
             ),
             rgba: RgbaOutput::from(tex),
         })

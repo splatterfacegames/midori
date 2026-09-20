@@ -22,12 +22,13 @@
 //! "#;
 //!
 //! let species = Species::from_toml(toml).unwrap();
-//! let tree = generate_tree(&species, 12345);
+//! let tree = generate_tree(&species, 12345).unwrap();
 //!
 //! println!("Generated {} stems", tree.stem_count());
 //! ```
 
 pub mod constants;
+pub mod error;
 pub mod export;
 pub mod generation;
 pub mod impostor;
@@ -43,11 +44,15 @@ pub mod textures;
 pub mod tree;
 
 pub use constants::*;
+pub use error::Error;
 pub use export::{
     ExportConfig, ExportError, ExportFormat, ExportMetadata, export_lod_meshes,
     export_lod_meshes_to_bytes, export_lod_meshes_to_parts, export_mesh,
 };
-pub use generation::generate_tree;
+pub use generation::{
+    GenerationBudget, GenerationError, GenerationEstimate, estimate_tree, generate_tree,
+    generate_tree_with_budget,
+};
 pub use impostor::{Impostor, bake_impostor};
 pub use leaves::{LeafConfig, add_leaves_to_tree, generate_leaf_mesh, place_leaves};
 pub use lod::{
@@ -68,11 +73,11 @@ pub use nature::{
     validate_nature_package,
 };
 pub use rng::Rng;
-pub use species::Species;
 pub use species::{
     BarkStyle, ControlGroup, ControlSpec, GeneratorConfig, GeneratorFamily, LeafCardLayout,
     LeafShape, MaterialPlaceholders, TextureParams,
 };
+pub use species::{Species, SpeciesError, SpeciesFieldError};
 pub use textures::{RgbaTexture, TextureError, TextureSet, species_texture_seed};
 pub use tree::{BoundingBox, Leaf, Segment, Stem, Tree};
 
@@ -101,7 +106,7 @@ shape = "spherical"
 "#;
 
         let species = Species::from_toml(toml).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         // Verify basic tree structure
         assert_eq!(tree.species_name, "Test Oak");
@@ -137,8 +142,8 @@ length = 2.0
 
         let species = Species::from_toml(toml).unwrap();
 
-        let tree1 = generate_tree(&species, 12345);
-        let tree2 = generate_tree(&species, 12345);
+        let tree1 = generate_tree(&species, 12345).unwrap();
+        let tree2 = generate_tree(&species, 12345).unwrap();
 
         assert_eq!(tree1.stem_count(), tree2.stem_count());
 
@@ -167,7 +172,7 @@ segments = 3
 "#;
 
         let species = Species::from_toml(toml).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         // Generate mesh with default config
         let mesh = build_mesh(&tree);
@@ -200,7 +205,7 @@ radius = 0.3
 "#;
 
         let species = Species::from_toml(toml).unwrap();
-        let tree = generate_tree(&species, 123);
+        let tree = generate_tree(&species, 123).unwrap();
 
         // Generate mesh with custom config
         let config = MeshConfig {
