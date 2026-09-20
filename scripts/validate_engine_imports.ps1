@@ -32,7 +32,7 @@ $unityImportLog = Join-Path $outputRoot "unity_import.log"
 $unrealImportLog = Join-Path $outputRoot "unreal_import.log"
 $unrealPythonScript = Join-Path $outputRoot "run_midori_unreal_import.py"
 $evidenceReport = Join-Path $outputRoot "engine_evidence_verification.json"
-$validationScreenshotRoot = Join-Path $repoRoot "docs\validation\screenshots"
+$validationScreenshotRoot = Join-Path $repoRoot "docs/validation/screenshots"
 $unityImportScreenshot = Join-Path $validationScreenshotRoot "unity_forest_floor_import.png"
 $unityDensityScreenshot = Join-Path $validationScreenshotRoot "unity_forest_floor_density.png"
 $unrealImportScreenshot = Join-Path $validationScreenshotRoot "unreal_forest_floor_import.png"
@@ -47,8 +47,8 @@ elseif (![System.IO.Path]::IsPathRooted($ProjectScaffoldRoot)) {
     $ProjectScaffoldRoot = Join-Path $repoRoot $ProjectScaffoldRoot
 }
 $projectScaffoldSummary = Join-Path $ProjectScaffoldRoot "project_scaffold_summary.json"
-$scaffoldUnityProject = Join-Path $ProjectScaffoldRoot "unity\MidoriUnityValidation"
-$scaffoldUnrealProject = Join-Path $ProjectScaffoldRoot "unreal\MidoriUnrealValidation\MidoriUnrealValidation.uproject"
+$scaffoldUnityProject = Join-Path $ProjectScaffoldRoot "unity/MidoriUnityValidation"
+$scaffoldUnrealProject = Join-Path $ProjectScaffoldRoot "unreal/MidoriUnrealValidation/MidoriUnrealValidation.uproject"
 
 function Invoke-Checked {
     param(
@@ -83,14 +83,8 @@ function Invoke-ProcessWait {
         [string[]]$Arguments
     )
 
-    $argumentLine = ($Arguments | ForEach-Object { Convert-ToProcessArgument $_ }) -join " "
-    $process = Start-Process `
-        -FilePath $FilePath `
-        -ArgumentList $argumentLine `
-        -Wait `
-        -PassThru `
-        -WindowStyle Hidden
-    return $process.ExitCode
+    & $FilePath @Arguments
+    return $LASTEXITCODE
 }
 
 function Convert-ToPythonString {
@@ -104,17 +98,25 @@ function Find-UnityEditor {
         return (Resolve-Path -LiteralPath $UnityExe).Path
     }
 
-    $pathCommand = Get-Command Unity.exe -ErrorAction SilentlyContinue
+    $exeName = if ($IsWindows) { "Unity.exe" } else { "Unity" }
+    $pathCommand = Get-Command $exeName -ErrorAction SilentlyContinue
     if ($pathCommand) {
         return $pathCommand.Source
     }
 
-    $hubRoot = "C:\Program Files\Unity\Hub\Editor"
+    $hubRoot = if ($IsMacOS) {
+        "/Applications/Unity/Hub/Editor"
+    } elseif ($IsWindows) {
+        "C:/Program Files/Unity/Hub/Editor"
+    } else {
+        Join-Path $HOME "Unity/Hub/Editor"
+    }
+    $suffix = if ($IsMacOS) { "Unity.app/Contents/MacOS/Unity" } else { "Editor/$exeName" }
     if (Test-Path -LiteralPath $hubRoot) {
         $editors = Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
             Sort-Object Name -Descending
         foreach ($editor in $editors) {
-            $candidate = Join-Path $editor.FullName "Editor\Unity.exe"
+            $candidate = Join-Path $editor.FullName $suffix
             if (Test-Path -LiteralPath $candidate) {
                 return $candidate
             }
@@ -129,17 +131,33 @@ function Find-UnrealEditor {
         return (Resolve-Path -LiteralPath $UnrealEditorExe).Path
     }
 
-    $pathCommand = Get-Command UnrealEditor.exe -ErrorAction SilentlyContinue
+    $exeName = if ($IsWindows) { "UnrealEditor.exe" } else { "UnrealEditor" }
+    $pathCommand = Get-Command $exeName -ErrorAction SilentlyContinue
     if ($pathCommand) {
         return $pathCommand.Source
     }
 
-    $epicRoot = "C:\Program Files\Epic Games"
+    # Windows: Epic Games root dir; Linux: source-build or launcher install dir;
+    # macOS: engine inside the .app bundle.
+    $epicRoot = if ($IsMacOS) {
+        "/Users/Shared/Epic Games"
+    } elseif ($IsWindows) {
+        "C:/Program Files/Epic Games"
+    } else {
+        Join-Path $HOME "Epic Games"
+    }
+    $suffix = if ($IsMacOS) {
+        "Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor"
+    } elseif ($IsWindows) {
+        "Engine/Binaries/Win64/UnrealEditor.exe"
+    } else {
+        "Engine/Binaries/Linux/UnrealEditor"
+    }
     if (Test-Path -LiteralPath $epicRoot) {
         $engines = Get-ChildItem -LiteralPath $epicRoot -Directory -ErrorAction SilentlyContinue |
             Sort-Object Name -Descending
         foreach ($engine in $engines) {
-            $candidate = Join-Path $engine.FullName "Engine\Binaries\Win64\UnrealEditor.exe"
+            $candidate = Join-Path $engine.FullName $suffix
             if (Test-Path -LiteralPath $candidate) {
                 return $candidate
             }
@@ -179,10 +197,9 @@ function Remove-TempUnityProject {
 }
 
 function Invoke-ProjectScaffold {
-    $scriptPath = Join-Path $repoRoot "scripts\create_engine_validation_projects.ps1"
-    & powershell `
+    $scriptPath = Join-Path $repoRoot "scripts/create_engine_validation_projects.ps1"
+    & pwsh `
         -NoProfile `
-        -ExecutionPolicy Bypass `
         -File $scriptPath `
         -OutputRoot $ProjectScaffoldRoot `
         -UnrealDestinationRoot $UnrealDestinationRoot
@@ -194,9 +211,9 @@ function Invoke-ProjectScaffold {
 function Copy-UnityImporterIntoProject {
     param([string]$ProjectPath)
 
-    $editorDir = Join-Path $ProjectPath "Assets\Editor"
+    $editorDir = Join-Path $ProjectPath "Assets/Editor"
     New-Item -ItemType Directory -Path $editorDir -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $repoRoot "integrations\unity\Editor\MidoriNaturePackageImporter.cs") `
+    Copy-Item -LiteralPath (Join-Path $repoRoot "integrations/unity/Editor/MidoriNaturePackageImporter.cs") `
         -Destination (Join-Path $editorDir "MidoriNaturePackageImporter.cs") `
         -Force
 }
@@ -208,7 +225,7 @@ $projectScaffoldPreflightStatus = if ($SkipProjectScaffold) { "skipped" } else {
 if (!$SkipProjectScaffold) {
     Invoke-ProjectScaffold
     Invoke-Checked "python" @(
-        (Join-Path $repoRoot "scripts\test_project_scaffold_static.py"),
+        (Join-Path $repoRoot "scripts/test_project_scaffold_static.py"),
         "--scaffold-root", $ProjectScaffoldRoot
     )
     $projectScaffoldPreflightStatus = "passed"
@@ -221,7 +238,7 @@ $summary = [ordered]@{
     project_scaffolds = [ordered]@{
         status = $projectScaffoldStatus
         preflight_status = $projectScaffoldPreflightStatus
-        preflight_test = Join-Path $repoRoot "scripts\test_project_scaffold_static.py"
+        preflight_test = Join-Path $repoRoot "scripts/test_project_scaffold_static.py"
         root = $ProjectScaffoldRoot
         summary = $projectScaffoldSummary
         unity_project = $scaffoldUnityProject
@@ -239,12 +256,12 @@ $summary = [ordered]@{
 }
 
 Invoke-Checked "python" @(
-    (Join-Path $repoRoot "scripts\test_profile_notes_verifier.py")
+    (Join-Path $repoRoot "scripts/test_profile_notes_verifier.py")
 )
 $summary.profile_notes_preflight = [ordered]@{
     status = "passed"
-    test = Join-Path $repoRoot "scripts\test_profile_notes_verifier.py"
-    template = Join-Path $repoRoot "docs\validation\midori-nature-engine-profile-notes.template.md"
+    test = Join-Path $repoRoot "scripts/test_profile_notes_verifier.py"
+    template = Join-Path $repoRoot "docs/validation/midori-nature-engine-profile-notes.template.md"
     note = "Editorless self-test for the completed Unity/Unreal profiling notes gate."
 }
 
@@ -300,15 +317,15 @@ $summary.midori = [ordered]@{
 }
 
 Invoke-Checked "python" @(
-    (Join-Path $repoRoot "scripts\test_unity_importer_static.py"),
+    (Join-Path $repoRoot "scripts/test_unity_importer_static.py"),
     "--package-dir", $packageDir,
     "--expect-chunks", "26",
     "--expect-instances", "222"
 )
 
 Invoke-Checked "python" @(
-    (Join-Path $repoRoot "scripts\test_unity_importer_compile_stub.py"),
-    "--source", (Join-Path $repoRoot "integrations\unity\Editor\MidoriNaturePackageImporter.cs"),
+    (Join-Path $repoRoot "scripts/test_unity_importer_compile_stub.py"),
+    "--source", (Join-Path $repoRoot "integrations/unity/Editor/MidoriNaturePackageImporter.cs"),
     "--work-dir", $unityCompileStubDir,
     "--package-dir", $packageDir,
     "--execution-report", $unityCompileStubReport
@@ -318,9 +335,9 @@ $unityCompileStubJson = Get-Content -LiteralPath $unityCompileStubReport -Raw | 
 
 $summary.unity_preflight = [ordered]@{
     status = "passed"
-    test = Join-Path $repoRoot "scripts\test_unity_importer_static.py"
+    test = Join-Path $repoRoot "scripts/test_unity_importer_static.py"
     compile_stub_status = "passed"
-    compile_stub_test = Join-Path $repoRoot "scripts\test_unity_importer_compile_stub.py"
+    compile_stub_test = Join-Path $repoRoot "scripts/test_unity_importer_compile_stub.py"
     compile_stub_dir = $unityCompileStubDir
     compile_stub_execution_status = $unityCompileStubJson.status
     compile_stub_execution_report = $unityCompileStubReport
@@ -340,7 +357,7 @@ $summary.unity_preflight = [ordered]@{
 
 if (!$SkipUnrealDryRun) {
     Invoke-Checked "python" @(
-        (Join-Path $repoRoot "integrations\unreal\midori_nature_importer.py"),
+        (Join-Path $repoRoot "integrations/unreal/midori_nature_importer.py"),
         $packageDir,
         "--dry-run",
         "--report", $unrealDryRunReport
@@ -420,7 +437,7 @@ if (!$SkipUnrealEditor) {
         $summary.unreal.editor_project = $unrealProjectPath
     }
     else {
-        $integrationDir = Join-Path $repoRoot "integrations\unreal"
+        $integrationDir = Join-Path $repoRoot "integrations/unreal"
         $wrapper = @(
             "import sys",
             "sys.path.insert(0, $(Convert-ToPythonString $integrationDir))",
@@ -503,7 +520,7 @@ if (!$SkipUnrealEditor) {
 }
 
 Invoke-Checked "python" @(
-    (Join-Path $repoRoot "scripts\test_unreal_importer_fake_editor.py"),
+    (Join-Path $repoRoot "scripts/test_unreal_importer_fake_editor.py"),
     "--package", $packageDir,
     "--report", $unrealFakeEditorReport
 )
@@ -684,7 +701,7 @@ $summaryJson = $summary | ConvertTo-Json -Depth 8
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText($summaryPath, $summaryJson, $utf8NoBom)
 Invoke-Checked "python" @(
-    (Join-Path $repoRoot "scripts\verify_engine_evidence.py"),
+    (Join-Path $repoRoot "scripts/verify_engine_evidence.py"),
     "--validation-root", $outputRoot,
     "--output", $evidenceReport,
     "--allow-pending"

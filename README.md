@@ -96,16 +96,18 @@ Unity and Unreal helper importers live under `integrations/`:
 The current nature package and editorless import checks are automated through:
 
 ```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_engine_imports.ps1
+pwsh -NoProfile -File scripts/validate_engine_imports.ps1
 python scripts/verify_engine_evidence.py --validation-root target/midori_engine_validation --allow-pending
 ```
+
+The `scripts/*.ps1` orchestration requires [PowerShell Core (`pwsh`)](https://github.com/PowerShell/PowerShell) ≥ 7.4 — it runs on Windows, macOS, and Linux (the editorless path: `pwsh -NoProfile -File scripts/validate_engine_imports.ps1 -SkipUnity -SkipUnrealEditor`). Real editor imports additionally need a licensed Unity/Unreal install; the scripts auto-detect editors from the conventional per-OS install roots. The Unity compile-stub preflight needs a .NET 8 SDK (`dotnet`).
 
 The latest local evidence report is `pending` with 1610 passing checks, 7 missing editor-only artifacts, and 0 failed checks. Local Unity is installed but license-blocked for batch import, and Unreal Editor is not installed on this host.
 
 To finish Phase 7, run the handoff bundle on a machine with licensed Unity and installed Unreal:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/export_engine_validation_handoff.ps1
+pwsh -NoProfile -File scripts/export_engine_validation_handoff.ps1
 cd target/midori_engine_validation_handoff
 .\run_editor_validation.ps1 -UnityExe "C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe" -UnrealEditorExe "C:\Program Files\Epic Games\UE_<version>\Engine\Binaries\Win64\UnrealEditor.exe" -AllowPending
 ```

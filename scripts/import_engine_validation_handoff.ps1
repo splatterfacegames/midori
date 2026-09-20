@@ -25,8 +25,8 @@ else {
 }
 
 $handoffValidationRoot = Join-Path $handoffPath "validation_root"
-$handoffScreenshots = Join-Path $handoffPath "docs\validation\screenshots"
-$handoffProfileNotes = Join-Path $handoffPath "docs\validation\midori-nature-engine-profile-notes.md"
+$handoffScreenshots = Join-Path $handoffPath "docs/validation/screenshots"
+$handoffProfileNotes = Join-Path $handoffPath "docs/validation/midori-nature-engine-profile-notes.md"
 $handoffUnityReport = Join-Path $handoffValidationRoot "$($PackageName)_unity_import_report.json"
 $handoffUnrealReport = Join-Path $handoffValidationRoot "$($PackageName)_unreal_editor_report.json"
 $handoffSummary = Join-Path $handoffValidationRoot "editor_handoff_summary.json"
@@ -39,8 +39,8 @@ $canonicalVerifierReport = Join-Path $validationRootPath "engine_evidence_verifi
 $ingestPreflightReport = Join-Path $validationRootPath "engine_handoff_preflight_verification.json"
 $ingestSummary = Join-Path $validationRootPath "engine_handoff_ingest_summary.json"
 
-$canonicalScreenshots = Join-Path $repoRoot "docs\validation\screenshots"
-$canonicalProfileNotes = Join-Path $repoRoot "docs\validation\midori-nature-engine-profile-notes.md"
+$canonicalScreenshots = Join-Path $repoRoot "docs/validation/screenshots"
+$canonicalProfileNotes = Join-Path $repoRoot "docs/validation/midori-nature-engine-profile-notes.md"
 $screenshotNames = @(
     "unity_forest_floor_import.png",
     "unity_forest_floor_density.png",
@@ -128,7 +128,7 @@ New-Item -ItemType Directory -Path $validationRootPath -Force | Out-Null
 $preflightExitCode = $null
 if (!$SkipVerify) {
     $preflightArgs = @(
-        (Join-Path $repoRoot "scripts\verify_engine_evidence.py"),
+        (Join-Path $repoRoot "scripts/verify_engine_evidence.py"),
         "--validation-root", $validationRootPath,
         "--unity-report", $handoffUnityReport,
         "--unreal-report", $handoffUnrealReport,
@@ -166,7 +166,7 @@ $copied += Copy-IfPresent $handoffVerifierReport (Join-Path $validationRootPath 
 $canonicalExitCode = $null
 if (!$SkipVerify) {
     $canonicalArgs = @(
-        (Join-Path $repoRoot "scripts\verify_engine_evidence.py"),
+        (Join-Path $repoRoot "scripts/verify_engine_evidence.py"),
         "--validation-root", $validationRootPath,
         "--output", $canonicalVerifierReport
     )
