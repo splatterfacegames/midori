@@ -34,6 +34,14 @@ jobs:
           for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
             if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
           done
+      - name: Ensure rustup (self-hosted runner may lack it)
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
       # midori-desktop is excluded from the workspace (its jethaforge dep needs
       # private auth); these commands cover the engine, CLI, WASM, and FFI.
@@ -52,7 +60,23 @@ jobs:
           for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
             if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
           done
+      - name: Ensure rustup (self-hosted runner may lack it)
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup toolchain install stable --profile minimal
+      - name: Ensure rustup (self-hosted runner may lack it)
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup target add wasm32-unknown-unknown
       # The committed apps/desktop/src/wasm bundle is produced by `npm run wasm`;
       # this step verifies the crate still compiles for wasm32.
@@ -98,6 +122,14 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Ensure rustup (self-hosted runner may lack it)
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup toolchain install stable --profile minimal
       - run: cargo test --workspace --locked
 
@@ -109,6 +141,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Ensure rustup (self-hosted runner may lack it)
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup toolchain install 1.88.0 --profile minimal
       - run: cargo +1.88.0 check --workspace --locked
 
@@ -125,7 +165,23 @@ jobs:
           node-version: 24.15.0
       # Pin rustc: wasm output bytes change between rustc releases, so the
       # committed bundle is only reproducible under a fixed toolchain.
+      - name: Ensure rustup (self-hosted runner may lack it)
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup toolchain install 1.98.1 --profile minimal --target wasm32-unknown-unknown
+      - name: Ensure rustup (self-hosted runner may lack it)
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup default 1.98.1
       - name: Install pinned wasm-pack
         run: |
@@ -165,6 +221,14 @@ jobs:
           curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
           bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet"
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+      - name: Ensure rustup (self-hosted runner may lack it)
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - run: rustup toolchain install stable --profile minimal
       - run: cargo install --path crates/midori-cli --locked --force
       - name: Generate a forest-floor nature package
