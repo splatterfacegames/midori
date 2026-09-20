@@ -901,10 +901,10 @@ fn build_gltf_json(
             let mut node = json!({ "mesh": i, "name": &meshes[i].name });
             if i == 0 && !lod_ids.is_empty() {
                 node["extensions"]["MSFT_lod"]["ids"] = json!(lod_ids);
-                if let Some(heights) = config.metadata.as_ref().map(|m| &m.lod_screen_heights) {
-                    if !heights.is_empty() {
-                        node["extras"]["MSFT_screencoverage"] = json!(heights);
-                    }
+                if let Some(heights) = config.metadata.as_ref().map(|m| &m.lod_screen_heights)
+                    && !heights.is_empty()
+                {
+                    node["extras"]["MSFT_screencoverage"] = json!(heights);
                 }
             }
             node
