@@ -35,6 +35,7 @@ jobs:
             if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
           done
       - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
         run: |
           if ! command -v rustup >/dev/null 2>&1; then
             curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
@@ -61,6 +62,7 @@ jobs:
             if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
           done
       - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
         run: |
           if ! command -v rustup >/dev/null 2>&1; then
             curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
@@ -70,6 +72,7 @@ jobs:
 
       - run: rustup toolchain install stable --profile minimal
       - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
         run: |
           if ! command -v rustup >/dev/null 2>&1; then
             curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
@@ -119,6 +122,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
         run: |
           if ! command -v rustup >/dev/null 2>&1; then
             curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
@@ -156,6 +160,7 @@ jobs:
           bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet"
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
       - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
         run: |
           if ! command -v rustup >/dev/null 2>&1; then
             curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
