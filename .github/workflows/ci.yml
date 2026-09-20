@@ -97,10 +97,10 @@ jobs:
           for d in "$HOME/.cargo/bin" /usr/local/cargo/bin ${CARGO_HOME:+$CARGO_HOME/bin}; do
             if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
           done
-      - uses: actions/setup-python@a26ff69c30b78f9c54ecd1c04bf793e546e55c4b # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - uses: actions/setup-dotnet@67a35b5be61b2f4f6ff06b68696e239a4f47d10e # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: "8.0.x"
       - run: rustup toolchain install stable --profile minimal
