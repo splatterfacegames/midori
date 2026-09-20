@@ -123,8 +123,10 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24.15.0
-      - run: rustup toolchain install stable --profile minimal
-      - run: rustup target add wasm32-unknown-unknown
+      # Pin rustc: wasm output bytes change between rustc releases, so the
+      # committed bundle is only reproducible under a fixed toolchain.
+      - run: rustup toolchain install 1.98.1 --profile minimal --target wasm32-unknown-unknown
+      - run: rustup default 1.98.1
       - name: Install pinned wasm-pack
         run: |
           mkdir -p /tmp/wp "$HOME/.local/bin"
@@ -133,14 +135,15 @@ jobs:
           cp /tmp/wp/wasm-pack "$HOME/.local/bin/"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: npm run wasm
+      - name: Bundle must be clean
+        id: clean
+        run: git status --porcelain apps/desktop/src/wasm | grep . && { git diff apps/desktop/src/wasm; exit 1; } || true
       - name: Upload rebuilt bundle for drift debugging
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: wasm-rebuild
           path: apps/desktop/src/wasm/
-      - name: Bundle must be clean
-        run: git status --porcelain apps/desktop/src/wasm | grep . && { git diff apps/desktop/src/wasm; exit 1; } || true
 
   integrations:
     name: Importer + evidence scripts
