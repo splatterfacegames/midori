@@ -27,3 +27,10 @@ repository = "https://github.com/splatterfacegames/midori"
 # `cargo build`/`test`/`tauri dev` stay usable on shared build machines.
 [profile.dev.package."*"]
 debug = "line-tables-only"
+
+# One codegen unit keeps release/wasm artifacts byte-identical across machines
+# (CGU partitioning otherwise varies with build-host parallelism).
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
