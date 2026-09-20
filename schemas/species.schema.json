@@ -1,0 +1,551 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://midori.splatterfacegames.dev/schemas/species.schema.json",
+  "title": "Midori Species",
+  "description": "Species definition for Midori procedural tree generation. Written as TOML ([section] tables); this schema describes the equivalent JSON object model.",
+  "type": "object",
+  "required": [
+    "species",
+    "trunk"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "species": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Common name, e.g. Oak"
+        },
+        "scientific": {
+          "type": "string",
+          "description": "Scientific name, e.g. Quercus robur"
+        },
+        "latin": {
+          "type": "string",
+          "description": "Latin/binomial alias"
+        },
+        "biome": {
+          "type": "string",
+          "description": "Broad biome label (temperate, desert, tropical, ...)"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": [
+            "weber_penn",
+            "dichotomous",
+            "cactus",
+            "pad_chain",
+            "custom"
+          ],
+          "default": "weber_penn"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "trunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "type": "number",
+          "default": 8.0,
+          "description": "Base height in meters"
+        },
+        "height_variance": {
+          "type": "number",
+          "default": 0.0
+        },
+        "radius": {
+          "type": "number",
+          "default": 0.45,
+          "description": "Base radius in meters"
+        },
+        "taper": {
+          "type": "number",
+          "default": 0.75,
+          "description": "0 = cylinder, 1 = cone"
+        },
+        "taper_profile": {
+          "$ref": "#/$defs/taper_profile",
+          "default": "linear"
+        },
+        "curve": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Curvature in degrees"
+        },
+        "curve_variance": {
+          "type": "number",
+          "default": 0.0
+        },
+        "curve_back": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Back-curve (S-curve) amount"
+        },
+        "segments": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 8
+        }
+      }
+    },
+    "branches": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level1": {
+          "$ref": "#/$defs/branch_params"
+        },
+        "level2": {
+          "$ref": "#/$defs/branch_params"
+        },
+        "level3": {
+          "$ref": "#/$defs/branch_params"
+        }
+      }
+    },
+    "crown": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": [
+            "spherical",
+            "conical",
+            "hemispherical",
+            "flame",
+            "columnar"
+          ],
+          "default": "spherical"
+        },
+        "offset": {
+          "type": "number",
+          "default": 0.35,
+          "description": "Crown center as a fraction of tree height"
+        },
+        "density": {
+          "type": "number",
+          "default": 1.0
+        },
+        "width_ratio": {
+          "type": "number",
+          "default": 1.0
+        }
+      }
+    },
+    "leaves": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2000
+        },
+        "min_level": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2
+        },
+        "size": {
+          "type": "number",
+          "default": 0.12
+        },
+        "size_variance": {
+          "type": "number",
+          "default": 0.0
+        },
+        "distribution": {
+          "type": "string",
+          "enum": [
+            "endpoint",
+            "along_branch",
+            "both"
+          ],
+          "default": "both"
+        },
+        "geometry": {
+          "$ref": "#/$defs/leaf_geometry",
+          "default": "cross_billboard"
+        },
+        "shape": {
+          "$ref": "#/$defs/leaf_shape",
+          "default": "pointed"
+        },
+        "up_influence": {
+          "type": "number",
+          "default": 0.0
+        }
+      }
+    },
+    "textures": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bark_prompt": {
+          "type": "string",
+          "description": "Authoring hint for bark map generation"
+        },
+        "leaf_prompt": {
+          "type": "string",
+          "description": "Authoring hint for leaf card generation"
+        },
+        "resolution": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 512,
+          "description": "Generated map size, square, in pixels"
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Map seed; derived from species name when unset"
+        },
+        "bark_style": {
+          "type": "string",
+          "enum": [
+            "furrowed",
+            "plated",
+            "smooth"
+          ],
+          "default": "furrowed"
+        },
+        "leaf_shape": {
+          "$ref": "#/$defs/leaf_shape",
+          "default": "pointed"
+        },
+        "leaf_card": {
+          "type": "string",
+          "enum": [
+            "single",
+            "cluster"
+          ],
+          "default": "cluster"
+        },
+        "bark_color": {
+          "$ref": "#/$defs/rgb"
+        },
+        "leaf_color": {
+          "$ref": "#/$defs/rgb"
+        },
+        "bark_albedo": {
+          "type": "string",
+          "description": "Host-provided bark albedo+alpha image path, relative to the species file"
+        },
+        "bark_normal": {
+          "type": "string",
+          "description": "Host-provided bark normal map (OpenGL +Y) path"
+        },
+        "leaf_albedo_alpha": {
+          "type": "string",
+          "description": "Host-provided leaf albedo+alpha card path"
+        }
+      }
+    },
+    "materials": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Metadata-only material placeholders for external pipelines; not a texture contract.",
+      "properties": {
+        "bark": {
+          "type": "string"
+        },
+        "foliage": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "control_groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "parameter": {
+                  "type": "string",
+                  "description": "Dotted path to a species parameter"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "step": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "lod": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preset": {
+          "type": "string",
+          "enum": [
+            "ultra",
+            "high_quality",
+            "balanced",
+            "mobile",
+            "minimal",
+            "open_world",
+            "hero_tree",
+            "custom"
+          ],
+          "default": "balanced"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "index",
+              "target_triangles"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "name": {
+                "type": "string"
+              },
+              "target_triangles": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "max_triangles": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "branch_levels": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 4
+              },
+              "leaf_geometry": {
+                "$ref": "#/$defs/leaf_geometry",
+                "default": "cross_billboard"
+              },
+              "leaf_reduction": {
+                "type": "number",
+                "default": 1.0
+              },
+              "ring_resolution": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "minItems": 4,
+                "maxItems": 4,
+                "description": "[trunk, level1, level2, level3] radial segment counts"
+              },
+              "screen_height": {
+                "type": "number",
+                "default": 0.0
+              },
+              "crown_impostor": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "string",
+          "enum": [
+            "modern_pc",
+            "mobile",
+            "switch",
+            "quest",
+            "web",
+            "universal"
+          ],
+          "default": "modern_pc"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "taper_profile": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "smooth",
+        "exponential",
+        "compound"
+      ]
+    },
+    "leaf_geometry": {
+      "type": "string",
+      "enum": [
+        "polygon",
+        "cross_billboard",
+        "billboard",
+        "none"
+      ]
+    },
+    "leaf_shape": {
+      "type": "string",
+      "enum": [
+        "oval",
+        "pointed",
+        "needle",
+        "oak_lobed",
+        "lobed",
+        "maple",
+        "serrated",
+        "willow",
+        "heart",
+        "palmate"
+      ],
+      "description": "lobed is a legacy alias for oak_lobed"
+    },
+    "branch_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 5
+        },
+        "count_variance": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "length": {
+          "type": "number",
+          "default": 3.0
+        },
+        "length_variance": {
+          "type": "number",
+          "default": 0.0
+        },
+        "radius_ratio": {
+          "type": "number",
+          "default": 0.5
+        },
+        "radius_model": {
+          "type": "string",
+          "enum": [
+            "ratio",
+            "pipe"
+          ],
+          "default": "ratio"
+        },
+        "pipe_exponent": {
+          "type": "number",
+          "default": 2.0
+        },
+        "taper": {
+          "type": "number",
+          "default": 0.7
+        },
+        "taper_profile": {
+          "$ref": "#/$defs/taper_profile",
+          "default": "compound"
+        },
+        "angle": {
+          "type": "number",
+          "default": 45.0
+        },
+        "angle_variance": {
+          "type": "number",
+          "default": 0.0
+        },
+        "rotation": {
+          "type": "number",
+          "default": 137.5
+        },
+        "gravity": {
+          "type": "number",
+          "default": 0.0
+        },
+        "curve": {
+          "type": "number",
+          "default": 0.0
+        },
+        "curve_variance": {
+          "type": "number",
+          "default": 0.0
+        },
+        "segments": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 4
+        }
+      }
+    },
+    "rgb": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "sRGB 0-1 triple"
+    }
+  }
+}

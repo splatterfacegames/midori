@@ -9,6 +9,7 @@ A procedural nature asset generator for real-time game engines. Midori generates
 - **Leaf systems** - Polygon, cross-billboard, and billboard leaf geometries
 - **Pivot Painter 2.0** - Wind animation vertex data compatible with Unreal Engine 5
 - **glTF 2.0 export** - Binary (.glb) or JSON (.gltf) output with split bark/foliage material slots and Midori metadata
+- **Procedural textures** - Deterministic bark albedo/normal and leaf albedo+alpha card generation from `[textures]` params; `midori maps` writes PNGs, glTF export can embed them; file-override slots for host-provided maps
 - **Nature patches (WIP)** - Deterministic soil height fields, grass density, moss/wetness/crack masks, and low-cost groundcover prototype LODs
 - **Species presets** - Oak, Pine, Palm, Willow, and a Joshua tree prototype included
 
@@ -193,7 +194,7 @@ The texture/PBR asset generation pipeline is intentionally parked. Current natur
 Use `midori nature -p <patch.toml> -o <package_dir>` to write the current package layout, then `midori validate-nature -i <package_dir>` to run the package conformance gate.
 In the desktop workbench, choose a patch under NATURE PATCHES in the species library with Rust/WASM terrain, prototype, and scatter data.
 
-See `docs/midori-nature-mobile-console-goal.md` and `presets/nature/temperate_forest_floor.toml`.
+See `docs/midori-nature-mobile-console-goal.md` and `presets/nature/temperate_forest_floor.toml`. Species TOML fields are documented in `docs/species-schema.md` with a JSON Schema at `schemas/species.schema.json`.
 
 ### Branch Radius And Taper
 
