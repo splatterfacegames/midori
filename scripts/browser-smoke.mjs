@@ -59,7 +59,19 @@ if (!chromePath) {
 
 const server = spawn(
   process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  ['vite', 'preview', '--config', 'vite.config.ts', '--port', String(PORT), '--strictPort'],
+  [
+    'vite',
+    'preview',
+    '--config',
+    'vite.config.ts',
+    '--port',
+    String(PORT),
+    '--strictPort',
+    // Bind IPv4 loopback explicitly — on GH runners 'localhost' resolves to
+    // ::1 only, while the poll below and Chrome target 127.0.0.1.
+    '--host',
+    '127.0.0.1',
+  ],
   { cwd: root, stdio: 'pipe' },
 );
 let serverLog = '';
@@ -121,5 +133,12 @@ try {
   if (serverLog.trim()) console.error('--- vite preview log ---\n' + serverLog.trim());
   process.exitCode = 1;
 } finally {
+  // Kill and reap the preview process before exiting — an orphaned child
+  // keeps the CI step (and job) alive until the timeout kills it.
   server.kill('SIGTERM');
+  await Promise.race([
+    new Promise((r) => server.once('exit', r)),
+    new Promise((r) => setTimeout(r, 5_000)),
+  ]);
+  if (server.exitCode === null && server.signalCode === null) server.kill('SIGKILL');
 }
