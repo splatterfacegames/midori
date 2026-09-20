@@ -141,3 +141,98 @@ describe('lodToDescriptors', () => {
     expect([...(out[0].uvs ?? [])][5]).toBeCloseTo(0.9, 6);
   });
 });
+
+import { natureToDescriptors, SCATTER_SAMPLE_LIMIT } from './meshes';
+import type { NatureMesh, NaturePreview, ScatterInstance } from './engine';
+
+const natureMesh: NatureMesh = {
+  name: 'proto',
+  vertices: {
+    positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+    normals: [0, 0, 1, 0, 0, 1, 0, 0, 1],
+    uvs: [],
+    uv2s: [],
+    colors: [],
+  },
+  indices: [0, 1, 2],
+  submeshes: [],
+  vertex_count: 3,
+  triangle_count: 1,
+};
+
+function inst(x: number): ScatterInstance {
+  return {
+    position: [x, 0, 0],
+    yaw: 1.25,
+    height: 0.4,
+    width: 0.2,
+    phase: 0,
+    color_variation: 0.5,
+  };
+}
+
+function naturePreview(instanceCount: number): NaturePreview {
+  return {
+    manifest: {},
+    terrain: { ...natureMesh, name: 'terrain' },
+    prototypes: [
+      { name: 'grass_proto', kind: 'grass', lods: [natureMesh, { ...natureMesh, name: 'far' }] },
+    ],
+    scatter_sets: [
+      {
+        layer_index: 0,
+        layer_name: 'grass_proto',
+        kind: 'grass',
+        chunks: [
+          {
+            chunk_x: 0,
+            chunk_z: 0,
+            bounds_min: [0, 0, 0],
+            bounds_max: [8, 1, 8],
+            instances: Array.from({ length: instanceCount }, (_, i) => inst(i)),
+          },
+        ],
+      },
+    ],
+    stats: {
+      tile_size: 8,
+      terrain_vertex_count: 3,
+      terrain_triangle_count: 1,
+      prototype_count: 1,
+      scatter_instance_count: instanceCount,
+    },
+  };
+}
+
+describe('natureToDescriptors', () => {
+  it('emits terrain plus one descriptor per scatter instance with transform', () => {
+    const out = natureToDescriptors(naturePreview(3), 7);
+    expect(out).toHaveLength(4);
+    expect(out[0].entityId).toBe('nature-terrain');
+    const placed = out[2];
+    expect(placed.transform?.position).toEqual([1, 0, 0]);
+    expect(placed.transform?.rotation).toEqual([0, 1.25, 0]);
+    expect(placed.transform?.scale).toEqual([0.2, 0.4, 0.2]);
+    expect(placed.revision).toBe(7);
+  });
+
+  it('uses the last LOD of the resolved prototype and kind colors', () => {
+    const out = natureToDescriptors(naturePreview(1), 0);
+    expect(out[1].positions).toBeInstanceOf(Float32Array);
+    expect(out[1].color).toBe('#4a7d34');
+  });
+
+  it('caps scatter descriptors at SCATTER_SAMPLE_LIMIT', () => {
+    const out = natureToDescriptors(naturePreview(SCATTER_SAMPLE_LIMIT + 50), 0);
+    expect(out).toHaveLength(1 + SCATTER_SAMPLE_LIMIT);
+  });
+
+  it('skips scatter sets with no resolvable prototype', () => {
+    const preview = naturePreview(2);
+    preview.scatter_sets[0].layer_index = 99;
+    preview.scatter_sets[0].layer_name = 'missing';
+    preview.scatter_sets[0].kind = 'unknown_kind';
+    const out = natureToDescriptors(preview, 0);
+    expect(out).toHaveLength(1);
+  });
+});
