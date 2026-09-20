@@ -185,7 +185,7 @@ fn each_complete_fixture_mutation_fails_its_named_check() {
     }
 }
 
-fn check_status<'a>(report: &'a midori_cli::evidence::EvidenceReport, name: &str) -> CheckStatus {
+fn check_status(report: &midori_cli::evidence::EvidenceReport, name: &str) -> CheckStatus {
     report
         .checks
         .iter()

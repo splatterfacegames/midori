@@ -806,12 +806,10 @@ pub fn check_surface_overlay_report(
         json!(policies),
     );
     let mut reported_targets = field(report, targets_field).cloned();
-    if camel_case {
-        if let Some(items) = reported_targets.as_mut().and_then(Value::as_array_mut) {
-            for item in items {
-                if let Some(text) = item.as_str() {
-                    *item = json!(text.split(',').map(str::to_string).collect::<Vec<_>>());
-                }
+    if camel_case && let Some(items) = reported_targets.as_mut().and_then(Value::as_array_mut) {
+        for item in items {
+            if let Some(text) = item.as_str() {
+                *item = json!(text.split(',').map(str::to_string).collect::<Vec<_>>());
             }
         }
     }
@@ -1594,7 +1592,7 @@ pub fn check_midori_profile_budgets(verifier: &mut Verifier, report: &Value, man
         ] {
             verifier.require_equal(
                 format!("midori.profile_budget.{profile_name}.{suffix}"),
-                field(summary, suffix.replace("_budget", "_budget").as_str()),
+                field(summary, suffix),
                 profile
                     .and_then(|value| field(value, field_name))
                     .cloned()

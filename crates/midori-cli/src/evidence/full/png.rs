@@ -43,7 +43,9 @@ pub fn png_dimensions(path: &Path) -> Option<(u32, u32)> {
     Some((read_u32_be(&data[16..20]), read_u32_be(&data[20..24])))
 }
 
-fn read_png_chunks(path: &Path) -> Result<(PngHeader, Vec<u8>, Option<Vec<[u8; 3]>>), PngError> {
+type PngChunks = (PngHeader, Vec<u8>, Option<Vec<[u8; 3]>>);
+
+fn read_png_chunks(path: &Path) -> Result<PngChunks, PngError> {
     let data = fs::read(path).map_err(|cause| error(format!("could not read PNG: {cause}")))?;
     if data.len() < 24 || &data[..8] != PNG_SIGNATURE {
         return Err(error("missing PNG signature"));
@@ -88,7 +90,7 @@ fn read_png_chunks(path: &Path) -> Result<(PngHeader, Vec<u8>, Option<Vec<[u8; 3
                     return Err(error("invalid palette length"));
                 }
                 let mut values = Vec::with_capacity(length / 3);
-                for rgb in chunk.chunks_exact(3) {
+                for rgb in chunk.as_chunks::<3>().0 {
                     values.push([rgb[0], rgb[1], rgb[2]]);
                 }
                 palette = Some(values);

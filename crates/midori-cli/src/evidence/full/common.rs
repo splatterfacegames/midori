@@ -10,7 +10,9 @@ pub const MIN_SCREENSHOT_LUMINANCE_RANGE: u32 = 8;
 pub const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
 pub const FNV_PRIME: u64 = 0x100000001b3;
 
-pub const EXPECTED_MAP_SUMMARIES: &[(&str, &str, usize, &[usize], &[usize])] = &[
+pub type ExpectedMapSummary<'a> = (&'a str, &'a str, usize, &'a [usize], &'a [usize]);
+
+pub const EXPECTED_MAP_SUMMARIES: &[ExpectedMapSummary<'static>] = &[
     ("height_u16.png", "L16", 1, &[0], &[]),
     ("normal_yplus.png", "RGB8", 3, &[], &[0, 1, 2]),
     ("normal_yminus.png", "RGB8", 3, &[], &[0, 1, 2]),
@@ -271,23 +273,23 @@ pub fn expected_source_files(manifest: &Value, normal_key: &str) -> Vec<String> 
             }
         }
     }
-    if let Some(conventions) = field(manifest, "normal_conventions") {
-        if let Some(text) = string_field(field(conventions, normal_key)) {
-            files.insert(text.to_string());
-        }
+    if let Some(conventions) = field(manifest, "normal_conventions")
+        && let Some(text) = string_field(field(conventions, normal_key))
+    {
+        files.insert(text.to_string());
     }
     if let Some(scatter) = field(manifest, "scatter") {
-        if let Some(text) = string_field(field(scatter, "file")) {
-            if !text.is_empty() {
-                files.insert(text.to_string());
-            }
+        if let Some(text) = string_field(field(scatter, "file"))
+            && !text.is_empty()
+        {
+            files.insert(text.to_string());
         }
         if let Some(binary_files) = value_as_array(field(scatter, "binary_files")) {
             for item in binary_files {
-                if let Some(text) = string_field(field(item, "file")) {
-                    if !text.is_empty() {
-                        files.insert(text.to_string());
-                    }
+                if let Some(text) = string_field(field(item, "file"))
+                    && !text.is_empty()
+                {
+                    files.insert(text.to_string());
                 }
             }
         }
@@ -298,17 +300,17 @@ pub fn expected_source_files(manifest: &Value, normal_key: &str) -> Vec<String> 
                 if collection == "prototypes" {
                     if let Some(lods) = value_as_array(field(item, "lods")) {
                         for lod in lods {
-                            if let Some(text) = string_field(field(lod, "file")) {
-                                if !text.is_empty() {
-                                    files.insert(text.to_string());
-                                }
+                            if let Some(text) = string_field(field(lod, "file"))
+                                && !text.is_empty()
+                            {
+                                files.insert(text.to_string());
                             }
                         }
                     }
-                } else if let Some(text) = string_field(field(item, "file")) {
-                    if !text.is_empty() {
-                        files.insert(text.to_string());
-                    }
+                } else if let Some(text) = string_field(field(item, "file"))
+                    && !text.is_empty()
+                {
+                    files.insert(text.to_string());
                 }
             }
         }
@@ -327,10 +329,10 @@ pub fn expected_unreal_import_files(manifest: &Value) -> Vec<String> {
             }
         }
     }
-    if let Some(conventions) = field(manifest, "normal_conventions") {
-        if let Some(text) = string_field(field(conventions, "unreal_yminus_file")) {
-            files.insert(text.to_string());
-        }
+    if let Some(conventions) = field(manifest, "normal_conventions")
+        && let Some(text) = string_field(field(conventions, "unreal_yminus_file"))
+    {
+        files.insert(text.to_string());
     }
     for lod in expected_prototype_lod_files(manifest) {
         files.insert(lod);
@@ -370,10 +372,10 @@ pub fn expected_unreal_import_map_files(manifest: &Value) -> Vec<String> {
             }
         }
     }
-    if let Some(conventions) = field(manifest, "normal_conventions") {
-        if let Some(text) = string_field(field(conventions, "unreal_yminus_file")) {
-            result.push(text.to_string());
-        }
+    if let Some(conventions) = field(manifest, "normal_conventions")
+        && let Some(text) = string_field(field(conventions, "unreal_yminus_file"))
+    {
+        result.push(text.to_string());
     }
     result
 }
@@ -384,10 +386,10 @@ pub fn expected_prototype_lod_files(manifest: &Value) -> Vec<String> {
         for prototype in prototypes {
             if let Some(lods) = value_as_array(field(prototype, "lods")) {
                 for lod in lods {
-                    if let Some(text) = string_field(field(lod, "file")) {
-                        if !text.is_empty() {
-                            result.push(text.to_string());
-                        }
+                    if let Some(text) = string_field(field(lod, "file"))
+                        && !text.is_empty()
+                    {
+                        result.push(text.to_string());
                     }
                 }
             }
@@ -403,12 +405,11 @@ pub fn expected_lod0_prototype_files(manifest: &Value) -> Vec<String> {
         for prototype in prototypes {
             if let Some(lods) = value_as_array(field(prototype, "lods")) {
                 for lod in lods {
-                    if field(lod, "index").is_some_and(is_numeric_zero) {
-                        if let Some(text) = string_field(field(lod, "file")) {
-                            if !text.is_empty() {
-                                result.push(text.to_string());
-                            }
-                        }
+                    if field(lod, "index").is_some_and(is_numeric_zero)
+                        && let Some(text) = string_field(field(lod, "file"))
+                        && !text.is_empty()
+                    {
+                        result.push(text.to_string());
                     }
                 }
             }
@@ -570,10 +571,10 @@ pub fn expected_material_parameter_names_for_slot(manifest: &Value, slot: &str) 
             }
             if let Some(parameters) = value_as_array(field(set, "parameters")) {
                 for parameter in parameters {
-                    if let Some(name) = string_field(field(parameter, "name")) {
-                        if !name.is_empty() {
-                            names.insert(name.to_string());
-                        }
+                    if let Some(name) = string_field(field(parameter, "name"))
+                        && !name.is_empty()
+                    {
+                        names.insert(name.to_string());
                     }
                 }
             }
@@ -760,13 +761,11 @@ fn numbers_equal(actual: &serde_json::Number, expected: &serde_json::Number) -> 
         return integer_float_equal(integer, floating);
     }
     if !actual.is_f64() && !expected.is_f64() {
-        match (actual.as_i64(), expected.as_i64()) {
-            (Some(a), Some(b)) => return a == b,
-            _ => {}
+        if let (Some(a), Some(b)) = (actual.as_i64(), expected.as_i64()) {
+            return a == b;
         }
-        match (actual.as_u64(), expected.as_u64()) {
-            (Some(a), Some(b)) => return a == b,
-            _ => {}
+        if let (Some(a), Some(b)) = (actual.as_u64(), expected.as_u64()) {
+            return a == b;
         }
         if let (Some(a), Some(b)) = (actual.as_i64(), expected.as_u64()) {
             return a >= 0 && a as u64 == b;

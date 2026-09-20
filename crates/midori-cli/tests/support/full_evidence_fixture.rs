@@ -617,7 +617,7 @@ fn write_glb(path: &Path) {
         ]
     });
     let mut json_bytes = serde_json::to_vec(&json_chunk).unwrap();
-    while json_bytes.len() % 4 != 0 {
+    while !json_bytes.len().is_multiple_of(4) {
         json_bytes.push(b' ');
     }
     let total_length = 12 + 8 + json_bytes.len() + 8 + binary.len();
@@ -1250,7 +1250,7 @@ fn scatter_summaries(package: &Path, source: &str, camel_case: bool) -> Vec<Valu
             let bytes = fs::read(&file).unwrap();
             let count = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
             let records = bytes[16..]
-                .chunks_exact(32)
+                .as_chunks::<32>().0.iter()
                 .map(|record| {
                     let mut values = [0.0f64; 8];
                     for (slot, value) in values.iter_mut().enumerate() {
@@ -2153,11 +2153,9 @@ fn unreal_report(
     let import_destinations = import_files
         .iter()
         .map(|file| {
-            let parent = file
-                .rsplit_once('/')
+            file.rsplit_once('/')
                 .map(|(parent, _)| format!("{destination}/{parent}"))
-                .unwrap_or_else(|| destination.to_string());
-            parent
+                .unwrap_or_else(|| destination.to_string())
         })
         .collect::<Vec<_>>();
     let import_tasks = import_files

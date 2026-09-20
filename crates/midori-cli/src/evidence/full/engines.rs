@@ -180,10 +180,9 @@ pub fn resolve_project_scaffold_root(validation_root: &Path, summary: &Value) ->
             .join("projects"),
     ];
     if let Some(root) = field_path(summary, &["project_scaffolds", "root"]).and_then(Value::as_str)
+        && !root.is_empty()
     {
-        if !root.is_empty() {
-            candidates.push(PathBuf::from(root));
-        }
+        candidates.push(PathBuf::from(root));
     }
     candidates
         .into_iter()
