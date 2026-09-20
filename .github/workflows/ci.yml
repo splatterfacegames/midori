@@ -133,6 +133,12 @@ jobs:
           cp /tmp/wp/wasm-pack "$HOME/.local/bin/"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: npm run wasm
+      - name: Upload rebuilt bundle for drift debugging
+        if: failure() || always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wasm-rebuild
+          path: apps/desktop/src/wasm/
       - name: Bundle must be clean
         run: git status --porcelain apps/desktop/src/wasm | grep . && { git diff apps/desktop/src/wasm; exit 1; } || true
 
