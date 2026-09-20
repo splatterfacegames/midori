@@ -18,6 +18,16 @@ import { resolve } from 'node:path';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const outDir = resolve(root, 'apps/desktop/src/wasm');
 
+// Embedded file!()/panic paths leak the build machine's checkout and cargo
+// home into the wasm data section. Remap both to fixed prefixes so the bundle
+// is byte-identical across machines (the wasm-repro CI leg depends on it).
+const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
+const remap = [
+  `--remap-path-prefix=${resolve(root)}=/midori`,
+  ...(home ? [`--remap-path-prefix=${resolve(home)}/.cargo=/cargo`] : []),
+];
+const rustflags = [process.env.RUSTFLAGS ?? '', ...remap].filter(Boolean).join(' ');
+
 const WASM_PACK_VERSION = '0.15.0';
 
 const version = spawnSync('wasm-pack', ['--version'], { encoding: 'utf8' });
@@ -34,7 +44,7 @@ if (found !== WASM_PACK_VERSION) {
 const result = spawnSync(
   'wasm-pack',
   ['build', 'crates/midori-wasm', '--target', 'web', '--release', '--out-dir', outDir],
-  { cwd: root, stdio: 'inherit' },
+  { cwd: root, stdio: 'inherit', env: { ...process.env, RUSTFLAGS: rustflags } },
 );
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);

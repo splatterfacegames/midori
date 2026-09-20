@@ -134,7 +134,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: npm run wasm
       - name: Upload rebuilt bundle for drift debugging
-        if: failure() || always()
+        if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: wasm-rebuild
@@ -163,7 +163,7 @@ jobs:
           bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet"
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
       - run: rustup toolchain install stable --profile minimal
-      - run: cargo install --path crates/midori-cli --locked
+      - run: cargo install --path crates/midori-cli --locked --force
       - name: Generate a forest-floor nature package
         run: midori nature --patch presets/nature/temperate_forest_floor.toml --output target/midori_engine_validation/forest_floor
       - run: midori validate-nature --input target/midori_engine_validation/forest_floor --report target/nature-validate.json
