@@ -16,6 +16,12 @@ export default defineConfig({
     // Presets are imported from ../../presets/species via ?raw.
     fs: { allow: [repoRoot] },
   },
-  build: { outDir: '../../dist', emptyOutDir: true },
+  build: {
+    outDir: '../../dist',
+    emptyOutDir: true,
+    // The 1.1 MB midori_wasm binary is emitted as its own asset; it is the
+    // engine, not splittable JS. 1.2 MB covers it plus app code.
+    chunkSizeWarningLimit: 1200,
+  },
   clearScreen: false,
 });

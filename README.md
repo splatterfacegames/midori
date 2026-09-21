@@ -9,6 +9,7 @@ A procedural nature asset generator for real-time game engines. Midori generates
 - **Leaf systems** - Polygon, cross-billboard, and billboard leaf geometries
 - **Pivot Painter 2.0** - Wind animation vertex data compatible with Unreal Engine 5
 - **glTF 2.0 export** - Binary (.glb) or JSON (.gltf) output with split bark/foliage material slots and Midori metadata
+- **Procedural textures** - Deterministic bark albedo/normal and leaf albedo+alpha card generation from `[textures]` params; `midori maps` writes PNGs, glTF export can embed them; file-override slots for host-provided maps
 - **Nature patches (WIP)** - Deterministic soil height fields, grass density, moss/wetness/crack masks, and low-cost groundcover prototype LODs
 - **Species presets** - Oak, Pine, Palm, Willow, and a Joshua tree prototype included
 
@@ -40,6 +41,8 @@ midori generate -s presets/species/pine.toml -n 10 --seed 42 -o forest/pine.glb
 
 Output files will be named `pine_0.glb`, `pine_1.glb`, etc.
 
+**Seed rule:** each generated variant uses its own seed — variant `i` uses `seed + i`. Keep a single base seed per species to get reproducible, uncorrelated variants.
+
 ### Generate a nature package
 
 ```bash
@@ -65,7 +68,25 @@ midori info -s presets/species/willow.toml
 | `--lod <all\|0\|1\|2\|3>` | LOD level(s) to export | `all` |
 | `--format <glb\|gltf>` | Output format | `glb` |
 | `--lod-preset <PRESET>` | LOD quality preset | `balanced` |
+| `--max-stems <N>` | Stem budget (0 = unbounded) | `50000` |
+| `--max-leaves <N>` | Leaf budget (0 = unbounded) | `250000` |
+| `--max-vertices <N>` | Vertex budget across all LODs (0 = unbounded) | `500000` |
+| `--max-triangles <N>` | Triangle budget across all LODs (0 = unbounded) | `1000000` |
 | `-v, --verbose` | Verbose output | off |
+
+### Global Flags and Exit Codes
+
+`--quiet` suppresses progress output on every command; `--json` emits machine-readable output (for `generate`, a JSON summary of every exported file with its byte size, LOD level, screen coverage, and sha256) and turns errors into `{"error": {"kind": ..., "message": ...}}` on stderr.
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Success |
+| `2` | Bad command-line arguments |
+| `3` | Invalid input (species/patch parse or validation failure, generation budget exceeded) |
+| `4` | I/O error (missing file, unwritable output) |
+| `1` | Anything else |
+
+Invalid species reject with a per-field report; e.g. `trunk.height: must be positive and finite`. Generation refuses to start when the estimated worst-case stem or leaf count exceeds the budget, and fails mid-flight if the actual counts pass it — the budget protects downstream consumers from unbounded output.
 
 ### Nature Package Options
 
@@ -96,16 +117,18 @@ Unity and Unreal helper importers live under `integrations/`:
 The current nature package and editorless import checks are automated through:
 
 ```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_engine_imports.ps1
+pwsh -NoProfile -File scripts/validate_engine_imports.ps1
 python scripts/verify_engine_evidence.py --validation-root target/midori_engine_validation --allow-pending
 ```
+
+The `scripts/*.ps1` orchestration requires [PowerShell Core (`pwsh`)](https://github.com/PowerShell/PowerShell) ≥ 7.4 — it runs on Windows, macOS, and Linux (the editorless path: `pwsh -NoProfile -File scripts/validate_engine_imports.ps1 -SkipUnity -SkipUnrealEditor`). Real editor imports additionally need a licensed Unity/Unreal install; the scripts auto-detect editors from the conventional per-OS install roots. The Unity compile-stub preflight needs a .NET 8 SDK (`dotnet`).
 
 The latest local evidence report is `pending` with 1610 passing checks, 7 missing editor-only artifacts, and 0 failed checks. Local Unity is installed but license-blocked for batch import, and Unreal Editor is not installed on this host.
 
 To finish Phase 7, run the handoff bundle on a machine with licensed Unity and installed Unreal:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/export_engine_validation_handoff.ps1
+pwsh -NoProfile -File scripts/export_engine_validation_handoff.ps1
 cd target/midori_engine_validation_handoff
 .\run_editor_validation.ps1 -UnityExe "C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe" -UnrealEditorExe "C:\Program Files\Epic Games\UE_<version>\Engine\Binaries\Win64\UnrealEditor.exe" -AllowPending
 ```
@@ -193,7 +216,7 @@ The texture/PBR asset generation pipeline is intentionally parked. Current natur
 Use `midori nature -p <patch.toml> -o <package_dir>` to write the current package layout, then `midori validate-nature -i <package_dir>` to run the package conformance gate.
 In the desktop workbench, choose a patch under NATURE PATCHES in the species library with Rust/WASM terrain, prototype, and scatter data.
 
-See `docs/midori-nature-mobile-console-goal.md` and `presets/nature/temperate_forest_floor.toml`.
+See `docs/midori-nature-mobile-console-goal.md` and `presets/nature/temperate_forest_floor.toml`. Species TOML fields are documented in `docs/species-schema.md` with a JSON Schema at `schemas/species.schema.json`.
 
 ### Branch Radius And Taper
 

@@ -137,6 +137,32 @@ jobs:
       - run: rustup toolchain install stable --profile minimal
       - run: cargo test --workspace --locked
 
+  # Full editorless orchestration (pwsh) on a non-Windows host — catches
+  # Windows-only constructs in scripts/*.ps1 regressing cross-platform use.
+  engine-validation:
+    name: Engine validation (pwsh, editorless)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
+      - run: rustup toolchain install stable --profile minimal
+      - name: Ensure dotnet 8 SDK
+        run: |
+          if command -v dotnet >/dev/null 2>&1; then dotnet --version; exit 0; fi
+          curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+          bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet"
+          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+      - run: pwsh -NoProfile -File scripts/validate_engine_imports.ps1 -SkipUnity -SkipUnrealEditor
+
   # Minimum supported Rust version (rust-version in Cargo.toml). The
   # dependency floor is rustc 1.88 (image crate).
   msrv:

@@ -35,7 +35,7 @@ function Assert-ExistingPath {
     )
 
     if (!(Test-Path -LiteralPath $Path)) {
-        throw "$Description not found at $Path. Run scripts\validate_engine_imports.ps1 first, or pass -Regenerate."
+        throw "$Description not found at $Path. Run scripts/validate_engine_imports.ps1 first, or pass -Regenerate."
     }
 }
 
@@ -53,11 +53,11 @@ function Copy-RequiredFile {
 }
 
 if ($Regenerate) {
-    & (Join-Path $repoRoot "scripts\validate_engine_imports.ps1") `
+    & (Join-Path $repoRoot "scripts/validate_engine_imports.ps1") `
         -OutputDir $ValidationRoot `
         -PackageName $PackageName
     if ($LASTEXITCODE -ne 0) {
-        throw "scripts\validate_engine_imports.ps1 failed with exit code $LASTEXITCODE"
+        throw "scripts/validate_engine_imports.ps1 failed with exit code $LASTEXITCODE"
     }
 }
 
@@ -83,10 +83,10 @@ if (Test-Path -LiteralPath $handoffPath) {
 New-Item -ItemType Directory -Path $handoffPath -Force | Out-Null
 $bundleValidationRoot = Join-Path $handoffPath "validation_root"
 $bundleScripts = Join-Path $handoffPath "scripts"
-$bundleUnityIntegration = Join-Path $handoffPath "integrations\unity\Editor"
-$bundleUnrealIntegration = Join-Path $handoffPath "integrations\unreal"
-$bundleScreenshots = Join-Path $handoffPath "docs\validation\screenshots"
-$bundleDocsValidation = Join-Path $handoffPath "docs\validation"
+$bundleUnityIntegration = Join-Path $handoffPath "integrations/unity/Editor"
+$bundleUnrealIntegration = Join-Path $handoffPath "integrations/unreal"
+$bundleScreenshots = Join-Path $handoffPath "docs/validation/screenshots"
+$bundleDocsValidation = Join-Path $handoffPath "docs/validation"
 $bundleProjects = Join-Path $handoffPath "projects"
 
 New-Item -ItemType Directory -Path $bundleValidationRoot -Force | Out-Null
@@ -121,26 +121,26 @@ $bundleUnityCompileStubJson.package_dir = "validation_root/$PackageName"
     $utf8NoBom
 )
 
-Copy-RequiredFile (Join-Path $repoRoot "scripts\verify_engine_evidence.py") `
+Copy-RequiredFile (Join-Path $repoRoot "scripts/verify_engine_evidence.py") `
     (Join-Path $bundleScripts "verify_engine_evidence.py")
-Copy-RequiredFile (Join-Path $repoRoot "scripts\import_engine_validation_handoff.ps1") `
+Copy-RequiredFile (Join-Path $repoRoot "scripts/import_engine_validation_handoff.ps1") `
     (Join-Path $bundleScripts "import_engine_validation_handoff.ps1")
-Copy-RequiredFile (Join-Path $repoRoot "scripts\create_engine_validation_projects.ps1") `
+Copy-RequiredFile (Join-Path $repoRoot "scripts/create_engine_validation_projects.ps1") `
     (Join-Path $bundleScripts "create_engine_validation_projects.ps1")
-Copy-RequiredFile (Join-Path $repoRoot "scripts\test_unity_importer_compile_stub.py") `
+Copy-RequiredFile (Join-Path $repoRoot "scripts/test_unity_importer_compile_stub.py") `
     (Join-Path $bundleScripts "test_unity_importer_compile_stub.py")
-Copy-RequiredFile (Join-Path $repoRoot "scripts\test_profile_notes_verifier.py") `
+Copy-RequiredFile (Join-Path $repoRoot "scripts/test_profile_notes_verifier.py") `
     (Join-Path $bundleScripts "test_profile_notes_verifier.py")
-Copy-RequiredFile (Join-Path $repoRoot "integrations\unity\Editor\MidoriNaturePackageImporter.cs") `
+Copy-RequiredFile (Join-Path $repoRoot "integrations/unity/Editor/MidoriNaturePackageImporter.cs") `
     (Join-Path $bundleUnityIntegration "MidoriNaturePackageImporter.cs")
-Copy-RequiredFile (Join-Path $repoRoot "integrations\unreal\midori_nature_importer.py") `
+Copy-RequiredFile (Join-Path $repoRoot "integrations/unreal/midori_nature_importer.py") `
     (Join-Path $bundleUnrealIntegration "midori_nature_importer.py")
-Copy-RequiredFile (Join-Path $repoRoot "docs\validation\midori-nature-engine-profile-notes.template.md") `
+Copy-RequiredFile (Join-Path $repoRoot "docs/validation/midori-nature-engine-profile-notes.template.md") `
     (Join-Path $bundleDocsValidation "midori-nature-engine-profile-notes.template.md")
-Copy-RequiredFile (Join-Path $repoRoot "docs\validation\screenshots\README.md") `
+Copy-RequiredFile (Join-Path $repoRoot "docs/validation/screenshots/README.md") `
     (Join-Path $bundleScreenshots "README.md")
 
-$existingProfileNotes = Join-Path $repoRoot "docs\validation\midori-nature-engine-profile-notes.md"
+$existingProfileNotes = Join-Path $repoRoot "docs/validation/midori-nature-engine-profile-notes.md"
 if (Test-Path -LiteralPath $existingProfileNotes) {
     Copy-RequiredFile $existingProfileNotes `
         (Join-Path $bundleDocsValidation "midori-nature-engine-profile-notes.md")
@@ -172,15 +172,15 @@ $unityCreateLog = Join-Path $validationRoot "unity_create.log"
 $unrealLog = Join-Path $validationRoot "unreal_import.log"
 $unrealWrapper = Join-Path $validationRoot "run_midori_unreal_import.py"
 $summaryPath = Join-Path $validationRoot "editor_handoff_summary.json"
-$screenshotsRoot = Join-Path $bundleRoot "docs\validation\screenshots"
+$screenshotsRoot = Join-Path $bundleRoot "docs/validation/screenshots"
 $unityImportScreenshot = Join-Path $screenshotsRoot "unity_forest_floor_import.png"
 $unityDensityScreenshot = Join-Path $screenshotsRoot "unity_forest_floor_density.png"
 $unrealImportScreenshot = Join-Path $screenshotsRoot "unreal_forest_floor_import.png"
 $unrealFoliageScreenshot = Join-Path $screenshotsRoot "unreal_forest_floor_foliage_settings.png"
-$profileNotes = Join-Path $bundleRoot "docs\validation\midori-nature-engine-profile-notes.md"
+$profileNotes = Join-Path $bundleRoot "docs/validation/midori-nature-engine-profile-notes.md"
 $verifyReport = Join-Path $validationRoot "engine_evidence_verification_editor.json"
-$defaultUnityProject = Join-Path $bundleRoot "projects\unity\MidoriUnityValidation"
-$defaultUnrealProject = Join-Path $bundleRoot "projects\unreal\MidoriUnrealValidation\MidoriUnrealValidation.uproject"
+$defaultUnityProject = Join-Path $bundleRoot "projects/unity/MidoriUnityValidation"
+$defaultUnrealProject = Join-Path $bundleRoot "projects/unreal/MidoriUnrealValidation/MidoriUnrealValidation.uproject"
 
 function Convert-ToProcessArgument {
     param([string]$Value)
@@ -194,14 +194,8 @@ function Invoke-ProcessWait {
         [string[]]$Arguments
     )
 
-    $argumentLine = ($Arguments | ForEach-Object { Convert-ToProcessArgument $_ }) -join " "
-    $process = Start-Process `
-        -FilePath $FilePath `
-        -ArgumentList $argumentLine `
-        -Wait `
-        -PassThru `
-        -WindowStyle Hidden
-    return $process.ExitCode
+    & $FilePath @Arguments
+    return $LASTEXITCODE
 }
 
 function Find-UnityEditor {
@@ -209,17 +203,25 @@ function Find-UnityEditor {
         return (Resolve-Path -LiteralPath $UnityExe).Path
     }
 
-    $pathCommand = Get-Command Unity.exe -ErrorAction SilentlyContinue
+    $exeName = if ($IsWindows) { "Unity.exe" } else { "Unity" }
+    $pathCommand = Get-Command $exeName -ErrorAction SilentlyContinue
     if ($pathCommand) {
         return $pathCommand.Source
     }
 
-    $hubRoot = "C:\Program Files\Unity\Hub\Editor"
+    $hubRoot = if ($IsMacOS) {
+        "/Applications/Unity/Hub/Editor"
+    } elseif ($IsWindows) {
+        "C:/Program Files/Unity/Hub/Editor"
+    } else {
+        Join-Path $HOME "Unity/Hub/Editor"
+    }
+    $suffix = if ($IsMacOS) { "Unity.app/Contents/MacOS/Unity" } else { "Editor/$exeName" }
     if (Test-Path -LiteralPath $hubRoot) {
         $editors = Get-ChildItem -LiteralPath $hubRoot -Directory -ErrorAction SilentlyContinue |
             Sort-Object Name -Descending
         foreach ($editor in $editors) {
-            $candidate = Join-Path $editor.FullName "Editor\Unity.exe"
+            $candidate = Join-Path $editor.FullName $suffix
             if (Test-Path -LiteralPath $candidate) {
                 return $candidate
             }
@@ -234,17 +236,33 @@ function Find-UnrealEditor {
         return (Resolve-Path -LiteralPath $UnrealEditorExe).Path
     }
 
-    $pathCommand = Get-Command UnrealEditor.exe -ErrorAction SilentlyContinue
+    $exeName = if ($IsWindows) { "UnrealEditor.exe" } else { "UnrealEditor" }
+    $pathCommand = Get-Command $exeName -ErrorAction SilentlyContinue
     if ($pathCommand) {
         return $pathCommand.Source
     }
 
-    $epicRoot = "C:\Program Files\Epic Games"
+    # Windows: Epic Games root dir; Linux: source-build or launcher install dir;
+    # macOS: engine inside the .app bundle.
+    $epicRoot = if ($IsMacOS) {
+        "/Users/Shared/Epic Games"
+    } elseif ($IsWindows) {
+        "C:/Program Files/Epic Games"
+    } else {
+        Join-Path $HOME "Epic Games"
+    }
+    $suffix = if ($IsMacOS) {
+        "Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor"
+    } elseif ($IsWindows) {
+        "Engine/Binaries/Win64/UnrealEditor.exe"
+    } else {
+        "Engine/Binaries/Linux/UnrealEditor"
+    }
     if (Test-Path -LiteralPath $epicRoot) {
         $engines = Get-ChildItem -LiteralPath $epicRoot -Directory -ErrorAction SilentlyContinue |
             Sort-Object Name -Descending
         foreach ($engine in $engines) {
-            $candidate = Join-Path $engine.FullName "Engine\Binaries\Win64\UnrealEditor.exe"
+            $candidate = Join-Path $engine.FullName $suffix
             if (Test-Path -LiteralPath $candidate) {
                 return $candidate
             }
@@ -275,7 +293,7 @@ function Convert-ToPythonString {
 
 function Invoke-EvidenceVerifier {
     $arguments = @(
-        (Join-Path $bundleRoot "scripts\verify_engine_evidence.py"),
+        (Join-Path $bundleRoot "scripts/verify_engine_evidence.py"),
         "--validation-root", $validationRoot,
         "--unity-import-screenshot", $unityImportScreenshot,
         "--unity-density-screenshot", $unityDensityScreenshot,
@@ -360,7 +378,7 @@ $summary = [ordered]@{
     verifier = [ordered]@{}
 }
 
-$profileNotesSelfTest = Join-Path $bundleRoot "scripts\test_profile_notes_verifier.py"
+$profileNotesSelfTest = Join-Path $bundleRoot "scripts/test_profile_notes_verifier.py"
 & python $profileNotesSelfTest
 $summary.verifier.profile_notes_self_test = $profileNotesSelfTest
 $summary.verifier.profile_notes_self_test_exit_code = $LASTEXITCODE
@@ -411,9 +429,9 @@ if (!$VerifyOnly -and !$SkipUnity) {
         }
 
         if ($summary.unity.status -eq "attempted") {
-            $editorDir = Join-Path $projectPath "Assets\Editor"
+            $editorDir = Join-Path $projectPath "Assets/Editor"
             New-Item -ItemType Directory -Path $editorDir -Force | Out-Null
-            Copy-Item -LiteralPath (Join-Path $bundleRoot "integrations\unity\Editor\MidoriNaturePackageImporter.cs") `
+            Copy-Item -LiteralPath (Join-Path $bundleRoot "integrations/unity/Editor/MidoriNaturePackageImporter.cs") `
                 -Destination (Join-Path $editorDir "MidoriNaturePackageImporter.cs") `
                 -Force
 
@@ -487,7 +505,7 @@ if (!$VerifyOnly -and !$SkipUnreal) {
         $summary.unreal.project_source = $projectSource
     }
     else {
-        $integrationDir = Join-Path $bundleRoot "integrations\unreal"
+        $integrationDir = Join-Path $bundleRoot "integrations/unreal"
         $wrapper = @(
             "import sys",
             "sys.path.insert(0, $(Convert-ToPythonString $integrationDir))",
@@ -605,33 +623,33 @@ This bundle freezes the generated `__PACKAGE_NAME__` Midori nature package and t
 From this bundle directory, run the editor imports against the bundled fixture projects:
 
 ```powershell
-.\run_editor_validation.ps1 -UnityExe "C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe" -UnrealEditorExe "C:\Program Files\Epic Games\UE_<version>\Engine\Binaries\Win64\UnrealEditor.exe" -AllowPending
+./run_editor_validation.ps1 -UnityExe "C:/Program Files/Unity/Hub/Editor/<version>/Editor/Unity.exe" -UnrealEditorExe "C:/Program Files/Epic Games/UE_<version>/Engine/Binaries/Win64/UnrealEditor.exe" -AllowPending
 ```
 
-Unity must be licensed. The runner uses `projects\unity\MidoriUnityValidation` by default when `-UnityProject` is omitted. The scaffold includes a glTFast Package Manager dependency by default, and the Unity importer also has a native Midori GLB fallback so basic detail-prototype evidence does not depend on an external GLB importer. Unreal uses `projects\unreal\MidoriUnrealValidation\MidoriUnrealValidation.uproject` by default when `-UnrealProject` is omitted; the scaffold enables Python editor scripting, but the editor may still need GLB import support enabled for prototype assets.
+Unity must be licensed. The runner uses `projects/unity/MidoriUnityValidation` by default when `-UnityProject` is omitted. The scaffold includes a glTFast Package Manager dependency by default, and the Unity importer also has a native Midori GLB fallback so basic detail-prototype evidence does not depend on an external GLB importer. Unreal uses `projects/unreal/MidoriUnrealValidation/MidoriUnrealValidation.uproject` by default when `-UnrealProject` is omitted; the scaffold enables Python editor scripting, but the editor may still need GLB import support enabled for prototype assets.
 
 To use custom existing projects instead, pass their project paths to `-UnityProject` and `-UnrealProject`. To regenerate the bundled scaffolds, run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create_engine_validation_projects.ps1 -OutputRoot "projects" -PortablePaths
+pwsh -NoProfile -File scripts/create_engine_validation_projects.ps1 -OutputRoot "projects" -PortablePaths
 ```
 
 The first editor run should use `-AllowPending` because the profile notes are normally written after the reports and screenshots exist. After the editor run, inspect `validation_root/editor_handoff_summary.json`; successful editor sections record the report checksums plus screenshot status, byte count, checksum, and dimensions. Then create `docs/validation/midori-nature-engine-profile-notes.md` from the template with real Unity and Unreal profiling observations. The completed notes must cite the exact report and screenshot filenames, Unity and Unreal editor versions, mobile and console profile observations, Frame Debugger and RenderDoc instancing evidence, Unity detail-prototype fallback fields, Unreal foliage type/cull fields, material slot observations, wind-channel observations, and the strict verifier result. Then rerun verification only without `-AllowPending`; the runner preserves the previous editor-run summary sections while updating verifier fields:
 
 ```powershell
-.\run_editor_validation.ps1 -VerifyOnly
+./run_editor_validation.ps1 -VerifyOnly
 ```
 
 For diagnostic runs on machines still missing editor artifacts, use:
 
 ```powershell
-.\run_editor_validation.ps1 -VerifyOnly -AllowPending
+./run_editor_validation.ps1 -VerifyOnly -AllowPending
 ```
 
 Return the completed bundle to the source repo, then run this from the repo root to copy verified artifacts into canonical validation locations:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import_engine_validation_handoff.ps1 -HandoffDir "target/midori_engine_validation_handoff"
+pwsh -NoProfile -File scripts/import_engine_validation_handoff.ps1 -HandoffDir "target/midori_engine_validation_handoff"
 ```
 
 The strict verifier passes only when `validation_root/__PACKAGE_NAME___unity_import_report.json`, `validation_root/__PACKAGE_NAME___unreal_editor_report.json`, the four screenshots, and completed profile notes all exist and satisfy `scripts/verify_engine_evidence.py`.
@@ -674,4 +692,4 @@ $manifest = [ordered]@{
 )
 
 Write-Output "Midori engine validation handoff written to $handoffPath"
-Write-Output "Run $handoffPath\run_editor_validation.ps1 on a machine with licensed Unity and installed Unreal."
+Write-Output "Run $handoffPath/run_editor_validation.ps1 on a machine with licensed Unity and installed Unreal."

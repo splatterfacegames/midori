@@ -11,6 +11,11 @@ export class MidoriGenerator {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Estimate worst-case generation cost (`{ max_stems, max_leaves }`)
+     * without generating — lets the editor warn or refuse cheaply.
+     */
+    estimateGeneration(): any;
+    /**
      * Export tree as separate `.gltf` JSON + `.bin` parts.
      *
      * `bin_name` is written into the glTF buffer URI. Returns an object with
@@ -135,6 +140,7 @@ export interface InitOutput {
     readonly __wbg_midorinaturegenerator_free: (a: number, b: number) => void;
     readonly generate_nature_preview_from_toml: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly generate_tree_from_toml: (a: number, b: number, c: bigint) => [number, number, number];
+    readonly midorigenerator_estimateGeneration: (a: number) => [number, number, number];
     readonly midorigenerator_exportGltf: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
     readonly midorigenerator_export_glb: (a: number, b: bigint, c: number) => [number, number, number];
     readonly midorigenerator_fromJson: (a: any) => [number, number, number];

@@ -209,7 +209,7 @@ fn composition_matches_public_core_and_independent_glb_reader() {
         for seed in [42_u64, 43] {
             let result = compose_tree(source, &seed.to_string(), identity()).unwrap();
             let species = Species::from_toml(std::str::from_utf8(source).unwrap()).unwrap();
-            let tree = generate_tree(&species, seed);
+            let tree = generate_tree(&species, seed).unwrap();
             let config = LodGenerationConfig::balanced();
             let expected = generate_lod_meshes_with_config(&tree, &species, &config);
             assert_eq!(result.source(), source);
