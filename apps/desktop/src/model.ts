@@ -18,7 +18,6 @@ import {
 } from './engine';
 import { NATURE_PRESETS, PRESETS } from './presets';
 import { setParam, type BranchLevelId, type SpeciesJson, DEFAULT_BRANCH_PARAMS } from './species';
-import { SCATTER_SAMPLE_LIMIT as SCATTER_LIMIT } from './meshes';
 
 export interface ExportFile {
   name: string;
@@ -33,8 +32,6 @@ export interface WorkbenchState {
   /** NaturePatch TOML + preview output while in nature mode. */
   natureToml: string | null;
   naturePreview: NaturePreview | null;
-  /** Scatter instances actually handed to the viewport (sampled). */
-  natureScatterSampled: number;
   /** Display label for the loaded species document. */
   label: string;
   /** Committed species TOML source. */
@@ -84,7 +81,6 @@ export class MidoriModel {
       mode: 'species',
       natureToml: null,
       naturePreview: null,
-      natureScatterSampled: 0,
       label: 'Untitled',
       toml: '',
       json: null,
@@ -145,19 +141,11 @@ export class MidoriModel {
   loadNatureToml(toml: string, label: string): boolean {
     try {
       const preview = generateNaturePreview(toml);
-      const sampled = Math.min(
-        preview.scatter_sets.reduce(
-          (n, set) => n + set.chunks.reduce((m, c) => m + c.instances.length, 0),
-          0,
-        ),
-        preview.scatter_sets.length * SCATTER_LIMIT,
-      );
       this.emit({
         mode: 'nature',
         label,
         natureToml: toml,
         naturePreview: preview,
-        natureScatterSampled: sampled,
         toml,
         sourceDraft: toml,
         sourceDirty: false,
@@ -190,7 +178,6 @@ export class MidoriModel {
         mode: 'species',
         natureToml: null,
         naturePreview: null,
-        natureScatterSampled: 0,
         label,
         toml,
         json,

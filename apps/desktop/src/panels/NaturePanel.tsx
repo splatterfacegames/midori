@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Viewport3D } from '@jethac/tools-frontend-stack/viewports';
 import type { Viewport3DController } from '@jethac/tools-frontend-stack/viewports';
-import { natureToDescriptors, SCATTER_SAMPLE_LIMIT } from '../meshes';
+import { natureToDescriptors } from '../meshes';
 import type { WorkbenchState } from '../model';
 
 export function NaturePanel({
@@ -20,7 +20,6 @@ export function NaturePanel({
     () => (preview ? natureToDescriptors(preview, state.seed) : []),
     [preview, state.seed],
   );
-  const sampled = state.natureScatterSampled;
   const total = preview?.stats.scatter_instance_count ?? 0;
   return (
     <Viewport3D
@@ -32,9 +31,7 @@ export function NaturePanel({
     >
       <div className="midori-view-badge">
         {preview
-          ? `${preview.stats.tile_size}M TILE · ${preview.stats.prototype_count} PROTOTYPES · ${
-              total > sampled ? `${sampled.toLocaleString()}/${total.toLocaleString()}` : total.toLocaleString()
-            } SCATTER`
+          ? `${preview.stats.tile_size}M TILE · ${preview.stats.prototype_count} PROTOTYPES · ${total.toLocaleString()} SCATTER`
           : 'NO PATCH'}
       </div>
       {!preview && (
