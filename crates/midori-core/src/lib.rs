@@ -1,7 +1,7 @@
 //! Midori - Procedural tree generation library
 //!
 //! A standalone procedural tree generation tool for real-time game engines.
-//! Generates 3D tree meshes with LOD, wind animation data, and AI-generated textures.
+//! Generates 3D tree meshes with LOD, wind animation data, and procedural textures.
 //!
 //! # Example
 //!

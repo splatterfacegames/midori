@@ -257,6 +257,48 @@ jobs:
           name: wasm-rebuild
           path: apps/desktop/src/wasm/
 
+  # Compiles the committed C header + smoke.c against the built cdylib and
+  # runs it — proves the FFI surface actually links and works from C.
+  ffi-smoke:
+    name: C FFI smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Ensure rustup (self-hosted runner may lack it)
+        shell: bash
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+            sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo build -p midori-ffi --locked
+      - name: Compile and run C smoke test
+        run: |
+          cc -Wall -Werror crates/midori-ffi/tests/smoke.c \
+            -I crates/midori-ffi/include -L target/debug -l midori_ffi \
+            -Wl,-rpath,"$PWD/target/debug" -o /tmp/ffi_smoke
+          /tmp/ffi_smoke
+
+  # Dependency advisories on both ecosystems. npm audits the committed
+  # lockfile (no install needed); cargo audits Cargo.lock via rustsec.
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      - run: npm audit --omit=dev --audit-level=moderate
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   integrations:
     name: Importer + evidence scripts
     runs-on: [self-hosted, linux, x64]

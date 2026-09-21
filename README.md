@@ -276,8 +276,8 @@ midori/
 ├── crates/
 │   ├── midori-core/       # Core generation library
 │   ├── midori-cli/        # Command-line interface
-│   ├── midori-wasm/       # WebAssembly bindings (WIP)
-│   ├── midori-ffi/        # C FFI for engine plugins (WIP)
+│   ├── midori-wasm/       # WebAssembly bindings
+│   ├── midori-ffi/        # C FFI for engine plugins
 │   ├── midori-contracts/  # FlatBuffers tree-compute wire contract (WIP)
 │   ├── midori-ui-domain/  # UI-facing composition helpers (WIP)
 │   └── midori-desktop/    # Tauri host (excluded from the workspace)
@@ -323,4 +323,4 @@ export_lod_meshes(&lods, Path::new("tree.glb"), &ExportConfig::default()).unwrap
 
 ## License
 
-MIT
+MIT OR Apache-2.0
