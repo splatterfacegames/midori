@@ -142,7 +142,7 @@ describe('lodToDescriptors', () => {
   });
 });
 
-import { natureToDescriptors, SCATTER_SAMPLE_LIMIT } from './meshes';
+import { natureToDescriptors } from './meshes';
 import type { NatureMesh, NaturePreview, ScatterInstance } from './engine';
 
 const natureMesh: NatureMesh = {
@@ -205,14 +205,17 @@ function naturePreview(instanceCount: number): NaturePreview {
 }
 
 describe('natureToDescriptors', () => {
-  it('emits terrain plus one descriptor per scatter instance with transform', () => {
+  it('emits terrain plus one instanced descriptor per scatter set', () => {
     const out = natureToDescriptors(naturePreview(3), 7);
-    expect(out).toHaveLength(4);
+    expect(out).toHaveLength(2);
     expect(out[0].entityId).toBe('nature-terrain');
-    const placed = out[2];
-    expect(placed.transform?.position).toEqual([1, 0, 0]);
-    expect(placed.transform?.rotation).toEqual([0, 1.25, 0]);
-    expect(placed.transform?.scale).toEqual([0.2, 0.4, 0.2]);
+    const placed = out[1];
+    expect(placed.instances).toHaveLength(3);
+    expect(placed.instances?.[1]).toEqual({
+      position: [1, 0, 0],
+      rotation: [0, 1.25, 0],
+      scale: [0.2, 0.4, 0.2],
+    });
     expect(placed.revision).toBe(7);
   });
 
@@ -222,9 +225,10 @@ describe('natureToDescriptors', () => {
     expect(out[1].color).toBe('#4a7d34');
   });
 
-  it('caps scatter descriptors at SCATTER_SAMPLE_LIMIT', () => {
-    const out = natureToDescriptors(naturePreview(SCATTER_SAMPLE_LIMIT + 50), 0);
-    expect(out).toHaveLength(1 + SCATTER_SAMPLE_LIMIT);
+  it('passes every scatter placement through the instance descriptor', () => {
+    const out = natureToDescriptors(naturePreview(290), 0);
+    expect(out).toHaveLength(2);
+    expect(out[1].instances).toHaveLength(290);
   });
 
   it('skips scatter sets with no resolvable prototype', () => {

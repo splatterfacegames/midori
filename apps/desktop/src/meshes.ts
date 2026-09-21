@@ -91,15 +91,10 @@ export function lodToDescriptors(
 /* ── Nature patch preview ────────────────────────────────────────────────
  *
  * Terrain becomes one descriptor; each scatter_set's prototype contributes
- * up to SCATTER_SAMPLE_LIMIT per-kind descriptors (one per sampled instance,
- * placed via `transform`). Viewport3D has no instanced drawing yet — the
- * sample keeps the frame interactive at real densities.
+ * one instanced descriptor containing every chunked placement.
  */
 
 import type { NaturePreview, NatureMesh, ScatterInstance } from './engine';
-
-/** Per-set cap on scatter instances pushed into the viewport. */
-export const SCATTER_SAMPLE_LIMIT = 240;
 
 const KIND_COLORS: Record<string, string> = {
   grass: '#4a7d34',
@@ -148,26 +143,20 @@ export function natureToDescriptors(
     const normals = Float32Array.from(geometry.vertices.normals);
     const indices = Uint32Array.from(geometry.indices);
 
-    let placed = 0;
-    outer: for (const chunk of set.chunks) {
-      for (const inst of chunk.instances as ScatterInstance[]) {
-        if (placed >= SCATTER_SAMPLE_LIMIT) break outer;
-        descriptors.push({
-          entityId: `nature-scatter-${setIndex}-${placed}`,
-          revision,
-          positions,
-          normals,
-          indices,
-          color: natureKindColor(set.kind),
-          transform: {
-            position: inst.position,
-            rotation: [0, inst.yaw, 0],
-            scale: [inst.width, inst.height, inst.width],
-          },
-        });
-        placed += 1;
-      }
-    }
+    const instances = set.chunks.flatMap((chunk) => (chunk.instances as ScatterInstance[]).map((inst) => ({
+      position: inst.position,
+      rotation: [0, inst.yaw, 0] as const,
+      scale: [inst.width, inst.height, inst.width] as const,
+    })));
+    descriptors.push({
+      entityId: `nature-scatter-${setIndex}`,
+      revision,
+      positions,
+      normals,
+      indices,
+      color: natureKindColor(set.kind),
+      instances,
+    });
   }
   return descriptors;
 }
