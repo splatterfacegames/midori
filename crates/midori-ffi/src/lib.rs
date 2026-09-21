@@ -110,7 +110,10 @@ pub unsafe extern "C" fn midori_tree_generate(
         return std::ptr::null_mut();
     }
     let species = unsafe { &*species };
-    Box::into_raw(Box::new(generate_tree(species, seed)))
+    match generate_tree(species, seed) {
+        Ok(tree) => Box::into_raw(Box::new(tree)),
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 /// Number of stems in a generated tree.

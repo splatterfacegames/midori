@@ -43,6 +43,6 @@ Export tests should validate both builder-level JSON and real GLB bytes. The byt
 
 `apps/desktop` is covered by `npm test` (vitest) for model/engine logic and `npm run build` for the Vite bundle; the wasm bundle in `apps/desktop/src/wasm/` is regenerated with `node scripts/build-wasm.mjs`. There is no browser smoke test on this line; visual checks of PreviewPanel/NaturePanel are manual.
 
-## Parked Work
+## Material Story
 
-Texture/PBR asset generation is not part of the active architecture work. Species and material metadata may carry placeholders, but image generation, alpha extraction, and derived PBR/translucency maps remain parked.
+Procedural texture generation is the baseline: `midori-core/src/textures.rs` bakes bark albedo+normal and leaf albedo+alpha cards deterministically from the species `[textures]` section, and glTF export can embed them. `bark_albedo`/`bark_normal`/`leaf_albedo_alpha` file slots let hosts substitute authored maps. `[materials]` is metadata only, not a texture contract. Host-side PBR derivation (roughness/metallic/translucency from sourced assets) remains parked; see docs/species-schema.md.

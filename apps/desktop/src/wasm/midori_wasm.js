@@ -24,6 +24,18 @@ export class MidoriGenerator {
         wasm.__wbg_midorigenerator_free(ptr, 0);
     }
     /**
+     * Estimate worst-case generation cost (`{ max_stems, max_leaves }`)
+     * without generating — lets the editor warn or refuse cheaply.
+     * @returns {any}
+     */
+    estimateGeneration() {
+        const ret = wasm.midorigenerator_estimateGeneration(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Export tree as separate `.gltf` JSON + `.bin` parts.
      *
      * `bin_name` is written into the glTF buffer URI. Returns an object with
@@ -489,6 +501,10 @@ function __wbg_get_imports() {
         },
         __wbg_new_02d162bc6cf02f60: function() {
             const ret = new Object();
+            return ret;
+        },
+        __wbg_new_1f236d63ba0c4784: function(arg0, arg1) {
+            const ret = new Error(getStringFromWasm0(arg0, arg1));
             return ret;
         },
         __wbg_new_227d7c05414eb861: function() {

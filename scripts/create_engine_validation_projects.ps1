@@ -78,25 +78,25 @@ function Copy-Importer {
 }
 
 $outputPath = Resolve-OutputPath $OutputRoot
-$unityProject = Join-Path $outputPath "unity\$UnityProjectName"
-$unrealProject = Join-Path $outputPath "unreal\$UnrealProjectName"
+$unityProject = Join-Path $outputPath "unity/$UnityProjectName"
+$unrealProject = Join-Path $outputPath "unreal/$UnrealProjectName"
 $unrealProjectFile = Join-Path $unrealProject "$UnrealProjectName.uproject"
 $unityProjectDisplay = Convert-ToDisplayPath $unityProject
 $unrealProjectFileDisplay = Convert-ToDisplayPath $unrealProjectFile
-$unityImporterDisplay = Convert-ToDisplayPath (Join-Path $unityProject "Assets\Editor\MidoriNaturePackageImporter.cs")
-$unityManifestDisplay = Convert-ToDisplayPath (Join-Path $unityProject "Packages\manifest.json")
+$unityImporterDisplay = Convert-ToDisplayPath (Join-Path $unityProject "Assets/Editor/MidoriNaturePackageImporter.cs")
+$unityManifestDisplay = Convert-ToDisplayPath (Join-Path $unityProject "Packages/manifest.json")
 
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $unityProject "Assets\Editor") -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $unityProject "Assets\Midori\Validation") -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $unityProject "Assets/Editor") -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $unityProject "Assets/Midori/Validation") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $unityProject "Packages") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $unityProject "ProjectSettings") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $unrealProject "Config") -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $unrealProject "Content\Midori\Validation") -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $unrealProject "Content/Midori/Validation") -Force | Out-Null
 
 Copy-Importer `
-    (Join-Path $root "integrations\unity\Editor\MidoriNaturePackageImporter.cs") `
-    (Join-Path $unityProject "Assets\Editor\MidoriNaturePackageImporter.cs")
+    (Join-Path $root "integrations/unity/Editor/MidoriNaturePackageImporter.cs") `
+    (Join-Path $unityProject "Assets/Editor/MidoriNaturePackageImporter.cs")
 
 $unityDependencies = [ordered]@{}
 if ($UnityGltfastVersion) {
@@ -111,23 +111,23 @@ $unityManifest = [ordered]@{
     dependencies = $unityDependencies
 }
 Write-Utf8File `
-    (Join-Path $unityProject "Packages\manifest.json") `
+    (Join-Path $unityProject "Packages/manifest.json") `
     (($unityManifest | ConvertTo-Json -Depth 8) + "`n")
 
 if ($UnityEditorVersion) {
     Write-Utf8File `
-        (Join-Path $unityProject "ProjectSettings\ProjectVersion.txt") `
+        (Join-Path $unityProject "ProjectSettings/ProjectVersion.txt") `
         ("m_EditorVersion: $UnityEditorVersion`nm_EditorVersionWithRevision: $UnityEditorVersion`n")
 }
 
-$packageHint = "target\midori_engine_validation\forest_floor"
-$unityReportHint = "target\midori_engine_validation\forest_floor_unity_import_report.json"
-$unrealReportHint = "target\midori_engine_validation\forest_floor_unreal_editor_report.json"
-$screenshotsHint = "docs\validation\screenshots"
+$packageHint = "target/midori_engine_validation/forest_floor"
+$unityReportHint = "target/midori_engine_validation/forest_floor_unity_import_report.json"
+$unrealReportHint = "target/midori_engine_validation/forest_floor_unreal_editor_report.json"
+$screenshotsHint = "docs/validation/screenshots"
 if (Test-Path -LiteralPath (Join-Path $root "validation_root")) {
-    $packageHint = "validation_root\forest_floor"
-    $unityReportHint = "validation_root\forest_floor_unity_import_report.json"
-    $unrealReportHint = "validation_root\forest_floor_unreal_editor_report.json"
+    $packageHint = "validation_root/forest_floor"
+    $unityReportHint = "validation_root/forest_floor_unity_import_report.json"
+    $unrealReportHint = "validation_root/forest_floor_unreal_editor_report.json"
 }
 
 $unityReadme = @'
@@ -161,7 +161,7 @@ $unityReadmeText = $unityReadmeText.Replace(
     (Join-Path $screenshotsHint "unity_forest_floor_density.png")
 )
 Write-Utf8File `
-    (Join-Path $unityProject "Assets\Midori\Validation\README.md") `
+    (Join-Path $unityProject "Assets/Midori/Validation/README.md") `
     ($unityReadmeText + "`n")
 
 $uproject = [ordered]@{
@@ -190,7 +190,7 @@ bDeveloperMode=True
 bRemoteExecution=True
 '@
 Write-Utf8File `
-    (Join-Path $unrealProject "Config\DefaultEngine.ini") `
+    (Join-Path $unrealProject "Config/DefaultEngine.ini") `
     ($unrealConfig + "`n")
 
 $unrealReadme = @'
@@ -207,7 +207,7 @@ It includes:
 Open this project once in Unreal Editor, enable the engine's glTF/Interchange import support if your installation does not already import GLB files, then run the validation importer from the repo or handoff bundle.
 
 ```powershell
-UnrealEditor.exe "__UNREAL_PROJECT__" -Unattended -NoSplash -NullRHI -ExecutePythonScript="validation_root\run_midori_unreal_import.py"
+UnrealEditor.exe "__UNREAL_PROJECT__" -Unattended -NoSplash -NullRHI -ExecutePythonScript="validation_root/run_midori_unreal_import.py"
 ```
 
 The validation runner and handoff script generate the exact Python wrapper and report path automatically. The strict evidence gate still requires the generated report plus real screenshots and profile notes.
@@ -215,7 +215,7 @@ The validation runner and handoff script generate the exact Python wrapper and r
 $unrealReadmeText = $unrealReadme.Replace("__UNREAL_PROJECT_NAME__", $UnrealProjectName)
 $unrealReadmeText = $unrealReadmeText.Replace("__UNREAL_PROJECT__", $unrealProjectFileDisplay)
 Write-Utf8File `
-    (Join-Path $unrealProject "Content\Midori\Validation\README.md") `
+    (Join-Path $unrealProject "Content/Midori/Validation/README.md") `
     ($unrealReadmeText + "`n")
 
 $topReadme = @'
@@ -241,14 +241,14 @@ The Unreal project enables Python editor scripting. Enable GLB import support in
 ## Commands
 
 '@
-$sourceRunner = Join-Path $root "scripts\validate_engine_imports.ps1"
+$sourceRunner = Join-Path $root "scripts/validate_engine_imports.ps1"
 if (Test-Path -LiteralPath $sourceRunner) {
     $topReadme += @'
 
 From the source repo root:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_engine_imports.ps1 -UnityProject "__UNITY_PROJECT__" -UnrealProject "__UNREAL_PROJECT__"
+pwsh -NoProfile -File scripts/validate_engine_imports.ps1 -UnityProject "__UNITY_PROJECT__" -UnrealProject "__UNREAL_PROJECT__"
 ```
 '@
 }
@@ -259,7 +259,7 @@ if (Test-Path -LiteralPath $handoffRunner) {
 From the handoff bundle root:
 
 ```powershell
-.\run_editor_validation.ps1 -UnityProject "__UNITY_PROJECT__" -UnrealProject "__UNREAL_PROJECT__"
+./run_editor_validation.ps1 -UnityProject "__UNITY_PROJECT__" -UnrealProject "__UNREAL_PROJECT__"
 ```
 
 When the run succeeds, complete `docs/validation/midori-nature-engine-profile-notes.md`, rerun verification, and return the bundle for ingest.
@@ -292,9 +292,9 @@ $summary = [ordered]@{
     unity = [ordered]@{
         project_path = $unityProject
         project_path_display = $unityProjectDisplay
-        importer = Join-Path $unityProject "Assets\Editor\MidoriNaturePackageImporter.cs"
+        importer = Join-Path $unityProject "Assets/Editor/MidoriNaturePackageImporter.cs"
         importer_display = $unityImporterDisplay
-        manifest = Join-Path $unityProject "Packages\manifest.json"
+        manifest = Join-Path $unityProject "Packages/manifest.json"
         manifest_display = $unityManifestDisplay
         gltfast_version = $UnityGltfastVersion
         editor_version = $UnityEditorVersion

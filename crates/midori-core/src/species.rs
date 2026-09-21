@@ -396,7 +396,7 @@ pub struct LeafParams {
     /// Leaf shape for polygon generation
     #[serde(default)]
     pub shape: LeafShape,
-    /// Influence of upward direction on leaf orientation (0.0 - 1.0)
+    /// Influence of upward direction on leaf orientation (-1.0 droop - 1.0 upright)
     #[serde(default)]
     pub up_influence: f32,
 }
@@ -431,7 +431,7 @@ pub enum LeafCardLayout {
 /// card from these parameters (deterministic, license-clean), or consume
 /// host-provided image files via the slot paths — the same slots the project
 /// sidecar fills when maps arrive over the studio tool bus.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TextureParams {
     /// Prompt for bark texture generation (authoring hint for art pipelines)
     #[serde(default)]
@@ -651,6 +651,27 @@ fn default_texture_resolution() -> u32 {
     512
 }
 
+impl Default for TextureParams {
+    /// Matches the per-field serde defaults so an absent `[textures]` section
+    /// resolves to the documented values (512px maps, procedural slots).
+    fn default() -> Self {
+        Self {
+            bark_prompt: String::new(),
+            leaf_prompt: String::new(),
+            resolution: default_texture_resolution(),
+            seed: None,
+            bark_style: BarkStyle::default(),
+            leaf_shape: LeafShape::default(),
+            leaf_card: LeafCardLayout::default(),
+            bark_color: None,
+            leaf_color: None,
+            bark_albedo: String::new(),
+            bark_normal: String::new(),
+            leaf_albedo_alpha: String::new(),
+        }
+    }
+}
+
 // Default implementations
 impl Default for CrownParams {
     fn default() -> Self {
@@ -702,6 +723,19 @@ impl Default for GeneratorFamily {
     }
 }
 
+/// A single field-level validation failure on a species document.
+///
+/// `field` is the dotted TOML path (e.g. `trunk.radius`,
+/// `branches.level2.length`) so UIs and structured error consumers can map
+/// the failure back to the offending control.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct SpeciesFieldError {
+    /// Dotted path to the offending parameter.
+    pub field: String,
+    /// Human-readable description of what is wrong.
+    pub message: String,
+}
+
 /// Error type for species loading operations.
 #[derive(Debug)]
 pub enum SpeciesError {
@@ -709,6 +743,9 @@ pub enum SpeciesError {
     Io(std::io::Error),
     /// TOML parsing error
     Parse(toml::de::Error),
+    /// Semantically invalid values (non-finite floats, out-of-range
+    /// parameters, non-positive dimensions). Carries every violation found.
+    Validation(Vec<SpeciesFieldError>),
 }
 
 impl From<std::io::Error> for SpeciesError {
@@ -728,6 +765,13 @@ impl std::fmt::Display for SpeciesError {
         match self {
             SpeciesError::Io(e) => write!(f, "IO error: {e}"),
             SpeciesError::Parse(e) => write!(f, "Parse error: {e}"),
+            SpeciesError::Validation(errors) => {
+                writeln!(f, "Invalid species ({} problem(s)):", errors.len())?;
+                for err in errors {
+                    writeln!(f, "  {}: {}", err.field, err.message)?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -737,6 +781,7 @@ impl std::error::Error for SpeciesError {
         match self {
             SpeciesError::Io(e) => Some(e),
             SpeciesError::Parse(e) => Some(e),
+            SpeciesError::Validation(_) => None,
         }
     }
 }
@@ -762,8 +807,239 @@ impl Species {
     /// let species = Species::from_toml(toml).unwrap();
     /// assert_eq!(species.species.name, "Oak");
     /// ```
-    pub fn from_toml(toml_str: &str) -> Result<Self, toml::de::Error> {
-        toml::from_str(toml_str)
+    ///
+    /// Runs [`Species::validate`] after parsing, so semantically invalid
+    /// values (non-positive dimensions, out-of-range variances, NaN/inf)
+    /// are rejected here rather than producing degenerate geometry later.
+    pub fn from_toml(toml_str: &str) -> Result<Self, SpeciesError> {
+        let species: Self = toml::from_str(toml_str)?;
+        species.validate()?;
+        Ok(species)
+    }
+
+    /// Validate the species' semantic constraints.
+    ///
+    /// TOML parsing only enforces types; this pass rejects values that would
+    /// silently produce degenerate output or runaway generation: non-positive
+    /// heights/radii/lengths, zero segments, variance factors outside their
+    /// documented 0..=1 range, crown offset/gravity outside their ranges, and
+    /// NaN or infinite floats. Collects every violation before returning.
+    pub fn validate(&self) -> Result<(), SpeciesError> {
+        let mut errors = Vec::new();
+        let mut check = |field: &str, rule: &str, ok: bool| {
+            if !ok {
+                errors.push(SpeciesFieldError {
+                    field: field.to_string(),
+                    message: rule.to_string(),
+                });
+            }
+        };
+        let finite = |v: f32| v.is_finite();
+        let positive = |v: f32| v.is_finite() && v > 0.0;
+        let nonnegative = |v: f32| v.is_finite() && v >= 0.0;
+        let unit = |v: f32| v.is_finite() && (0.0..=1.0).contains(&v);
+        let signed_unit = |v: f32| v.is_finite() && (-1.0..=1.0).contains(&v);
+
+        check(
+            "species.name",
+            "must not be empty",
+            !self.species.name.trim().is_empty(),
+        );
+
+        check(
+            "trunk.height",
+            "must be positive and finite",
+            positive(self.trunk.height),
+        );
+        check(
+            "trunk.height_variance",
+            "must be in 0..=1",
+            unit(self.trunk.height_variance),
+        );
+        check(
+            "trunk.radius",
+            "must be positive and finite",
+            positive(self.trunk.radius),
+        );
+        check(
+            "trunk.taper",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.taper),
+        );
+        check("trunk.curve", "must be finite", finite(self.trunk.curve));
+        check(
+            "trunk.curve_variance",
+            "must be finite",
+            finite(self.trunk.curve_variance),
+        );
+        check(
+            "trunk.curve_back",
+            "must be finite",
+            finite(self.trunk.curve_back),
+        );
+        check(
+            "trunk.segments",
+            "must be at least 1",
+            self.trunk.segments > 0,
+        );
+
+        for (level, params) in [
+            (1u32, self.branches.level1.as_ref()),
+            (2, self.branches.level2.as_ref()),
+            (3, self.branches.level3.as_ref()),
+        ] {
+            let Some(p) = params else { continue };
+            let prefix = format!("branches.level{level}");
+            check(
+                &format!("{prefix}.length"),
+                "must be positive and finite",
+                positive(p.length),
+            );
+            check(
+                &format!("{prefix}.length_variance"),
+                "must be in 0..=1",
+                unit(p.length_variance),
+            );
+            check(
+                &format!("{prefix}.radius_ratio"),
+                "must be positive and finite",
+                positive(p.radius_ratio),
+            );
+            check(
+                &format!("{prefix}.pipe_exponent"),
+                "must be positive and finite",
+                positive(p.pipe_exponent),
+            );
+            check(
+                &format!("{prefix}.taper"),
+                "must be non-negative and finite",
+                nonnegative(p.taper),
+            );
+            check(
+                &format!("{prefix}.angle"),
+                "must be finite",
+                finite(p.angle),
+            );
+            check(
+                &format!("{prefix}.angle_variance"),
+                "must be finite",
+                finite(p.angle_variance),
+            );
+            check(
+                &format!("{prefix}.rotation"),
+                "must be finite",
+                finite(p.rotation),
+            );
+            check(
+                &format!("{prefix}.gravity"),
+                "must be in -1..=1",
+                signed_unit(p.gravity),
+            );
+            check(
+                &format!("{prefix}.curve"),
+                "must be finite",
+                finite(p.curve),
+            );
+            check(
+                &format!("{prefix}.curve_variance"),
+                "must be finite",
+                finite(p.curve_variance),
+            );
+            check(
+                &format!("{prefix}.count"),
+                "level with count 0 contributes nothing; remove it or raise the count",
+                p.count > 0 || p.count_variance > 0,
+            );
+            check(
+                &format!("{prefix}.segments"),
+                "must be at least 1",
+                p.segments > 0,
+            );
+        }
+
+        check("crown.offset", "must be in 0..=1", unit(self.crown.offset));
+        check(
+            "crown.density",
+            "must be positive and finite",
+            positive(self.crown.density),
+        );
+        check(
+            "crown.width_ratio",
+            "must be positive and finite",
+            positive(self.crown.width_ratio),
+        );
+
+        check(
+            "leaves.size",
+            "must be positive and finite",
+            positive(self.leaves.size),
+        );
+        check(
+            "leaves.size_variance",
+            "must be in 0..=1",
+            unit(self.leaves.size_variance),
+        );
+        check(
+            "leaves.up_influence",
+            "must be in -1..=1",
+            signed_unit(self.leaves.up_influence),
+        );
+        check(
+            "leaves.min_level",
+            "out of supported range",
+            self.leaves.min_level <= crate::constants::MAX_BRANCH_LEVELS,
+        );
+
+        check(
+            "textures.resolution",
+            "must be in 1..=8192",
+            (1..=8192).contains(&self.textures.resolution),
+        );
+        for (field, color) in [
+            ("textures.bark_color", self.textures.bark_color),
+            ("textures.leaf_color", self.textures.leaf_color),
+        ] {
+            if let Some(c) = color {
+                for (i, v) in c.iter().enumerate() {
+                    check(&format!("{field}[{i}]"), "must be in 0..=1", unit(*v));
+                }
+            }
+        }
+
+        if let Some(count) = self.lod.count {
+            check("lod.count", "must be at least 1", count > 0);
+        }
+        for (i, level) in self.lod.levels.iter().enumerate() {
+            let prefix = format!("lod.levels[{i}]");
+            check(
+                &format!("{prefix}.leaf_reduction"),
+                "must be in 0..=1",
+                unit(level.leaf_reduction),
+            );
+            check(
+                &format!("{prefix}.screen_height"),
+                "must be non-negative and finite",
+                nonnegative(level.screen_height),
+            );
+            check(
+                &format!("{prefix}.branch_levels"),
+                "must be at least 1",
+                level.branch_levels > 0,
+            );
+            if let Some(ring) = level.ring_resolution {
+                check(
+                    &format!("{prefix}.ring_resolution"),
+                    "entries must be at least 1",
+                    ring.iter().all(|r| *r > 0),
+                );
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(SpeciesError::Validation(errors))
+        }
     }
 
     /// Load species from file path.
@@ -778,7 +1054,7 @@ impl Species {
     /// ```
     pub fn from_file(path: &std::path::Path) -> Result<Self, SpeciesError> {
         let content = std::fs::read_to_string(path)?;
-        Ok(Self::from_toml(&content)?)
+        Self::from_toml(&content)
     }
 
     /// Get branch params for a level (0 = trunk, 1-3 = branches).
@@ -1711,8 +1987,96 @@ scientific = "Test"
         ));
         assert!(io_err.to_string().contains("IO error"));
 
-        let parse_err = Species::from_toml("invalid").unwrap_err();
-        let species_err = SpeciesError::Parse(parse_err);
+        let species_err = Species::from_toml("invalid").unwrap_err();
+        assert!(matches!(species_err, SpeciesError::Parse(_)));
         assert!(species_err.to_string().contains("Parse error"));
+    }
+
+    #[test]
+    fn test_validate_rejects_nonpositive_dimensions() {
+        let toml = r#"
+[species]
+name = "Neg2"
+
+[trunk]
+height = 0.0
+radius = -1.0
+segments = 3
+"#;
+        let err = Species::from_toml(toml).unwrap_err();
+        let SpeciesError::Validation(fields) = err else {
+            panic!("expected validation error, got {err:?}");
+        };
+        let paths: Vec<&str> = fields.iter().map(|f| f.field.as_str()).collect();
+        assert!(paths.contains(&"trunk.height"));
+        assert!(paths.contains(&"trunk.radius"));
+    }
+
+    #[test]
+    fn test_validate_rejects_out_of_range_and_nonfinite() {
+        let toml = r#"
+[species]
+name = "Bad Ranges"
+
+[trunk]
+height = 5.0
+height_variance = 1.5
+radius = 0.3
+
+[crown]
+offset = 2.0
+
+[leaves]
+size = nan
+up_influence = -1.5
+"#;
+        let err = Species::from_toml(toml).unwrap_err();
+        let SpeciesError::Validation(fields) = err else {
+            panic!("expected validation error, got {err:?}");
+        };
+        let paths: Vec<&str> = fields.iter().map(|f| f.field.as_str()).collect();
+        for expected in [
+            "trunk.height_variance",
+            "crown.offset",
+            "leaves.size",
+            "leaves.up_influence",
+        ] {
+            assert!(paths.contains(&expected), "missing {expected} in {paths:?}");
+        }
+    }
+
+    #[test]
+    fn test_validate_rejects_zero_segments_and_lod_violations() {
+        let toml = r#"
+[species]
+name = "ZeroSeg"
+
+[trunk]
+height = 5.0
+radius = 0.3
+segments = 0
+
+[branches.level1]
+count = 0
+length = 2.0
+segments = 4
+
+[[lod.levels]]
+index = 0
+target_triangles = 1000
+leaf_reduction = 1.5
+"#;
+        let err = Species::from_toml(toml).unwrap_err();
+        let SpeciesError::Validation(fields) = err else {
+            panic!("expected validation error, got {err:?}");
+        };
+        let paths: Vec<&str> = fields.iter().map(|f| f.field.as_str()).collect();
+        for expected in [
+            "trunk.segments",
+            "branches.level1.count",
+            "lod.levels[0].leaf_reduction",
+        ] {
+            assert!(paths.contains(&expected), "missing {expected} in {paths:?}");
+        }
     }
 }

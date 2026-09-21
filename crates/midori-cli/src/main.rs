@@ -12,12 +12,26 @@
 //! midori nature -p presets/nature/temperate_forest_floor.toml -o forest_floor_midori
 //! midori info -s species/oak.toml
 //! ```
+//!
+//! ## Exit codes
+//!
+//! | Code | Meaning |
+//! |------|---------|
+//! | 0    | success |
+//! | 2    | usage error (bad/missing arguments — clap parse failures) |
+//! | 3    | input error (species/patch parse or validation, generation budget) |
+//! | 4    | IO error (file read/write failures) |
+//! | 1    | other internal errors |
+//!
+//! When `--seed` is combined with `-n`, variant `i` is generated with
+//! `seed + i`, so a run of `-n 10 --seed 42` covers seeds 42 through 51.
 
 use clap::{Parser, Subcommand, ValueEnum};
 use midori_core::{
-    ExportConfig, ExportFormat, ExportMetadata, LodGenerationConfig, NaturePackageConfig,
-    NaturePatch, Species, TextureSet, export_lod_meshes, export_mesh,
-    generate_lod_meshes_with_config, generate_tree, validate_nature_package,
+    ExportConfig, ExportFormat, ExportMetadata, GenerationBudget, GenerationError,
+    LodGenerationConfig, NaturePackageConfig, NaturePatch, NaturePatchError, Species, SpeciesError,
+    TextureSet, estimate_tree, export_lod_meshes, export_mesh, generate_lod_meshes_with_config,
+    generate_tree_with_budget, validate_nature_package,
 };
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -27,6 +41,14 @@ use std::time::Instant;
 #[command(name = "midori")]
 #[command(author, version, about = "Procedural Nature Generator", long_about = None)]
 struct Cli {
+    /// Suppress progress output (errors still go to stderr)
+    #[arg(long, global = true)]
+    quiet: bool,
+
+    /// Emit machine-readable JSON results and errors for scripted pipelines
+    #[arg(long, global = true)]
+    json: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -43,8 +65,8 @@ enum Commands {
         #[arg(short, long, default_value = "tree.glb")]
         output: PathBuf,
 
-        /// Number of tree variants to generate
-        #[arg(short = 'n', long, default_value_t = 1)]
+        /// Number of tree variants to generate (variant i uses seed + i)
+        #[arg(short = 'n', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
         count: u32,
 
         /// Random seed (default: random)
@@ -66,6 +88,22 @@ enum Commands {
         /// Embed material maps (procedural or file-slot overrides) into the export
         #[arg(long)]
         textures: bool,
+
+        /// Override the default stem budget (0 = unbounded)
+        #[arg(long)]
+        max_stems: Option<u32>,
+
+        /// Override the default leaf budget (0 = unbounded)
+        #[arg(long)]
+        max_leaves: Option<u32>,
+
+        /// Override the default total vertex budget across LODs (0 = unbounded)
+        #[arg(long)]
+        max_vertices: Option<u32>,
+
+        /// Override the default total triangle budget across LODs (0 = unbounded)
+        #[arg(long)]
+        max_triangles: Option<u32>,
 
         /// Verbose output
         #[arg(short, long)]
@@ -194,8 +232,38 @@ enum LodPreset {
     Minimal,
 }
 
+fn exit_code(err: &(dyn std::error::Error + 'static)) -> i32 {
+    // 3: input — invalid user documents and resource-limit rejections.
+    // 4: IO.  1: anything else. (2 is clap's usage-error exit before main runs.)
+    if let Some(e) = err.downcast_ref::<SpeciesError>() {
+        return match e {
+            SpeciesError::Io(_) => 4,
+            SpeciesError::Parse(_) | SpeciesError::Validation(_) => 3,
+        };
+    }
+    if let Some(e) = err.downcast_ref::<NaturePatchError>() {
+        return match e {
+            NaturePatchError::Io(_) => 4,
+            _ => 3,
+        };
+    }
+    if err.downcast_ref::<GenerationError>().is_some() {
+        return 3;
+    }
+    if err.downcast_ref::<std::io::Error>().is_some() {
+        return 4;
+    }
+    // A wrapped cause may carry the real kind (e.g. io::Error boxed).
+    match err.source() {
+        Some(source) => exit_code(source),
+        None => 1,
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
+    let quiet = cli.quiet;
+    let json = cli.json;
 
     let result = match cli.command {
         Commands::Generate {
@@ -207,6 +275,10 @@ fn main() {
             format,
             lod_preset,
             textures,
+            max_stems,
+            max_leaves,
+            max_vertices,
+            max_triangles,
             verbose,
         } => run_generate(&GenerateOptions {
             species_path: &species,
@@ -217,6 +289,9 @@ fn main() {
             format,
             lod_preset,
             textures,
+            budget: budget_arg(max_stems, max_leaves, max_vertices, max_triangles),
+            quiet,
+            json,
             verbose,
         }),
         Commands::Maps {
@@ -256,8 +331,50 @@ fn main() {
     };
 
     if let Err(e) = result {
-        eprintln!("Error: {e}");
-        std::process::exit(1);
+        if json {
+            eprintln!(
+                "{}",
+                serde_json::json!({"error": {"kind": error_kind(&*e), "message": e.to_string()}})
+            );
+        } else {
+            eprintln!("Error: {e}");
+        }
+        std::process::exit(exit_code(&*e));
+    }
+}
+
+// Budget flags: absent = documented default, 0 = unbounded.
+fn budget_arg(
+    stems: Option<u32>,
+    leaves: Option<u32>,
+    vertices: Option<u32>,
+    triangles: Option<u32>,
+) -> GenerationBudget {
+    let defaults = GenerationBudget::default();
+    let unbounded = |v: Option<u32>, default: u32| match v {
+        None => default,
+        Some(0) => u32::MAX,
+        Some(v) => v,
+    };
+    GenerationBudget {
+        max_stems: unbounded(stems, defaults.max_stems),
+        max_leaves: unbounded(leaves, defaults.max_leaves),
+        max_vertices: unbounded(vertices, defaults.max_vertices),
+        max_triangles: unbounded(triangles, defaults.max_triangles),
+    }
+}
+
+fn error_kind(err: &(dyn std::error::Error + 'static)) -> &'static str {
+    if err.downcast_ref::<SpeciesError>().is_some()
+        || err.downcast_ref::<NaturePatchError>().is_some()
+    {
+        "input"
+    } else if err.downcast_ref::<GenerationError>().is_some() {
+        "generation"
+    } else if err.downcast_ref::<std::io::Error>().is_some() {
+        "io"
+    } else {
+        "internal"
     }
 }
 
@@ -270,6 +387,9 @@ struct GenerateOptions<'a> {
     format: OutputFormat,
     lod_preset: LodPreset,
     textures: bool,
+    budget: GenerationBudget,
+    quiet: bool,
+    json: bool,
     verbose: bool,
 }
 
@@ -279,18 +399,30 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
     let output_path = options.output_path;
     let count = options.count;
     let seed = options.seed;
-    let verbose = options.verbose;
+    let verbose = options.verbose && !options.quiet;
+    let mut outputs: Vec<serde_json::Value> = Vec::new();
 
     // Load species
     if verbose {
         println!("Loading species from {species_path:?}...");
     }
     let species = Species::from_file(species_path)?;
-    println!(
-        "Species: {} ({})",
-        species.species.name,
-        species.latin_name()
-    );
+    if !options.quiet {
+        println!(
+            "Species: {} ({})",
+            species.species.name,
+            species.latin_name()
+        );
+    }
+
+    // Cheap pre-flight: refuse species whose worst-case shape exceeds the
+    // budget before spending any time generating.
+    let estimate = estimate_tree(&species);
+    if let Err(e) = options.budget.check_estimate(&estimate) {
+        eprintln!("{e}");
+        eprintln!("Raise a limit with --max-stems/--max-leaves (0 = unbounded).");
+        return Err(e.into());
+    }
 
     // Get LOD config
     let lod_config = match options.lod_preset {
@@ -329,8 +461,8 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
             use std::time::{SystemTime, UNIX_EPOCH};
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(0)
                 + i as u64
         }) + i as u64;
 
@@ -339,7 +471,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         }
 
         let gen_start = Instant::now();
-        let tree = generate_tree(&species, tree_seed);
+        let tree = generate_tree_with_budget(&species, tree_seed, &options.budget)?;
 
         if verbose {
             println!("  Tree generated in {:?}", gen_start.elapsed());
@@ -368,6 +500,29 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         // Generate LOD meshes
         let mesh_start = Instant::now();
         let lod_meshes = generate_lod_meshes_with_config(&tree, &species, &lod_config);
+        let lod_stats = lod_meshes.total_stats();
+        options
+            .budget
+            .check_mesh_stats(
+                lod_stats.vertex_count as usize,
+                lod_stats.triangle_count as usize,
+            )
+            .map_err(|e| {
+                eprintln!("{e}");
+                eprintln!("Raise a limit with --max-vertices/--max-triangles (0 = unbounded).");
+                e
+            })?;
+        outputs.push(serde_json::json!({
+            "output": tree_output,
+            "seed": tree_seed,
+            "stems": tree.stems.len(),
+            "leaves": tree.leaves.len(),
+            "lods": lod_meshes.meshes.iter().map(|m| serde_json::json!({
+                "name": m.name,
+                "vertices": m.stats.vertex_count,
+                "triangles": m.stats.triangle_count,
+            })).collect::<Vec<_>>(),
+        }));
 
         if verbose {
             println!("  LOD meshes generated in {:?}", mesh_start.elapsed());
@@ -417,11 +572,30 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
             println!("  Exported in {:?}", export_start.elapsed());
         }
 
-        println!("Exported: {tree_output:?}");
+        if !options.quiet {
+            println!("Exported: {tree_output:?}");
+        }
     }
 
     let elapsed = start.elapsed();
-    println!("Generated {count} tree(s) in {elapsed:?}");
+    if options.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "command": "generate",
+                "species": species.species.name,
+                "count": count,
+                "elapsed_ms": elapsed.as_millis() as u64,
+                "estimate": {
+                    "max_stems": estimate.max_stems,
+                    "max_leaves": estimate.max_leaves,
+                },
+                "outputs": outputs,
+            })
+        );
+    } else if !options.quiet {
+        println!("Generated {count} tree(s) in {elapsed:?}");
+    }
 
     Ok(())
 }

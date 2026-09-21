@@ -5,6 +5,7 @@ export const __wbg_midorigenerator_free: (a: number, b: number) => void;
 export const __wbg_midorinaturegenerator_free: (a: number, b: number) => void;
 export const generate_nature_preview_from_toml: (a: number, b: number, c: number, d: number) => [number, number, number];
 export const generate_tree_from_toml: (a: number, b: number, c: bigint) => [number, number, number];
+export const midorigenerator_estimateGeneration: (a: number) => [number, number, number];
 export const midorigenerator_exportGltf: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
 export const midorigenerator_export_glb: (a: number, b: bigint, c: number) => [number, number, number];
 export const midorigenerator_fromJson: (a: any) => [number, number, number];

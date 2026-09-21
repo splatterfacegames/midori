@@ -126,7 +126,7 @@ npm run build
 Regenerate local engine validation outputs and current summary:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_engine_imports.ps1 -SkipUnrealEditor
+pwsh -NoProfile -File scripts/validate_engine_imports.ps1 -SkipUnrealEditor
 ```
 
 Use `-SkipUnrealEditor` on this host because no Unreal Editor is installed. Without that flag, the script still records the Unreal editor blocker; the dry-run path remains covered.
@@ -150,7 +150,7 @@ The expected strict result right now is exit code `1`, with `1610` passing check
 Export a frozen bundle from this repo:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/export_engine_validation_handoff.ps1
+pwsh -NoProfile -File scripts/export_engine_validation_handoff.ps1
 ```
 
 Move `target/midori_engine_validation_handoff/` to a machine that has:
@@ -186,7 +186,7 @@ The handoff runner preserves previous real editor summary sections during final 
 Return the completed bundle to this repo and ingest it:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import_engine_validation_handoff.ps1 -HandoffDir "target/midori_engine_validation_handoff"
+pwsh -NoProfile -File scripts/import_engine_validation_handoff.ps1 -HandoffDir "target/midori_engine_validation_handoff"
 ```
 
 Then run:

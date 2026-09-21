@@ -9,7 +9,7 @@ Status: automated package conformance plus Unity/Unreal importer helper scripts.
 Latest probe command:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_engine_imports.ps1 -SkipUnrealEditor
+pwsh -NoProfile -File scripts/validate_engine_imports.ps1 -SkipUnrealEditor
 ```
 
 Current result on this host:
@@ -36,13 +36,13 @@ midori nature -p presets/nature/temperate_forest_floor.toml -o target/midori_eng
 Canonical local validation runner:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_engine_imports.ps1
+pwsh -NoProfile -File scripts/validate_engine_imports.ps1
 ```
 
 On a machine with Unity or Unreal installed, the runner generates validation project scaffolds under `target/midori_engine_validation/projects/` and uses them by default when explicit project paths are not supplied. You can still pass existing projects:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_engine_imports.ps1 -UnityProject "D:/Projects/MidoriUnityValidation" -UnrealProject "D:/Projects/MidoriUnrealValidation/MidoriUnrealValidation.uproject"
+pwsh -NoProfile -File scripts/validate_engine_imports.ps1 -UnityProject "D:/Projects/MidoriUnityValidation" -UnrealProject "D:/Projects/MidoriUnrealValidation/MidoriUnrealValidation.uproject"
 ```
 
 The runner regenerates the package, writes the Midori conformance report, creates Unity and Unreal project scaffolds unless `-SkipProjectScaffold` is passed, runs editorless Unity preflight, runs the Unreal CPython dry-run, probes for Unity and Unreal editors, uses generated scaffolds when project paths are absent, records fake-editor screenshot artifact summaries, records real editor screenshot summaries when editor reports are produced, and writes:
@@ -77,7 +77,7 @@ python scripts/verify_engine_evidence.py --validation-root target/midori_engine_
 To move the exact generated package and verifier state to a machine with licensed Unity and installed Unreal editors, export a frozen handoff bundle:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/export_engine_validation_handoff.ps1
+pwsh -NoProfile -File scripts/export_engine_validation_handoff.ps1
 ```
 
 The bundle is written to `target/midori_engine_validation_handoff/` and contains:
@@ -105,7 +105,7 @@ On the editor machine, run from inside the bundle against the bundled fixture pr
 Unity must be licensed. The runner uses `projects\unity\MidoriUnityValidation` by default when `-UnityProject` is omitted. The scaffold includes a glTFast Package Manager dependency by default, but Midori's Unity importer also has a native GLB fallback that can generate detail mesh prefabs directly from Midori prototype GLBs when the project importer does not expose them as `GameObject` assets. The runner uses `projects\unreal\MidoriUnrealValidation\MidoriUnrealValidation.uproject` by default when `-UnrealProject` is omitted. The Unreal scaffold enables Python editor scripting and supplies a real `.uproject`, but the editor may still need GLB import support enabled for prototype assets. To regenerate the scaffolds inside the bundle, run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create_engine_validation_projects.ps1 -OutputRoot "projects" -PortablePaths
+pwsh -NoProfile -File scripts/create_engine_validation_projects.ps1 -OutputRoot "projects" -PortablePaths
 ```
 
 The first editor run uses `-AllowPending` because the profile notes are normally written after the reports and screenshots exist. After editor imports and screenshot capture, inspect `validation_root/editor_handoff_summary.json`; successful editor sections record report checksums plus screenshot status, byte count, checksum, and dimensions. Then write `docs/validation/midori-nature-engine-profile-notes.md` from the template with real Unity and Unreal profiling observations. The completed notes must cite the Unity and Unreal report filenames, all four screenshot filenames, Unity Editor version, Unreal Editor version, mobile and console profile observations, Frame Debugger and RenderDoc instancing observations, material slot and wind-channel observations, Unity detail-prototype counts/fallback status, Unreal `foliage_type_count`/`foliage_type_assets`, and the 3500-7000 cm console foliage cull range. Then rerun strict verification without `-AllowPending`; the runner preserves the previous editor-run summary sections while updating verifier fields:
@@ -117,19 +117,19 @@ The first editor run uses `-AllowPending` because the profile notes are normally
 Return the completed bundle to the source repo, then preflight and ingest the real editor evidence into canonical repo paths:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import_engine_validation_handoff.ps1 -HandoffDir "target/midori_engine_validation_handoff"
+pwsh -NoProfile -File scripts/import_engine_validation_handoff.ps1 -HandoffDir "target/midori_engine_validation_handoff"
 ```
 
 The ingest script verifies the returned reports/screenshots/profile notes against the local package before copying them into `target/midori_engine_validation/` and `docs/validation/`. For diagnostic checks against an incomplete bundle only, use:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/import_engine_validation_handoff.ps1 -HandoffDir "target/midori_engine_validation_handoff" -AllowPartial -AllowPending
+pwsh -NoProfile -File scripts/import_engine_validation_handoff.ps1 -HandoffDir "target/midori_engine_validation_handoff" -AllowPartial -AllowPending
 ```
 
 Local smoke coverage for the handoff path:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File target/midori_engine_validation_handoff/run_editor_validation.ps1 -VerifyOnly -AllowPending
+pwsh -NoProfile -File target/midori_engine_validation_handoff/run_editor_validation.ps1 -VerifyOnly -AllowPending
 ```
 
 This currently reproduces the expected `pending` state with 1610 passing checks and the same seven editor-only artifacts missing. The incomplete-bundle ingest smoke also leaves canonical evidence `pending` with the same seven editor-only artifacts missing.
@@ -326,7 +326,7 @@ py "B:/workshop/trees/midori/integrations/unreal/midori_nature_importer.py" "B:/
 Run from the validation runner when Unreal Editor and a project are available:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_engine_imports.ps1 -UnrealEditorExe "C:/Program Files/Epic Games/UE_5.4/Engine/Binaries/Win64/UnrealEditor.exe" -UnrealProject "D:/Projects/MidoriValidation/MidoriValidation.uproject"
+pwsh -NoProfile -File scripts/validate_engine_imports.ps1 -UnrealEditorExe "C:/Program Files/Epic Games/UE_5.4/Engine/Binaries/Win64/UnrealEditor.exe" -UnrealProject "D:/Projects/MidoriValidation/MidoriValidation.uproject"
 ```
 
 Run a strict CPython dry-run without Unreal Editor:

@@ -15,6 +15,173 @@ use crate::{
 };
 use glam::Vec3;
 
+/// Resource limits enforced during tree generation.
+///
+/// Procedural parameters are user input, so a pathological species (huge
+/// branch counts, deep segment counts, extreme leaf counts) must fail fast
+/// instead of hanging a CLI, a browser tab, or an engine editor. Exceeding
+/// a limit is an explicit [`GenerationError::BudgetExceeded`], not a silent
+/// truncation.
+///
+/// `max_vertices`/`max_triangles` are checked by callers after LOD mesh
+/// generation (see [`GenerationBudget::check_mesh_stats`]); the CLI's
+/// `--max-*` flags and the wasm bindings apply them there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GenerationBudget {
+    /// Maximum stems (trunk + branches) a generated tree may contain.
+    pub max_stems: u32,
+    /// Maximum leaves a generated tree may contain.
+    pub max_leaves: u32,
+    /// Maximum vertices across all generated LOD meshes.
+    pub max_vertices: u32,
+    /// Maximum triangles across all generated LOD meshes.
+    pub max_triangles: u32,
+}
+
+impl Default for GenerationBudget {
+    fn default() -> Self {
+        Self {
+            max_stems: MAX_STEMS,
+            max_leaves: 250_000,
+            max_vertices: MAX_VERTICES,
+            max_triangles: 1_000_000,
+        }
+    }
+}
+
+/// Cheap pre-generation upper-bound estimate for a species.
+///
+/// Bounds are worst-case: branch `count + count_variance` is an upper bound
+/// on children per parent, so the stem total assumes every parent spawns its
+/// maximum. Dichotomous generators emit terminal forks on top of level
+/// children, so their estimate is doubled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GenerationEstimate {
+    /// Upper bound on generated stems.
+    pub max_stems: u64,
+    /// Upper bound on generated leaves.
+    pub max_leaves: u64,
+}
+
+/// Estimate a species' worst-case generation cost without building geometry.
+pub fn estimate_tree(species: &Species) -> GenerationEstimate {
+    let level_max = |params: &Option<BranchParams>| {
+        params
+            .as_ref()
+            .map(|p| (p.count as u64).saturating_add(p.count_variance as u64))
+            .unwrap_or(0)
+    };
+    let l1 = level_max(&species.branches.level1);
+    let l2 = level_max(&species.branches.level2);
+    let l3 = level_max(&species.branches.level3);
+    let mut max_stems = 1u64
+        .saturating_add(l1)
+        .saturating_add(l1.saturating_mul(l2))
+        .saturating_add(l1.saturating_mul(l2).saturating_mul(l3));
+    if matches!(species.generator.family, GeneratorFamily::Dichotomous) {
+        max_stems = max_stems.saturating_mul(2);
+    }
+    GenerationEstimate {
+        max_stems,
+        max_leaves: species.leaves.count as u64,
+    }
+}
+
+/// Error returned when generation exceeds a [`GenerationBudget`].
+#[derive(Debug)]
+pub enum GenerationError {
+    /// A resource limit was exceeded. `actual` is the observed or estimated
+    /// count that crossed `limit`.
+    BudgetExceeded {
+        /// The budgeted resource (e.g. "stems", "leaves", "triangles").
+        resource: &'static str,
+        /// The configured limit.
+        limit: u64,
+        /// Observed or estimated amount.
+        actual: u64,
+    },
+}
+
+impl std::fmt::Display for GenerationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GenerationError::BudgetExceeded {
+                resource,
+                limit,
+                actual,
+            } => write!(
+                f,
+                "generation budget exceeded: {actual} {resource} (limit {limit})"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for GenerationError {}
+
+impl GenerationBudget {
+    /// Refuse an estimate that would exceed the budget before generating.
+    pub fn check_estimate(&self, estimate: &GenerationEstimate) -> Result<(), GenerationError> {
+        if estimate.max_stems > self.max_stems as u64 {
+            return Err(GenerationError::BudgetExceeded {
+                resource: "stems",
+                limit: self.max_stems as u64,
+                actual: estimate.max_stems,
+            });
+        }
+        if estimate.max_leaves > self.max_leaves as u64 {
+            return Err(GenerationError::BudgetExceeded {
+                resource: "leaves",
+                limit: self.max_leaves as u64,
+                actual: estimate.max_leaves,
+            });
+        }
+        Ok(())
+    }
+
+    /// Check a generated tree against the budget.
+    pub fn check_tree(&self, tree: &Tree) -> Result<(), GenerationError> {
+        if tree.stems.len() > self.max_stems as usize {
+            return Err(GenerationError::BudgetExceeded {
+                resource: "stems",
+                limit: self.max_stems as u64,
+                actual: tree.stems.len() as u64,
+            });
+        }
+        if tree.leaves.len() > self.max_leaves as usize {
+            return Err(GenerationError::BudgetExceeded {
+                resource: "leaves",
+                limit: self.max_leaves as u64,
+                actual: tree.leaves.len() as u64,
+            });
+        }
+        Ok(())
+    }
+
+    /// Check generated mesh totals (e.g. `LodMeshSet::total_stats()`).
+    pub fn check_mesh_stats(
+        &self,
+        vertex_count: usize,
+        triangle_count: usize,
+    ) -> Result<(), GenerationError> {
+        if vertex_count > self.max_vertices as usize {
+            return Err(GenerationError::BudgetExceeded {
+                resource: "vertices",
+                limit: self.max_vertices as u64,
+                actual: vertex_count as u64,
+            });
+        }
+        if triangle_count > self.max_triangles as usize {
+            return Err(GenerationError::BudgetExceeded {
+                resource: "triangles",
+                limit: self.max_triangles as u64,
+                actual: triangle_count as u64,
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Parameters describing a single branch to generate
 struct BranchSpec<'a> {
     parent_id: u32,
@@ -34,36 +201,48 @@ pub struct TreeGenerator<'a> {
     rng: Rng,
     tree: Tree,
     next_stem_id: u32,
+    budget: GenerationBudget,
+    over_budget: bool,
 }
 
 impl<'a> TreeGenerator<'a> {
-    /// Create a new tree generator with the given species and seed
-    pub fn new(species: &'a Species, seed: u64) -> Self {
+    /// Create a new tree generator with the given species, seed, and budget.
+    pub fn new(species: &'a Species, seed: u64, budget: GenerationBudget) -> Self {
         Self {
             species,
             seed,
             rng: Rng::from_seed(seed),
             tree: Tree::new(species.species.name.clone(), seed),
             next_stem_id: 0,
+            budget,
+            over_budget: false,
         }
     }
 
     /// Generate a complete tree
-    pub fn generate(mut self) -> Tree {
+    pub fn generate(mut self) -> Result<Tree, GenerationError> {
         // Generate trunk
         let trunk = self.generate_trunk();
         let trunk_id = self.tree.add_stem(trunk);
 
         // Generate branches recursively
         self.generate_children(trunk_id, 1);
+        if self.over_budget {
+            return Err(GenerationError::BudgetExceeded {
+                resource: "stems",
+                limit: self.budget.max_stems as u64,
+                actual: self.tree.stems.len() as u64,
+            });
+        }
 
         // Update bounding box
         self.tree.update_bounds();
 
         // Generate leaves
         crate::leaves::add_leaves_to_tree(&mut self.tree, self.species, self.seed);
+        self.budget.check_tree(&self.tree)?;
 
-        self.tree
+        Ok(self.tree)
     }
 
     /// Generate the trunk stem
@@ -119,7 +298,7 @@ impl<'a> TreeGenerator<'a> {
 
     /// Generate child branches for a parent stem
     fn generate_children(&mut self, parent_id: u32, level: u8) {
-        if level > MAX_BRANCH_LEVELS as u8 {
+        if self.over_budget || level > MAX_BRANCH_LEVELS as u8 {
             return;
         }
 
@@ -148,8 +327,9 @@ impl<'a> TreeGenerator<'a> {
 
         // Generate branches using phyllotaxis (golden angle)
         for i in 0..count {
-            if self.tree.stems.len() >= MAX_STEMS as usize {
-                break;
+            if self.tree.stems.len() >= self.budget.max_stems as usize {
+                self.over_budget = true;
+                return;
             }
 
             // Position along parent (crown offset to tip)
@@ -384,31 +564,43 @@ pub struct DichotomousGenerator<'a> {
     rng: Rng,
     tree: Tree,
     next_stem_id: u32,
+    budget: GenerationBudget,
+    over_budget: bool,
 }
 
 impl<'a> DichotomousGenerator<'a> {
-    /// Create a new dichotomous generator with the given species and seed.
-    pub fn new(species: &'a Species, seed: u64) -> Self {
+    /// Create a new dichotomous generator with the given species, seed, and budget.
+    pub fn new(species: &'a Species, seed: u64, budget: GenerationBudget) -> Self {
         Self {
             species,
             seed,
             rng: Rng::from_seed(seed),
             tree: Tree::new(species.species.name.clone(), seed),
             next_stem_id: 0,
+            budget,
+            over_budget: false,
         }
     }
 
     /// Generate a complete forked plant.
-    pub fn generate(mut self) -> Tree {
+    pub fn generate(mut self) -> Result<Tree, GenerationError> {
         let trunk = self.generate_trunk();
         let trunk_id = self.tree.add_stem(trunk);
 
         self.generate_terminal_forks(trunk_id, 1);
+        if self.over_budget {
+            return Err(GenerationError::BudgetExceeded {
+                resource: "stems",
+                limit: self.budget.max_stems as u64,
+                actual: self.tree.stems.len() as u64,
+            });
+        }
 
         self.tree.update_bounds();
         crate::leaves::add_leaves_to_tree(&mut self.tree, self.species, self.seed);
+        self.budget.check_tree(&self.tree)?;
 
-        self.tree
+        Ok(self.tree)
     }
 
     fn generate_trunk(&mut self) -> Stem {
@@ -454,7 +646,7 @@ impl<'a> DichotomousGenerator<'a> {
     }
 
     fn generate_terminal_forks(&mut self, parent_id: u32, level: u8) {
-        if level > MAX_BRANCH_LEVELS as u8 {
+        if self.over_budget || level > MAX_BRANCH_LEVELS as u8 {
             return;
         }
 
@@ -485,8 +677,9 @@ impl<'a> DichotomousGenerator<'a> {
         let length_mod = self.crown_length_modifier(level as f32 / MAX_BRANCH_LEVELS as f32);
 
         for i in 0..fork_count {
-            if self.tree.stems.len() >= MAX_STEMS as usize {
-                break;
+            if self.tree.stems.len() >= self.budget.max_stems as usize {
+                self.over_budget = true;
+                return;
             }
 
             let branch_angle = radians(params.angle + self.rng.variance_add(params.angle_variance));
@@ -727,17 +920,35 @@ fn tapered_radius(
 /// "#;
 ///
 /// let species = Species::from_toml(toml).unwrap();
-/// let tree = generate_tree(&species, 12345);
+/// let tree = generate_tree(&species, 12345).unwrap();
 ///
 /// assert!(!tree.stems.is_empty());
 /// ```
-pub fn generate_tree(species: &Species, seed: u64) -> Tree {
+/// Generate a tree under the default [`GenerationBudget`].
+///
+/// Returns [`GenerationError::BudgetExceeded`] when the species would produce
+/// more stems or leaves than the budget allows — callers must handle the
+/// error instead of receiving a silently truncated tree. Use
+/// [`generate_tree_with_budget`] for explicit limits, or [`estimate_tree`]
+/// to refuse pathological inputs before generating.
+pub fn generate_tree(species: &Species, seed: u64) -> Result<Tree, GenerationError> {
+    generate_tree_with_budget(species, seed, &GenerationBudget::default())
+}
+
+/// Generate a tree under an explicit [`GenerationBudget`].
+pub fn generate_tree_with_budget(
+    species: &Species,
+    seed: u64,
+    budget: &GenerationBudget,
+) -> Result<Tree, GenerationError> {
     match species.generator.family {
-        GeneratorFamily::Dichotomous => DichotomousGenerator::new(species, seed).generate(),
+        GeneratorFamily::Dichotomous => {
+            DichotomousGenerator::new(species, seed, *budget).generate()
+        }
         GeneratorFamily::WeberPenn
         | GeneratorFamily::Cactus
         | GeneratorFamily::PadChain
-        | GeneratorFamily::Custom => TreeGenerator::new(species, seed).generate(),
+        | GeneratorFamily::Custom => TreeGenerator::new(species, seed, *budget).generate(),
     }
 }
 
@@ -851,7 +1062,7 @@ up_influence = 0.8
     #[test]
     fn test_generate_tree() {
         let species = Species::from_toml(TEST_SPECIES_TOML).unwrap();
-        let tree = generate_tree(&species, 12345);
+        let tree = generate_tree(&species, 12345).unwrap();
 
         // Should have at least a trunk
         assert!(!tree.stems.is_empty());
@@ -870,8 +1081,8 @@ up_influence = 0.8
     fn test_deterministic_generation() {
         let species = Species::from_toml(TEST_SPECIES_TOML).unwrap();
 
-        let tree1 = generate_tree(&species, 12345);
-        let tree2 = generate_tree(&species, 12345);
+        let tree1 = generate_tree(&species, 12345).unwrap();
+        let tree2 = generate_tree(&species, 12345).unwrap();
 
         // Same seed should produce identical trees
         assert_eq!(tree1.stems.len(), tree2.stems.len());
@@ -892,8 +1103,8 @@ up_influence = 0.8
     fn test_different_seeds_produce_different_trees() {
         let species = Species::from_toml(TEST_SPECIES_TOML).unwrap();
 
-        let tree1 = generate_tree(&species, 12345);
-        let tree2 = generate_tree(&species, 54321);
+        let tree1 = generate_tree(&species, 12345).unwrap();
+        let tree2 = generate_tree(&species, 54321).unwrap();
 
         // Different seeds should produce different trees
         // (very unlikely to be identical)
@@ -912,7 +1123,7 @@ up_influence = 0.8
     #[test]
     fn test_branch_levels() {
         let species = Species::from_toml(TEST_SPECIES_TOML).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         // Should have trunk (level 0)
         assert!(tree.stems_at_level(0).count() > 0);
@@ -927,7 +1138,7 @@ up_influence = 0.8
     #[test]
     fn test_trunk_structure() {
         let species = Species::from_toml(TEST_SPECIES_TOML).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         let trunk = tree.trunk().unwrap();
 
@@ -982,7 +1193,7 @@ count = 0
 "#;
 
         let species = Species::from_toml(toml).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
         let branches: Vec<_> = tree.stems_at_level(1).collect();
         assert_eq!(branches.len(), 4);
 
@@ -1032,8 +1243,8 @@ count = 0
             Species::from_toml(&toml).unwrap()
         };
 
-        let linear_tree = generate_tree(&species_for_profile("linear"), 42);
-        let smooth_tree = generate_tree(&species_for_profile("smooth"), 42);
+        let linear_tree = generate_tree(&species_for_profile("linear"), 42).unwrap();
+        let smooth_tree = generate_tree(&species_for_profile("smooth"), 42).unwrap();
         let linear_branch = linear_tree.stems_at_level(1).next().unwrap();
         let smooth_branch = smooth_tree.stems_at_level(1).next().unwrap();
 
@@ -1049,7 +1260,7 @@ count = 0
     #[test]
     fn test_branches_attached_to_parent() {
         let species = Species::from_toml(TEST_SPECIES_TOML).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         for stem in &tree.stems {
             if let Some(parent_id) = stem.parent_id {
@@ -1067,7 +1278,7 @@ count = 0
     #[test]
     fn test_bounding_box() {
         let species = Species::from_toml(TEST_SPECIES_TOML).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         // Bounding box should be valid
         assert!(tree.bounds.is_valid());
@@ -1121,8 +1332,8 @@ offset = 0.3
         let spherical = Species::from_toml(spherical_toml).unwrap();
         let conical = Species::from_toml(conical_toml).unwrap();
 
-        let tree_spherical = generate_tree(&spherical, 42);
-        let tree_conical = generate_tree(&conical, 42);
+        let tree_spherical = generate_tree(&spherical, 42).unwrap();
+        let tree_conical = generate_tree(&conical, 42).unwrap();
 
         // Both should generate valid trees
         assert!(!tree_spherical.stems.is_empty());
@@ -1149,7 +1360,7 @@ name = "Minimal"
 "#;
 
         let species = Species::from_toml(minimal_toml).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         // Should still generate a valid trunk
         assert!(tree.trunk().is_some());
@@ -1158,7 +1369,8 @@ name = "Minimal"
 
     #[test]
     fn test_max_stems_limit() {
-        // Test that generation respects MAX_STEMS limit
+        // Species whose worst-case estimate exceeds the default budget is
+        // refused before any geometry work.
         let many_branches_toml = r#"
 [species]
 name = "Many Branches"
@@ -1187,10 +1399,59 @@ offset = 0.1
 "#;
 
         let species = Species::from_toml(many_branches_toml).unwrap();
-        let tree = generate_tree(&species, 42);
+        let estimate = estimate_tree(&species);
+        assert!(estimate.max_stems > MAX_STEMS as u64);
 
-        // Should not exceed MAX_STEMS
-        assert!(tree.stems.len() <= MAX_STEMS as usize);
+        let budget = GenerationBudget::default();
+        assert!(matches!(
+            budget.check_estimate(&estimate),
+            Err(GenerationError::BudgetExceeded {
+                resource: "stems",
+                ..
+            })
+        ));
+
+        // Generation also refuses instead of silently truncating.
+        let err = generate_tree(&species, 42).unwrap_err();
+        assert!(matches!(
+            err,
+            GenerationError::BudgetExceeded {
+                resource: "stems",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_budget_override_allows_larger_trees() {
+        let species = Species::from_toml(
+            r#"
+[species]
+name = "Over Budget"
+
+[trunk]
+height = 10.0
+radius = 0.4
+segments = 8
+
+[branches.level1]
+count = 60
+length = 3.0
+segments = 4
+"#,
+        )
+        .unwrap();
+        let tight = GenerationBudget {
+            max_stems: 10,
+            ..GenerationBudget::default()
+        };
+        assert!(generate_tree_with_budget(&species, 7, &tight).is_err());
+
+        let loose = GenerationBudget {
+            max_stems: 500,
+            ..GenerationBudget::default()
+        };
+        assert!(generate_tree_with_budget(&species, 7, &loose).is_ok());
     }
 
     #[test]
@@ -1203,7 +1464,7 @@ name = "My Custom Tree"
 "#;
 
         let species = Species::from_toml(toml).unwrap();
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         assert_eq!(tree.species_name, "My Custom Tree");
     }
@@ -1218,7 +1479,7 @@ name = "Test"
 "#;
 
         let species = Species::from_toml(toml).unwrap();
-        let tree = generate_tree(&species, 99999);
+        let tree = generate_tree(&species, 99999).unwrap();
 
         assert_eq!(tree.seed, 99999);
     }
@@ -1228,7 +1489,7 @@ name = "Test"
         let species = Species::from_toml(DICHOTOMOUS_SPECIES_TOML).unwrap();
         assert_eq!(species.generator.family, GeneratorFamily::Dichotomous);
 
-        let tree = generate_tree(&species, 42);
+        let tree = generate_tree(&species, 42).unwrap();
 
         assert_eq!(tree.species_name, "Dichotomous Prototype");
         assert!(tree.trunk().is_some());
@@ -1249,7 +1510,7 @@ name = "Test"
     #[test]
     fn test_dichotomous_generator_reaches_lod_and_export() {
         let species = Species::from_toml(DICHOTOMOUS_SPECIES_TOML).unwrap();
-        let tree = generate_tree(&species, 7);
+        let tree = generate_tree(&species, 7).unwrap();
         let lods = crate::generate_lod_meshes(&tree, &species);
 
         assert!(!lods.is_empty());
