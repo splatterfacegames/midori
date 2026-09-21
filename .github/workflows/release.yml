@@ -35,16 +35,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: x86_64-unknown-linux-gnu, os: ubuntu-latest, ext: tar.gz }
-          - { name: x86_64-pc-windows-msvc, os: windows-latest, ext: zip }
-          - { name: x86_64-apple-darwin, os: macos-13, ext: tar.gz }
-          - { name: aarch64-apple-darwin, os: macos-latest, ext: tar.gz }
+          - { name: x86_64-unknown-linux-gnu, os: ubuntu-latest, ext: tar.gz, target: x86_64-unknown-linux-gnu }
+          - { name: x86_64-pc-windows-msvc, os: windows-latest, ext: zip, target: x86_64-pc-windows-msvc }
+          # macos-13 (last Intel runner label) is retired — x86_64 mac builds
+          # cross-compile on the ARM runner via cargo --target.
+          - { name: x86_64-apple-darwin, os: macos-latest, ext: tar.gz, target: x86_64-apple-darwin }
+          - { name: aarch64-apple-darwin, os: macos-latest, ext: tar.gz, target: aarch64-apple-darwin }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build midori
-        run: cargo build --release --locked -p midori-cli
+        run: |
+          rustup target add ${{ matrix.target }}
+          cargo build --release --locked -p midori-cli --target ${{ matrix.target }}
       - name: Package binary
         shell: bash
         run: |
@@ -52,10 +56,10 @@ jobs:
           name="midori-${{ github.ref_name }}-${{ matrix.name }}"
           mkdir -p "release/$name"
           if [ "${{ matrix.ext }}" = "zip" ]; then
-            cp target/release/midori.exe "release/$name/"
+            cp "target/${{ matrix.target }}/release/midori.exe" "release/$name/"
             (cd release && 7z a "$name.zip" "$name")
           else
-            cp target/release/midori "release/$name/"
+            cp "target/${{ matrix.target }}/release/midori" "release/$name/"
             cp README.md LICENSE* "release/$name/" 2>/dev/null || true
             tar -C release -czf "release/$name.tar.gz" "$name"
           fi
