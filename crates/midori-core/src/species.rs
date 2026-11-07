@@ -420,6 +420,19 @@ pub enum FoliageNormals {
     Canopy,
 }
 
+/// In-plane orientation of `canopy_card` quads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CardRoll {
+    /// Random roll about the card normal.
+    #[default]
+    Random,
+    /// Card +v (texture top) points radially away from the trunk axis, so
+    /// frond/spray textures fan outward and the crown outline turns spiky
+    /// (star-shaped conifers from above).
+    Radial,
+}
+
 /// What foliage/bark `COLOR_0` carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -468,6 +481,13 @@ pub struct CanopyParams {
     /// to a top-down camera.
     #[serde(default = "default_canopy_card_max_angle")]
     pub card_max_angle: f32,
+    /// In-plane card orientation
+    #[serde(default)]
+    pub card_roll: CardRoll,
+    /// Push each card along its +v axis by this fraction of its half size
+    /// (with `radial` roll, fronds then start at the leaf and reach outward)
+    #[serde(default)]
+    pub card_offset: f32,
     /// Emit one face per card and rely on a double-sided material instead of
     /// duplicating back faces (halves foliage triangles)
     #[serde(default)]
@@ -540,6 +560,8 @@ impl Default for CanopyParams {
             shell: 0.0,
             card_tilt: default_canopy_card_tilt(),
             card_max_angle: default_canopy_card_max_angle(),
+            card_roll: CardRoll::default(),
+            card_offset: 0.0,
             single_sided: false,
             vertex_color: FoliageVertexColor::default(),
             tint_variation: default_canopy_tint_variation(),

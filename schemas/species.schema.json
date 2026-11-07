@@ -246,6 +246,18 @@
           "type": "number",
           "default": 90.0
         },
+        "card_roll": {
+          "type": "string",
+          "enum": [
+            "random",
+            "radial"
+          ],
+          "default": "random"
+        },
+        "card_offset": {
+          "type": "number",
+          "default": 0.0
+        },
         "single_sided": {
           "type": "boolean",
           "default": false

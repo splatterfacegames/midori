@@ -24,7 +24,7 @@ segments = 6
 [branches.level1]
 count = 26
 count_variance = 2
-length = 1.35
+length = 0.95
 length_variance = 0.15
 radius_ratio = 0.45
 angle = 76.0
@@ -37,14 +37,14 @@ segments = 3
 
 [crown]
 shape = "conical"
-offset = 0.12
+offset = 0.18
 density = 0.9
 width_ratio = 0.6
 
 [leaves]
-count = 720
+count = 880
 min_level = 1
-size = 0.42
+size = 0.40
 size_variance = 0.2
 distribution = "along_branch"
 geometry = "canopy_card"
@@ -60,6 +60,8 @@ clump_level = 1
 shell = 0.0
 card_tilt = 18.0
 card_max_angle = 55.0
+card_roll = "radial"
+card_offset = 0.6
 single_sided = true
 vertex_color = "tint_ao"
 tint_variation = 0.16

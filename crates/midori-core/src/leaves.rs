@@ -10,7 +10,7 @@ use crate::{
     mesh::{MaterialType, Mesh, Submesh, Vertex},
     rng::Rng,
     species::{
-        CanopyParams, FoliageNormals, FoliageVertexColor, LeafDistribution, LeafGeometry,
+        CanopyParams, CardRoll, FoliageNormals, FoliageVertexColor, LeafDistribution, LeafGeometry,
         LeafShape, Species,
     },
     tree::{Leaf, Stem, Tree},
@@ -539,15 +539,27 @@ fn generate_canopy_cards(
         let roll = rng.range(-PI, PI);
         let (sr, cr) = roll.sin_cos();
         let mut u = tan * cr + bit * sr;
-        let v = bit * cr - tan * sr;
+        let mut v = bit * cr - tan * sr;
+        if config.canopy.card_roll == CardRoll::Radial {
+            // Radial direction from the trunk axis, projected into the card.
+            let radial = Vec3::new(leaf.position.x, 0.0, leaf.position.z);
+            let jitter = Quat::from_rotation_y(rng.range(-0.35, 0.35));
+            let radial = jitter * radial.try_normalize().unwrap_or(t0);
+            let in_plane = radial - normal * radial.dot(normal);
+            if let Some(dir) = in_plane.try_normalize() {
+                v = dir;
+                u = v.cross(normal);
+            }
+        }
         // Make (u, v, normal) right-handed so CCW winding faces outward.
         if u.cross(v).dot(normal) < 0.0 {
             u = -u;
         }
         let h = leaf.scale * 0.5 * canopy.card_scale(i);
+        let center = leaf.position + v * (h * config.canopy.card_offset);
         let base = mesh.vertices.len() as u32;
         for (cx, cy) in [(-1.0f32, -1.0f32), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
-            let pos = leaf.position + u * (cx * h) + v * (cy * h);
+            let pos = center + u * (cx * h) + v * (cy * h);
             let uv = Vec2::new(cx * 0.5 + 0.5, 0.5 - cy * 0.5);
             let mut vertex = Vertex::new(pos, normal, uv);
             if config.pivot_painter {

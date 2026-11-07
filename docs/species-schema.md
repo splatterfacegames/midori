@@ -42,6 +42,7 @@ documented section is closed: a typo inside `[species]`, `[trunk]`,
 | `textures.bark_style` | `furrowed` (default), `plated`, `smooth` |
 | `textures.leaf_card` | `single`, `cluster` (default), `puff`, `frond` |
 | `canopy.normals` | `geometric` (default), `canopy` |
+| `canopy.card_roll` | `random` (default), `radial` |
 | `canopy.vertex_color` | `pivot_painter` (default), `tint_ao` |
 | `lod.preset` | `ultra`, `high_quality`, `balanced` (default), `mobile`, `minimal`, `open_world`, `hero_tree`, `custom` |
 | `platform.target` | `modern_pc` (default), `mobile`, `switch`, `quest`, `web`, `universal` |
@@ -56,7 +57,9 @@ unchanged; see `presets/species/topdown_*.toml`.
   (1 = one clump per main limb).
 - `leaves.geometry = "canopy_card"` emits one quad per leaf centred on it and
   facing out of its clump/crown (`card_tilt` jitter, `card_max_angle` limit
-  from straight up, `card_scale_by_clump` to shrink cards on short limbs).
+  from straight up, `card_scale_by_clump` to shrink cards on short limbs,
+  `card_roll = "radial"` + `card_offset` to fan frond cards outward from the
+  trunk for star-shaped conifer outlines).
 - `normals = "canopy"` bends foliage normals toward clump-out
   (`clump_weight`) / crown-out plus `up_bias`, blended by `normal_blend`, so
   card foliage shades as rounded lumps.
