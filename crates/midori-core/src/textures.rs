@@ -475,6 +475,8 @@ struct CardLeaf {
     scale: f32,
     /// Per-leaf lightness jitter.
     jitter: f32,
+    /// Per-leaf warm (+) / cool (-) hue shift.
+    hue: f32,
 }
 
 /// Compose the spray of leaf instances for a card layout.
@@ -485,6 +487,7 @@ fn card_leaves(layout: LeafCardLayout, shape: LeafShape, rng: &mut Rng) -> Vec<C
             rotation: 0.0,
             scale: 0.42,
             jitter: 1.0,
+            hue: 0.0,
         }],
         LeafCardLayout::Cluster => {
             // A pinnate spray: leaflets alternate along a curved rachis,
@@ -510,6 +513,7 @@ fn card_leaves(layout: LeafCardLayout, shape: LeafShape, rng: &mut Rng) -> Vec<C
                     rotation: crate::constants::PI / 2.0 - tip_angle,
                     scale: lerp(0.34, 0.17, t) * rng.variance_mul(0.15),
                     jitter: rng.range(0.85, 1.12),
+                    hue: 0.0,
                 });
             }
             // Terminal leaf at the top of the rachis.
@@ -518,9 +522,39 @@ fn card_leaves(layout: LeafCardLayout, shape: LeafShape, rng: &mut Rng) -> Vec<C
                 rotation: rng.range(-0.15, 0.15),
                 scale: 0.24 * rng.variance_mul(0.1),
                 jitter: rng.range(0.9, 1.1),
+                hue: 0.0,
             });
             leaves
         }
+        LeafCardLayout::Puff => {
+            // A dense round puff: an under-layer of large dark leaves, then
+            // progressively smaller, lighter leaves on top (painted
+            // self-shadow), every tip pointing roughly away from the centre.
+            let count = 120 + rng.index(20);
+            let mut leaves = Vec::with_capacity(count);
+            for i in 0..count {
+                let layer = i as f32 / (count - 1) as f32;
+                // Under-layer spreads to the rim; top layer bunches inward.
+                let reach = lerp(0.41, 0.30, layer);
+                let r = reach * rng.next_f32().sqrt();
+                let a = rng.range(-crate::constants::PI, crate::constants::PI);
+                let center = Vec2::new(0.5 + r * a.cos(), 0.5 + r * a.sin());
+                let out = (center - Vec2::splat(0.5))
+                    .try_normalize()
+                    .unwrap_or(Vec2::new(0.0, -1.0));
+                // Tip direction = outward (+ jitter); rotation maps +y(tip, v-up) to `out`.
+                let tip_angle = out.y.atan2(out.x) + rng.range(-0.6, 0.6);
+                leaves.push(CardLeaf {
+                    center,
+                    rotation: crate::constants::PI / 2.0 - tip_angle,
+                    scale: lerp(0.15, 0.11, layer) * rng.variance_mul(0.2),
+                    jitter: lerp(0.7, 1.1, layer) * rng.range(0.9, 1.08),
+                    hue: rng.range(-1.0, 1.0),
+                });
+            }
+            leaves
+        }
+        LeafCardLayout::Frond => Vec::new(),
     }
 }
 
@@ -534,6 +568,9 @@ fn leaf_card(
     res: u32,
 ) -> RgbaTexture {
     let mut rng = Rng::from_seed(seed ^ 0x1EAF_CA4D);
+    if layout == LeafCardLayout::Frond {
+        return frond_card(color, &mut rng, res);
+    }
     let leaves = card_leaves(layout, shape, &mut rng);
     let base = color.unwrap_or([0.27, 0.44, 0.17]);
     let stem_rgb = [0.30, 0.22, 0.13];
@@ -581,10 +618,102 @@ fn leaf_card(
                 if local.x.abs() < 0.02 {
                     shade *= 0.8;
                 }
-                let c = base.map(|ch| (ch * shade).clamp(0.0, 1.0));
+                let warm = [
+                    1.0 + 0.10 * leaf.hue,
+                    1.0 + 0.03 * leaf.hue,
+                    1.0 - 0.16 * leaf.hue,
+                ];
+                let c = [
+                    (base[0] * shade * warm[0]).clamp(0.0, 1.0),
+                    (base[1] * shade * warm[1]).clamp(0.0, 1.0),
+                    (base[2] * shade * warm[2]).clamp(0.0, 1.0),
+                ];
                 over(&mut acc, [c[0], c[1], c[2], alpha]);
             }
 
+            tex.set(
+                x,
+                y,
+                [
+                    (acc[0].clamp(0.0, 1.0) * 255.0) as u8,
+                    (acc[1].clamp(0.0, 1.0) * 255.0) as u8,
+                    (acc[2].clamp(0.0, 1.0) * 255.0) as u8,
+                    (acc[3].clamp(0.0, 1.0) * 255.0) as u8,
+                ],
+            );
+        }
+    }
+    tex
+}
+
+/// Conifer frond card: a central twig with paired side branchlets, all
+/// clothed in short needle strokes; darker toward the twig, lighter new
+/// growth at the tips.
+fn frond_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTexture {
+    let base = color.unwrap_or([0.16, 0.30, 0.20]);
+    let twig_rgb = [0.24, 0.17, 0.11];
+    // (start, end, width, shade, is_needle)
+    let mut strokes: Vec<(Vec2, Vec2, f32, f32, bool)> = Vec::new();
+    let axis_a = Vec2::new(0.5, 0.97);
+    let axis_b = Vec2::new(0.5 + rng.range(-0.03, 0.03), 0.05);
+    let mut branches = vec![(axis_a, axis_b)];
+    let pairs = 6;
+    for k in 0..pairs {
+        let t = 0.12 + 0.8 * k as f32 / pairs as f32;
+        let p = axis_a.lerp(axis_b, t);
+        let len = lerp(0.40, 0.12, t) * rng.variance_mul(0.12);
+        for side in [-1.0f32, 1.0] {
+            let ang = side * rng.range(0.85, 1.05); // radians off the axis
+            let dir = Vec2::new(ang.sin(), -ang.cos());
+            branches.push((p, p + dir * len));
+        }
+    }
+    for &(a, b) in &branches {
+        strokes.push((a, b, 0.006, 1.0, false));
+    }
+    for &(a, b) in &branches {
+        let len = (b - a).length();
+        let dir = (b - a) / len.max(1e-4);
+        let perp = Vec2::new(-dir.y, dir.x);
+        let steps = (len / 0.016).ceil() as usize;
+        for i in 0..steps {
+            let t = i as f32 / steps.max(1) as f32;
+            let p = a + (b - a) * t;
+            let needle = rng.range(0.055, 0.075) * lerp(1.0, 0.7, t);
+            for side in [-1.0f32, 1.0] {
+                let sweep = rng.range(0.45, 0.85);
+                let nd = (dir * sweep.cos() + perp * side * sweep.sin()).normalize();
+                let shade = lerp(0.7, 1.25, t) * rng.range(0.85, 1.12);
+                strokes.push((p, p + nd * needle, 0.0045, shade, true));
+            }
+        }
+    }
+
+    let mut tex = RgbaTexture::new(res, res);
+    let px = 1.0 / res as f32;
+    for y in 0..res {
+        for x in 0..res {
+            let q = Vec2::new((x as f32 + 0.5) * px, (y as f32 + 0.5) * px);
+            let mut acc = [0.0f32; 4];
+            for &(a, b, w, shade, is_needle) in &strokes {
+                // Cheap reject on the stroke's bounding box.
+                let lo = a.min(b) - Vec2::splat(w + px);
+                let hi = a.max(b) + Vec2::splat(w + px);
+                if q.x < lo.x || q.y < lo.y || q.x > hi.x || q.y > hi.y {
+                    continue;
+                }
+                let d = dist_to_segment(q, a, b);
+                let alpha = ((w - d) / px + 0.5).clamp(0.0, 1.0);
+                if alpha <= 0.0 {
+                    continue;
+                }
+                let c = if is_needle {
+                    base.map(|ch| (ch * shade).clamp(0.0, 1.0))
+                } else {
+                    twig_rgb
+                };
+                over(&mut acc, [c[0], c[1], c[2], alpha]);
+            }
             tex.set(
                 x,
                 y,
