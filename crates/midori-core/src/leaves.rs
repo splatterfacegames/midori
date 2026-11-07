@@ -9,7 +9,10 @@ use crate::{
     math::*,
     mesh::{MaterialType, Mesh, Submesh, Vertex},
     rng::Rng,
-    species::{LeafDistribution, LeafGeometry, LeafShape, Species},
+    species::{
+        CanopyParams, FoliageNormals, FoliageVertexColor, LeafDistribution, LeafGeometry,
+        LeafShape, Species,
+    },
     tree::{Leaf, Stem, Tree},
 };
 use glam::{Quat, Vec2, Vec3, Vec4};
@@ -29,6 +32,8 @@ pub struct LeafConfig {
     pub up_influence: f32,
     /// Enable Pivot Painter data
     pub pivot_painter: bool,
+    /// Canopy shaping (normals, card orientation, vertex tint/AO)
+    pub canopy: CanopyParams,
 }
 
 impl Default for LeafConfig {
@@ -40,6 +45,7 @@ impl Default for LeafConfig {
             polygon_resolution: 0, // Use shape's recommended resolution
             up_influence: 0.25,
             pivot_painter: true,
+            canopy: CanopyParams::default(),
         }
     }
 }
@@ -54,6 +60,7 @@ impl LeafConfig {
             polygon_resolution: 0,
             up_influence: species.leaves.up_influence,
             pivot_painter: true,
+            canopy: species.canopy.clone(),
         }
     }
 
@@ -246,12 +253,323 @@ fn calculate_leaf_rotation(branch_direction: Vec3, up_influence: f32, rng: &mut 
 ///
 /// A Mesh containing all leaf geometry with proper UV and Pivot Painter data
 pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> Mesh {
-    match config.geometry {
+    if config.geometry == LeafGeometry::None || leaves.is_empty() {
+        return Mesh::new();
+    }
+    let canopy = CanopyContext::new(leaves, tree, &config.canopy);
+    // Optionally pull leaves onto their clump's shell so cards form puffy
+    // outer surfaces instead of filling crown interiors nobody sees.
+    let shelled;
+    let leaves = if config.canopy.shell > 0.0 {
+        shelled = canopy.apply_shell(leaves);
+        &shelled[..]
+    } else {
+        leaves
+    };
+    let mut mesh = match config.geometry {
         LeafGeometry::Polygon => generate_polygon_leaves(leaves, config, tree),
         LeafGeometry::CrossBillboard => generate_cross_billboards(leaves, config, tree),
         LeafGeometry::Billboard => generate_billboards(leaves, config, tree),
+        LeafGeometry::CanopyCard => generate_canopy_cards(leaves, config, tree, &canopy),
         LeafGeometry::None => Mesh::new(),
+    };
+    let per_leaf = match config.geometry {
+        LeafGeometry::Polygon => 1 + config.effective_resolution().max(6) as usize,
+        LeafGeometry::CrossBillboard => 8,
+        LeafGeometry::Billboard | LeafGeometry::CanopyCard => 4,
+        LeafGeometry::None => 0,
+    };
+    canopy.shade(&mut mesh, leaves, per_leaf, config.geometry);
+    mesh
+}
+
+/// Per-tree foliage analysis used for canopy normals, card orientation,
+/// shells and baked tint/AO. Leaves are grouped into clumps by the stem
+/// subtree they hang from (`canopy.clump_level`).
+pub struct CanopyContext {
+    params: CanopyParams,
+    crown_center: Vec3,
+    crown_radii: Vec3,
+    crown_min_y: f32,
+    crown_max_y: f32,
+    leaf_clump: Vec<usize>,
+    clump_center: Vec<Vec3>,
+    clump_radius: Vec<f32>,
+    clump_tint: Vec<Vec3>,
+}
+
+impl CanopyContext {
+    /// Analyse `leaves` on `tree`.
+    pub fn new(leaves: &[Leaf], tree: &Tree, params: &CanopyParams) -> Self {
+        use std::collections::HashMap;
+        let mut lo = Vec3::splat(f32::MAX);
+        let mut hi = Vec3::splat(f32::MIN);
+        for leaf in leaves {
+            lo = lo.min(leaf.position);
+            hi = hi.max(leaf.position);
+        }
+        if leaves.is_empty() {
+            lo = Vec3::ZERO;
+            hi = Vec3::ONE;
+        }
+        let crown_center = (lo + hi) * 0.5;
+        let crown_radii = ((hi - lo) * 0.5).max(Vec3::splat(0.05));
+
+        let mut key_to_clump: HashMap<u32, usize> = HashMap::new();
+        let mut leaf_clump = Vec::with_capacity(leaves.len());
+        let mut sums: Vec<(Vec3, u32)> = Vec::new();
+        for leaf in leaves {
+            let key = clump_key(tree, leaf.stem_id, params.clump_level);
+            let next = key_to_clump.len();
+            let c = *key_to_clump.entry(key).or_insert(next);
+            if c == sums.len() {
+                sums.push((Vec3::ZERO, 0));
+            }
+            sums[c].0 += leaf.position;
+            sums[c].1 += 1;
+            leaf_clump.push(c);
+        }
+        let clump_center: Vec<Vec3> = sums.iter().map(|(s, n)| *s / (*n).max(1) as f32).collect();
+        let mut rad_acc = vec![(0.0f32, 0u32); clump_center.len()];
+        for (leaf, &c) in leaves.iter().zip(&leaf_clump) {
+            rad_acc[c].0 += (leaf.position - clump_center[c]).length_squared();
+            rad_acc[c].1 += 1;
+        }
+        let clump_radius = rad_acc
+            .iter()
+            .map(|(s, n)| (s / (*n).max(1) as f32).sqrt().max(0.05) * 1.2)
+            .collect();
+        let clump_tint = (0..clump_center.len())
+            .map(|i| {
+                let mut rng =
+                    Rng::from_seed(tree.seed ^ (i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+                let light = 1.0 - params.tint_variation * rng.next_f32();
+                let hue = params.hue_variation * rng.range(-1.0, 1.0);
+                // +hue = warmer/yellower, -hue = cooler/bluer.
+                Vec3::new(
+                    light * (1.0 + hue * 0.55),
+                    light * (1.0 + hue * 0.12),
+                    light * (1.0 - hue * 0.9),
+                )
+                .clamp(Vec3::ZERO, Vec3::ONE)
+            })
+            .collect();
+
+        Self {
+            params: params.clone(),
+            crown_center,
+            crown_radii,
+            crown_min_y: lo.y,
+            crown_max_y: hi.y,
+            leaf_clump,
+            clump_center,
+            clump_radius,
+            clump_tint,
+        }
     }
+
+    /// Number of foliage clumps found.
+    pub fn clump_count(&self) -> usize {
+        self.clump_center.len()
+    }
+
+    /// Card size multiplier for leaf `i` from `card_scale_by_clump`.
+    pub fn card_scale(&self, i: usize) -> f32 {
+        let k = self.params.card_scale_by_clump.clamp(0.0, 1.0);
+        if k == 0.0 || self.clump_radius.is_empty() {
+            return 1.0;
+        }
+        let mean = self.clump_radius.iter().sum::<f32>() / self.clump_radius.len() as f32;
+        let c = self.leaf_clump.get(i).copied().unwrap_or(0);
+        let rel = self.clump_radius.get(c).copied().unwrap_or(mean) / mean.max(1e-4);
+        (1.0 + (rel - 1.0) * k).clamp(0.3, 1.6)
+    }
+
+    /// Outward direction of leaf `i` at `pos`: clump-out blended with
+    /// crown-out plus an upward bias.
+    pub fn outward(&self, i: usize, pos: Vec3) -> Vec3 {
+        let c = self.leaf_clump.get(i).copied().unwrap_or(0);
+        let cc = self
+            .clump_center
+            .get(c)
+            .copied()
+            .unwrap_or(self.crown_center);
+        let w = self.params.clump_weight.clamp(0.0, 1.0);
+        let n_clump = (pos - cc).try_normalize().unwrap_or(Vec3::Y);
+        let n_crown = ((pos - self.crown_center) / self.crown_radii)
+            .try_normalize()
+            .unwrap_or(Vec3::Y);
+        (n_clump * w + n_crown * (1.0 - w) + Vec3::Y * self.params.up_bias)
+            .try_normalize()
+            .unwrap_or(Vec3::Y)
+    }
+
+    fn apply_shell(&self, leaves: &[Leaf]) -> Vec<Leaf> {
+        let t = self.params.shell.clamp(0.0, 1.0);
+        leaves
+            .iter()
+            .enumerate()
+            .map(|(i, leaf)| {
+                let c = self.leaf_clump[i];
+                let cc = self.clump_center[c];
+                let d = leaf.position - cc;
+                let len = d.length();
+                let mut out = leaf.clone();
+                if len > 1e-4 {
+                    // Keep some depth jitter so the shell isn't a hard sphere.
+                    let target = self.clump_radius[c] * (0.75 + 0.25 * (i as f32 * 0.618).fract());
+                    out.position = cc + d / len * (len + (target - len) * t);
+                }
+                out
+            })
+            .collect()
+    }
+
+    /// Bend normals and/or write tint+AO colours for leaf vertices laid out
+    /// as `per_leaf` consecutive vertices per leaf.
+    fn shade(&self, mesh: &mut Mesh, leaves: &[Leaf], per_leaf: usize, geometry: LeafGeometry) {
+        let bend = self.params.normals == FoliageNormals::Canopy;
+        let tint = self.params.vertex_color == FoliageVertexColor::TintAo;
+        if (!bend && !tint) || per_leaf == 0 {
+            return;
+        }
+        let blend = self.params.normal_blend.clamp(0.0, 1.0);
+        for (i, leaf) in leaves.iter().enumerate() {
+            let start = i * per_leaf;
+            let end = (start + per_leaf).min(mesh.vertices.len());
+            if start >= end {
+                break;
+            }
+            let out = self.outward(i, leaf.position);
+            let color = tint.then(|| self.tint_ao(i, leaf.position));
+            for v in &mut mesh.vertices[start..end] {
+                if bend {
+                    // Canopy cards already face `out`; bending each vertex
+                    // toward its own offset rounds the card a little too.
+                    let local = if geometry == LeafGeometry::CanopyCard {
+                        (out + (v.position - leaf.position) * 0.6 / leaf.scale.max(1e-3))
+                            .try_normalize()
+                            .unwrap_or(out)
+                    } else {
+                        out
+                    };
+                    let geom = if v.normal.dot(local) < 0.0 {
+                        -v.normal
+                    } else {
+                        v.normal
+                    };
+                    v.normal = geom.lerp(local, blend).try_normalize().unwrap_or(local);
+                }
+                if let Some(c) = color {
+                    v.color = c;
+                }
+            }
+        }
+    }
+
+    /// Linear-RGB tint x ambient occlusion for leaf `i` at `pos`.
+    pub fn tint_ao(&self, i: usize, pos: Vec3) -> Vec4 {
+        let c = self.leaf_clump.get(i).copied().unwrap_or(0);
+        let crown_depth = 1.0
+            - ((pos - self.crown_center) / self.crown_radii)
+                .length()
+                .clamp(0.0, 1.0);
+        let clump_depth = self
+            .clump_center
+            .get(c)
+            .map(|cc| 1.0 - ((pos - *cc).length() / self.clump_radius[c]).clamp(0.0, 1.0))
+            .unwrap_or(0.0);
+        let span = (self.crown_max_y - self.crown_min_y).max(1e-3);
+        let low = 1.0 - ((pos.y - self.crown_min_y) / span).clamp(0.0, 1.0);
+        let occl = (0.45 * crown_depth + 0.3 * clump_depth + 0.35 * low).clamp(0.0, 1.0);
+        let ao = 1.0 - self.params.ao_strength.clamp(0.0, 1.0) * occl;
+        // Small per-leaf jitter keeps clumps from looking flat-filled.
+        let jitter = 1.0 - 0.08 * (i as f32 * 0.754_877_7).fract();
+        let t = self.clump_tint.get(c).copied().unwrap_or(Vec3::ONE) * ao * jitter;
+        Vec4::new(t.x, t.y, t.z, 1.0)
+    }
+}
+
+/// Rotate `n` toward +Y so it is at most `max_angle` radians from up.
+fn clamp_from_up(n: Vec3, max_angle: f32) -> Vec3 {
+    let angle = n.dot(Vec3::Y).clamp(-1.0, 1.0).acos();
+    if angle <= max_angle || max_angle >= PI {
+        return n;
+    }
+    let axis = n.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X);
+    Quat::from_axis_angle(axis, angle - max_angle) * n
+}
+
+/// Clump key for a leaf: the id of the ancestor stem at `clump_level`.
+fn clump_key(tree: &Tree, stem_id: u32, clump_level: u32) -> u32 {
+    let mut id = stem_id;
+    for _ in 0..16 {
+        let Some(stem) = tree.get_stem(id) else {
+            return id;
+        };
+        if stem.level as u32 <= clump_level.max(1) {
+            return id;
+        }
+        match stem.parent_id {
+            Some(p) => id = p,
+            None => return id,
+        }
+    }
+    id
+}
+
+/// Outward-facing canopy cards: one quad per leaf, centred on the leaf and
+/// oriented along the clump/crown outward direction with tilt and roll jitter.
+fn generate_canopy_cards(
+    leaves: &[Leaf],
+    config: &LeafConfig,
+    tree: &Tree,
+    canopy: &CanopyContext,
+) -> Mesh {
+    let mut mesh = Mesh::new();
+    let tilt_max = config.canopy.card_tilt.to_radians();
+    for (i, leaf) in leaves.iter().enumerate() {
+        let mut rng = Rng::from_seed(tree.seed ^ (i as u64).wrapping_mul(0xA24B_AED4_963E_E407));
+        let out = canopy.outward(i, leaf.position);
+        let (t0, _) = create_basis(out);
+        let tilt_axis = Quat::from_axis_angle(out, rng.range(-PI, PI)) * t0;
+        let normal = Quat::from_axis_angle(tilt_axis, rng.range(-tilt_max, tilt_max)) * out;
+        let normal = clamp_from_up(normal, config.canopy.card_max_angle.to_radians());
+        let (tan, bit) = create_basis(normal);
+        let roll = rng.range(-PI, PI);
+        let (sr, cr) = roll.sin_cos();
+        let mut u = tan * cr + bit * sr;
+        let v = bit * cr - tan * sr;
+        // Make (u, v, normal) right-handed so CCW winding faces outward.
+        if u.cross(v).dot(normal) < 0.0 {
+            u = -u;
+        }
+        let h = leaf.scale * 0.5 * canopy.card_scale(i);
+        let base = mesh.vertices.len() as u32;
+        for (cx, cy) in [(-1.0f32, -1.0f32), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+            let pos = leaf.position + u * (cx * h) + v * (cy * h);
+            let uv = Vec2::new(cx * 0.5 + 0.5, 0.5 - cy * 0.5);
+            let mut vertex = Vertex::new(pos, normal, uv);
+            if config.pivot_painter {
+                encode_leaf_pivot_painter(&mut vertex, leaf, tree);
+            }
+            mesh.vertices.push(vertex);
+        }
+        mesh.indices
+            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        if !config.canopy.single_sided {
+            mesh.indices
+                .extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+    if !mesh.indices.is_empty() {
+        mesh.submeshes.push(Submesh {
+            index_start: 0,
+            index_count: mesh.indices.len() as u32,
+            material: MaterialType::Leaves,
+        });
+    }
+    mesh
 }
 
 /// Generate polygon leaf shapes (no alpha testing needed)
@@ -410,6 +728,11 @@ fn add_billboard_quad(
     mesh.indices.push(base_idx);
     mesh.indices.push(base_idx + 2);
     mesh.indices.push(base_idx + 3);
+
+    if config.canopy.single_sided {
+        // The double-sided foliage material renders the back; skip duplicates.
+        return;
+    }
 
     // Back face triangles (opposite winding for two-sided rendering)
     mesh.indices.push(base_idx);
@@ -603,6 +926,62 @@ pub fn add_leaves_to_tree(tree: &mut Tree, species: &Species, seed: u64) {
     // Use a different seed offset for leaves to avoid correlation with branches
     let mut rng = Rng::from_seed(seed.wrapping_add(0xDEAD_1EAF));
     tree.leaves = place_leaves(tree, species, &mut rng);
+    let fill = crown_fill_leaves(&tree.leaves, species, &mut rng);
+    tree.leaves.extend(fill);
+}
+
+/// Extra leaves over the crown envelope (`canopy.crown_fill`). The envelope is
+/// the axis-aligned ellipsoid of the placed leaves, shrunk slightly; points
+/// are spread on a jittered Fibonacci sphere, skipping most of the underside.
+/// Each fill leaf borrows the stem of its nearest placed leaf so clump
+/// grouping, tint and normals treat it as part of that limb.
+fn crown_fill_leaves(leaves: &[Leaf], species: &Species, rng: &mut Rng) -> Vec<Leaf> {
+    let n = species.canopy.crown_fill as usize;
+    if n == 0 || leaves.is_empty() {
+        return Vec::new();
+    }
+    let mut lo = Vec3::splat(f32::MAX);
+    let mut hi = Vec3::splat(f32::MIN);
+    for leaf in leaves {
+        lo = lo.min(leaf.position);
+        hi = hi.max(leaf.position);
+    }
+    let center = (lo + hi) * 0.5;
+    let radii = (hi - lo) * 0.5 * 0.82;
+    let params = &species.leaves;
+    let mut out = Vec::with_capacity(n);
+    // Generate over a sphere but only keep y >= -0.35 (about 85% of it).
+    let total = (n as f32 / 0.675).ceil() as usize;
+    for i in 0..total {
+        if out.len() >= n {
+            break;
+        }
+        let y = 1.0 - 2.0 * (i as f32 + 0.5) / total as f32;
+        if y < -0.35 {
+            continue;
+        }
+        let r = (1.0 - y * y).max(0.0).sqrt();
+        let phi = i as f32 * 2.399_963 + rng.range(-0.25, 0.25);
+        let dir = Vec3::new(r * phi.cos(), y, r * phi.sin());
+        let depth = rng.range(0.78, 1.0);
+        let position = center + dir * radii * depth;
+        let nearest = leaves
+            .iter()
+            .min_by(|a, b| {
+                (a.position - position)
+                    .length_squared()
+                    .total_cmp(&(b.position - position).length_squared())
+            })
+            .map(|l| l.stem_id)
+            .unwrap_or(0);
+        out.push(Leaf {
+            position,
+            rotation: Quat::from_rotation_arc(Vec3::Y, dir),
+            scale: params.size * rng.variance_mul(params.size_variance),
+            stem_id: nearest,
+        });
+    }
+    out
 }
 
 #[cfg(test)]
@@ -966,5 +1345,96 @@ geometry = "cross_billboard"
         // The rotated Y axis should be close to world Y
         let rotated_y = rotation_up * Vec3::Y;
         assert!(rotated_y.y > 0.5);
+    }
+
+    fn canopy_species(extra: &str) -> Species {
+        Species::from_toml(&format!(
+            r#"
+[species]
+name = "Canopy Test"
+
+[trunk]
+height = 2.0
+radius = 0.1
+
+[branches.level1]
+count = 5
+length = 0.8
+
+[branches.level2]
+count = 3
+length = 0.3
+
+[leaves]
+count = 120
+min_level = 1
+size = 0.3
+geometry = "canopy_card"
+
+{extra}
+"#
+        ))
+        .unwrap()
+    }
+
+    fn canopy_tree(species: &Species) -> Tree {
+        crate::generation::generate_tree(species, 7).unwrap()
+    }
+
+    #[test]
+    fn canopy_cards_single_sided_halves_triangles() {
+        let double = canopy_species("");
+        let single = canopy_species("[canopy]\nsingle_sided = true");
+        let tree = canopy_tree(&double);
+        let a = generate_leaf_mesh(&tree.leaves, &LeafConfig::from_species(&double), &tree);
+        let b = generate_leaf_mesh(&tree.leaves, &LeafConfig::from_species(&single), &tree);
+        assert_eq!(a.vertex_count(), tree.leaves.len() * 4);
+        assert_eq!(b.vertex_count(), a.vertex_count());
+        assert_eq!(a.triangle_count(), b.triangle_count() * 2);
+    }
+
+    #[test]
+    fn canopy_cards_respect_max_angle_from_up() {
+        let species = canopy_species("[canopy]\ncard_max_angle = 40.0\ncard_tilt = 60.0");
+        let tree = canopy_tree(&species);
+        let mesh = generate_leaf_mesh(&tree.leaves, &LeafConfig::from_species(&species), &tree);
+        let limit = 40.0f32.to_radians().cos() - 1e-3;
+        for v in &mesh.vertices {
+            assert!(
+                v.normal.y >= limit,
+                "normal {:?} exceeds max angle",
+                v.normal
+            );
+        }
+    }
+
+    #[test]
+    fn tint_ao_writes_opaque_colours_in_unit_range() {
+        let species = canopy_species(
+            "[canopy]\nnormals = \"canopy\"\nvertex_color = \"tint_ao\"\nao_strength = 0.6",
+        );
+        let tree = canopy_tree(&species);
+        let mesh = generate_leaf_mesh(&tree.leaves, &LeafConfig::from_species(&species), &tree);
+        let mut lo = f32::MAX;
+        let mut hi = f32::MIN;
+        for v in &mesh.vertices {
+            assert_eq!(v.color.w, 1.0);
+            for c in [v.color.x, v.color.y, v.color.z] {
+                assert!((0.0..=1.0).contains(&c));
+                lo = lo.min(c);
+                hi = hi.max(c);
+            }
+            assert!((v.normal.length() - 1.0).abs() < 1e-3);
+        }
+        assert!(hi - lo > 0.1, "expected visible tint/AO variation");
+    }
+
+    #[test]
+    fn crown_fill_adds_requested_leaves() {
+        let base = canopy_species("");
+        let filled = canopy_species("[canopy]\ncrown_fill = 50");
+        let a = canopy_tree(&base);
+        let b = canopy_tree(&filled);
+        assert_eq!(b.leaves.len(), a.leaves.len() + 50);
     }
 }

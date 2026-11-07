@@ -24,6 +24,7 @@ documented section is closed: a typo inside `[species]`, `[trunk]`,
 | `[textures]` | no | procedural-map parameters + host file overrides |
 | `[materials]` | no | metadata-only material placeholders (see below) |
 | `[[control_groups]]` | no | editor control → parameter-path mapping |
+| `[canopy]` | no | top-down/distant canopy shaping (see below) |
 | `[lod]` | no | LOD preset or explicit `levels` list |
 | `[platform]` | no | target platform (`modern_pc`, `mobile`, `switch`, `quest`, `web`, `universal`) |
 
@@ -36,12 +37,40 @@ documented section is closed: a typo inside `[species]`, `[trunk]`,
 | `*.taper_profile` | `linear`, `smooth`, `exponential`, `compound` |
 | `crown.shape` | `spherical` (default), `conical`, `hemispherical`, `flame`, `columnar` |
 | `leaves.distribution` | `endpoint`, `along_branch`, `both` (default) |
-| `leaves.geometry`, `lod.levels.*.leaf_geometry` | `polygon`, `cross_billboard` (default), `billboard`, `none` |
+| `leaves.geometry`, `lod.levels.*.leaf_geometry` | `polygon`, `cross_billboard` (default), `billboard`, `canopy_card`, `none` |
 | `leaves.shape`, `textures.leaf_shape` | `oval`, `pointed` (default), `needle`, `oak_lobed` (legacy alias `lobed`), `maple`, `serrated`, `willow`, `heart`, `palmate` |
 | `textures.bark_style` | `furrowed` (default), `plated`, `smooth` |
-| `textures.leaf_card` | `single`, `cluster` (default) |
+| `textures.leaf_card` | `single`, `cluster` (default), `puff`, `frond` |
+| `canopy.normals` | `geometric` (default), `canopy` |
+| `canopy.vertex_color` | `pivot_painter` (default), `tint_ao` |
 | `lod.preset` | `ultra`, `high_quality`, `balanced` (default), `mobile`, `minimal`, `open_world`, `hero_tree`, `custom` |
 | `platform.target` | `modern_pc` (default), `mobile`, `switch`, `quest`, `web`, `universal` |
+
+## Canopy shaping (`[canopy]`)
+
+For foliage seen from above or far away (RTS / top-down cameras), where the
+crown's silhouette and shading carry the read. All defaults leave output
+unchanged; see `presets/species/topdown_*.toml`.
+
+- Leaves are grouped into **clumps** by the `clump_level` stem they hang from
+  (1 = one clump per main limb).
+- `leaves.geometry = "canopy_card"` emits one quad per leaf centred on it and
+  facing out of its clump/crown (`card_tilt` jitter, `card_max_angle` limit
+  from straight up, `card_scale_by_clump` to shrink cards on short limbs).
+- `normals = "canopy"` bends foliage normals toward clump-out
+  (`clump_weight`) / crown-out plus `up_bias`, blended by `normal_blend`, so
+  card foliage shades as rounded lumps.
+- `crown_fill` adds cards over the crown envelope to close holes between
+  clumps; `shell` pulls leaves toward their clump surface.
+- `vertex_color = "tint_ao"` writes per-clump tint (`tint_variation`,
+  `hue_variation`) x baked crown/clump AO (`ao_strength`) into `COLOR_0`
+  instead of Pivot Painter data (bark gets white). Godot's glTF import
+  multiplies albedo by `COLOR_0` automatically.
+- `single_sided` drops duplicated back faces (the leaf material is already
+  double-sided); `roughness` overrides the exported leaf roughness;
+  `lod_scale_compensation` grows reduced-LOD canopy cards to keep coverage.
+- `lod.levels.*.branch_levels = 0` exports trunk-only bark.
+- `midori generate --lod-preset species` uses the species' own `[lod]`.
 
 ## Materials and textures (#17)
 

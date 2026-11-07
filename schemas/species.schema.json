@@ -199,6 +199,90 @@
         }
       }
     },
+    "canopy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Canopy shaping for top-down/distant foliage: clump normals, outward-facing canopy cards, crown fill, and baked tint+AO vertex colour.",
+      "properties": {
+        "normals": {
+          "type": "string",
+          "enum": [
+            "geometric",
+            "canopy"
+          ],
+          "default": "geometric"
+        },
+        "normal_blend": {
+          "type": "number",
+          "default": 0.85
+        },
+        "up_bias": {
+          "type": "number",
+          "default": 0.35
+        },
+        "clump_weight": {
+          "type": "number",
+          "default": 0.6
+        },
+        "clump_level": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1
+        },
+        "crown_fill": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "shell": {
+          "type": "number",
+          "default": 0.0
+        },
+        "card_tilt": {
+          "type": "number",
+          "default": 25.0
+        },
+        "card_max_angle": {
+          "type": "number",
+          "default": 90.0
+        },
+        "single_sided": {
+          "type": "boolean",
+          "default": false
+        },
+        "vertex_color": {
+          "type": "string",
+          "enum": [
+            "pivot_painter",
+            "tint_ao"
+          ],
+          "default": "pivot_painter"
+        },
+        "tint_variation": {
+          "type": "number",
+          "default": 0.18
+        },
+        "hue_variation": {
+          "type": "number",
+          "default": 0.12
+        },
+        "ao_strength": {
+          "type": "number",
+          "default": 0.5
+        },
+        "lod_scale_compensation": {
+          "type": "boolean",
+          "default": true
+        },
+        "card_scale_by_clump": {
+          "type": "number",
+          "default": 0.0
+        },
+        "roughness": {
+          "type": "number"
+        }
+      }
+    },
     "textures": {
       "type": "object",
       "additionalProperties": false,
@@ -239,7 +323,9 @@
           "type": "string",
           "enum": [
             "single",
-            "cluster"
+            "cluster",
+            "puff",
+            "frond"
           ],
           "default": "cluster"
         },
@@ -440,6 +526,7 @@
         "polygon",
         "cross_billboard",
         "billboard",
+        "canopy_card",
         "none"
       ]
     },

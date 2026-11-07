@@ -50,6 +50,7 @@ pub fn bake_impostor(
         polygon_resolution: 10,
         up_influence: species.leaves.up_influence,
         pivot_painter: false,
+        canopy: crate::species::CanopyParams::default(),
     };
     let leaf_mesh = generate_leaf_mesh(&tree.leaves, &leaf_config, tree);
 

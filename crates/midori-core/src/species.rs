@@ -30,6 +30,10 @@ pub struct Species {
     /// Leaf rendering parameters
     #[serde(default)]
     pub leaves: LeafParams,
+    /// Canopy shaping for foliage read from above/at a distance: clump
+    /// normals, outward-facing cards, vertex tint and ambient occlusion.
+    #[serde(default)]
+    pub canopy: CanopyParams,
     /// AI texture generation prompts
     #[serde(default)]
     pub textures: TextureParams,
@@ -328,6 +332,9 @@ pub enum LeafGeometry {
     CrossBillboard,
     /// Single camera-facing billboard
     Billboard,
+    /// Single quad centred on the leaf and facing out of its clump/crown —
+    /// a "sphere of cards" canopy that reads from above and at a distance
+    CanopyCard,
     /// No leaves rendered
     None,
 }
@@ -401,6 +408,150 @@ pub struct LeafParams {
     pub up_influence: f32,
 }
 
+/// How foliage vertex normals are produced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FoliageNormals {
+    /// Flat per-card normals (the card's own plane).
+    #[default]
+    Geometric,
+    /// Normals bent outward from the leaf's clump and the crown volume, so
+    /// card foliage shades like a lumpy, rounded canopy.
+    Canopy,
+}
+
+/// What foliage/bark `COLOR_0` carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FoliageVertexColor {
+    /// Pivot Painter pivot position + stiffness (Unreal wind workflow).
+    #[default]
+    PivotPainter,
+    /// Linear RGB tint (per-clump colour variation x baked canopy AO), alpha 1.
+    /// Engines that multiply albedo by vertex colour (Godot's glTF import does
+    /// this automatically when COLOR_0 is present) get variation for free.
+    TintAo,
+}
+
+/// Canopy shaping parameters (`[canopy]`). Defaults leave existing output
+/// unchanged.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CanopyParams {
+    /// Foliage normal mode
+    #[serde(default)]
+    pub normals: FoliageNormals,
+    /// Blend from geometric to canopy normals (0-1)
+    #[serde(default = "default_canopy_normal_blend")]
+    pub normal_blend: f32,
+    /// Extra upward bias added to canopy normals (brightens crown tops)
+    #[serde(default = "default_canopy_up_bias")]
+    pub up_bias: f32,
+    /// Weight of clump-outward vs crown-outward in canopy normals (0-1)
+    #[serde(default = "default_canopy_clump_weight")]
+    pub clump_weight: f32,
+    /// Stem level whose subtree defines one foliage clump (1 = per main limb)
+    #[serde(default = "default_canopy_clump_level")]
+    pub clump_level: u32,
+    /// Extra foliage cards scattered over the crown envelope (upper
+    /// hemisphere biased) to close holes between limb clumps; each joins the
+    /// clump of its nearest branch leaf
+    #[serde(default)]
+    pub crown_fill: u32,
+    /// Pull leaves toward their clump's surface shell (0 = as placed, 1 = on the shell)
+    #[serde(default)]
+    pub shell: f32,
+    /// Random tilt of `canopy_card` quads away from the outward normal, degrees
+    #[serde(default = "default_canopy_card_tilt")]
+    pub card_tilt: f32,
+    /// Maximum angle of a `canopy_card` normal from straight up, degrees
+    /// (90 = unlimited). Lower values stop rim cards turning edge-on/back-on
+    /// to a top-down camera.
+    #[serde(default = "default_canopy_card_max_angle")]
+    pub card_max_angle: f32,
+    /// Emit one face per card and rely on a double-sided material instead of
+    /// duplicating back faces (halves foliage triangles)
+    #[serde(default)]
+    pub single_sided: bool,
+    /// What `COLOR_0` carries
+    #[serde(default)]
+    pub vertex_color: FoliageVertexColor,
+    /// Per-clump lightness variation (0-1) for `tint_ao`
+    #[serde(default = "default_canopy_tint_variation")]
+    pub tint_variation: f32,
+    /// Per-clump warm/cool hue variation (0-1) for `tint_ao`
+    #[serde(default = "default_canopy_hue_variation")]
+    pub hue_variation: f32,
+    /// Strength of baked crown/clump interior darkening (0-1) for `tint_ao`
+    #[serde(default = "default_canopy_ao_strength")]
+    pub ao_strength: f32,
+    /// Scale reduced-leaf LOD cards up so crown coverage is preserved
+    #[serde(default = "default_true")]
+    pub lod_scale_compensation: bool,
+    /// Scale each `canopy_card` by its clump's size relative to the mean
+    /// clump (0 = off, 1 = fully proportional). Keeps short upper conifer
+    /// limbs from wearing full-size cards, so cones stay conical.
+    #[serde(default)]
+    pub card_scale_by_clump: f32,
+    /// Foliage material roughness written on export (unset = exporter default)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roughness: Option<f32>,
+}
+
+fn default_canopy_normal_blend() -> f32 {
+    0.85
+}
+fn default_canopy_up_bias() -> f32 {
+    0.35
+}
+fn default_canopy_clump_weight() -> f32 {
+    0.6
+}
+fn default_canopy_clump_level() -> u32 {
+    1
+}
+fn default_canopy_card_tilt() -> f32 {
+    25.0
+}
+fn default_canopy_card_max_angle() -> f32 {
+    90.0
+}
+fn default_canopy_tint_variation() -> f32 {
+    0.18
+}
+fn default_canopy_hue_variation() -> f32 {
+    0.12
+}
+fn default_canopy_ao_strength() -> f32 {
+    0.5
+}
+fn default_true() -> bool {
+    true
+}
+
+impl Default for CanopyParams {
+    fn default() -> Self {
+        Self {
+            normals: FoliageNormals::default(),
+            normal_blend: default_canopy_normal_blend(),
+            up_bias: default_canopy_up_bias(),
+            clump_weight: default_canopy_clump_weight(),
+            clump_level: default_canopy_clump_level(),
+            crown_fill: 0,
+            shell: 0.0,
+            card_tilt: default_canopy_card_tilt(),
+            card_max_angle: default_canopy_card_max_angle(),
+            single_sided: false,
+            vertex_color: FoliageVertexColor::default(),
+            tint_variation: default_canopy_tint_variation(),
+            hue_variation: default_canopy_hue_variation(),
+            ao_strength: default_canopy_ao_strength(),
+            lod_scale_compensation: true,
+            card_scale_by_clump: 0.0,
+            roughness: None,
+        }
+    }
+}
+
 /// Bark relief style for generated bark maps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -423,6 +574,12 @@ pub enum LeafCardLayout {
     /// A spray of several leaves — gives billboard quads foliage volume.
     #[default]
     Cluster,
+    /// A dense, roughly round puff of overlapping leaves with painted
+    /// self-shadow (dark underlayer, lit top layer) — for `canopy_card`.
+    Puff,
+    /// A flat conifer frond: needle tufts along a branchlet, fanned — for
+    /// `canopy_card` conifers.
+    Frond,
 }
 
 /// Texture material slots and generation parameters.
@@ -1021,11 +1178,8 @@ impl Species {
                 "must be non-negative and finite",
                 nonnegative(level.screen_height),
             );
-            check(
-                &format!("{prefix}.branch_levels"),
-                "must be at least 1",
-                level.branch_levels > 0,
-            );
+            // branch_levels = 0 is allowed: trunk-only bark for far LODs
+            // whose crown cards hide every limb anyway.
             if let Some(ring) = level.ring_resolution {
                 check(
                     &format!("{prefix}.ring_resolution"),
