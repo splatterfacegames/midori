@@ -573,9 +573,29 @@ fn generate_single_lod(
         leaf_count = if mesh.is_empty() { 0 } else { 1 };
         mesh
     } else if level.leaf_geometry != LeafGeometry::None && level.leaf_reduction > 0.0 {
-        // Filter leaves based on reduction factor
-        let max_leaves = (tree.leaves.len() as f32 * level.leaf_reduction) as usize;
-        let filtered_leaves: Vec<_> = tree.leaves.iter().take(max_leaves).cloned().collect();
+        // Filter leaves based on reduction factor. Leaves are stored stem by
+        // stem, so subsample evenly across the whole list rather than taking
+        // a prefix (a prefix strips entire limbs off one side of the crown).
+        let total = tree.leaves.len();
+        let max_leaves = ((total as f32 * level.leaf_reduction) as usize).min(total);
+        let mut filtered_leaves: Vec<_> = if max_leaves >= total {
+            tree.leaves.clone()
+        } else {
+            (0..max_leaves)
+                .map(|i| tree.leaves[i * total / max_leaves.max(1)].clone())
+                .collect()
+        };
+        // Canopy cards: grow the surviving cards so crown coverage holds.
+        if species.canopy.lod_scale_compensation
+            && level.leaf_geometry == LeafGeometry::CanopyCard
+            && max_leaves > 0
+            && max_leaves < total
+        {
+            let grow = (total as f32 / max_leaves as f32).sqrt().min(3.0);
+            for leaf in &mut filtered_leaves {
+                leaf.scale *= grow;
+            }
+        }
 
         leaf_count = filtered_leaves.len() as u32;
 
@@ -586,6 +606,7 @@ fn generate_single_lod(
             polygon_resolution: 0, // Use shape's recommended resolution
             up_influence: species.leaves.up_influence,
             pivot_painter: true,
+            canopy: species.canopy.clone(),
         };
 
         generate_leaf_mesh(&filtered_leaves, &leaf_config, tree)
@@ -601,6 +622,14 @@ fn generate_single_lod(
             index_count: branch_mesh.indices.len() as u32,
             material: MaterialType::Bark,
         });
+    }
+
+    // Tint+AO vertex colour mode: bark carries plain white so engines that
+    // multiply albedo by COLOR_0 leave the bark texture untouched.
+    if species.canopy.vertex_color == crate::species::FoliageVertexColor::TintAo {
+        for v in &mut branch_mesh.vertices {
+            v.color = glam::Vec4::ONE;
+        }
     }
 
     // Merge leaf/impostor geometry with its material.

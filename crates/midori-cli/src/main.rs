@@ -230,6 +230,8 @@ enum LodPreset {
     Mobile,
     /// Minimal (2 LOD levels)
     Minimal,
+    /// Use the species file's own `[lod]` section (preset or custom levels)
+    Species,
 }
 
 fn exit_code(err: &(dyn std::error::Error + 'static)) -> i32 {
@@ -431,6 +433,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         LodPreset::Balanced => LodGenerationConfig::balanced(),
         LodPreset::Mobile => LodGenerationConfig::mobile(),
         LodPreset::Minimal => LodGenerationConfig::minimal(),
+        LodPreset::Species => LodGenerationConfig::from_species(&species),
     };
 
     // Resolve material maps when embedding: file-slot paths in the species
@@ -452,6 +455,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         draco: false,
         textures,
         pivot_painter_extras: true,
+        leaf_roughness: species.canopy.roughness,
         metadata: None,
     };
 

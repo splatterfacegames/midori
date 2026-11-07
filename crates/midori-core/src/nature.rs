@@ -5523,6 +5523,7 @@ fn nature_mesh_export_config() -> ExportConfig {
         draco: false,
         textures: None,
         pivot_painter_extras: true,
+        leaf_roughness: None,
         metadata: None,
     }
 }

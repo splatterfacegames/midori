@@ -24,6 +24,9 @@ pub struct ExportConfig {
     pub textures: Option<TextureSet>,
     /// Add pivot_painter flag in extras
     pub pivot_painter_extras: bool,
+    /// Foliage material roughness override (default 0.6). Matte canopies
+    /// (~0.9) avoid a grey specular sheen on card foliage under a low sun.
+    pub leaf_roughness: Option<f32>,
     /// Optional asset metadata for node naming and glTF extras.
     pub metadata: Option<ExportMetadata>,
 }
@@ -57,6 +60,7 @@ impl Default for ExportConfig {
             draco: false,
             textures: None,
             pivot_painter_extras: true,
+            leaf_roughness: None,
             metadata: None,
         }
     }
@@ -616,6 +620,7 @@ fn build_gltf_json(
     // textured material per embedded atlas, or a single shared untextured
     // material for impostor submeshes whose LOD has no atlas.
     let textured = config.textures.is_some();
+    let leaf_roughness = config.leaf_roughness.unwrap_or(0.6);
     let mut impostor_material: Vec<Option<usize>> = Vec::with_capacity(meshes.len());
     let mut next_material = 2;
     let mut shared_untextured: Option<usize> = None;
@@ -834,7 +839,7 @@ fn build_gltf_json(
                 "pbrMetallicRoughness": {
                     "baseColorTexture": { "index": 2 },
                     "metallicFactor": 0.0,
-                    "roughnessFactor": 0.6
+                    "roughnessFactor": leaf_roughness
                 },
                 "doubleSided": true,
                 "alphaMode": "MASK",
@@ -846,7 +851,7 @@ fn build_gltf_json(
                 "pbrMetallicRoughness": {
                     "baseColorFactor": [0.2, 0.5, 0.2, 1.0],
                     "metallicFactor": 0.0,
-                    "roughnessFactor": 0.6
+                    "roughnessFactor": leaf_roughness
                 },
                 "doubleSided": true,
                 "alphaMode": "MASK",
@@ -1641,6 +1646,7 @@ mod tests {
         let mesh = create_test_mesh();
         let config = ExportConfig {
             pivot_painter_extras: false,
+            leaf_roughness: None,
             ..Default::default()
         };
         let gltf_data = build_gltf_single(&mesh, &config).unwrap();
