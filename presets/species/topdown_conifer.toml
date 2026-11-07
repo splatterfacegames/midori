@@ -1,0 +1,103 @@
+# Top-down conifer (spruce/fir-like) for RTS / top-down cameras.
+# Game scale: ~3 tall, ~1.3 across. Whorled near-horizontal limbs, each limb a
+# foliage clump of frond cards facing up/out, so from above it reads as a dark
+# star-edged cone with lighter tips.
+
+[species]
+name = "Topdown Conifer"
+scientific = "Picea/Abies (stylised)"
+biome = "temperate"
+tags = ["conifer", "evergreen", "topdown", "rts"]
+
+[generator]
+family = "weber_penn"
+
+[trunk]
+height = 3.0
+height_variance = 0.12
+radius = 0.07
+taper = 0.95
+curve = 2.0
+curve_variance = 1.5
+segments = 6
+
+[branches.level1]
+count = 26
+count_variance = 2
+length = 1.35
+length_variance = 0.15
+radius_ratio = 0.45
+angle = 76.0
+angle_variance = 8.0
+rotation = 137.5
+gravity = 0.05
+curve = 8.0
+curve_variance = 4.0
+segments = 3
+
+[crown]
+shape = "conical"
+offset = 0.12
+density = 0.9
+width_ratio = 0.6
+
+[leaves]
+count = 720
+min_level = 1
+size = 0.42
+size_variance = 0.2
+distribution = "along_branch"
+geometry = "canopy_card"
+shape = "needle"
+up_influence = 0.6
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.8
+up_bias = 0.8
+clump_weight = 0.3
+clump_level = 1
+shell = 0.0
+card_tilt = 18.0
+card_max_angle = 55.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.1
+ao_strength = 0.5
+card_scale_by_clump = 0.9
+roughness = 0.92
+
+[textures]
+resolution = 512
+bark_style = "plated"
+leaf_shape = "needle"
+leaf_card = "frond"
+bark_color = [0.36, 0.24, 0.16]
+leaf_color = [0.17, 0.34, 0.15]
+
+[lod]
+preset = "custom"
+
+[[lod.levels]]
+index = 0
+name = "LOD0"
+target_triangles = 2500
+branch_levels = 2
+leaf_geometry = "canopy_card"
+leaf_reduction = 1.0
+ring_resolution = [6, 3, 3, 3]
+screen_height = 0.2
+
+[[lod.levels]]
+index = 1
+name = "LOD1"
+target_triangles = 800
+branch_levels = 0
+leaf_geometry = "canopy_card"
+leaf_reduction = 0.3
+ring_resolution = [5, 3, 3, 3]
+screen_height = 0.05
+
+[platform]
+target = "modern_pc"
