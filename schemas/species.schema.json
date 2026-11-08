@@ -337,6 +337,7 @@
             "single",
             "cluster",
             "puff",
+            "dense",
             "frond"
           ],
           "default": "cluster"

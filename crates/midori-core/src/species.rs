@@ -599,6 +599,11 @@ pub enum LeafCardLayout {
     /// A dense, roughly round puff of overlapping leaves with painted
     /// self-shadow (dark underlayer, lit top layer) — for `canopy_card`.
     Puff,
+    /// A top-down canopy clump: well over a thousand small leaves heaped into
+    /// a few round lobes, each lobe lit on its dome and dark at its foot, so
+    /// a crown seen from far above reads as soft rounded masses instead of
+    /// individual leaf blades — for `canopy_card` at RTS / top-down scale.
+    Dense,
     /// A flat conifer frond: needle tufts along a branchlet, fanned — for
     /// `canopy_card` conifers.
     Frond,

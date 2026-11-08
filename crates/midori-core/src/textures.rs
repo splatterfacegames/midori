@@ -554,6 +554,52 @@ fn card_leaves(layout: LeafCardLayout, shape: LeafShape, rng: &mut Rng) -> Vec<C
             }
             leaves
         }
+        LeafCardLayout::Dense => {
+            // A few overlapping round lobes; leaves are heaped onto each lobe
+            // and drawn foot-first, so the lobe's crown (small, light leaves)
+            // lands on top of its rim (larger, dark leaves).
+            let lobes: Vec<(Vec2, f32)> = {
+                let n = 4 + rng.index(3);
+                let mut v = vec![(Vec2::new(0.5, 0.5), rng.range(0.2, 0.24))];
+                for k in 1..n {
+                    let a = k as f32 / (n - 1) as f32 * crate::constants::PI * 2.0
+                        + rng.range(-0.4, 0.4);
+                    let d = rng.range(0.15, 0.21);
+                    v.push((
+                        Vec2::new(0.5 + d * a.cos(), 0.5 + d * a.sin()),
+                        rng.range(0.15, 0.2),
+                    ));
+                }
+                v
+            };
+            let count = 1300 + rng.index(200);
+            let mut heaped: Vec<(f32, CardLeaf)> = Vec::with_capacity(count);
+            for _ in 0..count {
+                let (c, lr) = lobes[rng.index(lobes.len())];
+                let r = lr * rng.next_f32().sqrt();
+                let a = rng.range(-crate::constants::PI, crate::constants::PI);
+                let center = c + Vec2::new(r * a.cos(), r * a.sin());
+                // 0 at the lobe's foot, 1 at its crown.
+                let height = 1.0 - (r / lr).powf(1.6);
+                let out = (center - c).try_normalize().unwrap_or(Vec2::new(0.0, -1.0));
+                let tip_angle = out.y.atan2(out.x) + rng.range(-0.9, 0.9);
+                heaped.push((
+                    height + rng.range(-0.08, 0.08),
+                    CardLeaf {
+                        center,
+                        rotation: crate::constants::PI / 2.0 - tip_angle,
+                        scale: lerp(0.05, 0.036, height) * rng.variance_mul(0.25),
+                        // Gentle dome only: the crown's own lighting (canopy
+                        // normals + baked AO) should carry the big shapes; a
+                        // strong per-card dome reads as cauliflower florets.
+                        jitter: lerp(0.8, 1.08, height) * rng.range(0.86, 1.1),
+                        hue: lerp(-0.5, 0.5, height) + rng.range(-0.5, 0.5),
+                    },
+                ));
+            }
+            heaped.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+            heaped.into_iter().map(|(_, l)| l).collect()
+        }
         LeafCardLayout::Frond => Vec::new(),
     }
 }
@@ -599,6 +645,11 @@ fn leaf_card(
 
             for leaf in &leaves {
                 let p = Vec2::new(u, v) - leaf.center;
+                // Dense cards hold >1k leaves: skip pixels outside a leaf's
+                // reach (oval/pointed SDFs stay within ~0.85 of their scale).
+                if layout == LeafCardLayout::Dense && p.length_squared() > leaf.scale * leaf.scale {
+                    continue;
+                }
                 let (sin, cos) = leaf.rotation.sin_cos();
                 // Leaf-local space: +y is the tip direction.
                 let local = Vec2::new(p.x * cos - p.y * sin, p.x * sin + p.y * cos) / leaf.scale;
