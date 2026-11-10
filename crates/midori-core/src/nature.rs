@@ -9,6 +9,10 @@ use crate::Rng;
 use crate::export::{ExportConfig, ExportError, ExportFormat, export_mesh};
 use crate::math::lerp;
 use crate::mesh::{MaterialType, Mesh, Submesh, Vertex};
+use crate::nature_cards::{
+    CardAtlas, CardAtlasParams, CardParams, ScatterMaskConfig, ScatterMaskData, bake_card_atlas,
+    build_card_clump_mesh, card_species_of,
+};
 use glam::{Vec2, Vec3, Vec4};
 use image::{ColorType, GrayImage, ImageBuffer, ImageError, Luma, RgbImage, RgbaImage};
 use serde::{Deserialize, Serialize};
@@ -41,6 +45,12 @@ pub struct NaturePatch {
     /// Mobile and console budget/profile metadata.
     #[serde(default)]
     pub profiles: NatureProfiles,
+    /// Optional external density mask and clearings over the patch (host-driven scatter).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scatter_mask: Option<ScatterMaskConfig>,
+    /// The loaded scatter mask (`from_file` loads `scatter_mask.path`; hosts may set it).
+    #[serde(skip)]
+    pub scatter_mask_data: Option<std::sync::Arc<ScatterMaskData>>,
 }
 
 /// Asset-level metadata.
@@ -70,6 +80,10 @@ pub struct PatchParams {
     /// Search/classification tags.
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Share of the half-size over which soil height and groundcover fade out at the patch
+    /// edges (0: no fade, for patches cut from a larger ground).
+    #[serde(default = "default_edge_fade")]
+    pub edge_fade: f32,
 }
 
 /// Soil and material-mask controls.
@@ -139,6 +153,9 @@ pub struct GroundcoverConfig {
     /// Ordered low vegetation/material overlay layers.
     #[serde(default)]
     pub layers: Vec<GroundcoverLayer>,
+    /// How the shared alpha-card species atlas is painted (layers with `cards`).
+    #[serde(default)]
+    pub card_atlas: CardAtlasParams,
 }
 
 /// Supported groundcover layer families.
@@ -207,6 +224,9 @@ pub struct GroundcoverLayer {
     /// Tip color placeholder for preview/import metadata.
     #[serde(default = "default_grass_tip_color")]
     pub color_tip: String,
+    /// Build this layer's prototype as alpha cards from the species atlas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cards: Option<CardParams>,
 }
 
 /// Shared wind metadata.
@@ -395,6 +415,25 @@ pub struct NatureExportManifest {
     pub shader_policy: String,
     /// Texture/PBR pipeline state.
     pub texture_pipeline: String,
+    /// The alpha-card species atlas, when any layer has `cards`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub card_atlas: Option<CardAtlasManifest>,
+    /// The external scatter mask used, when the patch has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scatter_mask: Option<ScatterMaskConfig>,
+}
+
+/// The alpha-card species atlas written with a package.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CardAtlasManifest {
+    /// Package-relative RGBA PNG (sRGB colour, straight alpha, alpha-test at 0.5).
+    pub file: String,
+    /// Cells per side.
+    pub grid: u32,
+    /// Pixels per cell.
+    pub cell_pixels: u32,
+    /// Species per cell (row 0 = top of the image, glTF UV v = 0).
+    pub cells: Vec<crate::nature_cards::CardAtlasCell>,
 }
 
 /// Coordinate and scale conventions for exported package assets.
@@ -2148,7 +2187,26 @@ impl NaturePatch {
     /// Load a nature patch from disk.
     pub fn from_file(path: &Path) -> Result<Self, NaturePatchError> {
         let content = std::fs::read_to_string(path)?;
-        Self::from_toml(&content)
+        let mut patch = Self::from_toml(&content)?;
+        if let Some(config) = &patch.scatter_mask {
+            let base = path.parent().unwrap_or_else(|| Path::new("."));
+            let data = ScatterMaskData::load(config, base).map_err(NaturePatchError::Validation)?;
+            patch.scatter_mask_data = Some(std::sync::Arc::new(data));
+        }
+        Ok(patch)
+    }
+
+    /// The species atlas for this patch's card layers, if any layer has `cards`.
+    pub fn card_atlas(&self) -> Option<CardAtlas> {
+        let species = card_species_of(&self.groundcover.layers);
+        if species.is_empty() {
+            return None;
+        }
+        Some(bake_card_atlas(
+            &species,
+            &self.groundcover.card_atlas,
+            self.patch.seed,
+        ))
     }
 
     /// Validate constraints that serde cannot express.
@@ -2187,7 +2245,18 @@ impl NaturePatch {
             validate_non_negative(&format!("{prefix}.width"), layer.width)?;
             validate_non_negative(&format!("{prefix}.relief_scale"), layer.relief_scale)?;
             validate_non_negative(&format!("{prefix}.relief_strength"), layer.relief_strength)?;
+            if let Some(cards) = &layer.cards {
+                if cards.species.is_empty() {
+                    return Err(NaturePatchError::Validation(format!(
+                        "{prefix}.cards.species must not be empty"
+                    )));
+                }
+                validate_positive(&format!("{prefix}.cards.card_width"), cards.card_width)?;
+                validate_non_negative(&format!("{prefix}.cards.loose"), cards.loose)?;
+                validate_unit(&format!("{prefix}.cards.normal_up"), cards.normal_up)?;
+            }
         }
+        validate_unit("patch.edge_fade", self.patch.edge_fade)?;
 
         self.profiles.mobile.validate("profiles.mobile")?;
         self.profiles.console.validate("profiles.console")?;
@@ -2306,7 +2375,31 @@ impl NaturePatch {
             },
             shader_policy: "preview_only".to_string(),
             texture_pipeline: "parked".to_string(),
+            card_atlas: self.card_atlas_manifest(),
+            scatter_mask: self.scatter_mask.clone(),
         }
+    }
+
+    fn card_atlas_manifest(&self) -> Option<CardAtlasManifest> {
+        let species = card_species_of(&self.groundcover.layers);
+        if species.is_empty() {
+            return None;
+        }
+        let grid = (species.len() as f32).sqrt().ceil().max(1.0) as u32;
+        Some(CardAtlasManifest {
+            file: "textures/groundcover_cards.png".to_string(),
+            grid,
+            cell_pixels: self.groundcover.card_atlas.cell.max(32),
+            cells: species
+                .iter()
+                .enumerate()
+                .map(|(i, sp)| crate::nature_cards::CardAtlasCell {
+                    species: *sp,
+                    column: i as u32 % grid,
+                    row: i as u32 / grid,
+                })
+                .collect(),
+        })
     }
 
     /// Write an initial engine-friendly nature package directory.
@@ -2330,6 +2423,14 @@ impl NaturePatch {
         } else {
             None
         };
+
+        if let Some(atlas) = self.card_atlas() {
+            let texture_directory = directory.join("textures");
+            std::fs::create_dir_all(&texture_directory)?;
+            atlas
+                .image
+                .save(texture_directory.join("groundcover_cards.png"))?;
+        }
 
         let mut prototype_meshes = Vec::new();
         if config.write_prototype_meshes {
@@ -2407,18 +2508,28 @@ impl NaturePatch {
 
     /// Generate reusable groundcover prototype meshes from supported layers.
     pub fn generate_groundcover_prototypes(&self) -> Vec<GroundcoverPrototype> {
+        let atlas = self.card_atlas();
         self.groundcover
             .layers
             .iter()
-            .map(|layer| match layer.kind {
-                GroundcoverKind::Grass => generate_grass_prototype(layer),
-                GroundcoverKind::Moss => generate_moss_prototype(layer),
-                GroundcoverKind::Flower => generate_flower_prototype(layer),
-                GroundcoverKind::Weed => generate_weed_prototype(layer),
-                GroundcoverKind::Litter => generate_litter_prototype(layer),
-                GroundcoverKind::Shrub => generate_shrub_prototype(layer),
-                GroundcoverKind::Rock => generate_rock_prototype(layer),
-                GroundcoverKind::Log => generate_log_prototype(layer),
+            .enumerate()
+            .map(|(index, layer)| match (&layer.cards, &atlas) {
+                (Some(cards), Some(atlas)) => generate_card_prototype(
+                    layer,
+                    cards,
+                    atlas,
+                    self.patch.seed ^ ((index as u64 + 1) << 20),
+                ),
+                _ => match layer.kind {
+                    GroundcoverKind::Grass => generate_grass_prototype(layer),
+                    GroundcoverKind::Moss => generate_moss_prototype(layer),
+                    GroundcoverKind::Flower => generate_flower_prototype(layer),
+                    GroundcoverKind::Weed => generate_weed_prototype(layer),
+                    GroundcoverKind::Litter => generate_litter_prototype(layer),
+                    GroundcoverKind::Shrub => generate_shrub_prototype(layer),
+                    GroundcoverKind::Rock => generate_rock_prototype(layer),
+                    GroundcoverKind::Log => generate_log_prototype(layer),
+                },
             })
             .collect()
     }
@@ -2795,6 +2906,11 @@ impl TerrainField {
                     .unwrap_or(0.0),
             };
 
+            let mask = match &self.patch.scatter_mask_data {
+                Some(data) => mask * data.sample(x, z),
+                None => mask,
+            };
+
             if rng.next_f32() > mask {
                 continue;
             }
@@ -2889,8 +3005,12 @@ impl TerrainField {
     }
 
     fn edge_taper(&self, x: f32, z: f32) -> f32 {
+        let fade = self.patch.patch.edge_fade;
+        if fade <= 0.0 {
+            return 1.0;
+        }
         let half = self.patch.patch.size * 0.5;
-        let inner = half * 0.8;
+        let inner = half * (1.0 - fade);
         let fade_width = (half - inner).max(0.0001);
         let tx = ((half - x.abs()) / fade_width).clamp(0.0, 1.0);
         let tz = ((half - z.abs()) / fade_width).clamp(0.0, 1.0);
@@ -5566,6 +5686,33 @@ fn mesh_bounds(mesh: &Mesh) -> ([f32; 3], [f32; 3]) {
     ([min.x, min.y, min.z], [max.x, max.y, max.z])
 }
 
+fn generate_card_prototype(
+    layer: &GroundcoverLayer,
+    cards: &CardParams,
+    atlas: &CardAtlas,
+    seed: u64,
+) -> GroundcoverPrototype {
+    let n = cards.count.max(1);
+    let lod_counts = [n, n.div_ceil(2), 1];
+    GroundcoverPrototype {
+        name: if layer.name.is_empty() {
+            format!("{:?}_cards", layer.kind).to_lowercase()
+        } else {
+            layer.name.clone()
+        },
+        kind: layer.kind,
+        lods: lod_counts
+            .iter()
+            .enumerate()
+            .map(|(index, count)| GroundcoverPrototypeLod {
+                index: index as u32,
+                name: format!("LOD{index}"),
+                mesh: build_card_clump_mesh(layer.height, cards, atlas, *count, index as u32, seed),
+            })
+            .collect(),
+    }
+}
+
 fn generate_grass_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
     GroundcoverPrototype {
         name: if layer.name.is_empty() {
@@ -6471,6 +6618,9 @@ fn default_units() -> String {
 }
 fn default_patch_size() -> f32 {
     16.0
+}
+fn default_edge_fade() -> f32 {
+    0.2
 }
 fn default_soil_profile() -> String {
     "loam".to_string()

@@ -213,6 +213,8 @@ Midori's nature pipeline is in active development. The first slice adds `NatureP
 
 The texture/PBR asset generation pipeline is intentionally parked. Current nature outputs focus on geometry, masks, density, normal conventions, JSON and binary scatter data, and import metadata that can be consumed by Unity and Unreal pipelines.
 
+Groundcover layers can also be built as **alpha-card clumps** (`[groundcover.layers.cards]`): each card samples one species cell (grass, golden grass, oat seeds, daisy, buttercup, clover, bellflower, lupin, fern, yarrow, poppy) of a procedurally painted RGBA atlas that the package writes to `textures/groundcover_cards.png`. A `[scatter_mask]` (a grayscale PNG over an X/Z extent, plus clearing discs) lets a host drive density from its own data, and `patch.edge_fade = 0` turns off the edge fade for patches cut from a larger ground. See `presets/nature/alpine_meadow.toml` and `integrations/usagi/README.md`.
+
 Use `midori nature -p <patch.toml> -o <package_dir>` to write the current package layout, then `midori validate-nature -i <package_dir>` to run the package conformance gate.
 In the desktop workbench, choose a patch under NATURE PATCHES in the species library with Rust/WASM terrain, prototype, and scatter data.
 

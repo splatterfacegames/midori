@@ -38,6 +38,7 @@ pub mod math;
 pub mod mesh;
 pub mod mesh_builder;
 pub mod nature;
+pub mod nature_cards;
 pub mod rng;
 pub mod species;
 pub mod textures;
