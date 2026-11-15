@@ -200,8 +200,17 @@ export interface NaturePrototype {
   name: string;
   kind: string;
   uses_card_atlas?: boolean;
+  color_base?: string;
   color_tip?: string;
   lods: NatureMesh[];
+}
+
+export interface NatureWind {
+  direction_degrees: number;
+  strength: number;
+  speed: number;
+  gust_scale: number;
+  flutter: number;
 }
 
 export interface ScatterInstance {
@@ -230,7 +239,11 @@ export interface ScatterSet {
 
 export interface NaturePreview {
   manifest: unknown;
+  biome?: string;
+  wind?: NatureWind;
   terrain: NatureMesh;
+  terrain_albedo?: RgbaMap;
+  terrain_normal?: RgbaMap;
   prototypes: NaturePrototype[];
   scatter_sets: ScatterSet[];
   card_atlas?: GeneratedMap;
@@ -248,7 +261,7 @@ export interface NaturePreview {
  *  resolution; `scatterChunkSize` the world-space chunk edge in metres. */
 export function generateNaturePreview(
   toml: string,
-  previewResolution = 48,
+  previewResolution = 64,
   scatterChunkSize = 16,
 ): NaturePreview {
   const out = generate_nature_preview_from_toml(
@@ -257,5 +270,7 @@ export function generateNaturePreview(
     scatterChunkSize,
   ) as NaturePreview;
   if (out.card_atlas) normalizeMap(out.card_atlas);
+  if (out.terrain_albedo) out.terrain_albedo.data = asBytes(out.terrain_albedo.data);
+  if (out.terrain_normal) out.terrain_normal.data = asBytes(out.terrain_normal.data);
   return out;
 }

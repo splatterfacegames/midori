@@ -14,6 +14,7 @@
 //! layer's density, and `clearings` are discs with no instances at all.
 
 use crate::Rng;
+use crate::math::lerp;
 use crate::mesh::{MaterialType, Mesh, Submesh, Vertex};
 use glam::{Vec2, Vec3, Vec4};
 use image::{Rgba, RgbaImage};
@@ -46,6 +47,8 @@ pub enum CardSpecies {
     Yarrow,
     /// Red poppies.
     Poppy,
+    /// Silky Miscanthus sinensis (Susuki Japanese pampas grass) plumes.
+    Pampas,
 }
 
 impl CardSpecies {
@@ -63,6 +66,7 @@ impl CardSpecies {
             CardSpecies::Fern => "fern",
             CardSpecies::Yarrow => "yarrow",
             CardSpecies::Poppy => "poppy",
+            CardSpecies::Pampas => "pampas",
         }
     }
 }
@@ -707,9 +711,9 @@ impl Canvas {
                 };
             }
         }
-        // colour bleed: a few passes of averaging opaque neighbours into empty texels
+        // colour bleed: 16 passes over 8-connected neighbours so mips and bilinear filtering never fringe dark
         let mut filled: Vec<bool> = out.iter().map(|p| p[3] > 0.0).collect();
-        for _ in 0..6 {
+        for _ in 0..16 {
             let prev = out.clone();
             let prev_filled = filled.clone();
             for y in 0..h as i64 {
@@ -720,7 +724,16 @@ impl Canvas {
                     }
                     let mut acc = [0.0f32; 3];
                     let mut n = 0.0;
-                    for (dx, dy) in [(-1i64, 0i64), (1, 0), (0, -1), (0, 1)] {
+                    for (dx, dy) in [
+                        (-1i64, 0i64),
+                        (1, 0),
+                        (0, -1),
+                        (0, 1),
+                        (-1, -1),
+                        (1, -1),
+                        (-1, 1),
+                        (1, 1),
+                    ] {
                         let (nx, ny) = (x + dx, y + dy);
                         if nx < 0 || ny < 0 || nx >= w as i64 || ny >= h as i64 {
                             continue;
@@ -1416,6 +1429,164 @@ impl Painter<'_> {
                                 col_out,
                                 0.66,
                             );
+                        }
+                    }
+                }
+            }
+            CardSpecies::Pampas => {
+                // Miscanthus sinensis (Susuki Japanese pampas grass): fountain tussock of
+                // arching green-gold blades + tall slender culms crowned by silky, wind-swept
+                // silvery-champagne & sunlit ivory panicle plumes.
+                let straw_tip = [0.74, 0.68, 0.42];
+                for k in 0..22 {
+                    let depth = k as f32 / 21.0;
+                    let shade = 0.58 + 0.48 * depth;
+                    let spread = (k as f32 / 21.0 - 0.5) * 2.0;
+                    let x0 = self.ox + c * (0.50 + spread * 0.14 + self.rng.range(-0.02, 0.02));
+                    let y0 = self.oy + c * 0.992;
+                    let h = c * self.rng.range(0.36, 0.58);
+                    let arch = c * (spread * 0.26 + self.rng.range(-0.06, 0.06));
+                    let p1 = (x0 + arch * 0.44, y0 - h * 0.72);
+                    let p2 = (
+                        (x0 + arch).clamp(self.ox + c * 0.05, self.ox + c * 0.95),
+                        y0 - h * self.rng.range(0.82, 0.98),
+                    );
+                    self.canvas.ribbon(
+                        (x0, y0),
+                        p1,
+                        p2,
+                        c * 0.010,
+                        c * 0.0018,
+                        scale(self.base, shade * 0.85),
+                        scale(mix(tips[0], straw_tip, 0.65), shade * 1.05),
+                        14,
+                    );
+                }
+
+                // 4 tall culms with lush feathery panicle plumes
+                let culm_specs = [
+                    (0.43_f32, 0.34_f32, 0.11_f32, -1.0_f32, 0.84_f32),
+                    (0.57, 0.66, 0.13, 1.0, 0.90),
+                    (0.48, 0.47, 0.06, -0.6, 0.98),
+                    (0.53, 0.60, 0.08, 0.8, 1.04),
+                ];
+                let culm_base = [0.46, 0.45, 0.26];
+                let culm_top = [0.76, 0.68, 0.46];
+                let plume_shadow = [0.68, 0.60, 0.45];
+                let plume_gold = [0.90, 0.83, 0.66];
+                let plume_silk = [0.99, 0.96, 0.89];
+
+                for &(bx_u, tx_u, apex_v, wind_bias, lum) in &culm_specs {
+                    let x0 = self.ox + c * (bx_u + self.rng.range(-0.015, 0.015));
+                    let y0 = self.oy + c * 0.99;
+                    let neck_x =
+                        self.ox + c * (lerp(bx_u, tx_u, 0.68) + self.rng.range(-0.015, 0.015));
+                    let neck_y = self.oy + c * (apex_v + 0.33 + self.rng.range(-0.02, 0.02));
+                    let tip_x =
+                        self.ox + c * (tx_u + wind_bias * 0.05 + self.rng.range(-0.02, 0.02));
+                    let tip_y = self.oy + c * (apex_v + self.rng.range(-0.01, 0.02));
+
+                    // Slender woody-golden culm from root to panicle neck
+                    self.canvas.ribbon(
+                        (x0, y0),
+                        ((x0 + neck_x) * 0.5, lerp(y0, neck_y, 0.52)),
+                        (neck_x, neck_y),
+                        c * 0.0085,
+                        c * 0.0042,
+                        scale(culm_base, lum * 0.9),
+                        scale(culm_top, lum),
+                        16,
+                    );
+
+                    // Central panicle rachis arching softly toward tip
+                    let r_ctrl = (
+                        lerp(neck_x, tip_x, 0.45) - wind_bias * c * 0.015,
+                        lerp(neck_y, tip_y, 0.55),
+                    );
+                    self.canvas.ribbon(
+                        (neck_x, neck_y),
+                        r_ctrl,
+                        (tip_x, tip_y),
+                        c * 0.0045,
+                        c * 0.0016,
+                        scale(culm_top, lum),
+                        scale(plume_gold, lum),
+                        14,
+                    );
+
+                    // Two-pass gossamer-fine feathery racemes along the rachis: warm taupe-gold core + sunlit ivory silk
+                    for pass in 0..2 {
+                        let is_silk = pass == 1;
+                        let raceme_nodes = if is_silk { 34 } else { 26 };
+                        for n_i in 0..raceme_nodes {
+                            let t = n_i as f32 / (raceme_nodes - 1) as f32;
+                            let u = 1.0 - t;
+                            let rx = u * u * neck_x + 2.0 * u * t * r_ctrl.0 + t * t * tip_x;
+                            let ry = u * u * neck_y + 2.0 * u * t * r_ctrl.1 + t * t * tip_y;
+                            // Plume envelope: widest in lower-middle third, tapering to a soft plume spear
+                            let env = (t * std::f32::consts::PI * 0.96).sin().max(0.06).powf(0.56)
+                                * (1.06 - 0.44 * t);
+                            for side in [-1.0_f32, 1.0] {
+                                let sweep = side * self.rng.range(0.42, 0.92) + wind_bias * 0.24;
+                                let len = c * self.rng.range(0.080, 0.142) * env;
+                                let ctrl = (
+                                    rx + sweep * len * 0.50,
+                                    ry - len * self.rng.range(0.34, 0.56),
+                                );
+                                // Silky racemes arch outward and weep gently at their feathery tips
+                                let end = (
+                                    (rx + sweep * len)
+                                        .clamp(self.ox + c * 0.04, self.ox + c * 0.96),
+                                    (ry - len * self.rng.range(0.06, 0.36)
+                                        + len * 0.20 * sweep.abs())
+                                    .clamp(self.oy + c * 0.03, self.oy + c * 0.96),
+                                );
+                                let (c_in, c_out, w0) = if is_silk {
+                                    (
+                                        scale(plume_gold, lum * self.rng.range(0.95, 1.06)),
+                                        scale(plume_silk, (lum * 1.06).min(1.0)),
+                                        c * 0.0021,
+                                    )
+                                } else {
+                                    (
+                                        scale(plume_shadow, lum * 0.88),
+                                        scale(plume_gold, lum * 0.95),
+                                        c * 0.0031,
+                                    )
+                                };
+                                self.canvas.ribbon(
+                                    (rx, ry),
+                                    ctrl,
+                                    end,
+                                    w0,
+                                    c * 0.0007,
+                                    c_in,
+                                    c_out,
+                                    12,
+                                );
+                                // Fine silky spikelet awns radiating off each raceme branch
+                                if is_silk && n_i % 2 == 0 {
+                                    for sub in [0.42_f32, 0.72] {
+                                        let su = 1.0 - sub;
+                                        let sx = su * su * rx
+                                            + 2.0 * su * sub * ctrl.0
+                                            + sub * sub * end.0;
+                                        let sy = su * su * ry
+                                            + 2.0 * su * sub * ctrl.1
+                                            + sub * sub * end.1;
+                                        let hx = (sx + sweep * c * 0.018)
+                                            .clamp(self.ox + c * 0.03, self.ox + c * 0.97);
+                                        let hy = (sy - c * self.rng.range(0.010, 0.024))
+                                            .max(self.oy + c * 0.02);
+                                        self.canvas.line(
+                                            (sx, sy),
+                                            (hx, hy),
+                                            c * 0.0011,
+                                            scale(plume_silk, (lum * 1.04).min(1.0)),
+                                        );
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -2753,6 +2753,164 @@ impl TerrainField {
         primary.max(secondary).clamp(0.0, 1.0) * cracks.amount
     }
 
+    /// Synthesize rich biome-aware soil/turf albedo + micro-relief OpenGL (+Y) normal map
+    /// for real-time 3D viewport and DCC scene previews.
+    pub fn bake_preview_surface_maps(
+        &self,
+        resolution: u32,
+    ) -> (crate::textures::RgbaTexture, crate::textures::RgbaTexture) {
+        let res = resolution.max(4);
+        let size = self.patch.patch.size.max(0.001);
+        let half = size * 0.5;
+        let seed = self.patch.patch.seed;
+        let biome = self.patch.patch.biome.to_ascii_lowercase();
+        let profile = self.patch.soil.profile.to_ascii_lowercase();
+
+        let is_arid =
+            biome.contains("arid") || profile.contains("sand") || profile.contains("clay");
+        let is_forest = biome.contains("forest") || profile.contains("humus");
+
+        let (soil_dark, soil_mid, soil_light, turf_col, moss_col) = if is_arid {
+            (
+                [0.34_f32, 0.25, 0.17],
+                [0.54, 0.42, 0.29],
+                [0.66, 0.54, 0.38],
+                [0.45, 0.43, 0.25],
+                [0.39, 0.42, 0.24],
+            )
+        } else if is_forest {
+            (
+                [0.14, 0.10, 0.07],
+                [0.24, 0.18, 0.12],
+                [0.34, 0.25, 0.16],
+                [0.20, 0.29, 0.13],
+                [0.22, 0.36, 0.15],
+            )
+        } else {
+            (
+                [0.18, 0.14, 0.09],
+                [0.28, 0.22, 0.15],
+                [0.38, 0.31, 0.21],
+                [0.22, 0.33, 0.14],
+                [0.25, 0.38, 0.16],
+            )
+        };
+
+        let mut albedo = crate::textures::RgbaTexture::new(res, res);
+        let mut micro_h = vec![0.0_f32; (res * res) as usize];
+
+        for y in 0..res {
+            let v = y as f32 / (res - 1) as f32;
+            let wz = -half + v * size;
+            for x in 0..res {
+                let u = x as f32 / (res - 1) as f32;
+                let wx = -half + u * size;
+
+                let masks = self.masks_at(wx, wz);
+                let macro_var = fbm(wx * 0.45 + 11.3, wz * 0.45 - 7.1, seed ^ 0x71);
+                let med_grain = fbm(wx * 3.4 - 4.2, wz * 3.4 + 9.6, seed ^ 0x73);
+                let fine_crumb = fbm(wx * 13.5 + 2.1, wz * 13.5 - 5.8, seed ^ 0x79);
+                let pebble = fbm(wx * 26.0 - 8.4, wz * 26.0 + 3.3, seed ^ 0x7F);
+
+                let soil_t =
+                    (macro_var * 0.48 + med_grain * 0.34 + fine_crumb * 0.18).clamp(0.0, 1.0);
+                let mut rgb = if soil_t < 0.5 {
+                    let k = soil_t * 2.0;
+                    [
+                        lerp(soil_dark[0], soil_mid[0], k),
+                        lerp(soil_dark[1], soil_mid[1], k),
+                        lerp(soil_dark[2], soil_mid[2], k),
+                    ]
+                } else {
+                    let k = (soil_t - 0.5) * 2.0;
+                    [
+                        lerp(soil_mid[0], soil_light[0], k),
+                        lerp(soil_mid[1], soil_light[1], k),
+                        lerp(soil_mid[2], soil_light[2], k),
+                    ]
+                };
+
+                // Blend verdant root-mat under dense grass swards
+                let turf_w =
+                    (masks.grass_density * 1.45).clamp(0.0, if is_arid { 0.35 } else { 0.78 });
+                for c in 0..3 {
+                    rgb[c] = lerp(rgb[c], turf_col[c] * (0.85 + 0.30 * med_grain), turf_w);
+                }
+
+                // Velvety moss patches
+                let moss_w = (masks.moss * 0.88).clamp(0.0, 0.88);
+                for c in 0..3 {
+                    rgb[c] = lerp(rgb[c], moss_col[c] * (0.86 + 0.28 * fine_crumb), moss_w);
+                }
+
+                // Scattered mineral grit / small pebbles
+                if pebble > 0.74 {
+                    let pk = ((pebble - 0.74) / 0.26 * 0.35).clamp(0.0, 0.35);
+                    rgb[0] = lerp(rgb[0], 0.52, pk);
+                    rgb[1] = lerp(rgb[1], 0.50, pk);
+                    rgb[2] = lerp(rgb[2], 0.46, pk);
+                }
+
+                // Damp soil darkening
+                let wet_mul = 1.0 - 0.34 * masks.wetness.clamp(0.0, 1.0);
+                for c in &mut rgb {
+                    *c *= wet_mul;
+                }
+
+                // Dessication cracks
+                let crack_w = masks.crack.clamp(0.0, 1.0);
+                for c in 0..3 {
+                    rgb[c] = lerp(rgb[c], soil_dark[c] * 0.48, crack_w * 0.82);
+                }
+
+                albedo.set(
+                    x,
+                    y,
+                    [
+                        (rgb[0].clamp(0.0, 1.0) * 255.0) as u8,
+                        (rgb[1].clamp(0.0, 1.0) * 255.0) as u8,
+                        (rgb[2].clamp(0.0, 1.0) * 255.0) as u8,
+                        255,
+                    ],
+                );
+
+                micro_h[(y * res + x) as usize] = self.height_at(wx, wz)
+                    + 0.042 * med_grain
+                    + 0.018 * fine_crumb
+                    + 0.012 * (pebble - 0.5).max(0.0)
+                    - 0.055 * crack_w;
+            }
+        }
+
+        let mut normal_tex = crate::textures::RgbaTexture::new(res, res);
+        let step_world = (size / (res - 1) as f32).max(1e-3);
+        for y in 0..res {
+            let ym = y.saturating_sub(1);
+            let yp = (y + 1).min(res - 1);
+            for x in 0..res {
+                let xm = x.saturating_sub(1);
+                let xp = (x + 1).min(res - 1);
+                let dh_dx = (micro_h[(y * res + xp) as usize] - micro_h[(y * res + xm) as usize])
+                    / (((xp - xm).max(1) as f32) * step_world);
+                let dh_dz = (micro_h[(yp * res + x) as usize] - micro_h[(ym * res + x) as usize])
+                    / (((yp - ym).max(1) as f32) * step_world);
+                let nrm = Vec3::new(-dh_dx * 1.35, dh_dz * 1.35, 1.0).normalize();
+                normal_tex.set(
+                    x,
+                    y,
+                    [
+                        ((nrm.x * 0.5 + 0.5) * 255.0) as u8,
+                        ((nrm.y * 0.5 + 0.5) * 255.0) as u8,
+                        ((nrm.z * 0.5 + 0.5) * 255.0) as u8,
+                        255,
+                    ],
+                );
+            }
+        }
+
+        (albedo, normal_tex)
+    }
+
     /// Bake height, normal, and mask maps into memory.
     pub fn bake_maps(&self, resolution: u32) -> NatureMapSet {
         assert!(resolution >= 2, "resolution must be at least 2");
@@ -5725,17 +5883,20 @@ fn generate_grass_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_grass_clump_mesh(layer, 10, 3, 0),
+                // 14 curved Bezier blades * 4 segments * 2 = 112 triangles (<= 120 mobile budget)
+                mesh: build_grass_clump_mesh(layer, 14, 4, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
-                mesh: build_grass_clump_mesh(layer, 5, 2, 1),
+                // 6 blades * 3 segments * 2 = 36 triangles (<= 40 mobile budget)
+                mesh: build_grass_clump_mesh(layer, 6, 3, 1),
             },
             GroundcoverPrototypeLod {
                 index: 2,
                 name: "LOD2".to_string(),
-                mesh: build_grass_clump_mesh(layer, 3, 1, 2),
+                // 4 blades * 1 segment * 2 = 8 triangles (<= 8 mobile budget)
+                mesh: build_grass_clump_mesh(layer, 4, 1, 2),
             },
         ],
     }
@@ -5749,23 +5910,24 @@ fn build_grass_clump_mesh(
 ) -> Mesh {
     let mut rng = Rng::from_seed(0x6772_6173_7300u64 ^ ((lod_index as u64 + 1) << 8));
     let mut mesh = Mesh::new();
-    let base_width = layer.width.max(0.012);
+    let base_width = layer.width.max(0.014);
     let base_height = layer.height.max(0.05);
 
     for blade in 0..blade_count {
         let angle = (blade as f32 / blade_count.max(1) as f32) * crate::constants::TAU
-            + rng.range(-0.4, 0.4);
-        let radius = rng.range(0.0, base_width * 2.2);
+            + rng.range(-0.42, 0.42);
+        let radial_frac = rng.next_f32().sqrt();
+        let radius = radial_frac * base_width * 3.1;
         let base = Vec3::new(
             angle.cos() * radius,
-            -0.015 * base_height,
+            -0.018 * base_height,
             angle.sin() * radius,
         );
-        let yaw = angle + rng.range(-0.45, 0.45);
-        // Varied outer-shorter / inner-taller fountain tuft heights
-        let height = base_height * rng.range(0.58, 1.18);
-        let width = base_width * rng.range(0.75, 1.25);
-        let curl = (layer.curl.max(0.35)) * rng.range(0.75, 1.35);
+        // Outer blades splay outward into a graceful fountain tussock; inner blades stand taller
+        let yaw = angle + rng.range(-0.52, 0.52);
+        let height = base_height * lerp(1.18, 0.72, radial_frac) * rng.range(0.84, 1.14);
+        let width = base_width * rng.range(0.82, 1.28);
+        let curl = (layer.curl.max(0.42)) * lerp(0.72, 1.38, radial_frac) * rng.range(0.85, 1.22);
         let phase = rng.range(0.0, crate::constants::TAU);
         let color_variation = rng.next_f32();
 
@@ -5790,7 +5952,8 @@ fn build_grass_clump_mesh(
         index_count: mesh.indices.len() as u32,
         material: MaterialType::Leaves,
     });
-    mesh.recalculate_normals();
+    // Preserve custom tilted cross-blade normals computed in `append_blade_strip`
+    // so tussocks catch grazing sunlight smoothly across every blade instead of flat-shading!
     mesh
 }
 
@@ -5812,34 +5975,49 @@ fn append_blade_strip(
     let start = mesh.vertices.len() as u32;
     let forward = Vec3::new(yaw.sin(), 0.0, yaw.cos());
     let right = Vec3::new(yaw.cos(), 0.0, -yaw.sin());
-    let lean = curl.clamp(0.05, 1.8);
+    let lean = curl.clamp(0.05, 1.85);
 
     for segment in 0..=segments {
         let t = segment as f32 / segments.max(1) as f32;
         let stiffness = 1.0 - t;
-        // Graceful botanical arch: outward lean from root + quadratic gravity droop near tip
-        let reach = height * (lean * 0.22 * t + lean * 0.34 * t * t);
-        let lift = height * (t - lean * 0.14 * t * t * t);
+        // Graceful cubic-Bezier-like botanical arch: upright sheath -> sweeping midrib -> soft weeping tip
+        let reach = height * (lean * 0.18 * t + lean * 0.42 * t * t);
+        let lift = height * (t - lean * 0.17 * t * t * t);
         let center = base + Vec3::Y * lift + forward * reach;
         let width_at_t = if broadleaf {
             width * (0.28 + 0.85 * (t * std::f32::consts::PI * 0.94).sin().max(0.0)).max(0.08)
         } else {
-            width * (1.0 - t * 0.90).max(0.06)
+            width * (1.0 - t * 0.88).max(0.06)
         };
-        let left = center - right * width_at_t * 0.5;
-        let right_pos = center + right * width_at_t * 0.5;
+        // Analytical curve tangent -> perpendicular blade face normal blended with skyward +Y
+        // and +-30 deg lateral cross-normal tilt (Ghost of Tsushima cylindrical grass shading).
+        let d_reach = lean * 0.18 + lean * 0.84 * t;
+        let d_lift = (1.0 - lean * 0.51 * t * t).max(0.12);
+        let curve_normal = (-forward * d_lift + Vec3::Y * d_reach).normalize_or_zero();
+        let face_nrm = (curve_normal * 0.64 + Vec3::Y * 0.36).normalize_or_zero();
+        let (left_nrm, right_nrm) = if broadleaf {
+            (face_nrm, face_nrm)
+        } else {
+            (
+                (face_nrm - right * 0.52).normalize_or_zero(),
+                (face_nrm + right * 0.52).normalize_or_zero(),
+            )
+        };
+        let camber_drop = if broadleaf { 0.0 } else { -0.10 * width_at_t };
+        let left = center - right * width_at_t * 0.5 + Vec3::Y * camber_drop;
+        let right_pos = center + right * width_at_t * 0.5 + Vec3::Y * camber_drop;
         let color_t = lerp(color_t0, color_t1, t);
 
         mesh.vertices.push(Vertex {
             position: left,
-            normal: forward,
+            normal: left_nrm,
             uv: Vec2::new(0.0, t),
             uv2: Vec2::new(phase, stiffness),
             color: Vec4::new(height, color_variation, color_t, stiffness),
         });
         mesh.vertices.push(Vertex {
             position: right_pos,
-            normal: forward,
+            normal: right_nrm,
             uv: Vec2::new(1.0, t),
             uv2: Vec2::new(phase, stiffness),
             color: Vec4::new(height, color_variation, color_t, stiffness),
@@ -5886,8 +6064,8 @@ fn build_moss_tuft_mesh(
 ) -> Mesh {
     let mut rng = Rng::from_seed(0x6d6f_7373_0000u64 ^ ((lod_index as u64 + 1) << 8));
     let mut mesh = Mesh::new();
-    let base_radius = layer.width.max(0.09) * 2.1;
-    let base_height = layer.height.clamp(0.03, 0.22);
+    let base_radius = layer.width.max(0.11) * 2.5;
+    let base_height = layer.height.clamp(0.014, 0.052);
     let radial_segments = radial_segments.max(4);
 
     for h in 0..hummock_count.max(1) {
@@ -6374,8 +6552,8 @@ fn generate_shrub_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                // 5 stems * (4 stem tris + 4 * 4 bent leaf spray tris = 20) = 100 tris
-                mesh: build_shrub_clump_mesh(layer, 5, 4, 2, 0),
+                // 5 stems * (4 stem tris + 5 * 4 arched leaf spray tris = 24) = 120 tris
+                mesh: build_shrub_clump_mesh(layer, 5, 5, 2, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
@@ -6443,8 +6621,8 @@ fn build_shrub_clump_mesh(
                 + Vec3::Y * (height * 0.76 * (st - curl * 0.14 * st * st * st))
                 + forward * (height * 0.76 * (curl * 0.22 * st + curl * 0.34 * st * st));
             let syaw = yaw + (spray as f32 * 2.15) + rng.range(-0.3, 0.3);
-            let slen = height * rng.range(0.32, 0.46);
-            let swid = base_width * rng.range(1.65, 2.35);
+            let slen = height * rng.range(0.24, 0.38);
+            let swid = base_width.min(0.045) * rng.range(0.85, 1.35);
             append_blade_strip(
                 &mut mesh,
                 stem_pt,
@@ -6467,13 +6645,12 @@ fn build_shrub_clump_mesh(
         index_count: mesh.indices.len() as u32,
         material: MaterialType::Leaves,
     });
-    mesh.recalculate_normals();
     mesh
 }
 
 fn build_shrub_card_mesh(layer: &GroundcoverLayer, card_count: u32) -> Mesh {
     let mut mesh = Mesh::new();
-    let width = layer.width.max(0.06) * 2.6;
+    let width = layer.width.clamp(0.04, 0.08) * 2.2;
     let height = layer.height.clamp(0.2, 1.5) * 0.82;
     for card in 0..card_count.max(1) {
         let yaw = (card as f32 / card_count.max(1) as f32) * crate::constants::TAU + 0.4;
@@ -6497,7 +6674,6 @@ fn build_shrub_card_mesh(layer: &GroundcoverLayer, card_count: u32) -> Mesh {
         index_count: mesh.indices.len() as u32,
         material: MaterialType::Leaves,
     });
-    mesh.recalculate_normals();
     mesh
 }
 
@@ -7499,6 +7675,10 @@ kind = "laser_grass"
                 "arid_scrub",
                 include_str!("../../../presets/nature/arid_scrub.toml"),
             ),
+            (
+                "pampas_meadow",
+                include_str!("../../../presets/nature/pampas_meadow.toml"),
+            ),
         ];
         let config = NaturePackageConfig {
             map_resolution: 8,
@@ -7509,7 +7689,8 @@ kind = "laser_grass"
         let dir = tempdir().unwrap();
 
         for (name, toml) in presets {
-            let patch = NaturePatch::from_toml(toml).unwrap();
+            let mut patch = NaturePatch::from_toml(toml).unwrap();
+            patch.groundcover.card_atlas.cell = 32;
             assert!(
                 patch.groundcover.layers.len() >= 5,
                 "{name} should exercise multiple nature families"
@@ -7886,7 +8067,7 @@ kind = "laser_grass"
         let mobile_budget = find_budget("mobile");
         assert!(mobile_budget.passed);
         assert_eq!(mobile_budget.prototype_lod_count, 22);
-        assert_eq!(mobile_budget.max_lod0_triangles, 100);
+        assert_eq!(mobile_budget.max_lod0_triangles, 120);
         assert_eq!(mobile_budget.max_lod1_triangles, 36);
         assert_eq!(mobile_budget.max_lod2_triangles, 8);
         assert_eq!(mobile_budget.lod0_triangle_budget, 120);
@@ -7904,7 +8085,7 @@ kind = "laser_grass"
         let console_budget = find_budget("console");
         assert!(console_budget.passed);
         assert_eq!(console_budget.prototype_lod_count, 22);
-        assert_eq!(console_budget.max_lod0_triangles, 100);
+        assert_eq!(console_budget.max_lod0_triangles, 120);
         assert_eq!(console_budget.max_lod1_triangles, 36);
         assert_eq!(console_budget.max_lod2_triangles, 8);
         assert_eq!(console_budget.lod0_triangle_budget, 300);

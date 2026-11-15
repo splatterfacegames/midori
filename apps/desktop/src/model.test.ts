@@ -163,24 +163,28 @@ describe('MidoriModel', () => {
     expect(plainNames[2]).toMatch(/^impostor_/);
   });
 
-  it('loads dichotomous and top-down canopy species presets', () => {
-    for (const id of ['joshua_prototype', 'topdown_conifer']) {
+  it('loads dichotomous, top-down, maple, and ginkgo species presets', () => {
+    for (const id of ['joshua_prototype', 'topdown_conifer', 'japanese_maple', 'ginkgo']) {
       model.loadPreset(id);
       expect(model.getState().sourceError).toBeNull();
       expect(model.getState().lods?.[0]?.triangle_count).toBeGreaterThan(0);
     }
   });
 
-  it('previews alpine_meadow with a generated groundcover card atlas', () => {
-    const alpine = NATURE_PRESETS.find((p) => p.id === 'alpine_meadow');
-    expect(alpine).toBeDefined();
-    expect(model.loadNatureToml(alpine!.toml, alpine!.label)).toBe(true);
-    expect(model.getState().json).toBeNull();
-    const preview = model.getState().naturePreview;
-    expect(preview).not.toBeNull();
-    expect(preview!.card_atlas).toBeDefined();
-    expect(preview!.card_atlas!.rgba.width).toBeGreaterThan(0);
-    expect(preview!.prototypes.some((p) => p.uses_card_atlas)).toBe(true);
+  it('previews pampas_meadow and alpine_meadow with card atlas and soil maps', () => {
+    for (const id of ['pampas_meadow', 'alpine_meadow']) {
+      const preset = NATURE_PRESETS.find((p) => p.id === id);
+      expect(preset).toBeDefined();
+      expect(model.loadNatureToml(preset!.toml, preset!.label)).toBe(true);
+      expect(model.getState().json).toBeNull();
+      const preview = model.getState().naturePreview;
+      expect(preview).not.toBeNull();
+      expect(preview!.card_atlas).toBeDefined();
+      expect(preview!.card_atlas!.rgba.width).toBeGreaterThan(0);
+      expect(preview!.terrain_albedo?.width).toBeGreaterThan(0);
+      expect(preview!.terrain_normal?.width).toBeGreaterThan(0);
+      expect(preview!.prototypes.some((p) => p.uses_card_atlas)).toBe(true);
+    }
   });
 });
 

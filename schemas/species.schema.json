@@ -555,7 +555,8 @@
         "serrated",
         "willow",
         "heart",
-        "palmate"
+        "palmate",
+        "ginkgo"
       ],
       "description": "lobed is a legacy alias for oak_lobed"
     },

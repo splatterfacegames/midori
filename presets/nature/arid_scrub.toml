@@ -26,57 +26,80 @@ channel_width = 0.055
 warp = 0.32
 depth = 0.8
 
+[groundcover.card_atlas]
+cell = 256
+base = "#5d5227"
+tips = ["#c8b268", "#d8c47e", "#a99850"]
+
 [[groundcover.layers]]
 kind = "grass"
 name = "dry bunch grass"
-density = 0.095
-coverage = 0.36
+density = 0.44
+coverage = 0.68
 patch_scale = 0.09
-patch_softness = 0.2
-height = 0.78
-width = 0.06
-curl = 1.35
-color_base = "#5d5227"
-color_tip = "#b8a35c"
+patch_softness = 0.24
+height = 0.72
+width = 0.056
+curl = 1.28
+color_base = "#5c5025"
+color_tip = "#c2ac62"
 
 [[groundcover.layers]]
 kind = "weed"
 name = "desert forb"
-density = 0.18
-coverage = 0.5
+density = 0.28
+coverage = 0.54
 patch_scale = 0.12
-patch_softness = 0.22
-height = 0.32
+patch_softness = 0.24
+height = 0.58
 width = 0.055
 curl = 0.5
 color_base = "#4e5a2c"
-color_tip = "#918f55"
+color_tip = "#c8ba74"
+
+[groundcover.layers.cards]
+species = ["golden_grass", "oat_seeds", "pampas"]
+count = 4
+card_width = 0.56
+height_range = [0.72, 1.24]
+lean_degrees = [6.0, 24.0]
+loose = 0.16
+normal_up = 0.70
 
 [[groundcover.layers]]
 kind = "flower"
 name = "short desert bloom"
-density = 0.12
+density = 0.18
 coverage = 0.36
 patch_scale = 0.14
 patch_softness = 0.2
-height = 0.2
-width = 0.04
+height = 0.24
+width = 0.045
 curl = 0.08
 color_base = "#46552c"
-color_tip = "#d8a95c"
+color_tip = "#e0b058"
 
 [[groundcover.layers]]
 kind = "shrub"
 name = "saltbush scrub"
-density = 0.065
-coverage = 0.42
+density = 0.12
+coverage = 0.48
 patch_scale = 0.08
 patch_softness = 0.22
-height = 0.85
-width = 0.18
+height = 0.78
+width = 0.12
 curl = 0.45
 color_base = "#3d462d"
 color_tip = "#9ba56a"
+
+[groundcover.layers.cards]
+species = ["yarrow", "oat_seeds", "golden_grass"]
+count = 4
+card_width = 0.62
+height_range = [0.78, 1.22]
+lean_degrees = [6.0, 22.0]
+loose = 0.14
+normal_up = 0.70
 
 [[groundcover.layers]]
 kind = "rock"
@@ -93,8 +116,8 @@ color_tip = "#b09a78"
 [[groundcover.layers]]
 kind = "log"
 name = "bleached branch log"
-density = 0.12
-coverage = 0.5
+density = 0.055
+coverage = 0.38
 patch_scale = 0.07
 patch_softness = 0.2
 height = 1.1
@@ -106,21 +129,21 @@ color_tip = "#b79a76"
 [[groundcover.layers]]
 kind = "litter"
 name = "dry twig litter"
-density = 0.14
-coverage = 0.5
+density = 0.18
+coverage = 0.52
 patch_scale = 0.1
 patch_softness = 0.18
-height = 0.16
+height = 0.15
 width = 0.085
 color_base = "#6a4b2d"
 color_tip = "#b08348"
 
 [wind]
-strength = 0.42
-speed = 1.4
+strength = 0.52
+speed = 1.6
 direction_degrees = 74
-gust_scale = 0.25
-flutter = 0.45
+gust_scale = 0.32
+flutter = 0.55
 
 [profiles.mobile]
 tile_size = 16.0
@@ -132,8 +155,8 @@ lod0_max_distance = 6.0
 lod1_max_distance = 18.0
 lod2_max_distance = 38.0
 material_slots = 1
-max_instances_per_tile = 512
-max_instances_per_chunk = 96
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
 density_scale = 0.6
 cull_start = 18.0
 cull_end = 38.0
@@ -151,8 +174,8 @@ lod0_max_distance = 12.0
 lod1_max_distance = 38.0
 lod2_max_distance = 82.0
 material_slots = 1
-max_instances_per_tile = 2048
-max_instances_per_chunk = 256
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
 density_scale = 1.0
 cull_start = 38.0
 cull_end = 82.0

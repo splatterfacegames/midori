@@ -269,6 +269,7 @@ fn bake_view(
             out.set(x, y, px);
         }
     }
+    out.dilate_alpha_rgb(8);
     out
 }
 

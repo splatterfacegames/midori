@@ -557,12 +557,19 @@ impl CanopyContext {
             .map(|cc| 1.0 - ((pos - *cc).length() / self.clump_radius[c]).clamp(0.0, 1.0))
             .unwrap_or(0.0);
         let span = (self.crown_max_y - self.crown_min_y).max(1e-3);
-        let low = 1.0 - ((pos.y - self.crown_min_y) / span).clamp(0.0, 1.0);
-        let occl = (0.45 * crown_depth + 0.3 * clump_depth + 0.35 * low).clamp(0.0, 1.0);
-        let ao = 1.0 - self.params.ao_strength.clamp(0.0, 1.0) * occl;
+        let height_frac = ((pos.y - self.crown_min_y) / span).clamp(0.0, 1.0);
+        let low = 1.0 - height_frac;
+        let occl = (0.44 * crown_depth + 0.32 * clump_depth + 0.34 * low).clamp(0.0, 1.0);
+        let ao = (1.0 - self.params.ao_strength.clamp(0.0, 1.0) * occl).clamp(0.14, 1.0);
+        // Subtle cool-sky shadow shift in deep interior vs warm sunlit radiance at outer tips.
+        let sun_rim = ((1.0 - occl).powf(1.3) * (0.45 + 0.55 * height_frac)).clamp(0.0, 1.0);
+        let sky_cool = Vec3::new(0.86, 0.96, 1.05);
+        let sun_warm = Vec3::new(1.06, 1.03, 0.92);
+        let atmos_grade = sky_cool.lerp(sun_warm, sun_rim);
         // Small per-leaf jitter keeps clumps from looking flat-filled.
-        let jitter = 1.0 - 0.08 * (i as f32 * 0.754_877_7).fract();
-        let t = self.clump_tint.get(c).copied().unwrap_or(Vec3::ONE) * ao * jitter;
+        let jitter = 1.0 - 0.09 * (i as f32 * 0.754_877_7).fract();
+        let base_tint = self.clump_tint.get(c).copied().unwrap_or(Vec3::ONE);
+        let t = (base_tint * atmos_grade * ao * jitter).clamp(Vec3::ZERO, Vec3::ONE);
         Vec4::new(t.x, t.y, t.z, 1.0)
     }
 }
@@ -636,7 +643,9 @@ fn generate_canopy_cards(
         let center = leaf.position + v * (h * config.canopy.card_offset);
         let base = mesh.vertices.len() as u32;
         for (cx, cy) in [(-1.0f32, -1.0f32), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
-            let pos = center + u * (cx * h) + v * (cy * h);
+            // Subtle convex canopy cupping eliminates razor-flat card silhouettes from 3/4 angles
+            let cup = -normal * (0.11 * h * (0.45 * cx * cx + 0.55 * (cy + 0.35).max(0.0).powi(2)));
+            let pos = center + u * (cx * h) + v * (cy * h) + cup;
             let uv = Vec2::new(cx * 0.5 + 0.5, 0.5 - cy * 0.5);
             let mut vertex = Vertex::new(pos, normal, uv);
             if config.pivot_painter {
@@ -733,10 +742,12 @@ fn generate_polygon_leaves(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) ->
 /// knife-edge slivers from RTS 60-deg and top-down cameras.
 fn generate_cross_billboards(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> Mesh {
     let mut mesh = Mesh::new();
-    let wing_a = Vec3::new(0.56, 0.0, 0.828_493);
-    let wing_b = Vec3::new(-0.56, 0.0, 0.828_493);
 
-    for leaf in leaves {
+    for (idx, leaf) in leaves.iter().enumerate() {
+        // Vary dihedral wing splay per spray so crossed cards never read as rigid X-planes
+        let jitter = ((idx as f32 * 0.618_034).fract() - 0.5) * 0.22;
+        let wing_a = Vec3::new(0.54 + jitter, 0.08, 0.838).normalize();
+        let wing_b = Vec3::new(-0.54 + jitter, -0.06, 0.838).normalize();
         add_billboard_quad(&mut mesh, leaf, wing_a, config, tree);
         add_billboard_quad(&mut mesh, leaf, wing_b, config, tree);
     }
@@ -785,12 +796,14 @@ fn add_billboard_quad(
     let base_idx = mesh.vertices.len() as u32;
     let half_size = leaf.scale * 0.5;
 
-    // Quad corners in local space (centered at origin, bottom-center aligned)
+    // Quad corners in local space with subtle 3D tip droop + lateral camber
+    let keel = -leaf.scale * 0.045;
+    let tip_droop = -leaf.scale * 0.12;
     let corners = [
-        Vec3::new(-half_size, 0.0, 0.0),        // bottom-left
-        Vec3::new(half_size, 0.0, 0.0),         // bottom-right
-        Vec3::new(half_size, leaf.scale, 0.0),  // top-right
-        Vec3::new(-half_size, leaf.scale, 0.0), // top-left
+        Vec3::new(-half_size, 0.0, keel),             // bottom-left
+        Vec3::new(half_size, 0.0, keel),              // bottom-right
+        Vec3::new(half_size, leaf.scale, tip_droop),  // top-right
+        Vec3::new(-half_size, leaf.scale, tip_droop), // top-left
     ];
 
     // glTF UV origin is top-left: v = 1.0 is card bottom (petiole/stem attachment at y = 0),
@@ -952,18 +965,33 @@ pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
             smooth_max_2d(d_side, d_end)
         }
         LeafShape::Maple => {
-            // 5-lobed palmate Acer leaf with prominent central/lateral lobes and V-sinuses
-            let shifted = Vec2::new(p.x, py + 0.14);
+            // 7-lobed Acer palmatum (Momiji Japanese Maple) palmate star blade with deep V-sinuses
+            let shifted = Vec2::new(p.x, py + 0.16);
             let r = shifted.length();
             let angle = shifted.x.abs().atan2(shifted.y); // 0 at +y apex, PI at -y base
-            // Lobes at 0 deg (central), 52 deg (upper lateral), 108 deg (basal)
-            let l0 = (-((angle - 0.0) / 0.34).powi(2)).exp();
-            let l1 = 0.88 * (-((angle - 0.92) / 0.32).powi(2)).exp();
-            let l2 = 0.56 * (-((angle - 1.88) / 0.30).powi(2)).exp();
-            let lobe_env = l0.max(l1).max(l2);
-            let teeth = 0.025 * (angle * 18.0).sin().abs() * lobe_env;
-            let target_r = 0.16 + 0.44 * lobe_env + teeth;
+            let l0 = (-((angle - 0.0) / 0.23).powi(2)).exp();
+            let l1 = 0.90 * (-((angle - 0.72) / 0.22).powi(2)).exp();
+            let l2 = 0.74 * (-((angle - 1.42) / 0.21).powi(2)).exp();
+            let l3 = 0.44 * (-((angle - 2.05) / 0.19).powi(2)).exp();
+            let lobe_env = l0.max(l1).max(l2).max(l3);
+            let teeth = 0.022 * (angle * 22.0).sin().abs() * lobe_env;
+            let target_r = 0.13 + 0.47 * lobe_env + teeth;
             r - target_r
+        }
+        LeafShape::Ginkgo => {
+            // Bilobed fan-shaped Ginkgo biloba blade: slender cuneate wedge base opening
+            // into a broad undulating ~117-deg fan with a characteristic central apical notch.
+            let fan = Vec2::new(p.x, py + 0.42);
+            let r = fan.length();
+            let angle = fan.x.abs().atan2(fan.y.max(1e-4));
+            let notch = 0.13 * (-(angle / 0.14).powi(2)).exp();
+            let ruffle = 0.020 * (angle * 15.0).cos() * (1.0 - (angle / 1.05).clamp(0.0, 1.0));
+            let max_r = 0.86 - notch + ruffle - 0.08 * (angle / 1.05).powi(2);
+            let wedge_angle = 1.02_f32;
+            let d_side = fan.x.abs() * wedge_angle.cos() - fan.y * wedge_angle.sin() - 0.028;
+            let d_bot = -0.44 - py;
+            let d_arc = r - max_r;
+            smooth_max_2d(d_side, d_arc.max(d_bot))
         }
         LeafShape::Serrated => {
             // Birch / elm ovate leaf with crisp forward-pointing marginal serrations
@@ -1077,8 +1105,17 @@ fn crown_fill_leaves(leaves: &[Leaf], species: &Species, rng: &mut Rng) -> Vec<L
             continue;
         }
         let r = (1.0 - y * y).max(0.0).sqrt();
+        let lateral_scale = if species.crown.shape == crate::species::CrownShape::Conical {
+            1.08 - ((y + 0.35) / 1.35).clamp(0.0, 1.0) * 0.88
+        } else {
+            1.0
+        };
         let phi = i as f32 * 2.399_963 + rng.range(-0.25, 0.25);
-        let dir = Vec3::new(r * phi.cos(), y, r * phi.sin());
+        let dir = Vec3::new(
+            r * lateral_scale * phi.cos(),
+            y,
+            r * lateral_scale * phi.sin(),
+        );
         let depth = rng.range(0.78, 1.0);
         let position = center + dir * radii * depth;
         let nearest = leaves
@@ -1310,6 +1347,7 @@ geometry = "cross_billboard"
             LeafShape::Willow,
             LeafShape::Heart,
             LeafShape::Palmate,
+            LeafShape::Ginkgo,
         ];
 
         for shape in shapes {

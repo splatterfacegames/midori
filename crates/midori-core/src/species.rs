@@ -363,6 +363,8 @@ pub enum LeafShape {
     Heart,
     /// Compound palmate (horse chestnut style)
     Palmate,
+    /// Bilobed fan-shaped leaf (Ginkgo biloba)
+    Ginkgo,
 }
 
 impl LeafShape {
@@ -371,7 +373,7 @@ impl LeafShape {
         match self {
             LeafShape::Oval | LeafShape::Pointed | LeafShape::Heart => 12,
             LeafShape::Needle | LeafShape::Willow => 8,
-            LeafShape::Serrated => 24,
+            LeafShape::Serrated | LeafShape::Ginkgo => 24,
             LeafShape::OakLobed => 20,
             LeafShape::Maple => 30,
             LeafShape::Palmate => 36,

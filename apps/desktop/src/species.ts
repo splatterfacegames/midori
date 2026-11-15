@@ -79,7 +79,8 @@ export type LeafShapeName =
   | 'serrated'
   | 'willow'
   | 'heart'
-  | 'palmate';
+  | 'palmate'
+  | 'ginkgo';
 export type LeafCardLayout = 'single' | 'cluster' | 'puff' | 'dense' | 'frond';
 
 export interface TextureParamsJson {
@@ -194,7 +195,8 @@ export const LEAF_SHAPES: { value: LeafShapeName; label: string }[] = [
   { value: 'pointed', label: 'Pointed' },
   { value: 'oak_lobed', label: 'Oak lobed' },
   { value: 'lobed', label: 'Lobed (legacy)' },
-  { value: 'maple', label: 'Maple' },
+  { value: 'maple', label: 'Maple (Momiji)' },
+  { value: 'ginkgo', label: 'Ginkgo fan' },
   { value: 'serrated', label: 'Serrated' },
   { value: 'willow', label: 'Willow lance' },
   { value: 'heart', label: 'Heart' },

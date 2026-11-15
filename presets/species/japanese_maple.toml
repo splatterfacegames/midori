@@ -1,0 +1,119 @@
+# Japanese Maple — Momiji (Acer palmatum)
+# Sculptural sinuous dark limbs supporting layered crimson, scarlet, and amber foliage pads.
+
+[species]
+name = "Japanese Maple"
+scientific = "Acer palmatum"
+latin = "Acer palmatum"
+biome = "temperate"
+tags = ["broadleaf", "deciduous", "maple", "momiji", "autumn"]
+
+[generator]
+family = "weber_penn"
+notes = "Sinuous multi-tier Momiji form with palmate 7-lobed autumn foliage pads."
+
+[trunk]
+height = 5.4
+height_variance = 0.12
+radius = 0.30
+taper = 0.88
+taper_profile = "smooth"
+curve = 18.0
+curve_variance = 6.0
+curve_back = 10.0
+segments = 9
+
+[branches.level1]
+count = 9
+count_variance = 2
+length = 3.9
+length_variance = 0.18
+radius_ratio = 0.56
+radius_model = "pipe"
+pipe_exponent = 2.25
+taper = 0.84
+taper_profile = "smooth"
+angle = 64.0
+angle_variance = 12.0
+rotation = 137.5
+gravity = -0.05
+curve = -18.0
+curve_variance = 10.0
+segments = 7
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 1.85
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "pipe"
+pipe_exponent = 2.2
+taper = 0.82
+angle = 54.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.06
+curve = -12.0
+curve_variance = 10.0
+segments = 5
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 0.88
+length_variance = 0.25
+radius_ratio = 0.40
+angle = 48.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.08
+curve = 14.0
+curve_variance = 10.0
+segments = 3
+
+[crown]
+shape = "hemispherical"
+offset = 0.28
+density = 1.0
+width_ratio = 1.28
+
+[leaves]
+count = 3100
+min_level = 2
+size = 0.58
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "maple"
+up_influence = 0.34
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.86
+up_bias = 0.30
+clump_weight = 0.78
+clump_level = 1
+crown_fill = 220
+shell = 0.52
+vertex_color = "tint_ao"
+tint_variation = 0.22
+hue_variation = 0.24
+ao_strength = 0.46
+roughness = 0.72
+
+[textures]
+bark_prompt = "Japanese maple bark, smooth dark charcoal grey-plum with subtle vertical striations"
+leaf_prompt = "Acer palmatum 7-lobed palmate leaf, vivid autumn crimson scarlet and warm amber"
+resolution = 512
+bark_style = "smooth"
+leaf_shape = "maple"
+leaf_card = "cluster"
+bark_color = [0.46, 0.42, 0.39]
+leaf_color = [0.78, 0.14, 0.09]
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"

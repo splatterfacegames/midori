@@ -636,12 +636,13 @@ fn card_leaves_and_twigs(
             (leaves, twigs)
         }
         LeafCardLayout::Cluster => {
-            // Curved main woody twig + connected sub-petioles so zero leaves float in mid-air
-            let ctrl_x = 0.5 + rng.range(-0.08, 0.08);
-            let top_x = 0.5 + rng.range(-0.06, 0.06);
+            // 3-forked woody branchlet fan: central curved shoot + left & right lateral sub-twigs
+            // clothed in overlapping back-to-front leaves so broadleaf sprays look lush and full.
+            let ctrl_x = 0.5 + rng.range(-0.06, 0.06);
+            let top_x = 0.5 + rng.range(-0.05, 0.05);
             let p0 = Vec2::new(0.5, 0.985);
             let p1 = Vec2::new(ctrl_x, 0.56);
-            let p2 = Vec2::new(top_x, 0.22);
+            let p2 = Vec2::new(top_x, 0.21);
 
             let mut twigs = Vec::new();
             let segs = 8;
@@ -651,21 +652,116 @@ fn card_leaves_and_twigs(
                 twigs.push(TwigStroke {
                     a: quad_bezier(p0, p1, p2, t0),
                     b: quad_bezier(p0, p1, p2, t1),
-                    w_a: lerp(0.011, 0.004, t0),
-                    w_b: lerp(0.011, 0.004, t1),
+                    w_a: lerp(0.012, 0.004, t0),
+                    w_b: lerp(0.012, 0.004, t1),
                 });
+            }
+
+            // Two diverging lateral sub-branchlets (left & right forks)
+            let fork_specs = [
+                (
+                    0.26_f32,
+                    -1.0_f32,
+                    Vec2::new(0.24 + rng.range(-0.02, 0.02), 0.44 + rng.range(-0.03, 0.03)),
+                ),
+                (
+                    0.35_f32,
+                    1.0_f32,
+                    Vec2::new(0.76 + rng.range(-0.02, 0.02), 0.40 + rng.range(-0.03, 0.03)),
+                ),
+            ];
+
+            let mut leaves = Vec::with_capacity(32);
+
+            for &(t_fork, fork_side, fork_tip) in &fork_specs {
+                let f0 = quad_bezier(p0, p1, p2, t_fork);
+                let f1 = f0.lerp(fork_tip, 0.52) + Vec2::new(fork_side * 0.04, 0.03);
+                for s in 0..5 {
+                    let t0 = s as f32 / 5.0;
+                    let t1 = (s + 1) as f32 / 5.0;
+                    twigs.push(TwigStroke {
+                        a: quad_bezier(f0, f1, fork_tip, t0),
+                        b: quad_bezier(f0, f1, fork_tip, t1),
+                        w_a: lerp(0.0075, 0.0032, t0),
+                        w_b: lerp(0.0075, 0.0032, t1),
+                    });
+                }
+
+                let sub_count = match shape {
+                    LeafShape::Willow => 7,
+                    _ => 5,
+                };
+                for i in 0..sub_count {
+                    let st = (i as f32 + 0.35) / sub_count as f32;
+                    let side = if i % 2 == 0 { 1.0 } else { -1.0 };
+                    let node = quad_bezier(f0, f1, fork_tip, st);
+                    let tan = (quad_bezier(f0, f1, fork_tip, (st + 0.05).min(1.0))
+                        - quad_bezier(f0, f1, fork_tip, (st - 0.05).max(0.0)))
+                    .try_normalize()
+                    .unwrap_or(Vec2::new(fork_side * 0.6, -0.8).normalize());
+                    let nrm = Vec2::new(-tan.y * side, tan.x * side);
+                    let sweep = lerp(0.95, 0.48, st) + rng.range(-0.12, 0.12);
+                    let dir = (tan * sweep.cos() + nrm * sweep.sin()).normalize();
+                    let leaf_scale = match shape {
+                        LeafShape::Willow => lerp(0.31, 0.22, st) * rng.variance_mul(0.10),
+                        _ => lerp(0.27, 0.19, st) * rng.variance_mul(0.12),
+                    };
+                    let petiole_len = lerp(0.048, 0.022, st);
+                    let leaf_base = node + dir * petiole_len;
+                    let center = (leaf_base + dir * (leaf_scale * 0.42))
+                        .clamp(Vec2::new(0.17, 0.17), Vec2::new(0.83, 0.85));
+                    twigs.push(TwigStroke {
+                        a: node,
+                        b: leaf_base + dir * (leaf_scale * 0.10),
+                        w_a: 0.0040,
+                        w_b: 0.0022,
+                    });
+                    let tip_angle = dir.y.atan2(dir.x);
+                    leaves.push(CardLeaf {
+                        center,
+                        rotation: crate::constants::PI / 2.0 - tip_angle,
+                        scale: leaf_scale,
+                        jitter: lerp(0.72, 0.98, st) * rng.range(0.90, 1.06),
+                        hue: lerp(-0.38, 0.18, st) + rng.range(-0.20, 0.20),
+                    });
+                }
+
+                // Terminal pair capping each lateral sub-twig
+                let f_tan = (fork_tip - f1)
+                    .try_normalize()
+                    .unwrap_or(Vec2::new(fork_side * 0.5, -0.86).normalize());
+                for fan in [-0.32_f32, 0.28] {
+                    let ang = f_tan.y.atan2(f_tan.x) + fan + rng.range(-0.06, 0.06);
+                    let dir = Vec2::new(ang.cos(), ang.sin());
+                    let leaf_scale = 0.21 * rng.variance_mul(0.10);
+                    let leaf_base = fork_tip + dir * 0.020;
+                    let center = (leaf_base + dir * (leaf_scale * 0.42))
+                        .clamp(Vec2::new(0.17, 0.17), Vec2::new(0.83, 0.85));
+                    twigs.push(TwigStroke {
+                        a: fork_tip,
+                        b: leaf_base + dir * 0.025,
+                        w_a: 0.0034,
+                        w_b: 0.0020,
+                    });
+                    leaves.push(CardLeaf {
+                        center,
+                        rotation: crate::constants::PI / 2.0 - ang,
+                        scale: leaf_scale,
+                        jitter: rng.range(0.92, 1.08),
+                        hue: rng.range(-0.05, 0.35),
+                    });
+                }
             }
 
             let count = match shape {
                 LeafShape::Willow => 16 + rng.index(4),
-                _ => 11 + rng.index(4),
+                _ => 12 + rng.index(3),
             };
-            let mut leaves = Vec::with_capacity(count + 3);
 
             for i in 0..count {
                 let t = i as f32 / (count.saturating_sub(1).max(1)) as f32;
                 let side = if i % 2 == 0 { 1.0 } else { -1.0 };
-                let along = (0.10 + t * 0.84 + rng.range(-0.02, 0.02)).clamp(0.06, 0.96);
+                let along = (0.14 + t * 0.80 + rng.range(-0.02, 0.02)).clamp(0.10, 0.96);
                 let node = quad_bezier(p0, p1, p2, along);
                 let tangent = (quad_bezier(p0, p1, p2, (along + 0.03).min(1.0))
                     - quad_bezier(p0, p1, p2, (along - 0.03).max(0.0)))
@@ -674,15 +770,16 @@ fn card_leaves_and_twigs(
                 let normal = Vec2::new(-tangent.y * side, tangent.x * side);
 
                 // Sweep forward and broadly outward so sprays fill a natural botanical fan
-                let sweep = lerp(1.14, 0.58, t) + rng.range(-0.14, 0.14);
+                let sweep = lerp(1.08, 0.52, t) + rng.range(-0.14, 0.14);
                 let dir = (tangent * sweep.cos() + normal * sweep.sin()).normalize();
                 let leaf_scale = match shape {
-                    LeafShape::Willow => lerp(0.38, 0.25, t) * rng.variance_mul(0.12),
-                    _ => lerp(0.35, 0.22, t) * rng.variance_mul(0.14),
+                    LeafShape::Willow => lerp(0.36, 0.24, t) * rng.variance_mul(0.12),
+                    _ => lerp(0.32, 0.21, t) * rng.variance_mul(0.13),
                 };
-                let petiole_len = lerp(0.085, 0.035, t) * rng.variance_mul(0.15);
+                let petiole_len = lerp(0.072, 0.030, t) * rng.variance_mul(0.14);
                 let leaf_base = node + dir * petiole_len;
-                let center = leaf_base + dir * (leaf_scale * 0.44);
+                let center = (leaf_base + dir * (leaf_scale * 0.44))
+                    .clamp(Vec2::new(0.18, 0.17), Vec2::new(0.82, 0.86));
 
                 twigs.push(TwigStroke {
                     a: node,
@@ -696,20 +793,20 @@ fn card_leaves_and_twigs(
                     center,
                     rotation: crate::constants::PI / 2.0 - tip_angle,
                     scale: leaf_scale,
-                    jitter: lerp(0.78, 1.12, t) * rng.range(0.90, 1.08),
-                    hue: lerp(-0.35, 0.45, t) + rng.range(-0.25, 0.25),
+                    jitter: lerp(0.82, 1.15, t) * rng.range(0.92, 1.08),
+                    hue: lerp(-0.28, 0.48, t) + rng.range(-0.22, 0.22),
                 });
             }
 
-            // Terminal rosette of 3 overlapping apical leaves crowning the twig tip
+            // Terminal rosette of 3 overlapping apical leaves crowning the main twig tip
             let apex = p2;
             let apex_tan = (p2 - p1).try_normalize().unwrap_or(Vec2::new(0.0, -1.0));
             for fan in [-0.46f32, 0.44, 0.0] {
                 let ang = apex_tan.y.atan2(apex_tan.x) + fan + rng.range(-0.08, 0.08);
                 let dir = Vec2::new(ang.cos(), ang.sin());
                 let leaf_scale =
-                    (if fan.abs() < 0.1 { 0.25 } else { 0.22 }) * rng.variance_mul(0.1);
-                let petiole = 0.025;
+                    (if fan.abs() < 0.1 { 0.24 } else { 0.21 }) * rng.variance_mul(0.1);
+                let petiole = 0.024;
                 let leaf_base = apex + dir * petiole;
                 twigs.push(TwigStroke {
                     a: apex,
@@ -718,11 +815,12 @@ fn card_leaves_and_twigs(
                     w_b: 0.0025,
                 });
                 leaves.push(CardLeaf {
-                    center: leaf_base + dir * (leaf_scale * 0.44),
+                    center: (leaf_base + dir * (leaf_scale * 0.44))
+                        .clamp(Vec2::new(0.18, 0.16), Vec2::new(0.82, 0.85)),
                     rotation: crate::constants::PI / 2.0 - ang,
                     scale: leaf_scale,
-                    jitter: rng.range(0.98, 1.14),
-                    hue: rng.range(0.05, 0.55),
+                    jitter: rng.range(1.00, 1.16),
+                    hue: rng.range(0.08, 0.55),
                 });
             }
             (leaves, twigs)
@@ -903,21 +1001,51 @@ fn leaf_card(
                 let mut vein_tint = [1.0f32, 1.0, 1.0];
 
                 if detailed_veins {
-                    // Tapered pale yellow-green midrib + herringbone secondary veins
-                    let midrib_w = lerp(0.015, 0.003, along) * (1.0 - along * 0.25);
-                    if local.y < 0.44 && local.x.abs() < midrib_w {
-                        let k = 1.0 - local.x.abs() / midrib_w.max(1e-4);
-                        shade *= 1.0 + 0.14 * k;
-                        vein_tint = [1.0 + 0.12 * k, 1.0 + 0.08 * k, 1.0 - 0.10 * k];
-                    } else if shape != LeafShape::Needle {
-                        let sec = ((local.y - local.x.abs() * 0.58) * 11.0).fract();
-                        let sec_line = (1.0 - (sec - 0.5).abs() * 9.0).clamp(0.0, 1.0)
-                            * (1.0 - (local.x.abs() * 2.8).clamp(0.0, 1.0));
-                        shade *= 1.0 + 0.06 * sec_line;
+                    match shape {
+                        LeafShape::Ginkgo => {
+                            // Dichotomous parallel-radiating fan striation characteristic of Ginkgo biloba
+                            let fan = Vec2::new(local.x, local.y + 0.42);
+                            let angle = fan.x.atan2(fan.y.max(1e-4));
+                            let stria = (angle * 36.0).sin().abs();
+                            let k = (1.0 - stria).powi(3);
+                            shade *= 1.0 + 0.11 * k;
+                            vein_tint = [1.0 + 0.06 * k, 1.0 + 0.05 * k, 1.0 - 0.06 * k];
+                        }
+                        LeafShape::Maple | LeafShape::Palmate => {
+                            // 7-rib palmate primary venation radiating from basal petiole hub
+                            let hub = Vec2::new(local.x, local.y + 0.16);
+                            let r = hub.length();
+                            let a = hub.x.abs().atan2(hub.y);
+                            let nearest_rib = [0.0_f32, 0.72, 1.42, 2.05]
+                                .into_iter()
+                                .map(|ra| (a - ra).abs())
+                                .fold(f32::MAX, f32::min);
+                            let rib_d = r * nearest_rib.sin();
+                            let rib_w = lerp(0.014, 0.003, (r / 0.58).clamp(0.0, 1.0));
+                            if r < 0.54 && rib_d < rib_w {
+                                let k = 1.0 - rib_d / rib_w.max(1e-4);
+                                shade *= 1.0 + 0.14 * k;
+                                vein_tint = [1.0 + 0.10 * k, 1.0 + 0.06 * k, 1.0 - 0.08 * k];
+                            }
+                        }
+                        _ => {
+                            // Tapered pale yellow-green midrib + herringbone secondary veins
+                            let midrib_w = lerp(0.015, 0.003, along) * (1.0 - along * 0.25);
+                            if local.y < 0.44 && local.x.abs() < midrib_w {
+                                let k = 1.0 - local.x.abs() / midrib_w.max(1e-4);
+                                shade *= 1.0 + 0.14 * k;
+                                vein_tint = [1.0 + 0.12 * k, 1.0 + 0.08 * k, 1.0 - 0.10 * k];
+                            } else if shape != LeafShape::Needle {
+                                let sec = ((local.y - local.x.abs() * 0.58) * 11.0).fract();
+                                let sec_line = (1.0 - (sec - 0.5).abs() * 9.0).clamp(0.0, 1.0)
+                                    * (1.0 - (local.x.abs() * 2.8).clamp(0.0, 1.0));
+                                shade *= 1.0 + 0.06 * sec_line;
+                            }
+                        }
                     }
                     // Subtle sunlit rim translucency near blade margin
                     let rim = (1.0 + sdf / 0.06).clamp(0.0, 1.0);
-                    shade *= 1.0 + 0.07 * rim;
+                    shade *= 1.0 + 0.08 * rim;
                 }
 
                 let warm = [
@@ -945,7 +1073,7 @@ fn leaf_card(
             );
         }
     }
-    tex.dilate_alpha_rgb(6);
+    tex.dilate_alpha_rgb(12);
     tex
 }
 
@@ -1275,7 +1403,7 @@ fn rasterize_twig_and_needle_strokes(
             );
         }
     }
-    tex.dilate_alpha_rgb(6);
+    tex.dilate_alpha_rgb(12);
     tex
 }
 

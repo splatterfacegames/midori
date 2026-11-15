@@ -1,7 +1,5 @@
-import { useMemo } from 'react';
-import { Viewport3D } from '@jethac/tools-frontend-stack/viewports';
 import type { Viewport3DController } from '@jethac/tools-frontend-stack/viewports';
-import { natureToDescriptors } from '../meshes';
+import { FoliageViewport } from '../FoliageViewport';
 import type { WorkbenchState } from '../model';
 
 export function NaturePanel({
@@ -16,15 +14,12 @@ export function NaturePanel({
   onError: (error: Error) => void;
 }) {
   const preview = state.naturePreview;
-  const meshes = useMemo(
-    () => (preview ? natureToDescriptors(preview, state.seed) : []),
-    [preview, state.seed],
-  );
   const total = preview?.stats.scatter_instance_count ?? 0;
+
   return (
-    <Viewport3D
-      meshes={meshes}
-      units="m"
+    <FoliageViewport
+      mode="nature"
+      naturePreview={preview}
       grid={grid}
       onReady={onReady}
       onError={onError}
@@ -40,6 +35,6 @@ export function NaturePanel({
           <p>Load a nature preset to preview the patch.</p>
         </div>
       )}
-    </Viewport3D>
+    </FoliageViewport>
   );
 }

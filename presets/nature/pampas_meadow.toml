@@ -1,0 +1,156 @@
+# Susuki Pampas Field (Miscanthus sinensis)
+# Rolling sea of curved tussock grass and wind-swept silvery-gold pampas plumes
+# punctuated by crimson autumn spider-lily / poppy accents and weathered volcanic stones.
+[asset]
+kind = "nature_patch"
+name = "Susuki Pampas Field"
+units = "meters"
+
+[patch]
+size = 24.0
+seed = 1274
+biome = "pampas_meadow"
+tags = ["pampas", "susuki", "meadow", "grass", "plumes", "autumn"]
+
+[soil]
+profile = "volcanic_loam"
+mound_scale = 0.075
+mound_height = 0.34
+mound_coverage = 0.88
+relief_scale = 0.42
+relief_strength = 0.30
+wetness_coverage = 0.14
+
+[groundcover.card_atlas]
+cell = 256
+base = "#34481c"
+tips = ["#a8b852", "#dfd494", "#8da442", "#d6c87e"]
+
+# Continuous sea of 3D curved Bezier olive-gold grass tussocks
+[[groundcover.layers]]
+kind = "grass"
+name = "golden tussock sward"
+density = 0.86
+coverage = 0.96
+patch_scale = 0.08
+patch_softness = 0.36
+height = 0.62
+width = 0.046
+curl = 0.96
+color_base = "#253915"
+color_tip = "#99af47"
+
+# Towering silky Miscanthus sinensis (Susuki) plumes catching golden back-light
+[[groundcover.layers]]
+kind = "weed"
+name = "susuki pampas plumes"
+density = 0.44
+coverage = 0.78
+patch_scale = 0.11
+patch_softness = 0.34
+height = 1.54
+width = 0.08
+color_base = "#3e4e20"
+color_tip = "#f8f1dc"
+
+[groundcover.layers.cards]
+species = ["pampas", "pampas", "pampas", "golden_grass", "oat_seeds"]
+count = 4
+card_width = 0.86
+height_range = [0.78, 1.26]
+lean_degrees = [8.0, 26.0]
+loose = 0.22
+normal_up = 0.68
+
+# Drifts of crimson poppies / spider-lily accents & golden autumn blooms
+[[groundcover.layers]]
+kind = "flower"
+name = "crimson autumn accents"
+density = 0.42
+coverage = 0.46
+patch_scale = 0.15
+patch_softness = 0.28
+height = 0.68
+width = 0.05
+color_base = "#2d481e"
+color_tip = "#ee3e2a"
+
+[groundcover.layers.cards]
+species = ["poppy", "poppy", "yarrow"]
+count = 4
+card_width = 0.48
+height_range = [0.78, 1.24]
+lean_degrees = [4.0, 18.0]
+loose = 0.14
+normal_up = 0.72
+
+# Occasional dark mossy volcanic boulders nestled in the grass
+[[groundcover.layers]]
+kind = "rock"
+name = "volcanic field stones"
+density = 0.09
+coverage = 0.38
+patch_scale = 0.07
+patch_softness = 0.22
+height = 0.26
+width = 0.38
+color_base = "#3f413c"
+color_tip = "#74766c"
+
+# Golden straw & fallen autumn leaf litter at tussock roots
+[[groundcover.layers]]
+kind = "litter"
+name = "autumn straw litter"
+density = 0.14
+coverage = 0.44
+patch_scale = 0.11
+patch_softness = 0.22
+height = 0.12
+width = 0.08
+color_base = "#6a5228"
+color_tip = "#b89648"
+
+[wind]
+strength = 0.88
+speed = 2.4
+direction_degrees = 38
+gust_scale = 0.55
+flutter = 0.85
+
+[profiles.mobile]
+tile_size = 16.0
+terrain_resolution = 64
+lod0_max_triangles = 120
+lod1_max_triangles = 40
+lod2_max_triangles = 8
+lod0_max_distance = 8.0
+lod1_max_distance = 20.0
+lod2_max_distance = 42.0
+material_slots = 1
+max_instances_per_tile = 24576
+max_instances_per_chunk = 6144
+density_scale = 0.60
+cull_start = 20.0
+cull_end = 42.0
+shadows = false
+grass_collision = false
+moss_collision = false
+
+[profiles.console]
+tile_size = 32.0
+terrain_resolution = 128
+lod0_max_triangles = 300
+lod1_max_triangles = 100
+lod2_max_triangles = 16
+lod0_max_distance = 16.0
+lod1_max_distance = 42.0
+lod2_max_distance = 90.0
+material_slots = 1
+max_instances_per_tile = 24576
+max_instances_per_chunk = 6144
+density_scale = 1.0
+cull_start = 42.0
+cull_end = 90.0
+shadows = false
+grass_collision = false
+moss_collision = false

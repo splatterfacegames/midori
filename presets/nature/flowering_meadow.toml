@@ -26,72 +26,104 @@ channel_width = 0.05
 warp = 0.15
 depth = 0.35
 
+[groundcover.card_atlas]
+cell = 256
+base = "#344b20"
+tips = ["#a9c85f", "#bfd26a", "#8db448", "#c8c068"]
+
 [[groundcover.layers]]
 kind = "grass"
 name = "soft meadow grass"
-density = 0.16
-coverage = 0.72
-patch_scale = 0.11
-patch_softness = 0.28
-height = 0.52
-width = 0.045
-curl = 0.85
-color_base = "#344b20"
-color_tip = "#a9c85f"
+density = 0.84
+coverage = 0.95
+patch_scale = 0.10
+patch_softness = 0.34
+height = 0.56
+width = 0.046
+curl = 0.92
+color_base = "#30471c"
+color_tip = "#acc960"
 
 [[groundcover.layers]]
 kind = "flower"
 name = "clover and oxeye bloom"
-density = 0.13
-coverage = 0.42
+density = 0.56
+coverage = 0.64
 patch_scale = 0.16
-patch_softness = 0.26
-height = 0.34
+patch_softness = 0.30
+height = 0.44
 width = 0.055
-curl = 0.08
+curl = 0.12
 color_base = "#2e5529"
-color_tip = "#f2f0b8"
+color_tip = "#f6f2c8"
+
+[groundcover.layers.cards]
+species = ["daisy", "clover", "buttercup", "poppy", "yarrow"]
+count = 4
+card_width = 0.44
+height_range = [0.76, 1.25]
+lean_degrees = [5.0, 20.0]
+loose = 0.14
+normal_up = 0.72
 
 [[groundcover.layers]]
 kind = "weed"
 name = "tall plantain weed"
-density = 0.09
-coverage = 0.36
+density = 0.28
+coverage = 0.44
 patch_scale = 0.13
-patch_softness = 0.24
-height = 0.52
+patch_softness = 0.26
+height = 0.68
 width = 0.07
 curl = 0.38
 color_base = "#315c2b"
-color_tip = "#7eb061"
+color_tip = "#86b462"
+
+[groundcover.layers.cards]
+species = ["oat_seeds", "lupin", "bellflower"]
+count = 3
+card_width = 0.46
+height_range = [0.78, 1.28]
+lean_degrees = [4.0, 18.0]
+loose = 0.10
+normal_up = 0.68
 
 [[groundcover.layers]]
 kind = "litter"
 name = "dry seed litter"
-density = 0.045
-coverage = 0.3
+density = 0.08
+coverage = 0.32
 patch_scale = 0.12
 patch_softness = 0.22
-height = 0.13
+height = 0.12
 width = 0.08
-color_base = "#806a34"
-color_tip = "#c6aa61"
+color_base = "#7a6430"
+color_tip = "#bfa35c"
 
 [[groundcover.layers]]
 kind = "shrub"
 name = "low meadow briar"
-density = 0.06
+density = 0.09
 coverage = 0.36
 patch_scale = 0.08
 patch_softness = 0.24
-height = 0.65
-width = 0.13
+height = 0.62
+width = 0.10
 curl = 0.28
-color_base = "#2f4624"
+color_base = "#2c4421"
 color_tip = "#7aa85a"
 
+[groundcover.layers.cards]
+species = ["fern", "clover", "yarrow"]
+count = 4
+card_width = 0.56
+height_range = [0.78, 1.20]
+lean_degrees = [6.0, 22.0]
+loose = 0.14
+normal_up = 0.70
+
 [wind]
-strength = 0.7
+strength = 0.72
 speed = 2.2
 direction_degrees = 42
 gust_scale = 0.5
@@ -107,8 +139,8 @@ lod0_max_distance = 6.0
 lod1_max_distance = 16.0
 lod2_max_distance = 34.0
 material_slots = 1
-max_instances_per_tile = 512
-max_instances_per_chunk = 96
+max_instances_per_tile = 24576
+max_instances_per_chunk = 6144
 density_scale = 0.55
 cull_start = 16.0
 cull_end = 34.0
@@ -126,8 +158,8 @@ lod0_max_distance = 12.0
 lod1_max_distance = 34.0
 lod2_max_distance = 78.0
 material_slots = 1
-max_instances_per_tile = 2048
-max_instances_per_chunk = 256
+max_instances_per_tile = 24576
+max_instances_per_chunk = 6144
 density_scale = 0.95
 cull_start = 34.0
 cull_end = 78.0

@@ -293,13 +293,72 @@
 
 /* ---- viewport ---- */
 
+.midori-foliage-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  overflow: hidden;
+  background: #1c242b;
+}
+
+.midori-viewport-hud {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.midori-hud-group {
+  display: inline-flex;
+  background: rgba(18, 22, 26, 0.72);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.midori-hud-group button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(244, 240, 232, 0.78);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.midori-hud-group button:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.midori-hud-group button.active {
+  background: rgba(232, 179, 102, 0.28);
+  color: #ffe6bd;
+}
+
 .midori-view-badge {
   position: absolute;
-  bottom: 26px;
-  left: 10px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 3;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(16, 20, 24, 0.62);
+  backdrop-filter: blur(6px);
+  color: rgba(245, 241, 232, 0.88);
   font-size: 10px;
   letter-spacing: 0.1em;
-  opacity: 0.6;
   pointer-events: none;
 }
 

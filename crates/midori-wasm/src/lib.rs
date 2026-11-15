@@ -346,6 +346,10 @@ impl MidoriNatureGenerator {
         let field = self.patch.terrain_field();
         let terrain_mesh = field.build_preview_mesh(preview_resolution);
         let terrain = MeshPreviewOutput::from_mesh(&terrain_mesh, "terrain_tile");
+        let surface_res = preview_resolution.clamp(128, 256);
+        let (albedo_tex, normal_tex) = field.bake_preview_surface_maps(surface_res);
+        let terrain_albedo = RgbaOutput::from(&albedo_tex);
+        let terrain_normal = RgbaOutput::from(&normal_tex);
         let prototypes: Vec<NaturePrototypeOutput> = self
             .patch
             .generate_groundcover_prototypes()
@@ -357,6 +361,9 @@ impl MidoriNatureGenerator {
                     name: prototype.name,
                     kind: groundcover_kind_name(prototype.kind).to_string(),
                     uses_card_atlas: layer.is_some_and(|l| l.cards.is_some()),
+                    color_base: layer
+                        .map(|l| l.color_base.clone())
+                        .filter(|c| !c.is_empty()),
                     color_tip: layer.map(|l| l.color_tip.clone()).filter(|c| !c.is_empty()),
                     lods: prototype
                         .lods
@@ -383,7 +390,11 @@ impl MidoriNatureGenerator {
         let manifest = self.patch.export_manifest(preview_resolution);
         let result = NaturePreviewOutput {
             manifest,
+            biome: self.patch.patch.biome.clone(),
+            wind: self.patch.wind.clone(),
             terrain,
+            terrain_albedo,
+            terrain_normal,
             prototypes,
             scatter_sets,
             card_atlas,
@@ -427,7 +438,11 @@ pub fn generate_nature_preview_from_toml(
 #[derive(serde::Serialize)]
 struct NaturePreviewOutput {
     manifest: NatureExportManifest,
+    biome: String,
+    wind: midori_core::WindParams,
     terrain: MeshPreviewOutput,
+    terrain_albedo: RgbaOutput,
+    terrain_normal: RgbaOutput,
     prototypes: Vec<NaturePrototypeOutput>,
     scatter_sets: Vec<ScatterSet>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -442,6 +457,8 @@ struct NaturePrototypeOutput {
     kind: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     uses_card_atlas: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    color_base: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     color_tip: Option<String>,
     lods: Vec<MeshPreviewOutput>,

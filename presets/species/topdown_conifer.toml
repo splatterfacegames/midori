@@ -37,30 +37,30 @@ segments = 3
 
 [crown]
 shape = "conical"
-offset = 0.16
-density = 0.96
-width_ratio = 0.88
+offset = 0.12
+density = 0.98
+width_ratio = 0.96
 
 [leaves]
-count = 680
+count = 760
 min_level = 1
-size = 0.54
+size = 0.56
 size_variance = 0.16
 distribution = "both"
 geometry = "canopy_card"
 shape = "needle"
-up_influence = 0.65
+up_influence = 0.62
 
 [canopy]
 normals = "canopy"
 normal_blend = 0.86
-up_bias = 0.76
-clump_weight = 0.28
+up_bias = 0.74
+clump_weight = 0.30
 clump_level = 1
-crown_fill = 60
-shell = 0.55
-card_tilt = 9.0
-card_max_angle = 28.0
+crown_fill = 80
+shell = 0.58
+card_tilt = 14.0
+card_max_angle = 34.0
 card_roll = "radial"
 card_offset = 0.28
 single_sided = true

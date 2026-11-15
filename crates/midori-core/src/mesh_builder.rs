@@ -453,6 +453,17 @@ impl<'a> MeshBuilder<'a> {
     ) -> Vec<u32> {
         // +1 for seam vertex at U=1.0 to avoid texture seam artifacts
         let mut ring_indices = Vec::with_capacity(resolution as usize + 1);
+        let trunk_len = if stem.level == 0 {
+            stem.length().max(0.5)
+        } else {
+            1.0
+        };
+        let h_frac = if stem.level == 0 {
+            ((center.y - stem.base().y) / trunk_len).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        let seed_phase = (self.tree.seed as f32 * 0.618_034).fract() * TAU;
 
         // Generate resolution+1 vertices (0 to resolution inclusive)
         // Last vertex duplicates position of first but has U=1.0 for proper UV wrap
@@ -463,9 +474,21 @@ impl<'a> MeshBuilder<'a> {
                 (i as f32 / resolution as f32) * TAU
             };
             let offset = frame.tangent * angle.cos() + frame.bitangent * angle.sin();
+            let tangent_dir = -frame.tangent * angle.sin() + frame.bitangent * angle.cos();
 
-            let position = center + offset * radius;
-            let normal = offset.normalize_or_zero(); // Points outward
+            let (buttress_mul, normal_twist) =
+                if stem.level == 0 && resolution >= 8 && h_frac < 0.24 {
+                    let falloff = (1.0 - h_frac / 0.24).powi(2);
+                    let phase = angle * 5.0 + seed_phase + 0.35 * (angle * 2.0 - seed_phase).sin();
+                    let lobe = phase.cos().max(-0.25);
+                    let deriv = -phase.sin() * 0.28 * falloff;
+                    (1.0 + 0.24 * falloff * lobe, deriv)
+                } else {
+                    (1.0, 0.0)
+                };
+
+            let position = center + offset * (radius * buttress_mul);
+            let normal = (offset + tangent_dir * normal_twist).normalize_or_zero(); // Points outward
             // U goes from 0.0 to 1.0 (inclusive) for seamless texture wrap
             let uv = Vec2::new(i as f32 / resolution as f32, v_coord);
 
@@ -517,11 +540,21 @@ impl<'a> MeshBuilder<'a> {
         }
 
         // Calculate center position (exclude seam vertex)
-        let center: Vec3 = ring[..actual_count]
+        let avg_center: Vec3 = ring[..actual_count]
             .iter()
             .map(|&i| self.mesh.vertices[i as usize].position)
             .sum::<Vec3>()
             / actual_count as f32;
+        let center = if stem.child_ids.len() >= 2 {
+            let avg_r = ring[..actual_count]
+                .iter()
+                .map(|&i| (self.mesh.vertices[i as usize].position - avg_center).length())
+                .sum::<f32>()
+                / actual_count as f32;
+            avg_center - normal * (avg_r * 0.30)
+        } else {
+            avg_center
+        };
 
         // Add center vertex
         let uv = Vec2::new(0.5, 0.5);

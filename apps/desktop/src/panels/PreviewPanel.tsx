@@ -1,7 +1,5 @@
-import { useMemo } from 'react';
-import { Viewport3D } from '@jethac/tools-frontend-stack/viewports';
 import type { Viewport3DController } from '@jethac/tools-frontend-stack/viewports';
-import { lodToDescriptors } from '../meshes';
+import { FoliageViewport } from '../FoliageViewport';
 import type { WorkbenchState } from '../model';
 
 export function PreviewPanel({
@@ -16,22 +14,19 @@ export function PreviewPanel({
   onError: (error: Error) => void;
 }) {
   const lod = state.lods?.[state.selectedLod] ?? null;
-  const meshes = useMemo(
-    () =>
-      lod
-        ? lodToDescriptors(lod, state.seed, state.layers, {
-            bark: state.maps?.bark_albedo.rgba,
-            barkNormal: state.maps?.bark_normal.rgba,
-            leaves: state.maps?.leaf_card.rgba,
-            impostor: lod.impostor_atlas?.rgba,
-          })
-        : [],
-    [lod, state.seed, state.layers, state.maps],
-  );
+  const speciesName = state.json?.species.name.toLowerCase() ?? '';
+  const isTopdown =
+    speciesName.includes('topdown') ||
+    speciesName.includes('top-down') ||
+    state.json?.leaves.geometry === 'canopy_card';
+
   return (
-    <Viewport3D
-      meshes={meshes}
-      units="m"
+    <FoliageViewport
+      mode="tree"
+      lod={lod}
+      maps={state.maps}
+      layers={state.layers}
+      isTopdown={isTopdown}
       grid={grid}
       onReady={onReady}
       onError={onError}
@@ -45,6 +40,6 @@ export function PreviewPanel({
           <p>Generated LODs appear here.</p>
         </div>
       )}
-    </Viewport3D>
+    </FoliageViewport>
   );
 }
