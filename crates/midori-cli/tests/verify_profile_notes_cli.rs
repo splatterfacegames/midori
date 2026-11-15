@@ -79,7 +79,9 @@ fn defaults_are_cwd_relative_and_output_failures_are_not_waived() {
             "--allow-pending",
         ],
     );
-    assert_eq!(failed.status.code(), Some(1));
+    // A report that cannot be written is an IO error (exit 4, see the CLI's
+    // exit-code table) and is never waived by --allow-pending.
+    assert_eq!(failed.status.code(), Some(4));
     assert!(!failed.stderr.is_empty());
 }
 

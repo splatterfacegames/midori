@@ -138,8 +138,7 @@ Then complete `docs/validation/midori-nature-engine-profile-notes.md`, rerun `.\
 ### Native profile-notes check (partial tooling migration)
 
 ```powershell
-$env:CARGO_TARGET_DIR = 'C:/Users/jetha/AppData/Local/Temp/lab-midori-cargo-target'
-cargo run -p midori-cli -- verify-profile-notes --profile-notes docs/validation/midori-nature-engine-profile-notes.md --output C:/midori-build/profile-notes-only.json
+cargo run -p midori-cli -- verify-profile-notes --profile-notes docs/validation/midori-nature-engine-profile-notes.md --output target/profile-notes-only.json
 cargo test -p midori-cli --test profile_notes
 ```
 
