@@ -329,7 +329,11 @@ jobs:
           fi
 
       - run: rustup toolchain install stable --profile minimal
-      - run: cargo install --path crates/midori-cli --locked --force
+      # cargo installs into $CARGO_HOME/bin, which may not have existed when
+      # the PATH step above ran on a fresh self-hosted runner home.
+      - run: |
+          cargo install --path crates/midori-cli --locked --force
+          echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> "$GITHUB_PATH"
       - name: Generate a forest-floor nature package
         run: midori nature --patch presets/nature/temperate_forest_floor.toml --output target/midori_engine_validation/forest_floor
       - run: midori validate-nature --input target/midori_engine_validation/forest_floor --report target/nature-validate.json
