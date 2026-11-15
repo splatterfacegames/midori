@@ -122,6 +122,89 @@ impl RgbaTexture {
         out
     }
 
+    /// Bilinear sample with clamp-to-edge addressing (for non-tiling cards/atlases).
+    pub fn sample_clamp(&self, u: f32, v: f32) -> [f32; 4] {
+        let w = self.width as f32;
+        let h = self.height as f32;
+        let x = u.clamp(0.0, 1.0) * w - 0.5;
+        let y = v.clamp(0.0, 1.0) * h - 0.5;
+        let x0 = x.floor();
+        let y0 = y.floor();
+        let fx = x - x0;
+        let fy = y - y0;
+        let clamp_x = |x: f32| x.clamp(0.0, (w - 1.0).max(0.0)) as u32;
+        let clamp_y = |y: f32| y.clamp(0.0, (h - 1.0).max(0.0)) as u32;
+        let c00 = self.get(clamp_x(x0), clamp_y(y0));
+        let c10 = self.get(clamp_x(x0 + 1.0), clamp_y(y0));
+        let c01 = self.get(clamp_x(x0), clamp_y(y0 + 1.0));
+        let c11 = self.get(clamp_x(x0 + 1.0), clamp_y(y0 + 1.0));
+        let mut out = [0.0f32; 4];
+        for ch in 0..4 {
+            let a = lerp(c00[ch] as f32, c10[ch] as f32, fx);
+            let b = lerp(c01[ch] as f32, c11[ch] as f32, fx);
+            out[ch] = lerp(a, b, fy) / 255.0;
+        }
+        out
+    }
+
+    /// Bleed RGB colours from opaque texels outward into transparent texels while
+    /// keeping alpha untouched, eliminating dark mipmap/cutout fringes.
+    pub fn dilate_alpha_rgb(&mut self, passes: u32) {
+        if self.width == 0 || self.height == 0 {
+            return;
+        }
+        let w = self.width as i32;
+        let h = self.height as i32;
+        let mut seeded = vec![false; (self.width * self.height) as usize];
+        for (i, px) in self.pixels.as_chunks::<4>().0.iter().enumerate() {
+            seeded[i] = px[3] >= 24;
+        }
+        for _ in 0..passes {
+            let prev = self.pixels.clone();
+            let prev_seeded = seeded.clone();
+            for y in 0..h {
+                for x in 0..w {
+                    let idx = (y * w + x) as usize;
+                    if prev_seeded[idx] {
+                        continue;
+                    }
+                    let mut r_sum = 0.0f32;
+                    let mut g_sum = 0.0f32;
+                    let mut b_sum = 0.0f32;
+                    let mut w_sum = 0.0f32;
+                    for dy in -1..=1 {
+                        for dx in -1..=1 {
+                            if dx == 0 && dy == 0 {
+                                continue;
+                            }
+                            let nx = x + dx;
+                            let ny = y + dy;
+                            if nx < 0 || ny < 0 || nx >= w || ny >= h {
+                                continue;
+                            }
+                            let nidx = (ny * w + nx) as usize;
+                            if !prev_seeded[nidx] {
+                                continue;
+                            }
+                            let weight = if dx == 0 || dy == 0 { 1.0 } else { 0.7 };
+                            let p = &prev[nidx * 4..nidx * 4 + 4];
+                            r_sum += p[0] as f32 * weight;
+                            g_sum += p[1] as f32 * weight;
+                            b_sum += p[2] as f32 * weight;
+                            w_sum += weight;
+                        }
+                    }
+                    if w_sum > 0.0 {
+                        self.pixels[idx * 4] = (r_sum / w_sum).round() as u8;
+                        self.pixels[idx * 4 + 1] = (g_sum / w_sum).round() as u8;
+                        self.pixels[idx * 4 + 2] = (b_sum / w_sum).round() as u8;
+                        seeded[idx] = true;
+                    }
+                }
+            }
+        }
+    }
+
     /// Fraction of texels with alpha >= 128.
     pub fn alpha_coverage(&self) -> f32 {
         if self.pixels.is_empty() {
@@ -345,42 +428,50 @@ fn voronoi(seed: u64, x: f32, y: f32, px: i64, py: i64) -> (f32, f32) {
 fn bark_height_at(style: BarkStyle, u: f32, v: f32, seed: u64) -> f32 {
     match style {
         BarkStyle::Furrowed => {
-            // Slow waviness keeps furrows from being ruler-straight.
-            let meander = fbm(seed ^ 0xB1, u * 3.0, v * 2.0, 3, 2, 3) - 0.5;
-            let uu = u + meander * 0.10;
-            // Anisotropic ridged noise → vertical furrows.
-            let n = fbm(seed ^ 0xB2, uu * 24.0, v * 4.0, 24, 4, 4);
-            let ridge = 1.0 - (2.0 * n - 1.0).abs();
-            let mut h = ridge.powf(1.4);
-            // Cross-cracks break the ridges into blocks.
-            let crack = fbm(seed ^ 0xB3, uu * 24.0, v * 10.0, 24, 10, 2);
-            if crack < 0.38 {
-                h *= 1.0 - (0.38 - crack) * 1.5;
+            // Braided anastomosing oak/willow fissures with organic meander
+            let meander = fbm(seed ^ 0xB1, u * 4.0, v * 3.0, 4, 3, 3) - 0.5;
+            let uu = u + meander * 0.085;
+            // Primary deep vertical ridges + secondary finer sub-ridges
+            let n1 = fbm(seed ^ 0xB2, uu * 18.0, v * 3.0, 18, 3, 4);
+            let n2 = fbm(seed ^ 0xBA, uu * 36.0, v * 8.0, 36, 8, 3);
+            let ridge1 = (1.0 - (2.0 * n1 - 1.0).abs()).powf(1.35);
+            let ridge2 = (1.0 - (2.0 * n2 - 1.0).abs()).powf(1.6);
+            let mut h = ridge1 * 0.76 + ridge2 * 0.24;
+            // Diagonal/transverse bark block cracks
+            let crack = fbm(seed ^ 0xB3, uu * 18.0, v * 12.0, 18, 12, 2);
+            if crack < 0.36 {
+                h *= 1.0 - (0.36 - crack) * 1.65;
             }
-            h.clamp(0.0, 1.0)
+            let fiber = fbm(seed ^ 0xBB, u * 64.0, v * 16.0, 64, 16, 2);
+            (h * (0.86 + 0.24 * fiber)).clamp(0.0, 1.0)
         }
         BarkStyle::Plated => {
-            // Wrapped Worley cells: raised plates, dark seams.
-            let (d, cell) = voronoi(seed ^ 0xB4, u * 6.0, v * 8.0, 6, 8);
-            let plate = (1.0 - d * 1.7).clamp(0.0, 1.0).powf(0.7);
-            let detail = fbm(seed ^ 0xB5, u * 24.0, v * 32.0, 24, 32, 2);
-            (plate * (0.55 + 0.45 * cell) * (0.8 + 0.4 * detail)).clamp(0.0, 1.0)
+            // Vertically elongated scaly pine plates (4.5:1 vertical aspect) with flat flaky
+            // plate faces separated by dark anastomosing vertical fissures.
+            let warp = (fbm(seed ^ 0xBC, u * 6.0, v * 3.0, 6, 3, 2) - 0.5) * 0.045;
+            let (d1, cell1) = voronoi(seed ^ 0xB4, (u + warp) * 18.0, v * 4.0, 18, 4);
+            let (d2, cell2) = voronoi(seed ^ 0xBD, (u - warp) * 32.0, v * 8.0, 32, 8);
+            // Flat-topped terraced bark scale rather than rounded polka-dot pillows
+            let edge1 = ((1.0 - d1 * 1.42) / 0.36).clamp(0.0, 1.0);
+            let plate1 = edge1 * edge1 * (3.0 - 2.0 * edge1);
+            let edge2 = ((1.0 - d2 * 1.50) / 0.42).clamp(0.0, 1.0);
+            let plate2 = edge2 * edge2 * (3.0 - 2.0 * edge2);
+            let flake = fbm(seed ^ 0xB5, u * 48.0, v * 16.0, 48, 16, 3);
+            let combined =
+                plate1 * (0.64 + 0.36 * cell1) * 0.76 + plate2 * (0.55 + 0.45 * cell2) * 0.24;
+            (combined * (0.84 + 0.32 * flake)).clamp(0.0, 1.0)
         }
         BarkStyle::Smooth => {
-            let base = fbm(seed ^ 0xB6, u * 5.0, v * 4.0, 5, 4, 4);
-            let mut h = 0.35 + 0.5 * base;
-            // Horizontal lenticel dashes (beech/birch/palm look).
-            let rows = 36.0;
-            let band = (v * rows).fract();
-            if (0.30..0.62).contains(&band) {
-                let row = (v * rows).floor() as i64;
-                let col = (u * 20.0).floor() as i64;
-                let on = lattice(seed ^ 0xB7, col.rem_euclid(20), row);
-                let along = (u * 20.0).fract();
-                if on > 0.66 && (0.15..0.85).contains(&along) {
-                    let dip = 1.0 - ((band - 0.46).abs() * 4.0).max(0.0);
-                    h -= 0.22 * dip;
-                }
+            // Smooth palm/beech bark with organic ring leaf-scars and fine vertical fiber
+            let base = fbm(seed ^ 0xB6, u * 6.0, v * 4.0, 6, 4, 4);
+            let ring_warp = (fbm(seed ^ 0xBE, u * 4.0, v * 8.0, 4, 8, 3) - 0.5) * 0.32;
+            let ring_wave = ((v * 18.0 + ring_warp) * crate::constants::TAU).cos();
+            let ring_groove = (1.0 - ring_wave.abs()).powf(3.0);
+            let fiber = fbm(seed ^ 0xBF, u * 64.0, v * 10.0, 64, 10, 3);
+            let lenticel = fbm(seed ^ 0xB7, u * 16.0, v * 64.0, 16, 64, 2);
+            let mut h = 0.40 + 0.32 * base - 0.16 * ring_groove + 0.16 * fiber;
+            if lenticel > 0.74 {
+                h -= (lenticel - 0.74) * 0.45;
             }
             h.clamp(0.0, 1.0)
         }
@@ -400,7 +491,8 @@ fn bark_heightfield(style: BarkStyle, seed: u64, res: u32) -> Vec<f32> {
     h
 }
 
-/// Albedo: palette ramp driven by height, plus fine grain.
+/// Albedo: rich multi-stop palette ramp driven by height, bark grain, and subtle
+/// warm inner-bark crevices / cool weathered ridge highlights.
 fn bark_albedo_from_height(
     height: &[f32],
     res: u32,
@@ -408,20 +500,48 @@ fn bark_albedo_from_height(
     seed: u64,
 ) -> RgbaTexture {
     let base = color.unwrap_or([0.36, 0.28, 0.20]);
-    let dark = base.map(|c| c * 0.45);
-    let light = base.map(|c| (c * 1.3).min(1.0));
+    let crevice = [base[0] * 0.34, base[1] * 0.30, base[2] * 0.28];
+    let mid = [(base[0] * 1.04).min(1.0), base[1] * 0.96, base[2] * 0.88];
+    let ridge = [
+        (base[0] * 1.28 + 0.03).min(1.0),
+        (base[1] * 1.26 + 0.03).min(1.0),
+        (base[2] * 1.22 + 0.02).min(1.0),
+    ];
     let mut tex = RgbaTexture::new(res, res);
     for y in 0..res {
         for x in 0..res {
             let i = (y * res + x) as usize;
             let u = (x as f32 + 0.5) / res as f32;
             let v = (y as f32 + 0.5) / res as f32;
-            let grain = fbm(seed ^ 0xA9, u * 48.0, v * 48.0, 48, 48, 2);
-            let t = (height[i] * 0.75 + grain * 0.25).clamp(0.0, 1.0);
+            let grain = fbm(seed ^ 0xA9, u * 64.0, v * 20.0, 64, 20, 3);
+            let patch = fbm(seed ^ 0xAA, u * 6.0, v * 6.0, 6, 6, 3);
+            let t = (height[i] * 0.78 + grain * 0.22).clamp(0.0, 1.0);
+            let mut rgb = if t < 0.5 {
+                let k = t * 2.0;
+                [
+                    lerp(crevice[0], mid[0], k),
+                    lerp(crevice[1], mid[1], k),
+                    lerp(crevice[2], mid[2], k),
+                ]
+            } else {
+                let k = (t - 0.5) * 2.0;
+                [
+                    lerp(mid[0], ridge[0], k),
+                    lerp(mid[1], ridge[1], k),
+                    lerp(mid[2], ridge[2], k),
+                ]
+            };
+            // Subtle weathered grey-green lichen/moss tint on occasional high bark patches
+            if patch > 0.70 && height[i] > 0.58 {
+                let m = ((patch - 0.70) / 0.30 * 0.28).clamp(0.0, 0.25);
+                rgb[0] = lerp(rgb[0], 0.42, m);
+                rgb[1] = lerp(rgb[1], 0.47, m);
+                rgb[2] = lerp(rgb[2], 0.36, m);
+            }
             let px = [
-                (lerp(dark[0], light[0], t) * 255.0) as u8,
-                (lerp(dark[1], light[1], t) * 255.0) as u8,
-                (lerp(dark[2], light[2], t) * 255.0) as u8,
+                (rgb[0].clamp(0.0, 1.0) * 255.0) as u8,
+                (rgb[1].clamp(0.0, 1.0) * 255.0) as u8,
+                (rgb[2].clamp(0.0, 1.0) * 255.0) as u8,
                 255,
             ];
             tex.pixels[i * 4..i * 4 + 4].copy_from_slice(&px);
@@ -479,133 +599,221 @@ struct CardLeaf {
     hue: f32,
 }
 
-/// Compose the spray of leaf instances for a card layout.
-fn card_leaves(layout: LeafCardLayout, shape: LeafShape, rng: &mut Rng) -> Vec<CardLeaf> {
+struct TwigStroke {
+    a: Vec2,
+    b: Vec2,
+    w_a: f32,
+    w_b: f32,
+}
+
+/// Evaluate quadratic Bezier curve at `t` in `[0, 1]`.
+fn quad_bezier(p0: Vec2, p1: Vec2, p2: Vec2, t: f32) -> Vec2 {
+    let u = 1.0 - t;
+    p0 * (u * u) + p1 * (2.0 * u * t) + p2 * (t * t)
+}
+
+/// Compose the spray of leaf instances and woody twig strokes for a card layout.
+fn card_leaves_and_twigs(
+    layout: LeafCardLayout,
+    shape: LeafShape,
+    rng: &mut Rng,
+) -> (Vec<CardLeaf>, Vec<TwigStroke>) {
     match layout {
-        LeafCardLayout::Single => vec![CardLeaf {
-            center: Vec2::new(0.5, 0.52),
-            rotation: 0.0,
-            scale: 0.42,
-            jitter: 1.0,
-            hue: 0.0,
-        }],
+        LeafCardLayout::Single => {
+            let twigs = vec![TwigStroke {
+                a: Vec2::new(0.5, 0.985),
+                b: Vec2::new(0.5, 0.88),
+                w_a: 0.009,
+                w_b: 0.005,
+            }];
+            let leaves = vec![CardLeaf {
+                center: Vec2::new(0.5, 0.50),
+                rotation: 0.0,
+                scale: 0.78,
+                jitter: 1.0,
+                hue: 0.0,
+            }];
+            (leaves, twigs)
+        }
         LeafCardLayout::Cluster => {
-            // A pinnate spray: leaflets alternate along a curved rachis,
-            // wider at the base like a compound leaf or small twig.
-            let count = match shape {
-                LeafShape::Needle => 13 + rng.index(5),
-                _ => 9 + rng.index(4),
-            };
-            let mut leaves = Vec::with_capacity(count + 1);
+            // Curved main woody twig + connected sub-petioles so zero leaves float in mid-air
+            let ctrl_x = 0.5 + rng.range(-0.08, 0.08);
             let top_x = 0.5 + rng.range(-0.06, 0.06);
+            let p0 = Vec2::new(0.5, 0.985);
+            let p1 = Vec2::new(ctrl_x, 0.56);
+            let p2 = Vec2::new(top_x, 0.22);
+
+            let mut twigs = Vec::new();
+            let segs = 8;
+            for s in 0..segs {
+                let t0 = s as f32 / segs as f32;
+                let t1 = (s + 1) as f32 / segs as f32;
+                twigs.push(TwigStroke {
+                    a: quad_bezier(p0, p1, p2, t0),
+                    b: quad_bezier(p0, p1, p2, t1),
+                    w_a: lerp(0.011, 0.004, t0),
+                    w_b: lerp(0.011, 0.004, t1),
+                });
+            }
+
+            let count = match shape {
+                LeafShape::Willow => 16 + rng.index(4),
+                _ => 11 + rng.index(4),
+            };
+            let mut leaves = Vec::with_capacity(count + 3);
+
             for i in 0..count {
                 let t = i as f32 / (count.saturating_sub(1).max(1)) as f32;
                 let side = if i % 2 == 0 { 1.0 } else { -1.0 };
-                let along = 0.10 + t * 0.72;
-                let base = Vec2::new(lerp(0.5, top_x, along), 0.97 - along * 0.85);
-                let spread = lerp(0.30, 0.12, t) * rng.variance_mul(0.15);
-                // Outward and slightly upward, mirrored by side.
-                let dir = Vec2::new(side, -0.4).normalize();
-                let center = base + dir * spread;
+                let along = (0.10 + t * 0.84 + rng.range(-0.02, 0.02)).clamp(0.06, 0.96);
+                let node = quad_bezier(p0, p1, p2, along);
+                let tangent = (quad_bezier(p0, p1, p2, (along + 0.03).min(1.0))
+                    - quad_bezier(p0, p1, p2, (along - 0.03).max(0.0)))
+                .try_normalize()
+                .unwrap_or(Vec2::new(0.0, -1.0));
+                let normal = Vec2::new(-tangent.y * side, tangent.x * side);
+
+                // Sweep forward and broadly outward so sprays fill a natural botanical fan
+                let sweep = lerp(1.14, 0.58, t) + rng.range(-0.14, 0.14);
+                let dir = (tangent * sweep.cos() + normal * sweep.sin()).normalize();
+                let leaf_scale = match shape {
+                    LeafShape::Willow => lerp(0.38, 0.25, t) * rng.variance_mul(0.12),
+                    _ => lerp(0.35, 0.22, t) * rng.variance_mul(0.14),
+                };
+                let petiole_len = lerp(0.085, 0.035, t) * rng.variance_mul(0.15);
+                let leaf_base = node + dir * petiole_len;
+                let center = leaf_base + dir * (leaf_scale * 0.44);
+
+                twigs.push(TwigStroke {
+                    a: node,
+                    b: leaf_base + dir * (leaf_scale * 0.12),
+                    w_a: lerp(0.0055, 0.0035, t),
+                    w_b: 0.0025,
+                });
+
                 let tip_angle = dir.y.atan2(dir.x);
                 leaves.push(CardLeaf {
                     center,
                     rotation: crate::constants::PI / 2.0 - tip_angle,
-                    scale: lerp(0.34, 0.17, t) * rng.variance_mul(0.15),
-                    jitter: rng.range(0.85, 1.12),
-                    hue: 0.0,
+                    scale: leaf_scale,
+                    jitter: lerp(0.78, 1.12, t) * rng.range(0.90, 1.08),
+                    hue: lerp(-0.35, 0.45, t) + rng.range(-0.25, 0.25),
                 });
             }
-            // Terminal leaf at the top of the rachis.
-            leaves.push(CardLeaf {
-                center: Vec2::new(top_x, 0.16),
-                rotation: rng.range(-0.15, 0.15),
-                scale: 0.24 * rng.variance_mul(0.1),
-                jitter: rng.range(0.9, 1.1),
-                hue: 0.0,
-            });
-            leaves
+
+            // Terminal rosette of 3 overlapping apical leaves crowning the twig tip
+            let apex = p2;
+            let apex_tan = (p2 - p1).try_normalize().unwrap_or(Vec2::new(0.0, -1.0));
+            for fan in [-0.46f32, 0.44, 0.0] {
+                let ang = apex_tan.y.atan2(apex_tan.x) + fan + rng.range(-0.08, 0.08);
+                let dir = Vec2::new(ang.cos(), ang.sin());
+                let leaf_scale =
+                    (if fan.abs() < 0.1 { 0.25 } else { 0.22 }) * rng.variance_mul(0.1);
+                let petiole = 0.025;
+                let leaf_base = apex + dir * petiole;
+                twigs.push(TwigStroke {
+                    a: apex,
+                    b: leaf_base + dir * 0.03,
+                    w_a: 0.004,
+                    w_b: 0.0025,
+                });
+                leaves.push(CardLeaf {
+                    center: leaf_base + dir * (leaf_scale * 0.44),
+                    rotation: crate::constants::PI / 2.0 - ang,
+                    scale: leaf_scale,
+                    jitter: rng.range(0.98, 1.14),
+                    hue: rng.range(0.05, 0.55),
+                });
+            }
+            (leaves, twigs)
         }
         LeafCardLayout::Puff => {
-            // A dense round puff: an under-layer of large dark leaves, then
-            // progressively smaller, lighter leaves on top (painted
-            // self-shadow), every tip pointing roughly away from the centre.
-            let count = 120 + rng.index(20);
+            // Irregular multi-clump broadleaf bouquet: 5 offset sub-clusters with scalloped
+            // perimeter and directional sun-top / cool-shadow-base shading (NO center bullseye!).
+            let sub_clumps: Vec<(Vec2, f32, f32)> = {
+                let mut v = Vec::with_capacity(6);
+                let n = 5;
+                for k in 0..n {
+                    let a = k as f32 / n as f32 * crate::constants::TAU + rng.range(-0.35, 0.35);
+                    let dist = rng.range(0.11, 0.18);
+                    let c = Vec2::new(0.5 + dist * a.cos(), 0.52 + dist * a.sin() * 0.92);
+                    // Sunlit bias toward upper sub-clumps (-y in UV is top)
+                    let sun = lerp(1.06, 0.84, ((c.y - 0.30) / 0.45).clamp(0.0, 1.0));
+                    v.push((c, rng.range(0.22, 0.27), sun));
+                }
+                v.push((Vec2::new(0.5, 0.50), 0.23, 0.96));
+                v
+            };
+
+            let count = 150 + rng.index(25);
             let mut leaves = Vec::with_capacity(count);
             for i in 0..count {
                 let layer = i as f32 / (count - 1) as f32;
-                // Under-layer spreads to the rim; top layer bunches inward.
-                let reach = lerp(0.41, 0.30, layer);
-                let r = reach * rng.next_f32().sqrt();
+                let (sc, sr, sun) = sub_clumps[rng.index(sub_clumps.len())];
+                let r = sr * lerp(1.0, 0.55, layer) * rng.next_f32().sqrt();
                 let a = rng.range(-crate::constants::PI, crate::constants::PI);
-                let center = Vec2::new(0.5 + r * a.cos(), 0.5 + r * a.sin());
-                let out = (center - Vec2::splat(0.5))
+                let center = (sc + Vec2::new(r * a.cos(), r * a.sin()))
+                    .clamp(Vec2::splat(0.11), Vec2::splat(0.89));
+                let out = (center - sc)
                     .try_normalize()
                     .unwrap_or(Vec2::new(0.0, -1.0));
-                // Tip direction = outward (+ jitter); rotation maps +y(tip, v-up) to `out`.
-                let tip_angle = out.y.atan2(out.x) + rng.range(-0.6, 0.6);
+                let tip_angle = out.y.atan2(out.x) + rng.range(-0.75, 0.75);
                 leaves.push(CardLeaf {
                     center,
                     rotation: crate::constants::PI / 2.0 - tip_angle,
-                    scale: lerp(0.15, 0.11, layer) * rng.variance_mul(0.2),
-                    jitter: lerp(0.7, 1.1, layer) * rng.range(0.9, 1.08),
-                    hue: rng.range(-1.0, 1.0),
+                    scale: lerp(0.16, 0.105, layer) * rng.variance_mul(0.22),
+                    jitter: sun * lerp(0.76, 1.06, layer) * rng.range(0.90, 1.08),
+                    hue: lerp(-0.35, 0.35, layer) + rng.range(-0.35, 0.35),
                 });
             }
-            leaves
+            (leaves, Vec::new())
         }
         LeafCardLayout::Dense => {
-            // A few overlapping round lobes; leaves are heaped onto each lobe
-            // and drawn foot-first, so the lobe's crown (small, light leaves)
-            // lands on top of its rim (larger, dark leaves).
-            let lobes: Vec<(Vec2, f32)> = {
-                let n = 4 + rng.index(3);
-                let mut v = vec![(Vec2::new(0.5, 0.5), rng.range(0.2, 0.24))];
-                for k in 1..n {
-                    let a = k as f32 / (n - 1) as f32 * crate::constants::PI * 2.0
-                        + rng.range(-0.4, 0.4);
-                    let d = rng.range(0.15, 0.21);
-                    v.push((
-                        Vec2::new(0.5 + d * a.cos(), 0.5 + d * a.sin()),
-                        rng.range(0.15, 0.2),
-                    ));
+            // Overlapping asymmetric bough lobes with soft sun-angle shading rather than
+            // glowing concentric bullseye centers.
+            let lobes: Vec<(Vec2, f32, f32)> = {
+                let n = 6 + rng.index(2);
+                let mut v = Vec::with_capacity(n + 1);
+                for k in 0..n {
+                    let a = k as f32 / n as f32 * crate::constants::TAU + rng.range(-0.35, 0.35);
+                    let d = rng.range(0.14, 0.22);
+                    let c = Vec2::new(0.5 + d * a.cos(), 0.5 + d * a.sin());
+                    let sun = lerp(1.06, 0.84, ((c.y - 0.28) / 0.46).clamp(0.0, 1.0));
+                    v.push((c, rng.range(0.18, 0.24), sun));
                 }
+                v.push((Vec2::new(0.50 + rng.range(-0.04, 0.04), 0.48), 0.22, 0.98));
                 v
             };
-            let count = 1300 + rng.index(200);
+            let count = 950 + rng.index(150);
             let mut heaped: Vec<(f32, CardLeaf)> = Vec::with_capacity(count);
             for _ in 0..count {
-                let (c, lr) = lobes[rng.index(lobes.len())];
+                let (c, lr, sun) = lobes[rng.index(lobes.len())];
                 let r = lr * rng.next_f32().sqrt();
                 let a = rng.range(-crate::constants::PI, crate::constants::PI);
                 let center = c + Vec2::new(r * a.cos(), r * a.sin());
-                // 0 at the lobe's foot, 1 at its crown.
-                let height = 1.0 - (r / lr).powf(1.6);
+                let height = 1.0 - (r / lr).powf(1.8);
                 let out = (center - c).try_normalize().unwrap_or(Vec2::new(0.0, -1.0));
-                let tip_angle = out.y.atan2(out.x) + rng.range(-0.9, 0.9);
+                let tip_angle = out.y.atan2(out.x) + rng.range(-1.0, 1.0);
                 heaped.push((
-                    height + rng.range(-0.08, 0.08),
+                    height + rng.range(-0.12, 0.12),
                     CardLeaf {
                         center,
                         rotation: crate::constants::PI / 2.0 - tip_angle,
-                        scale: lerp(0.05, 0.036, height) * rng.variance_mul(0.25),
-                        // Gentle dome only: the crown's own lighting (canopy
-                        // normals + baked AO) should carry the big shapes; a
-                        // strong per-card dome reads as cauliflower florets.
-                        jitter: lerp(0.8, 1.08, height) * rng.range(0.86, 1.1),
-                        hue: lerp(-0.5, 0.5, height) + rng.range(-0.5, 0.5),
+                        scale: lerp(0.068, 0.046, height) * rng.variance_mul(0.24),
+                        jitter: sun * lerp(0.82, 1.04, height) * rng.range(0.88, 1.08),
+                        hue: lerp(-0.30, 0.35, height) + rng.range(-0.35, 0.35),
                     },
                 ));
             }
             heaped.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-            heaped.into_iter().map(|(_, l)| l).collect()
+            (heaped.into_iter().map(|(_, l)| l).collect(), Vec::new())
         }
-        LeafCardLayout::Frond => Vec::new(),
+        LeafCardLayout::Frond => (Vec::new(), Vec::new()),
     }
 }
 
-/// Render the leaf card: rachis underleaf, then leaflets back-to-front with
-/// alpha-over compositing and a soft SDF edge.
+/// Render the leaf card: woody twigs + petioles underleaf, then leaves back-to-front
+/// with botanical venation, soft anti-aliased SDF edges, and RGB edge dilation.
 fn leaf_card(
     shape: LeafShape,
     layout: LeafCardLayout,
@@ -617,62 +825,105 @@ fn leaf_card(
     if layout == LeafCardLayout::Frond {
         return frond_card(color, &mut rng, res);
     }
-    let leaves = card_leaves(layout, shape, &mut rng);
+    if shape == LeafShape::Needle && layout == LeafCardLayout::Cluster {
+        return needle_cluster_card(color, &mut rng, res);
+    }
+    if shape == LeafShape::Needle && layout == LeafCardLayout::Puff {
+        return yucca_rosette_card(color, &mut rng, res);
+    }
+
+    let (leaves, twigs) = card_leaves_and_twigs(layout, shape, &mut rng);
     let base = color.unwrap_or([0.27, 0.44, 0.17]);
-    let stem_rgb = [0.30, 0.22, 0.13];
-    let top_x = leaves.last().map(|l| l.center.x).unwrap_or(0.5);
+    let stem_rgb = [0.31, 0.23, 0.14];
+    let detailed_veins = matches!(layout, LeafCardLayout::Single | LeafCardLayout::Cluster);
+
+    // Precompute per-leaf bounding radius in UV space so every layout skips distant pixels fast
+    let leaf_bounds: Vec<(f32, f32, f32)> = leaves
+        .iter()
+        .map(|leaf| {
+            let (s, c) = leaf.rotation.sin_cos();
+            (s, c, (leaf.scale * 0.72).powi(2))
+        })
+        .collect();
 
     let mut tex = RgbaTexture::new(res, res);
+    let px = 1.0 / res as f32;
     for y in 0..res {
         for x in 0..res {
-            let u = (x as f32 + 0.5) / res as f32;
-            let v = (y as f32 + 0.5) / res as f32;
+            let u = (x as f32 + 0.5) * px;
+            let v = (y as f32 + 0.5) * px;
+            let q = Vec2::new(u, v);
             let mut acc = [0.0f32; 4];
 
-            // Rachis / petiole: a thin stroke from bottom center to the spray top.
-            if layout == LeafCardLayout::Cluster {
-                let d = dist_to_segment(
-                    Vec2::new(u, v),
-                    Vec2::new(0.5, 0.99),
-                    Vec2::new(top_x, 0.10),
-                );
-                let w = 0.006;
-                if d < w {
-                    let a = (1.0 - d / w) * 0.9;
-                    over(&mut acc, [stem_rgb[0], stem_rgb[1], stem_rgb[2], a]);
+            // Woody twig & sub-petioles underneath leaf blades
+            for stroke in &twigs {
+                let w_max = stroke.w_a.max(stroke.w_b) + px;
+                let lo = stroke.a.min(stroke.b) - Vec2::splat(w_max);
+                let hi = stroke.a.max(stroke.b) + Vec2::splat(w_max);
+                if q.x < lo.x || q.y < lo.y || q.x > hi.x || q.y > hi.y {
+                    continue;
+                }
+                let ab = stroke.b - stroke.a;
+                let t = ((q - stroke.a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
+                let w = lerp(stroke.w_a, stroke.w_b, t);
+                let d = (q - (stroke.a + ab * t)).length();
+                let a = ((w - d) / px + 0.5).clamp(0.0, 1.0);
+                if a > 0.0 {
+                    let cyl = 0.80 + 0.35 * (1.0 - (d / w.max(1e-4)).clamp(0.0, 1.0));
+                    over(
+                        &mut acc,
+                        [
+                            (stem_rgb[0] * cyl).min(1.0),
+                            (stem_rgb[1] * cyl).min(1.0),
+                            (stem_rgb[2] * cyl).min(1.0),
+                            a,
+                        ],
+                    );
                 }
             }
 
-            for leaf in &leaves {
-                let p = Vec2::new(u, v) - leaf.center;
-                // Dense cards hold >1k leaves: skip pixels outside a leaf's
-                // reach (oval/pointed SDFs stay within ~0.85 of their scale).
-                if layout == LeafCardLayout::Dense && p.length_squared() > leaf.scale * leaf.scale {
+            let mottle = fbm(seed ^ 0xC0, u * 8.0, v * 8.0, 8, 8, 2);
+            for (leaf, &(sin, cos, max_r2)) in leaves.iter().zip(&leaf_bounds) {
+                let p = q - leaf.center;
+                if p.length_squared() > max_r2 {
                     continue;
                 }
-                let (sin, cos) = leaf.rotation.sin_cos();
-                // Leaf-local space: +y is the tip direction.
-                let local = Vec2::new(p.x * cos - p.y * sin, p.x * sin + p.y * cos) / leaf.scale;
-                // Leaf SDF is defined tip-at-+y; card v grows downward, so a
-                // leaf at rotation 0 points its tip toward the top of the card.
-                let local = Vec2::new(local.x, -local.y);
+                // Leaf-local space: +y is tip, -y is petiole base
+                let local = Vec2::new(p.x * cos - p.y * sin, -(p.x * sin + p.y * cos)) / leaf.scale;
                 let sdf = leaf_sdf(local, shape);
-                let edge = 2.0 * leaf.scale / res as f32;
+                let edge = (1.6 / (res as f32 * leaf.scale.max(0.02))).max(0.008);
                 let alpha = (0.5 - sdf / edge).clamp(0.0, 1.0);
                 if alpha <= 0.0 {
                     continue;
                 }
-                // Shading: darker toward the petiole base, mottled, midrib line.
-                let mottle = fbm(seed ^ 0xC0, u * 8.0, v * 8.0, 8, 8, 2);
-                let mut shade =
-                    leaf.jitter * (0.88 + 0.24 * (local.y + 0.5)) * (0.9 + 0.2 * mottle);
-                if local.x.abs() < 0.02 {
-                    shade *= 0.8;
+
+                // Natural lamina shading: base-to-tip translucency + gentle lateral convexity
+                let along = (local.y + 0.5).clamp(0.0, 1.0);
+                let mut shade = leaf.jitter * (0.84 + 0.24 * along) * (0.92 + 0.16 * mottle);
+                let mut vein_tint = [1.0f32, 1.0, 1.0];
+
+                if detailed_veins {
+                    // Tapered pale yellow-green midrib + herringbone secondary veins
+                    let midrib_w = lerp(0.015, 0.003, along) * (1.0 - along * 0.25);
+                    if local.y < 0.44 && local.x.abs() < midrib_w {
+                        let k = 1.0 - local.x.abs() / midrib_w.max(1e-4);
+                        shade *= 1.0 + 0.14 * k;
+                        vein_tint = [1.0 + 0.12 * k, 1.0 + 0.08 * k, 1.0 - 0.10 * k];
+                    } else if shape != LeafShape::Needle {
+                        let sec = ((local.y - local.x.abs() * 0.58) * 11.0).fract();
+                        let sec_line = (1.0 - (sec - 0.5).abs() * 9.0).clamp(0.0, 1.0)
+                            * (1.0 - (local.x.abs() * 2.8).clamp(0.0, 1.0));
+                        shade *= 1.0 + 0.06 * sec_line;
+                    }
+                    // Subtle sunlit rim translucency near blade margin
+                    let rim = (1.0 + sdf / 0.06).clamp(0.0, 1.0);
+                    shade *= 1.0 + 0.07 * rim;
                 }
+
                 let warm = [
-                    1.0 + 0.10 * leaf.hue,
-                    1.0 + 0.03 * leaf.hue,
-                    1.0 - 0.16 * leaf.hue,
+                    (1.0 + 0.11 * leaf.hue) * vein_tint[0],
+                    (1.0 + 0.04 * leaf.hue) * vein_tint[1],
+                    (1.0 - 0.15 * leaf.hue) * vein_tint[2],
                 ];
                 let c = [
                     (base[0] * shade * warm[0]).clamp(0.0, 1.0),
@@ -694,77 +945,324 @@ fn leaf_card(
             );
         }
     }
+    tex.dilate_alpha_rgb(6);
     tex
 }
 
-/// Conifer frond card: a central twig with paired side branchlets, all
-/// clothed in short needle strokes; darker toward the twig, lighter new
-/// growth at the tips.
-fn frond_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTexture {
-    let base = color.unwrap_or([0.16, 0.30, 0.20]);
-    let twig_rgb = [0.24, 0.17, 0.11];
-    // (start, end, width, shade, is_needle)
-    let mut strokes: Vec<(Vec2, Vec2, f32, f32, bool)> = Vec::new();
-    let axis_a = Vec2::new(0.5, 0.97);
-    let axis_b = Vec2::new(0.5 + rng.range(-0.03, 0.03), 0.05);
-    let mut branches = vec![(axis_a, axis_b)];
-    let pairs = 6;
-    for k in 0..pairs {
-        let t = 0.12 + 0.8 * k as f32 / pairs as f32;
-        let p = axis_a.lerp(axis_b, t);
-        let len = lerp(0.40, 0.12, t) * rng.variance_mul(0.12);
-        for side in [-1.0f32, 1.0] {
-            let ang = side * rng.range(0.85, 1.05); // radians off the axis
-            let dir = Vec2::new(ang.sin(), -ang.cos());
-            branches.push((p, p + dir * len));
+/// Pine / Joshua needle fascicle shoot card: scaly woody shoot with 2-3 lateral forks
+/// clothed in radiating bundles of slender tapered needles.
+fn needle_cluster_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTexture {
+    let base = color.unwrap_or([0.16, 0.34, 0.16]);
+    let twig_rgb = [0.34, 0.22, 0.13];
+    // (a, b, w_a, w_b, shade, hue, is_needle)
+    let mut twigs: Vec<(Vec2, Vec2, f32, f32)> = Vec::new();
+    let mut needles: Vec<(Vec2, Vec2, f32, f32, f32, f32)> = Vec::new();
+
+    let p0 = Vec2::new(0.5, 0.97);
+    let p1 = Vec2::new(0.5 + rng.range(-0.05, 0.05), 0.56);
+    let p2 = Vec2::new(0.5 + rng.range(-0.04, 0.04), 0.24);
+    let mut shoots: Vec<(Vec2, Vec2, f32)> = Vec::new();
+    for s in 0..5 {
+        let t0 = s as f32 / 5.0;
+        let t1 = (s + 1) as f32 / 5.0;
+        let a = quad_bezier(p0, p1, p2, t0);
+        let b = quad_bezier(p0, p1, p2, t1);
+        twigs.push((a, b, lerp(0.015, 0.008, t0), lerp(0.015, 0.008, t1)));
+        shoots.push((a, b, t0));
+    }
+    // Two angled side shoots for a rich 3-forked pine branchlet
+    for &(t_attach, side, len) in &[(0.34f32, -1.0f32, 0.24f32), (0.48, 1.0, 0.22)] {
+        let a = quad_bezier(p0, p1, p2, t_attach);
+        let ang = -crate::constants::PI * 0.5 + side * rng.range(0.58, 0.74);
+        let b = a + Vec2::new(ang.cos(), ang.sin()) * len;
+        twigs.push((a, b, 0.010, 0.006));
+        shoots.push((a, b, t_attach));
+    }
+
+    // Radiate paired/tripled needle fascicles along every shoot, layered back-to-front
+    for pass in 0..2 {
+        let is_top_layer = pass == 1;
+        for &(sa, sb, t_base) in &shoots {
+            let len = (sb - sa).length();
+            let dir = (sb - sa) / len.max(1e-4);
+            let perp = Vec2::new(-dir.y, dir.x);
+            let bundles = ((len / 0.032).ceil() as usize).max(3);
+            for b_idx in 0..=bundles {
+                let bt = b_idx as f32 / bundles as f32;
+                let origin = sa.lerp(sb, bt);
+                for side in [-1.0f32, 1.0] {
+                    // 2 needles per fascicle
+                    for n_i in 0..2 {
+                        let spread = rng.range(0.30, 0.98) + (n_i as f32) * 0.14;
+                        let nd = (dir * spread.cos() + perp * side * spread.sin()).normalize();
+                        let n_len = rng.range(0.16, 0.24) * lerp(1.05, 0.82, t_base);
+                        let end = (origin + nd * n_len).clamp(Vec2::splat(0.04), Vec2::splat(0.96));
+                        let shade = if is_top_layer {
+                            rng.range(0.96, 1.24)
+                        } else {
+                            rng.range(0.62, 0.88)
+                        };
+                        let hue = if is_top_layer {
+                            rng.range(0.05, 0.45)
+                        } else {
+                            rng.range(-0.35, 0.05)
+                        };
+                        needles.push((origin, end, 0.0075, 0.0022, shade, hue));
+                    }
+                }
+            }
         }
     }
-    for &(a, b) in &branches {
-        strokes.push((a, b, 0.006, 1.0, false));
+    // Terminal apical needle tuft crowning the main shoot tip
+    for k in 0..14 {
+        let frac = k as f32 / 13.0 - 0.5;
+        let ang = -crate::constants::PI * 0.5 + frac * 1.15 + rng.range(-0.08, 0.08);
+        let nd = Vec2::new(ang.cos(), ang.sin());
+        let end = (p2 + nd * rng.range(0.17, 0.22)).clamp(Vec2::splat(0.03), Vec2::splat(0.97));
+        needles.push((
+            p2,
+            end,
+            0.0075,
+            0.0022,
+            rng.range(1.0, 1.26),
+            rng.range(0.1, 0.5),
+        ));
     }
-    for &(a, b) in &branches {
-        let len = (b - a).length();
-        let dir = (b - a) / len.max(1e-4);
-        let perp = Vec2::new(-dir.y, dir.x);
-        let steps = (len / 0.016).ceil() as usize;
-        for i in 0..steps {
-            let t = i as f32 / steps.max(1) as f32;
-            let p = a + (b - a) * t;
-            let needle = rng.range(0.055, 0.075) * lerp(1.0, 0.7, t);
-            for side in [-1.0f32, 1.0] {
-                let sweep = rng.range(0.45, 0.85);
-                let nd = (dir * sweep.cos() + perp * side * sweep.sin()).normalize();
-                let shade = lerp(0.7, 1.25, t) * rng.range(0.85, 1.12);
-                strokes.push((p, p + nd * needle, 0.0045, shade, true));
+
+    rasterize_twig_and_needle_strokes(&twigs, &needles, base, twig_rgb, res)
+}
+
+/// Mojave Joshua tree (*Yucca brevifolia*) spiky bayonet rosette card:
+/// reflexed tan fibrous thatch at the collar crowned by 360-deg stiff dagger blades.
+fn yucca_rosette_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTexture {
+    let base = color.unwrap_or([0.36, 0.44, 0.23]);
+    let thatch_rgb = [0.50, 0.41, 0.26];
+    let mut twigs: Vec<(Vec2, Vec2, f32, f32)> = Vec::new();
+    let mut blades: Vec<(Vec2, Vec2, f32, f32, f32, f32)> = Vec::new();
+
+    let hub = Vec2::new(0.5, 0.58);
+    // Short fibrous stem + reflexed dead lower blades (thatch skirt)
+    twigs.push((Vec2::new(0.5, 0.96), hub, 0.028, 0.022));
+    for k in 0..18 {
+        let frac = k as f32 / 17.0 - 0.5;
+        let ang = crate::constants::PI * 0.5 + frac * 1.65 + rng.range(-0.08, 0.08);
+        let origin = hub + Vec2::new(rng.range(-0.02, 0.02), rng.range(0.02, 0.12));
+        let tip = (origin + Vec2::new(ang.cos(), ang.sin()) * rng.range(0.20, 0.30))
+            .clamp(Vec2::splat(0.04), Vec2::splat(0.96));
+        twigs.push((origin, tip, 0.015, 0.003));
+    }
+
+    // Back, middle, and sunlit core rings of stiff radiating bayonet daggers
+    for (ring_count, len_min, len_max, shade_min, shade_max, hue_shift) in [
+        (34usize, 0.32f32, 0.43f32, 0.64f32, 0.88f32, -0.20f32),
+        (28, 0.24, 0.36, 0.86, 1.08, 0.08),
+        (18, 0.14, 0.25, 1.04, 1.26, 0.32),
+    ] {
+        for k in 0..ring_count {
+            let base_a = (k as f32 / ring_count as f32) * crate::constants::TAU;
+            let a = base_a + rng.range(-0.11, 0.11);
+            // Bias slightly fuller upward (-Y in UV) while keeping 360-deg spiky crown
+            let dir = Vec2::new(a.cos(), a.sin() * 0.90 - 0.14).normalize();
+            let origin = hub + dir * rng.range(0.0, 0.045);
+            let len = rng.range(len_min, len_max);
+            let tip = (origin + dir * len).clamp(Vec2::splat(0.03), Vec2::splat(0.97));
+            let sun = lerp(1.08, 0.86, ((tip.y - 0.15) / 0.70).clamp(0.0, 1.0));
+            let shade = rng.range(shade_min, shade_max) * sun;
+            let hue = hue_shift + rng.range(-0.18, 0.18);
+            blades.push((origin, tip, 0.016, 0.0026, shade, hue));
+        }
+    }
+
+    rasterize_twig_and_needle_strokes(&twigs, &blades, base, thatch_rgb, res)
+}
+
+/// Conifer bough spray card: a multi-forked spruce/fir bough fan with main shoot,
+/// diverging secondary shoots, and tertiary side branchlets densely clothed in layered
+/// evergreen needles so top-down and 3/4 views read as natural feathered boughs.
+fn frond_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTexture {
+    let base = color.unwrap_or([0.16, 0.30, 0.20]);
+    let twig_rgb = [0.26, 0.18, 0.12];
+    let mut twigs: Vec<(Vec2, Vec2, f32, f32)> = Vec::new();
+    let mut needles: Vec<(Vec2, Vec2, f32, f32, f32, f32)> = Vec::new();
+
+    let root = Vec2::new(0.5, 0.96);
+    let apex = Vec2::new(0.5 + rng.range(-0.02, 0.02), 0.09);
+    twigs.push((root, root.lerp(apex, 0.86), 0.013, 0.005));
+
+    // Main central shoot + 4 diverging secondary bough forks (forming a natural spruce fan)
+    let mut branches = vec![(root, apex, 0.0f32)];
+    for &(fork_t, side, spread, len_scale) in &[
+        (0.18f32, -1.0f32, 0.72f32, 0.56f32),
+        (0.20, 1.0, 0.70, 0.55),
+        (0.46, -1.0, 0.56, 0.42),
+        (0.48, 1.0, 0.54, 0.41),
+    ] {
+        let p = root.lerp(apex, fork_t);
+        let ang = side * spread + rng.range(-0.05, 0.05);
+        let dir = Vec2::new(ang.sin(), -ang.cos());
+        let tip = (p + dir * len_scale).clamp(Vec2::splat(0.06), Vec2::splat(0.94));
+        twigs.push((p, p.lerp(tip, 0.82), 0.009, 0.004));
+        branches.push((p, tip, fork_t * 0.6));
+
+        // 3 pairs of short tertiary branchlets along each secondary bough fork
+        for sub_k in 0..3 {
+            let st = 0.26 + 0.48 * (sub_k as f32 / 2.0);
+            let sp = p.lerp(tip, st);
+            let slen = lerp(0.16, 0.09, st) * rng.variance_mul(0.10);
+            for sside in [-1.0f32, 1.0] {
+                let sang = ang + sside * 0.68 + rng.range(-0.06, 0.06);
+                let sdir = Vec2::new(sang.sin(), -sang.cos());
+                let stip = (sp + sdir * slen).clamp(Vec2::splat(0.05), Vec2::splat(0.95));
+                twigs.push((sp, sp.lerp(stip, 0.72), 0.005, 0.0025));
+                branches.push((sp, stip, (fork_t + st * 0.4).min(1.0)));
             }
         }
     }
 
+    // Short side branchlets along the upper half of the central leader
+    for k in 0..4 {
+        let t = 0.56 + 0.28 * (k as f32 / 3.0);
+        let p = root.lerp(apex, t);
+        let len = lerp(0.20, 0.09, (t - 0.56) / 0.28) * rng.variance_mul(0.10);
+        for side in [-1.0f32, 1.0] {
+            let ang = side * 0.65 + rng.range(-0.05, 0.05);
+            let dir = Vec2::new(ang.sin(), -ang.cos());
+            let tip = (p + dir * len).clamp(Vec2::splat(0.05), Vec2::splat(0.95));
+            twigs.push((p, p.lerp(tip, 0.74), 0.005, 0.0025));
+            branches.push((p, tip, t));
+        }
+    }
+
+    // Two-layer dense spruce/fir needles: dark shadowed interior + bright sunlit top needles
+    for layer in 0..2 {
+        let top = layer == 1;
+        for &(a, b, branch_t) in &branches {
+            let len = (b - a).length();
+            let dir = (b - a) / len.max(1e-4);
+            let perp = Vec2::new(-dir.y, dir.x);
+            let steps = ((len / 0.015).ceil() as usize).max(3);
+            for i in 0..=steps {
+                let t = i as f32 / steps as f32;
+                let p = a.lerp(b, t);
+                let needle_len = rng.range(0.058, 0.088) * lerp(1.05, 0.72, t);
+                for side in [-1.0f32, 1.0] {
+                    let sweep = if top {
+                        rng.range(0.30, 0.68)
+                    } else {
+                        rng.range(0.52, 0.98)
+                    };
+                    let nd = (dir * sweep.cos() + perp * side * sweep.sin()).normalize();
+                    let end = (p + nd * needle_len).clamp(Vec2::splat(0.03), Vec2::splat(0.97));
+                    let tip_bright = lerp(0.74, 1.25, (t * 0.60 + branch_t * 0.40).clamp(0.0, 1.0));
+                    let shade = tip_bright
+                        * if top {
+                            rng.range(0.95, 1.15)
+                        } else {
+                            rng.range(0.62, 0.85)
+                        };
+                    let hue = if top {
+                        lerp(-0.10, 0.45, t)
+                    } else {
+                        lerp(-0.35, -0.05, t)
+                    };
+                    let w0 = if top { 0.0082 } else { 0.0102 };
+                    needles.push((p, end, w0, 0.0028, shade, hue));
+                }
+            }
+            // Terminal needle fan capping each branchlet tip
+            for fan in [-0.30f32, 0.0, 0.30] {
+                let ang = dir.y.atan2(dir.x) + fan;
+                let nd = Vec2::new(ang.cos(), ang.sin());
+                let end = (b + nd * 0.055).clamp(Vec2::splat(0.03), Vec2::splat(0.97));
+                needles.push((
+                    b - dir * 0.015,
+                    end,
+                    0.008,
+                    0.0026,
+                    rng.range(1.05, 1.26),
+                    0.35,
+                ));
+            }
+        }
+    }
+
+    rasterize_twig_and_needle_strokes(&twigs, &needles, base, twig_rgb, res)
+}
+
+fn rasterize_twig_and_needle_strokes(
+    twigs: &[(Vec2, Vec2, f32, f32)],
+    needles: &[(Vec2, Vec2, f32, f32, f32, f32)],
+    base: [f32; 3],
+    twig_rgb: [f32; 3],
+    res: u32,
+) -> RgbaTexture {
     let mut tex = RgbaTexture::new(res, res);
     let px = 1.0 / res as f32;
+
+    // Bin strokes by horizontal row bands (16 bands) so 512x512 rasterization stays sub-10ms!
+    const BANDS: usize = 16;
+    let band_of = |y: f32| ((y.clamp(0.0, 0.9999) * BANDS as f32) as usize).min(BANDS - 1);
+    let mut needle_bins: [Vec<usize>; BANDS] = std::array::from_fn(|_| Vec::new());
+    for (idx, &(a, b, w0, w1, _, _)) in needles.iter().enumerate() {
+        let pad = w0.max(w1) + px * 1.5;
+        let b_lo = band_of((a.y.min(b.y) - pad).max(0.0));
+        let b_hi = band_of((a.y.max(b.y) + pad).min(1.0));
+        for bin in &mut needle_bins[b_lo..=b_hi] {
+            bin.push(idx);
+        }
+    }
+
     for y in 0..res {
+        let v = (y as f32 + 0.5) * px;
+        let bin = &needle_bins[band_of(v)];
         for x in 0..res {
-            let q = Vec2::new((x as f32 + 0.5) * px, (y as f32 + 0.5) * px);
+            let q = Vec2::new((x as f32 + 0.5) * px, v);
             let mut acc = [0.0f32; 4];
-            for &(a, b, w, shade, is_needle) in &strokes {
-                // Cheap reject on the stroke's bounding box.
-                let lo = a.min(b) - Vec2::splat(w + px);
-                let hi = a.max(b) + Vec2::splat(w + px);
+
+            for &(a, b, w0, w1) in twigs {
+                let w_max = w0.max(w1) + px;
+                let lo = a.min(b) - Vec2::splat(w_max);
+                let hi = a.max(b) + Vec2::splat(w_max);
                 if q.x < lo.x || q.y < lo.y || q.x > hi.x || q.y > hi.y {
                     continue;
                 }
-                let d = dist_to_segment(q, a, b);
+                let ab = b - a;
+                let t = ((q - a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
+                let w = lerp(w0, w1, t);
+                let d = (q - (a + ab * t)).length();
+                let alpha = ((w - d) / px + 0.5).clamp(0.0, 1.0);
+                if alpha > 0.0 {
+                    over(&mut acc, [twig_rgb[0], twig_rgb[1], twig_rgb[2], alpha]);
+                }
+            }
+
+            for &idx in bin {
+                let (a, b, w0, w1, shade, hue) = needles[idx];
+                let w_max = w0.max(w1) + px;
+                let lo_x = a.x.min(b.x) - w_max;
+                let hi_x = a.x.max(b.x) + w_max;
+                if q.x < lo_x || q.x > hi_x {
+                    continue;
+                }
+                let ab = b - a;
+                let t = ((q - a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
+                let w = lerp(w0, w1, t);
+                let d = (q - (a + ab * t)).length();
                 let alpha = ((w - d) / px + 0.5).clamp(0.0, 1.0);
                 if alpha <= 0.0 {
                     continue;
                 }
-                let c = if is_needle {
-                    base.map(|ch| (ch * shade).clamp(0.0, 1.0))
-                } else {
-                    twig_rgb
-                };
+                let ridge = 0.90 + 0.16 * (1.0 - (d / w.max(1e-4)).clamp(0.0, 1.0));
+                let s = shade * ridge * lerp(0.84, 1.12, t);
+                let warm = [1.0 + 0.12 * hue, 1.0 + 0.05 * hue, 1.0 - 0.14 * hue];
+                let c = [
+                    (base[0] * s * warm[0]).clamp(0.0, 1.0),
+                    (base[1] * s * warm[1]).clamp(0.0, 1.0),
+                    (base[2] * s * warm[2]).clamp(0.0, 1.0),
+                ];
                 over(&mut acc, [c[0], c[1], c[2], alpha]);
             }
+
             tex.set(
                 x,
                 y,
@@ -777,14 +1275,8 @@ fn frond_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTexture {
             );
         }
     }
+    tex.dilate_alpha_rgb(6);
     tex
-}
-
-/// Distance from point to segment (card space).
-fn dist_to_segment(p: Vec2, a: Vec2, b: Vec2) -> f32 {
-    let ab = b - a;
-    let t = ((p - a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
-    (p - (a + ab * t)).length()
 }
 
 /// Alpha-over composite: `dst` = `src` over `dst` (all channels 0..1).

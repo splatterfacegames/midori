@@ -32,63 +32,63 @@ tips = ["#a3b04a", "#c4ba5c", "#879f3e", "#b9b066"]
 [[groundcover.layers]]
 kind = "grass"
 name = "alpine grass"
-density = 0.32
-coverage = 0.9
+density = 0.56
+coverage = 0.94
 patch_scale = 0.09
 patch_softness = 0.35
-height = 0.5
+height = 0.48
 width = 0.05
 color_base = "#3e5220"
 color_tip = "#b2b456"
 
 [groundcover.layers.cards]
 species = ["grass", "golden_grass", "oat_seeds"]
-count = 4
-card_width = 0.42
-height_range = [0.6, 1.3]
-lean_degrees = [4.0, 30.0]
-loose = 0.12
+count = 5
+card_width = 0.48
+height_range = [0.65, 1.3]
+lean_degrees = [6.0, 30.0]
+loose = 0.16
 normal_up = 0.75
 
 # Wildflowers in drifts: oxeye daisies, buttercups, clover, bellflowers and yarrow.
 [[groundcover.layers]]
 kind = "flower"
 name = "meadow flowers"
-density = 0.55
-coverage = 0.55
+density = 0.62
+coverage = 0.58
 patch_scale = 0.16
 patch_softness = 0.3
-height = 0.42
+height = 0.44
 width = 0.05
 color_base = "#2e5529"
 color_tip = "#f2f0b8"
 
 [groundcover.layers.cards]
 species = ["daisy", "buttercup", "clover", "bellflower", "yarrow"]
-count = 3
-card_width = 0.36
-height_range = [0.7, 1.25]
-lean_degrees = [2.0, 20.0]
-loose = 0.1
+count = 4
+card_width = 0.42
+height_range = [0.75, 1.25]
+lean_degrees = [4.0, 22.0]
+loose = 0.14
 normal_up = 0.7
 
 # Tall accents, scattered: lupin spikes, ferns at the damp edges, a few poppies.
 [[groundcover.layers]]
 kind = "weed"
 name = "meadow accents"
-density = 0.25
-coverage = 0.32
+density = 0.30
+coverage = 0.36
 patch_scale = 0.13
 patch_softness = 0.24
-height = 0.7
+height = 0.72
 width = 0.07
 color_base = "#315c2b"
 color_tip = "#7eb061"
 
 [groundcover.layers.cards]
 species = ["lupin", "fern", "poppy"]
-count = 2
-card_width = 0.4
+count = 3
+card_width = 0.44
 height_range = [0.75, 1.3]
 lean_degrees = [2.0, 16.0]
 loose = 0.08

@@ -14,14 +14,18 @@ export function ActivityPanel({ state }: { state: WorkbenchState }) {
   const lods = state.lods ?? [];
   const totalTris = lods.reduce((sum, lod) => sum + lod.triangle_count, 0);
   const bounds = formatBounds(state);
+  const natureStats = state.naturePreview?.stats ?? null;
+  const isGenerated = Boolean(state.lods || natureStats);
   return (
     <div className="midori-activity">
       <div className="midori-activity-summary">
-        <strong>{state.generating ? 'Generating…' : state.lods ? 'Generated' : 'Idle'}</strong>
+        <strong>{state.generating ? 'Generating…' : isGenerated ? 'Generated' : 'Idle'}</strong>
         <p>
           {state.stats
             ? `${state.stats.stem_count} stems · ${state.stats.leaf_count} leaves · ${lods.length} LODs · ${totalTris.toLocaleString()} total tris`
-            : 'No tree generated yet.'}
+            : natureStats
+              ? `${natureStats.tile_size} × ${natureStats.tile_size} m tile · ${natureStats.terrain_triangle_count.toLocaleString()} terrain tris · ${natureStats.prototype_count} prototypes · ${natureStats.scatter_instance_count.toLocaleString()} scatter instances`
+              : 'No tree generated yet.'}
           {bounds ? ` · bounds ${bounds}` : ''}
           {state.lods ? ` · seed ${state.seed}` : ''}
         </p>

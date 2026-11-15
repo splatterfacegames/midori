@@ -42,7 +42,11 @@ pub fn bake_impostor(
     kept_branch_level: u32,
     textures: &TextureSet,
 ) -> Option<Impostor> {
-    // Assemble crown content: leaves as cross billboards + cut branches.
+    // Assemble crown content: single-sided leaves (bake_view rasterizes both
+    // windings) shaded with natural TintAo colours, plus cut branches.
+    let mut canopy = species.canopy.clone();
+    canopy.single_sided = true;
+    canopy.vertex_color = crate::species::FoliageVertexColor::TintAo;
     let leaf_config = LeafConfig {
         max_leaves: u32::MAX,
         geometry: LeafGeometry::CrossBillboard,
@@ -50,7 +54,7 @@ pub fn bake_impostor(
         polygon_resolution: 10,
         up_influence: species.leaves.up_influence,
         pivot_painter: false,
-        canopy: crate::species::CanopyParams::default(),
+        canopy,
     };
     let leaf_mesh = generate_leaf_mesh(&tree.leaves, &leaf_config, tree);
 
@@ -60,8 +64,11 @@ pub fn bake_impostor(
         pivot_painter: false,
         ..MeshConfig::default()
     };
-    let stem_mesh =
+    let mut stem_mesh =
         MeshBuilder::new(tree, stem_config).build_stems_from_level(kept_branch_level + 1);
+    for v in &mut stem_mesh.vertices {
+        v.color = glam::Vec4::ONE;
+    }
 
     let mut content = Mesh::new();
     if !stem_mesh.is_empty() {
@@ -81,12 +88,13 @@ pub fn bake_impostor(
     max += span * 0.02;
     let span = max - min;
 
-    // Atlas: two square views side by side.
+    // Atlas: two square views side by side. Cap view_res to 256 (512x256 atlas,
+    // 2x supersampled) so far-LOD bakes stay fast even on dense crowns.
     let view_res = textures
         .bark_albedo
         .width
         .max(textures.leaf_card.width)
-        .clamp(64, 1024);
+        .clamp(64, 256);
     let front = bake_view(&content, View::Front, min, span, view_res, textures);
     let side = bake_view(&content, View::Side, min, span, view_res, textures);
     let mut atlas = RgbaTexture::new(view_res * 2, view_res);
@@ -96,6 +104,7 @@ pub fn bake_impostor(
             atlas.set(view_res + x, y, side.get(x, y));
         }
     }
+    atlas.dilate_alpha_rgb(4);
 
     Some(Impostor {
         mesh: impostor_quads(min, max),
@@ -212,12 +221,16 @@ fn bake_view(
                 }
                 let u = (w0 * v0.uv.x + w1 * v1.uv.x + w2 * v2.uv.x) / area;
                 let v = (w0 * v0.uv.y + w1 * v1.uv.y + w2 * v2.uv.y) / area;
-                let texel = match material {
+                let vc = (v0.color * w0 + v1.color * w1 + v2.color * w2) / area;
+                let mut texel = match material {
                     MaterialType::Leaves | MaterialType::Impostor => {
-                        textures.leaf_card.sample_wrap(u, v)
+                        textures.leaf_card.sample_clamp(u, v)
                     }
                     MaterialType::Bark => textures.bark_albedo.sample_wrap(u, v),
                 };
+                texel[0] = (texel[0] * vc.x).clamp(0.0, 1.0);
+                texel[1] = (texel[1] * vc.y).clamp(0.0, 1.0);
+                texel[2] = (texel[2] * vc.z).clamp(0.0, 1.0);
                 // Low threshold: coverage accumulates at downsample.
                 if texel[3] > 0.15 {
                     depth[idx] = d;
@@ -278,11 +291,14 @@ fn impostor_quads(min: Vec3, max: Vec3) -> Mesh {
     let c = (min + max) * 0.5;
     let mut mesh = Mesh::new();
 
-    // Front quad (XY plane): atlas left half.
+    // Front quad (XY plane): atlas left half. Opaque white COLOR_0 so glTF 2.0
+    // viewers don't multiply alpha by 0.0 and discard the impostor.
     let quad = |mesh: &mut Mesh, corners: [(Vec3, Vec2); 4]| {
         let base = mesh.vertices.len() as u32;
         for (position, uv) in corners {
-            mesh.vertices.push(Vertex::new(position, Vec3::Z, uv));
+            let mut vertex = Vertex::new(position, Vec3::Z, uv);
+            vertex.color = glam::Vec4::ONE;
+            mesh.vertices.push(vertex);
         }
         mesh.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);

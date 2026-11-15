@@ -21,6 +21,7 @@ export function PreviewPanel({
       lod
         ? lodToDescriptors(lod, state.seed, state.layers, {
             bark: state.maps?.bark_albedo.rgba,
+            barkNormal: state.maps?.bark_normal.rgba,
             leaves: state.maps?.leaf_card.rgba,
             impostor: lod.impostor_atlas?.rgba,
           })

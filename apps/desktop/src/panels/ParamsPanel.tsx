@@ -158,13 +158,19 @@ export function ParamsPanel({
   if (!json) {
     return (
       <div className="midori-panel-content">
-        <p className="midori-subtle">No species loaded.</p>
+        <p className="midori-subtle">
+          {state.mode === 'nature'
+            ? 'Edit soil, groundcover layers, card atlas, and profiles directly in the TOML source panel and click Apply.'
+            : 'No species loaded.'}
+        </p>
       </div>
     );
   }
+  const familyLabel =
+    json.generator?.family === 'dichotomous' ? 'DICHOTOMOUS PARAMETERS' : 'WEBER–PENN PARAMETERS';
   return (
     <div className="midori-panel-content" aria-label="Species parameters">
-      <div className="midori-eyebrow">WEBER–PENN PARAMETERS</div>
+      <div className="midori-eyebrow">{familyLabel}</div>
       <div className="midori-fields">
         <label className="midori-field">
           <span className="midori-field-label">Name</span>

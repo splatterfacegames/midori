@@ -39,13 +39,15 @@ export interface BranchParamsJson {
 
 export type CrownShape = 'spherical' | 'conical' | 'hemispherical' | 'flame' | 'columnar';
 export type LeafDistribution = 'endpoint' | 'along_branch' | 'both';
-export type LeafGeometry = 'polygon' | 'cross_billboard' | 'billboard' | 'none';
+export type LeafGeometry = 'polygon' | 'cross_billboard' | 'billboard' | 'canopy_card' | 'none';
 export type LodPresetName =
   | 'ultra'
   | 'high_quality'
   | 'balanced'
   | 'mobile'
   | 'minimal'
+  | 'open_world'
+  | 'hero_tree'
   | 'custom';
 export type PlatformTarget = 'modern_pc' | 'mobile' | 'switch' | 'quest' | 'web' | 'universal';
 
@@ -67,8 +69,18 @@ export interface LeafParamsJson {
 }
 
 export type BarkStyle = 'furrowed' | 'plated' | 'smooth';
-export type LeafShapeName = 'oval' | 'pointed' | 'lobed' | 'needle';
-export type LeafCardLayout = 'single' | 'cluster';
+export type LeafShapeName =
+  | 'oval'
+  | 'pointed'
+  | 'needle'
+  | 'oak_lobed'
+  | 'lobed'
+  | 'maple'
+  | 'serrated'
+  | 'willow'
+  | 'heart'
+  | 'palmate';
+export type LeafCardLayout = 'single' | 'cluster' | 'puff' | 'dense' | 'frond';
 
 export interface TextureParamsJson {
   bark_prompt: string;
@@ -110,6 +122,10 @@ export interface PlatformConfigJson {
 
 export interface SpeciesJson {
   species: SpeciesInfoJson;
+  generator?: {
+    family?: string;
+    notes?: string;
+  };
   trunk: TrunkParamsJson;
   branches: {
     level1?: BranchParamsJson;
@@ -118,6 +134,17 @@ export interface SpeciesJson {
   };
   crown: CrownParamsJson;
   leaves: LeafParamsJson;
+  canopy?: {
+    normals?: 'geometric' | 'canopy';
+    normal_blend?: number;
+    up_bias?: number;
+    clump_weight?: number;
+    crown_fill?: number;
+    shell?: number;
+    card_tilt?: number;
+    card_max_angle?: number;
+    ao_strength?: number;
+  };
   textures: TextureParamsJson;
   lod: LodConfigJson;
   platform: PlatformConfigJson;
@@ -141,6 +168,7 @@ export const LEAF_GEOMETRIES: { value: LeafGeometry; label: string }[] = [
   { value: 'polygon', label: 'Polygon' },
   { value: 'cross_billboard', label: 'Cross billboard' },
   { value: 'billboard', label: 'Billboard' },
+  { value: 'canopy_card', label: 'Canopy card (top-down)' },
   { value: 'none', label: 'None' },
 ];
 
@@ -148,6 +176,8 @@ export const LOD_PRESETS: { value: LodPresetName; label: string }[] = [
   { value: 'ultra', label: 'Ultra' },
   { value: 'high_quality', label: 'High quality' },
   { value: 'balanced', label: 'Balanced' },
+  { value: 'open_world', label: 'Open world' },
+  { value: 'hero_tree', label: 'Hero tree' },
   { value: 'mobile', label: 'Mobile' },
   { value: 'minimal', label: 'Minimal' },
   { value: 'custom', label: 'Custom' },
@@ -156,19 +186,28 @@ export const LOD_PRESETS: { value: LodPresetName; label: string }[] = [
 export const BARK_STYLES: { value: BarkStyle; label: string }[] = [
   { value: 'furrowed', label: 'Furrowed (oak, ash)' },
   { value: 'plated', label: 'Plated (pine, spruce)' },
-  { value: 'smooth', label: 'Smooth (beech, birch)' },
+  { value: 'smooth', label: 'Smooth (palm, beech)' },
 ];
 
 export const LEAF_SHAPES: { value: LeafShapeName; label: string }[] = [
   { value: 'oval', label: 'Oval' },
   { value: 'pointed', label: 'Pointed' },
-  { value: 'lobed', label: 'Lobed' },
-  { value: 'needle', label: 'Needle' },
+  { value: 'oak_lobed', label: 'Oak lobed' },
+  { value: 'lobed', label: 'Lobed (legacy)' },
+  { value: 'maple', label: 'Maple' },
+  { value: 'serrated', label: 'Serrated' },
+  { value: 'willow', label: 'Willow lance' },
+  { value: 'heart', label: 'Heart' },
+  { value: 'palmate', label: 'Palmate / frond' },
+  { value: 'needle', label: 'Needle / rosette' },
 ];
 
 export const LEAF_CARD_LAYOUTS: { value: LeafCardLayout; label: string }[] = [
   { value: 'cluster', label: 'Cluster spray' },
-  { value: 'single', label: 'Single leaf' },
+  { value: 'single', label: 'Single / frond / rosette' },
+  { value: 'puff', label: 'Canopy puff' },
+  { value: 'dense', label: 'Dense spray' },
+  { value: 'frond', label: 'Conifer bough fan' },
 ];
 
 export const PLATFORM_TARGETS: { value: PlatformTarget; label: string }[] = [
@@ -253,6 +292,26 @@ export const PARAM_SECTIONS: ParamSection[] = [
       { kind: 'enum', key: 'distribution', label: 'Distribution', options: LEAF_DISTRIBUTIONS },
       { kind: 'enum', key: 'geometry', label: 'Geometry', options: LEAF_GEOMETRIES },
       num('up_influence', 'Up influence', { min: 0, max: 1, step: 0.05 }),
+    ],
+  },
+  {
+    id: 'canopy',
+    title: 'Canopy & Top-down',
+    fields: [
+      {
+        kind: 'enum',
+        key: 'normals',
+        label: 'Normals',
+        options: [
+          { value: 'geometric', label: 'Geometric' },
+          { value: 'canopy', label: 'Canopy dome' },
+        ],
+      },
+      num('crown_fill', 'Crown fill', { min: 0, step: 10, int: true }),
+      num('shell', 'Outer shell', { min: 0, max: 1, step: 0.05 }),
+      num('card_tilt', 'Card tilt', { min: 0, max: 90, step: 1, unit: '°' }),
+      num('card_max_angle', 'Max card angle', { min: 5, max: 90, step: 1, unit: '°' }),
+      num('ao_strength', 'AO strength', { min: 0, max: 1, step: 0.05 }),
     ],
   },
   {

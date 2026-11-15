@@ -104,6 +104,15 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
     }
   }, [windowHost, state.ready, state.generating]);
 
+  // Reframe the 3D camera whenever the loaded preset or mode changes.
+  useEffect(() => {
+    if (!state.ready || state.generating) return;
+    const handle = requestAnimationFrame(() => {
+      viewport.current?.fitAll();
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [state.ready, state.generating, state.mode, state.label]);
+
   const settings = useMemo<SettingsRegistration>(
     () => ({
       appId: 'midori',
@@ -265,7 +274,7 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
         }
         panelLabels={{
           library: 'Species',
-          objects: 'Tree',
+          objects: state.mode === 'nature' ? 'Patch' : 'Tree',
           inspector: 'Parameters',
           bottom: 'Activity',
         }}
@@ -276,16 +285,24 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
         viewToolbars={{ primary: viewToolbar }}
         headerTools={
           <span className="midori-header-species" title={state.label}>
-            {state.json?.species.name ?? 'Midori'}
+            {state.json?.species.name ?? (state.mode === 'nature' ? state.label : 'Midori')}
             {viewportError ? <em className="midori-error-inline"> · viewport: {viewportError}</em> : null}
           </span>
         }
         status={
           <>
             <span className={`midori-status-dot${state.generating ? ' midori-status-busy' : ''}`} />
-            {state.generating ? 'Generating…' : `${state.label} · seed ${state.seed}`}
+            {state.generating
+              ? 'Generating…'
+              : state.mode === 'nature'
+                ? state.label
+                : `${state.label} · seed ${state.seed}`}
             <span className="midori-status-right">
-              {state.lods ? `${state.lods.length} LODs · ` : ''}Weber–Penn engine · WASM
+              {state.mode === 'nature'
+                ? `${state.naturePreview?.stats.prototype_count ?? 0} prototypes · Nature engine · WASM`
+                : `${state.lods ? `${state.lods.length} LODs · ` : ''}${
+                    state.json?.generator?.family === 'dichotomous' ? 'Dichotomous' : 'Weber–Penn'
+                  } engine · WASM`}
             </span>
           </>
         }

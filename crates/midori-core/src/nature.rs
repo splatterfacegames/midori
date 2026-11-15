@@ -5725,17 +5725,17 @@ fn generate_grass_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_grass_clump_mesh(layer, 6, 3, 0),
+                mesh: build_grass_clump_mesh(layer, 10, 3, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
-                mesh: build_grass_clump_mesh(layer, 4, 1, 1),
+                mesh: build_grass_clump_mesh(layer, 5, 2, 1),
             },
             GroundcoverPrototypeLod {
                 index: 2,
                 name: "LOD2".to_string(),
-                mesh: build_grass_clump_mesh(layer, 2, 1, 2),
+                mesh: build_grass_clump_mesh(layer, 3, 1, 2),
             },
         ],
     }
@@ -5749,18 +5749,23 @@ fn build_grass_clump_mesh(
 ) -> Mesh {
     let mut rng = Rng::from_seed(0x6772_6173_7300u64 ^ ((lod_index as u64 + 1) << 8));
     let mut mesh = Mesh::new();
-    let base_width = layer.width.max(0.01);
+    let base_width = layer.width.max(0.012);
     let base_height = layer.height.max(0.05);
 
     for blade in 0..blade_count {
-        let angle =
-            (blade as f32 / blade_count as f32) * crate::constants::TAU + rng.range(-0.35, 0.35);
-        let radius = rng.range(0.0, base_width * 1.8);
-        let base = Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
-        let yaw = angle + rng.range(-0.5, 0.5);
-        let height = base_height * rng.range(0.75, 1.15);
-        let width = base_width * rng.range(0.7, 1.2);
-        let curl = layer.curl * rng.range(0.7, 1.3);
+        let angle = (blade as f32 / blade_count.max(1) as f32) * crate::constants::TAU
+            + rng.range(-0.4, 0.4);
+        let radius = rng.range(0.0, base_width * 2.2);
+        let base = Vec3::new(
+            angle.cos() * radius,
+            -0.015 * base_height,
+            angle.sin() * radius,
+        );
+        let yaw = angle + rng.range(-0.45, 0.45);
+        // Varied outer-shorter / inner-taller fountain tuft heights
+        let height = base_height * rng.range(0.58, 1.18);
+        let width = base_width * rng.range(0.75, 1.25);
+        let curl = (layer.curl.max(0.35)) * rng.range(0.75, 1.35);
         let phase = rng.range(0.0, crate::constants::TAU);
         let color_variation = rng.next_f32();
 
@@ -5774,6 +5779,9 @@ fn build_grass_clump_mesh(
             phase,
             color_variation,
             segments,
+            0.0,
+            1.0,
+            false,
         );
     }
 
@@ -5797,32 +5805,44 @@ fn append_blade_strip(
     phase: f32,
     color_variation: f32,
     segments: u32,
+    color_t0: f32,
+    color_t1: f32,
+    broadleaf: bool,
 ) {
     let start = mesh.vertices.len() as u32;
     let forward = Vec3::new(yaw.sin(), 0.0, yaw.cos());
     let right = Vec3::new(yaw.cos(), 0.0, -yaw.sin());
+    let lean = curl.clamp(0.05, 1.8);
 
     for segment in 0..=segments {
         let t = segment as f32 / segments.max(1) as f32;
         let stiffness = 1.0 - t;
-        let center = base + Vec3::Y * height * t + forward * curl.sin() * height * t * t * 0.22;
-        let width_at_t = width * (1.0 - t * 0.82).max(0.12);
+        // Graceful botanical arch: outward lean from root + quadratic gravity droop near tip
+        let reach = height * (lean * 0.22 * t + lean * 0.34 * t * t);
+        let lift = height * (t - lean * 0.14 * t * t * t);
+        let center = base + Vec3::Y * lift + forward * reach;
+        let width_at_t = if broadleaf {
+            width * (0.28 + 0.85 * (t * std::f32::consts::PI * 0.94).sin().max(0.0)).max(0.08)
+        } else {
+            width * (1.0 - t * 0.90).max(0.06)
+        };
         let left = center - right * width_at_t * 0.5;
         let right_pos = center + right * width_at_t * 0.5;
+        let color_t = lerp(color_t0, color_t1, t);
 
         mesh.vertices.push(Vertex {
             position: left,
             normal: forward,
             uv: Vec2::new(0.0, t),
             uv2: Vec2::new(phase, stiffness),
-            color: Vec4::new(height, color_variation, t, stiffness),
+            color: Vec4::new(height, color_variation, color_t, stiffness),
         });
         mesh.vertices.push(Vertex {
             position: right_pos,
             normal: forward,
             uv: Vec2::new(1.0, t),
             uv2: Vec2::new(phase, stiffness),
-            color: Vec4::new(height, color_variation, t, stiffness),
+            color: Vec4::new(height, color_variation, color_t, stiffness),
         });
     }
 
@@ -5845,40 +5865,98 @@ fn generate_moss_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_moss_tuft_mesh(layer, 6, 0),
+                // 3 overlapping velvety cushion hummocks * 24 tris = 72 tris
+                mesh: build_moss_tuft_mesh(layer, 3, 8, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
-                mesh: build_moss_tuft_mesh(layer, 3, 1),
+                // 1 scalloped cushion dome * 30 tris = 30 tris
+                mesh: build_moss_tuft_mesh(layer, 1, 10, 1),
             },
         ],
     }
 }
 
-fn build_moss_tuft_mesh(layer: &GroundcoverLayer, card_count: u32, lod_index: u32) -> Mesh {
+fn build_moss_tuft_mesh(
+    layer: &GroundcoverLayer,
+    hummock_count: u32,
+    radial_segments: u32,
+    lod_index: u32,
+) -> Mesh {
     let mut rng = Rng::from_seed(0x6d6f_7373_0000u64 ^ ((lod_index as u64 + 1) << 8));
     let mut mesh = Mesh::new();
-    let radius = layer.width.max(0.04) * 1.8;
-    let height = layer.height.max(0.03);
+    let base_radius = layer.width.max(0.09) * 2.1;
+    let base_height = layer.height.clamp(0.03, 0.22);
+    let radial_segments = radial_segments.max(4);
 
-    for card in 0..card_count {
-        let yaw = (card as f32 / card_count as f32) * crate::constants::TAU + rng.range(-0.2, 0.2);
-        let offset_angle = rng.range(0.0, crate::constants::TAU);
-        let offset_radius = rng.range(0.0, radius * 0.45);
-        let center = Vec3::new(
-            offset_angle.cos() * offset_radius,
-            0.0,
-            offset_angle.sin() * offset_radius,
-        );
-        append_moss_card(
-            &mut mesh,
-            center,
-            yaw,
-            radius * rng.range(0.65, 1.05),
-            height * rng.range(0.65, 1.15),
-            rng.next_f32(),
-        );
+    for h in 0..hummock_count.max(1) {
+        let (center, rad_scale, h_scale) = if h == 0 {
+            (Vec3::ZERO, 1.0, 1.0)
+        } else {
+            let a =
+                (h as f32 / hummock_count as f32) * crate::constants::TAU + rng.range(-0.4, 0.4);
+            let d = base_radius * rng.range(0.42, 0.68);
+            (
+                Vec3::new(a.cos() * d, 0.0, a.sin() * d),
+                rng.range(0.62, 0.85),
+                rng.range(0.65, 0.92),
+            )
+        };
+        let rx = base_radius * rad_scale;
+        let rz = rx * rng.range(0.80, 1.15);
+        let hgt = base_height * h_scale;
+        let variation = rng.next_f32();
+        let phase = rng.range(0.0, crate::constants::TAU);
+
+        let mut ring0 = Vec::with_capacity(radial_segments as usize);
+        let mut ring1 = Vec::with_capacity(radial_segments as usize);
+        for s in 0..radial_segments {
+            let u = s as f32 / radial_segments as f32;
+            let ang = u * crate::constants::TAU;
+            let lobe = 1.0 + 0.16 * (ang * 3.0 + phase).sin() + rng.range(-0.08, 0.08);
+            let p0 = center + Vec3::new(ang.cos() * rx * lobe, -0.012 * hgt, ang.sin() * rz * lobe);
+            let p1 = center
+                + Vec3::new(
+                    ang.cos() * rx * lobe * 0.64,
+                    hgt * 0.72 * rng.range(0.92, 1.08),
+                    ang.sin() * rz * lobe * 0.64,
+                );
+            ring0.push(mesh.vertices.len() as u32);
+            mesh.vertices.push(Vertex {
+                position: p0,
+                normal: Vec3::Y,
+                uv: Vec2::new(0.5 + ang.cos() * 0.48, 0.5 + ang.sin() * 0.48),
+                uv2: Vec2::new(phase, 1.0),
+                color: Vec4::new(hgt, variation, 0.08, 1.0),
+            });
+            ring1.push(mesh.vertices.len() as u32);
+            mesh.vertices.push(Vertex {
+                position: p1,
+                normal: Vec3::Y,
+                uv: Vec2::new(0.5 + ang.cos() * 0.28, 0.5 + ang.sin() * 0.28),
+                uv2: Vec2::new(phase, 0.5),
+                color: Vec4::new(hgt, variation, 0.68, 0.5),
+            });
+        }
+        let apex = mesh.vertices.len() as u32;
+        mesh.vertices.push(Vertex {
+            position: center + Vec3::Y * hgt,
+            normal: Vec3::Y,
+            uv: Vec2::new(0.5, 0.5),
+            uv2: Vec2::new(phase, 0.2),
+            color: Vec4::new(hgt, variation, 1.0, 0.2),
+        });
+
+        for s in 0..radial_segments {
+            let cur = s as usize;
+            let nxt = ((s + 1) % radial_segments) as usize;
+            // Outward CCW winding around +Y (cos(ang), sin(ang)): cur -> apex -> nxt
+            mesh.indices.extend_from_slice(&[
+                ring0[cur], ring1[cur], ring1[nxt], ring0[cur], ring1[nxt], ring0[nxt], ring1[cur],
+                apex, ring1[nxt],
+            ]);
+        }
     }
 
     mesh.submeshes.push(Submesh {
@@ -5888,40 +5966,6 @@ fn build_moss_tuft_mesh(layer: &GroundcoverLayer, card_count: u32, lod_index: u3
     });
     mesh.recalculate_normals();
     mesh
-}
-
-fn append_moss_card(
-    mesh: &mut Mesh,
-    center: Vec3,
-    yaw: f32,
-    radius: f32,
-    height: f32,
-    color_variation: f32,
-) {
-    let start = mesh.vertices.len() as u32;
-    let right = Vec3::new(yaw.cos(), 0.0, -yaw.sin());
-    let normal = Vec3::new(yaw.sin(), 0.0, yaw.cos());
-    let bottom_left = center - right * radius * 0.5;
-    let bottom_right = center + right * radius * 0.5;
-    let top_left = bottom_left + Vec3::Y * height;
-    let top_right = bottom_right + Vec3::Y * height;
-
-    for (position, uv, t) in [
-        (bottom_left, Vec2::new(0.0, 0.0), 0.0),
-        (bottom_right, Vec2::new(1.0, 0.0), 0.0),
-        (top_right, Vec2::new(1.0, 1.0), 1.0),
-        (top_left, Vec2::new(0.0, 1.0), 1.0),
-    ] {
-        mesh.vertices.push(Vertex {
-            position,
-            normal,
-            uv,
-            uv2: Vec2::new(color_variation, 1.0 - t),
-            color: Vec4::new(height, color_variation, t, 1.0 - t),
-        });
-    }
-    mesh.indices
-        .extend_from_slice(&[start, start + 1, start + 2, start, start + 2, start + 3]);
 }
 
 fn generate_flower_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
@@ -5936,16 +5980,19 @@ fn generate_flower_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_flower_clump_mesh(layer, 3, 5, 0),
+                // 3 flowers * (4 stem + 8 leaves + 12 petals + 2 center = 26) = 78 tris
+                mesh: build_flower_clump_mesh(layer, 3, 6, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
-                mesh: build_flower_clump_mesh(layer, 2, 4, 1),
+                // 2 flowers * (2 stem + 2 leaf + 10 petals = 14) = 28 tris
+                mesh: build_flower_clump_mesh(layer, 2, 5, 1),
             },
             GroundcoverPrototypeLod {
                 index: 2,
                 name: "LOD2".to_string(),
+                // 1 flower * (2 stem + 6 petals = 8) = 8 tris
                 mesh: build_flower_clump_mesh(layer, 1, 3, 2),
             },
         ],
@@ -5960,51 +6007,76 @@ fn build_flower_clump_mesh(
 ) -> Mesh {
     let mut rng = Rng::from_seed(0x666c_6f77_6572_0000u64 ^ ((lod_index as u64 + 1) << 8));
     let mut mesh = Mesh::new();
-    let base_width = layer.width.max(0.025);
-    let base_height = layer.height.clamp(0.08, 0.8);
+    let base_width = layer.width.max(0.028);
+    let base_height = layer.height.clamp(0.10, 0.80);
+    let stem_segs = if lod_index == 0 { 2 } else { 1 };
 
     for flower in 0..flower_count {
         let angle = (flower as f32 / flower_count.max(1) as f32) * crate::constants::TAU
-            + rng.range(-0.5, 0.5);
-        let radius = rng.range(0.0, base_width * 2.5);
-        let base = Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
-        let yaw = angle + rng.range(-0.6, 0.6);
-        let height = base_height * rng.range(0.75, 1.15);
+            + rng.range(-0.45, 0.45);
+        let radius = rng.range(0.0, base_width * 2.2);
+        let base = Vec3::new(
+            angle.cos() * radius,
+            -0.01 * base_height,
+            angle.sin() * radius,
+        );
+        let yaw = angle + rng.range(-0.5, 0.5);
+        let height = base_height * rng.range(0.78, 1.16);
+        let curl = layer.curl.clamp(0.12, 0.55);
         let phase = rng.range(0.0, crate::constants::TAU);
         let variation = rng.next_f32();
 
+        // Stem encodes COLOR_0.z in 0.0..0.30 (green stem palette)
         append_blade_strip(
             &mut mesh,
             base,
             yaw,
-            height * 0.82,
-            base_width * 0.28,
-            layer.curl.max(0.08),
+            height,
+            base_width * 0.24,
+            curl,
             phase,
             variation,
-            1,
+            stem_segs,
+            0.0,
+            0.30,
+            false,
         );
 
-        if lod_index < 2 {
+        // Basal rosette leaves encode COLOR_0.z in 0.06..0.38 (rich foliage green)
+        let leaf_n = match lod_index {
+            0 => 2,
+            1 => 1,
+            _ => 0,
+        };
+        for lk in 0..leaf_n {
+            let lyaw = yaw + 1.8 + lk as f32 * 2.3;
             append_blade_strip(
                 &mut mesh,
                 base,
-                yaw + 1.6,
-                height * 0.35,
-                base_width * 1.8,
-                0.25,
+                lyaw,
+                height * 0.46,
+                base_width * 1.45,
+                0.75,
                 phase,
                 variation,
-                1,
+                stem_segs,
+                0.06,
+                0.38,
+                true,
             );
         }
 
+        // Exact stem tip position so blossom sits directly on the arched stem!
+        let forward = Vec3::new(yaw.sin(), 0.0, yaw.cos());
+        let head_pos =
+            base + Vec3::Y * (height * (1.0 - curl * 0.14)) + forward * (height * curl * 0.56);
         append_flower_head(
             &mut mesh,
-            base + Vec3::Y * height,
+            head_pos,
             yaw,
-            base_width * 2.2,
+            base_width * 1.65,
             petal_count,
+            lod_index == 0,
             phase,
             variation,
         );
@@ -6019,27 +6091,30 @@ fn build_flower_clump_mesh(
     mesh
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_flower_head(
     mesh: &mut Mesh,
     center: Vec3,
     yaw: f32,
     radius: f32,
     petal_count: u32,
+    with_disc: bool,
     phase: f32,
     color_variation: f32,
 ) {
+    // Upward-cupped corolla petals encode COLOR_0.z in 0.80..1.0 (blossom tip color)
     for petal in 0..petal_count.max(1) {
         let angle = yaw + (petal as f32 / petal_count.max(1) as f32) * crate::constants::TAU;
-        let forward = Vec3::new(angle.sin(), 0.08, angle.cos()).normalize_or_zero();
+        let forward = Vec3::new(angle.sin(), 0.36, angle.cos()).normalize_or_zero();
         let right = Vec3::new(angle.cos(), 0.0, -angle.sin());
         let start = mesh.vertices.len() as u32;
-        let inner = center + forward * radius * 0.15;
+        let inner = center + forward * radius * 0.10;
         let outer = center + forward * radius;
-        let width = radius * 0.32;
+        let width = radius * 0.38;
 
         for (position, uv, t) in [
-            (inner - right * width * 0.35, Vec2::new(0.15, 0.0), 0.0),
-            (inner + right * width * 0.35, Vec2::new(0.85, 0.0), 0.0),
+            (inner - right * width * 0.28, Vec2::new(0.2, 0.0), 0.80),
+            (inner + right * width * 0.28, Vec2::new(0.8, 0.0), 0.80),
             (outer + right * width, Vec2::new(1.0, 1.0), 1.0),
             (outer - right * width, Vec2::new(0.0, 1.0), 1.0),
         ] {
@@ -6047,12 +6122,35 @@ fn append_flower_head(
                 position,
                 normal: Vec3::Y,
                 uv,
-                uv2: Vec2::new(phase, 1.0 - t),
-                color: Vec4::new(radius, color_variation, t, 1.0 - t),
+                uv2: Vec2::new(phase, 0.15),
+                color: Vec4::new(radius, color_variation, t, 0.15),
+            });
+        }
+        // CCW seen from +Y so upward-cupped petals face the sky
+        mesh.indices
+            .extend_from_slice(&[start, start + 2, start + 1, start, start + 3, start + 2]);
+    }
+
+    if with_disc {
+        let start = mesh.vertices.len() as u32;
+        let dr = radius * 0.22;
+        let lift = center + Vec3::Y * (radius * 0.08);
+        for (pos, uv) in [
+            (lift + Vec3::new(-dr, 0.0, -dr), Vec2::new(0.0, 0.0)),
+            (lift + Vec3::new(dr, 0.0, -dr), Vec2::new(1.0, 0.0)),
+            (lift + Vec3::new(dr, 0.0, dr), Vec2::new(1.0, 1.0)),
+            (lift + Vec3::new(-dr, 0.0, dr), Vec2::new(0.0, 1.0)),
+        ] {
+            mesh.vertices.push(Vertex {
+                position: pos,
+                normal: Vec3::Y,
+                uv,
+                uv2: Vec2::new(phase, 0.2),
+                color: Vec4::new(radius, color_variation, 0.60, 0.2),
             });
         }
         mesh.indices
-            .extend_from_slice(&[start, start + 1, start + 2, start, start + 2, start + 3]);
+            .extend_from_slice(&[start, start + 2, start + 1, start, start + 3, start + 2]);
     }
 }
 
@@ -6068,17 +6166,20 @@ fn generate_weed_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_weed_clump_mesh(layer, 5, 2, 0),
+                // 8 broad rosette leaves * 3 segs = 48 tris
+                mesh: build_weed_clump_mesh(layer, 8, 3, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
-                mesh: build_weed_clump_mesh(layer, 3, 1, 1),
+                // 5 broad leaves * 2 segs = 20 tris
+                mesh: build_weed_clump_mesh(layer, 5, 2, 1),
             },
             GroundcoverPrototypeLod {
                 index: 2,
                 name: "LOD2".to_string(),
-                mesh: build_weed_clump_mesh(layer, 1, 1, 2),
+                // 3 broad leaves * 1 seg = 6 tris
+                mesh: build_weed_clump_mesh(layer, 3, 1, 2),
             },
         ],
     }
@@ -6093,25 +6194,32 @@ fn build_weed_clump_mesh(
     let mut rng = Rng::from_seed(0x7765_6564_0000u64 ^ ((lod_index as u64 + 1) << 8));
     let mut mesh = Mesh::new();
     let base_width = layer.width.max(0.035);
-    let base_height = layer.height.clamp(0.12, 1.1);
+    let base_height = layer.height.clamp(0.12, 1.0);
 
     for leaf in 0..leaf_count {
-        let angle =
-            (leaf as f32 / leaf_count.max(1) as f32) * crate::constants::TAU + rng.range(-0.4, 0.4);
-        let radius = rng.range(0.0, base_width * 1.6);
-        let base = Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
-        let height = base_height * rng.range(0.65, 1.15);
-        let width = base_width * rng.range(1.4, 2.4);
+        let angle = (leaf as f32 / leaf_count.max(1) as f32) * crate::constants::TAU
+            + rng.range(-0.35, 0.35);
+        let radius = rng.range(0.0, base_width * 1.1);
+        let base = Vec3::new(
+            angle.cos() * radius,
+            -0.012 * base_height,
+            angle.sin() * radius,
+        );
+        let height = base_height * rng.range(0.62, 1.12);
+        let width = base_width * rng.range(1.4, 2.2);
         append_blade_strip(
             &mut mesh,
             base,
-            angle + rng.range(-0.45, 0.45),
+            angle + rng.range(-0.35, 0.35),
             height,
             width,
-            layer.curl.max(0.18),
+            layer.curl.max(0.62) * rng.range(0.85, 1.25),
             rng.range(0.0, crate::constants::TAU),
             rng.next_f32(),
             segments,
+            0.0,
+            1.0,
+            true,
         );
     }
 
@@ -6136,35 +6244,53 @@ fn generate_litter_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_litter_patch_mesh(layer, 6, 0),
+                // 12 curled dry leaves/twigs * 2 segs = 48 tris
+                mesh: build_litter_patch_mesh(layer, 12, 2, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
-                mesh: build_litter_patch_mesh(layer, 3, 1),
+                // 8 dry leaves * 1 seg = 16 tris
+                mesh: build_litter_patch_mesh(layer, 8, 1, 1),
             },
         ],
     }
 }
 
-fn build_litter_patch_mesh(layer: &GroundcoverLayer, card_count: u32, lod_index: u32) -> Mesh {
+fn build_litter_patch_mesh(
+    layer: &GroundcoverLayer,
+    card_count: u32,
+    segments: u32,
+    lod_index: u32,
+) -> Mesh {
     let mut rng = Rng::from_seed(0x6c69_7474_6572_0000u64 ^ ((lod_index as u64 + 1) << 8));
     let mut mesh = Mesh::new();
-    let base_width = layer.width.max(0.06);
-    let base_length = layer.height.clamp(0.08, 0.5);
+    let base_width = layer.width.max(0.055);
+    let base_length = layer.height.clamp(0.08, 0.36);
 
     for card in 0..card_count {
         let angle = rng.range(0.0, crate::constants::TAU);
-        let radius = rng.range(0.0, base_width * 2.4 + card as f32 * 0.01);
-        let center = Vec3::new(angle.cos() * radius, 0.003, angle.sin() * radius);
-        append_litter_card(
+        let radius = rng.range(0.0, base_width * 2.8 + card as f32 * 0.008);
+        let center = Vec3::new(angle.cos() * radius, 0.004, angle.sin() * radius);
+        let is_twig = card % 4 == 3;
+        append_curled_litter_piece(
             &mut mesh,
             center,
             rng.range(0.0, crate::constants::TAU),
-            base_width * rng.range(0.7, 1.3),
-            base_length * rng.range(0.65, 1.15),
+            if is_twig {
+                base_width * 0.22
+            } else {
+                base_width * rng.range(0.75, 1.30)
+            },
+            if is_twig {
+                base_length * rng.range(1.1, 1.6)
+            } else {
+                base_length * rng.range(0.68, 1.15)
+            },
+            segments,
             rng.range(0.0, crate::constants::TAU),
             rng.next_f32(),
+            is_twig,
         );
     }
 
@@ -6177,39 +6303,63 @@ fn build_litter_patch_mesh(layer: &GroundcoverLayer, card_count: u32, lod_index:
     mesh
 }
 
-fn append_litter_card(
+#[allow(clippy::too_many_arguments)]
+fn append_curled_litter_piece(
     mesh: &mut Mesh,
     center: Vec3,
     yaw: f32,
     width: f32,
     length: f32,
+    segments: u32,
     phase: f32,
     color_variation: f32,
+    is_twig: bool,
 ) {
     let start = mesh.vertices.len() as u32;
     let right = Vec3::new(yaw.cos(), 0.0, -yaw.sin());
     let forward = Vec3::new(yaw.sin(), 0.0, yaw.cos());
-    let p0 = center - right * width * 0.5 - forward * length * 0.5;
-    let p1 = center + right * width * 0.5 - forward * length * 0.5;
-    let p2 = center + right * width * 0.5 + forward * length * 0.5;
-    let p3 = center - right * width * 0.5 + forward * length * 0.5;
+    let segs = segments.max(1);
 
-    for (position, uv, t) in [
-        (p0, Vec2::new(0.0, 0.0), 0.0),
-        (p1, Vec2::new(1.0, 0.0), 0.0),
-        (p2, Vec2::new(1.0, 1.0), 1.0),
-        (p3, Vec2::new(0.0, 1.0), 1.0),
-    ] {
+    for s in 0..=segs {
+        let t = s as f32 / segs as f32;
+        let along = (t - 0.5) * length;
+        let curl_y = if is_twig {
+            0.006 + 0.010 * (t * std::f32::consts::PI).sin()
+        } else {
+            0.003 + (t - 0.45).powi(2) * length * 0.26
+        };
+        let profile = if is_twig {
+            1.0 - t * 0.35
+        } else {
+            (0.18 + 0.92 * (t * std::f32::consts::PI).sin().max(0.0)).min(1.0)
+        };
+        let w = width * profile * 0.5;
+        let mid = center + forward * along + Vec3::Y * curl_y;
+        let color_t = if is_twig {
+            0.15 + 0.25 * t
+        } else {
+            0.35 + 0.65 * t
+        };
         mesh.vertices.push(Vertex {
-            position,
+            position: mid - right * w,
             normal: Vec3::Y,
-            uv,
+            uv: Vec2::new(0.0, t),
             uv2: Vec2::new(phase, 1.0),
-            color: Vec4::new(length, color_variation, t, 1.0),
+            color: Vec4::new(length, color_variation, color_t, 1.0),
+        });
+        mesh.vertices.push(Vertex {
+            position: mid + right * w,
+            normal: Vec3::Y,
+            uv: Vec2::new(1.0, t),
+            uv2: Vec2::new(phase, 1.0),
+            color: Vec4::new(length, color_variation, color_t, 1.0),
         });
     }
-    mesh.indices
-        .extend_from_slice(&[start, start + 2, start + 1, start, start + 3, start + 2]);
+    for s in 0..segs {
+        let a = start + s * 2;
+        mesh.indices
+            .extend_from_slice(&[a, a + 2, a + 3, a, a + 3, a + 1]);
+    }
 }
 
 fn generate_shrub_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
@@ -6224,17 +6374,20 @@ fn generate_shrub_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_shrub_clump_mesh(layer, 5, 2, 2, 0),
+                // 5 stems * (4 stem tris + 4 * 4 bent leaf spray tris = 20) = 100 tris
+                mesh: build_shrub_clump_mesh(layer, 5, 4, 2, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
-                mesh: build_shrub_clump_mesh(layer, 3, 1, 1, 1),
+                // 3 stems * (2 stem tris + 4 * 2 leaf diamond tris = 10) = 30 tris
+                mesh: build_shrub_clump_mesh(layer, 3, 4, 1, 1),
             },
             GroundcoverPrototypeLod {
                 index: 2,
                 name: "LOD2".to_string(),
-                mesh: build_shrub_card_mesh(layer, 2),
+                // 4 angled diamond foliage quads = 8 tris
+                mesh: build_shrub_card_mesh(layer, 4),
             },
         ],
     }
@@ -6243,45 +6396,68 @@ fn generate_shrub_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
 fn build_shrub_clump_mesh(
     layer: &GroundcoverLayer,
     stem_count: u32,
-    leaf_cards_per_stem: u32,
+    leaf_sprays_per_stem: u32,
     segments: u32,
     lod_index: u32,
 ) -> Mesh {
     let mut rng = Rng::from_seed(0x7368_7275_6200u64 ^ ((lod_index as u64 + 1) << 8));
     let mut mesh = Mesh::new();
-    let base_width = layer.width.max(0.05);
-    let base_height = layer.height.clamp(0.2, 1.6);
+    let base_width = layer.width.max(0.06);
+    let base_height = layer.height.clamp(0.22, 1.5);
 
     for stem in 0..stem_count {
         let angle = (stem as f32 / stem_count.max(1) as f32) * crate::constants::TAU
-            + rng.range(-0.45, 0.45);
-        let base_radius = rng.range(0.0, base_width * 1.8);
-        let base = Vec3::new(angle.cos() * base_radius, 0.0, angle.sin() * base_radius);
-        let height = base_height * rng.range(0.65, 1.15);
-        let yaw = angle + rng.range(-0.55, 0.55);
+            + rng.range(-0.35, 0.35);
+        let base_radius = rng.range(0.0, base_width * 0.85);
+        let base = Vec3::new(
+            angle.cos() * base_radius,
+            -0.02 * base_height,
+            angle.sin() * base_radius,
+        );
+        let height = base_height * rng.range(0.72, 1.12);
+        let yaw = angle + rng.range(-0.35, 0.35);
+        let curl = layer.curl.clamp(0.28, 0.85);
         let phase = rng.range(0.0, crate::constants::TAU);
         let variation = rng.next_f32();
 
+        // Woody stem encodes COLOR_0.z in 0.0..0.24
         append_blade_strip(
             &mut mesh,
             base,
             yaw,
-            height * 0.78,
-            base_width * 0.38,
-            layer.curl.max(0.18),
+            height * 0.76,
+            base_width * 0.24,
+            curl,
             phase,
             variation,
             segments,
+            0.0,
+            0.24,
+            false,
         );
 
-        for card in 0..leaf_cards_per_stem {
-            append_moss_card(
+        let forward = Vec3::new(yaw.sin(), 0.0, yaw.cos());
+        for spray in 0..leaf_sprays_per_stem {
+            let st = 0.42 + 0.56 * (spray as f32 / leaf_sprays_per_stem.max(1) as f32);
+            let stem_pt = base
+                + Vec3::Y * (height * 0.76 * (st - curl * 0.14 * st * st * st))
+                + forward * (height * 0.76 * (curl * 0.22 * st + curl * 0.34 * st * st));
+            let syaw = yaw + (spray as f32 * 2.15) + rng.range(-0.3, 0.3);
+            let slen = height * rng.range(0.32, 0.46);
+            let swid = base_width * rng.range(1.65, 2.35);
+            append_blade_strip(
                 &mut mesh,
-                base + Vec3::Y * height * rng.range(0.28, 0.58),
-                yaw + (card as f32 / leaf_cards_per_stem.max(1) as f32) * crate::constants::TAU,
-                base_width * rng.range(2.4, 3.8),
-                height * rng.range(0.25, 0.42),
+                stem_pt,
+                syaw,
+                slen,
+                swid,
+                rng.range(0.75, 1.25),
+                phase,
                 variation,
+                segments,
+                0.52,
+                1.0,
+                true,
             );
         }
     }
@@ -6297,16 +6473,23 @@ fn build_shrub_clump_mesh(
 
 fn build_shrub_card_mesh(layer: &GroundcoverLayer, card_count: u32) -> Mesh {
     let mut mesh = Mesh::new();
-    let width = layer.width.max(0.06) * 4.2;
-    let height = layer.height.clamp(0.2, 1.6) * 0.9;
+    let width = layer.width.max(0.06) * 2.6;
+    let height = layer.height.clamp(0.2, 1.5) * 0.82;
     for card in 0..card_count.max(1) {
-        append_moss_card(
+        let yaw = (card as f32 / card_count.max(1) as f32) * crate::constants::TAU + 0.4;
+        append_blade_strip(
             &mut mesh,
             Vec3::ZERO,
-            (card as f32 / card_count.max(1) as f32) * crate::constants::TAU,
-            width,
+            yaw,
             height,
+            width,
+            0.85,
+            0.0,
             card as f32 / card_count.max(1) as f32,
+            1,
+            0.35,
+            1.0,
+            true,
         );
     }
     mesh.submeshes.push(Submesh {
@@ -6330,20 +6513,58 @@ fn generate_rock_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_rock_mesh(layer, 8, 3, 0),
+                // 2 * 3 * 9 = 54 faceted boulder triangles
+                mesh: build_rock_mesh(layer, 9, 3, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
+                // 2 * 2 * 6 = 24 faceted triangles
                 mesh: build_rock_mesh(layer, 6, 2, 1),
             },
             GroundcoverPrototypeLod {
                 index: 2,
                 name: "LOD2".to_string(),
+                // 2 * 1 * 4 = 8 faceted triangles
                 mesh: build_rock_mesh(layer, 4, 1, 2),
             },
         ],
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_faceted_tri(
+    mesh: &mut Mesh,
+    p0: Vec3,
+    p1: Vec3,
+    p2: Vec3,
+    lod_index: u32,
+    height: f32,
+    t0: f32,
+    t1: f32,
+    t2: f32,
+) {
+    let idx = mesh.vertices.len() as u32;
+    let face_n = (p1 - p0).cross(p2 - p0).normalize_or_zero();
+    let n = if face_n.length_squared() > 0.5 {
+        face_n
+    } else {
+        Vec3::Y
+    };
+    for (p, uv, ct) in [
+        (p0, Vec2::new(0.0, 0.0), t0),
+        (p1, Vec2::new(1.0, 0.0), t1),
+        (p2, Vec2::new(0.5, 1.0), t2),
+    ] {
+        mesh.vertices.push(Vertex {
+            position: p,
+            normal: n,
+            uv,
+            uv2: Vec2::new(lod_index as f32, ct),
+            color: Vec4::new(height, ct, ct, 1.0),
+        });
+    }
+    mesh.indices.extend_from_slice(&[idx, idx + 1, idx + 2]);
 }
 
 fn build_rock_mesh(
@@ -6356,79 +6577,77 @@ fn build_rock_mesh(
     let mut mesh = Mesh::new();
     let radial_segments = radial_segments.max(3);
     let rings = rings.max(1);
-    let radius_x = layer.width.max(0.08);
-    let radius_z = radius_x * 0.72;
-    let height = layer.height.max(0.05);
+    let radius_x = layer.width.max(0.09);
+    let radius_z = radius_x * 0.74;
+    let height = layer.height.max(0.06);
+    // Asymmetric cleavage planes + sunken base skirt so stones sit embedded in soil
     let radial_scales: Vec<f32> = (0..radial_segments)
-        .map(|_| rng.range(0.78, 1.18))
+        .map(|s| {
+            let ridge = if s.is_multiple_of(2) { 1.12 } else { 0.84 };
+            ridge * rng.range(0.84, 1.16)
+        })
         .collect();
-    let mut ring_indices: Vec<Vec<u32>> = Vec::new();
+    let mut ring_pts: Vec<Vec<(Vec3, f32)>> = Vec::with_capacity(rings as usize);
 
     for ring in 0..rings {
         let t = ring as f32 / rings as f32;
-        let theta = t * std::f32::consts::FRAC_PI_2;
-        let ring_radius = theta.cos().max(0.05);
-        let y = theta.sin() * height;
-        let mut indices = Vec::with_capacity(radial_segments as usize);
+        let ring_radius = (1.0 - t * 0.58).max(0.18);
+        let y_base = if ring == 0 {
+            -0.08 * height
+        } else {
+            height * (0.18 + 0.68 * t)
+        };
+        let twist = ring as f32 * 0.28;
+        let mut pts = Vec::with_capacity(radial_segments as usize);
         for segment in 0..radial_segments {
-            let angle = (segment as f32 / radial_segments as f32) * crate::constants::TAU;
-            let scale = radial_scales[segment as usize];
-            let position = Vec3::new(
+            let angle = (segment as f32 / radial_segments as f32) * crate::constants::TAU + twist;
+            let scale = radial_scales[segment as usize] * rng.range(0.92, 1.08);
+            let pos = Vec3::new(
                 angle.cos() * radius_x * ring_radius * scale,
-                y * rng.range(0.92, 1.08),
+                y_base * rng.range(0.88, 1.12),
                 angle.sin() * radius_z * ring_radius * scale,
             );
-            indices.push(mesh.vertices.len() as u32);
-            mesh.vertices.push(Vertex {
-                position,
-                normal: Vec3::Y,
-                uv: Vec2::new(segment as f32 / radial_segments as f32, t),
-                uv2: Vec2::new(lod_index as f32, scale),
-                color: Vec4::new(height, scale, t, 1.0),
-            });
+            pts.push((pos, (t + 0.15).clamp(0.0, 1.0)));
         }
-        ring_indices.push(indices);
+        ring_pts.push(pts);
     }
 
-    let top_index = mesh.vertices.len() as u32;
-    mesh.vertices.push(Vertex {
-        position: Vec3::new(0.0, height, 0.0),
-        normal: Vec3::Y,
-        uv: Vec2::new(0.5, 1.0),
-        uv2: Vec2::new(lod_index as f32, 1.0),
-        color: Vec4::new(height, 1.0, 1.0, 1.0),
-    });
+    let top_pos = Vec3::new(
+        radius_x * rng.range(-0.14, 0.14),
+        height * 0.96,
+        radius_z * rng.range(-0.14, 0.14),
+    );
+    let bottom_pos = Vec3::new(0.0, -0.10 * height, 0.0);
 
-    let bottom_index = mesh.vertices.len() as u32;
-    mesh.vertices.push(Vertex {
-        position: Vec3::ZERO,
-        normal: -Vec3::Y,
-        uv: Vec2::new(0.5, 0.5),
-        uv2: Vec2::new(lod_index as f32, 0.0),
-        color: Vec4::new(height, 1.0, 0.0, 1.0),
-    });
-
+    // Note: around +Y with (cos(ang), y, sin(ang)), outward CCW order is cur -> top -> next!
     for ring in 0..rings.saturating_sub(1) {
-        let current = &ring_indices[ring as usize];
-        let next = &ring_indices[(ring + 1) as usize];
+        let current = &ring_pts[ring as usize];
+        let next = &ring_pts[(ring + 1) as usize];
         for segment in 0..radial_segments {
-            let a = current[segment as usize];
-            let b = current[((segment + 1) % radial_segments) as usize];
-            let c = next[((segment + 1) % radial_segments) as usize];
-            let d = next[segment as usize];
-            mesh.indices.extend_from_slice(&[a, b, c, a, c, d]);
+            let cur = segment as usize;
+            let nxt = ((segment + 1) % radial_segments) as usize;
+            let (a, ta) = current[cur];
+            let (b, tb) = current[nxt];
+            let (c, tc) = next[nxt];
+            let (d, td) = next[cur];
+            append_faceted_tri(&mut mesh, a, d, c, lod_index, height, ta, td, tc);
+            append_faceted_tri(&mut mesh, a, c, b, lod_index, height, ta, tc, tb);
         }
     }
 
-    let top_ring = &ring_indices[(rings - 1) as usize];
-    let bottom_ring = &ring_indices[0];
+    let top_ring = &ring_pts[(rings - 1) as usize];
+    let bottom_ring = &ring_pts[0];
     for segment in 0..radial_segments {
-        let next = ((segment + 1) % radial_segments) as usize;
-        let current = segment as usize;
-        mesh.indices
-            .extend_from_slice(&[top_ring[current], top_ring[next], top_index]);
-        mesh.indices
-            .extend_from_slice(&[bottom_index, bottom_ring[next], bottom_ring[current]]);
+        let cur = segment as usize;
+        let nxt = ((segment + 1) % radial_segments) as usize;
+        let (t0, ct0) = top_ring[cur];
+        let (t1, ct1) = top_ring[nxt];
+        append_faceted_tri(&mut mesh, t0, top_pos, t1, lod_index, height, ct0, 1.0, ct1);
+        let (b0, cb0) = bottom_ring[cur];
+        let (b1, cb1) = bottom_ring[nxt];
+        append_faceted_tri(
+            &mut mesh, bottom_pos, b0, b1, lod_index, height, 0.0, cb0, cb1,
+        );
     }
 
     mesh.submeshes.push(Submesh {
@@ -6452,16 +6671,19 @@ fn generate_log_prototype(layer: &GroundcoverLayer) -> GroundcoverPrototype {
             GroundcoverPrototypeLod {
                 index: 0,
                 name: "LOD0".to_string(),
-                mesh: build_log_cylinder_mesh(layer, 8, 2, 0),
+                // 2 * 8 * 4 + 16 = 80 tris
+                mesh: build_log_cylinder_mesh(layer, 8, 4, 0),
             },
             GroundcoverPrototypeLod {
                 index: 1,
                 name: "LOD1".to_string(),
-                mesh: build_log_cylinder_mesh(layer, 6, 1, 1),
+                // 2 * 6 * 2 + 12 = 36 tris
+                mesh: build_log_cylinder_mesh(layer, 6, 2, 1),
             },
             GroundcoverPrototypeLod {
                 index: 2,
                 name: "LOD2".to_string(),
+                // Grounded 3-plane bark ridge prism = 6 tris
                 mesh: build_log_card_mesh(layer),
             },
         ],
@@ -6478,26 +6700,42 @@ fn build_log_cylinder_mesh(
     let mut mesh = Mesh::new();
     let radial_segments = radial_segments.max(4);
     let length_segments = length_segments.max(1);
-    let length = layer.height.max(0.25);
-    let radius = layer.width.max(0.04);
+    let length = layer.height.max(0.28);
+    let radius = layer.width.max(0.045);
     let mut ring_indices: Vec<Vec<u32>> = Vec::new();
+    let mut centers: Vec<Vec3> = Vec::new();
 
     for x_segment in 0..=length_segments {
         let t = x_segment as f32 / length_segments as f32;
         let x = lerp(-length * 0.5, length * 0.5, t);
-        let radius_scale = rng.range(0.88, 1.12);
+        // Natural fallen branch taper + gentle sinuous crook + grounded y so log nestles into soil!
+        let taper = lerp(1.16, 0.78, t) * rng.range(0.92, 1.08);
+        let crook_z = (t * std::f32::consts::PI).sin() * radius * 0.65;
+        let center_y = radius * 0.54 * taper;
+        centers.push(Vec3::new(x, center_y, crook_z));
+
         let mut indices = Vec::with_capacity(radial_segments as usize);
         for segment in 0..radial_segments {
             let angle = (segment as f32 / radial_segments as f32) * crate::constants::TAU;
-            let y = radius + angle.sin() * radius * 0.86 * radius_scale;
-            let z = angle.cos() * radius * radius_scale;
+            let flute = 1.0 + 0.12 * (angle * 3.0 + t * 2.5).cos() + rng.range(-0.06, 0.06);
+            // Jagged broken end-grain silhouette at x_segment == 0 or length_segments
+            let end_jag = if x_segment == 0 {
+                -radius * rng.range(0.0, 0.35)
+            } else if x_segment == length_segments {
+                radius * rng.range(0.0, 0.35)
+            } else {
+                0.0
+            };
+            let y = center_y + angle.sin() * radius * 0.86 * taper * flute;
+            let z = crook_z + angle.cos() * radius * taper * flute;
+            let topness = (angle.sin() * 0.5 + 0.5).clamp(0.0, 1.0);
             indices.push(mesh.vertices.len() as u32);
             mesh.vertices.push(Vertex {
-                position: Vec3::new(x, y, z),
+                position: Vec3::new(x + end_jag, y, z),
                 normal: Vec3::new(0.0, angle.sin(), angle.cos()).normalize_or_zero(),
-                uv: Vec2::new(t, segment as f32 / radial_segments as f32),
-                uv2: Vec2::new(lod_index as f32, radius_scale),
-                color: Vec4::new(length, radius_scale, t, 1.0),
+                uv: Vec2::new(t, (segment as f32 + 0.1) / radial_segments as f32),
+                uv2: Vec2::new(lod_index as f32, taper),
+                color: Vec4::new(length, taper, topness, 1.0),
             });
         }
         ring_indices.push(indices);
@@ -6517,22 +6755,26 @@ fn build_log_cylinder_mesh(
 
     for (x_segment, normal) in [(0usize, -Vec3::X), (length_segments as usize, Vec3::X)] {
         let center_index = mesh.vertices.len() as u32;
-        let x = if x_segment == 0 {
-            -length * 0.5
-        } else {
-            length * 0.5
-        };
+        let cpos = centers[x_segment];
         mesh.vertices.push(Vertex {
-            position: Vec3::new(x, radius, 0.0),
+            position: cpos,
             normal,
             uv: Vec2::new(0.5, 0.5),
             uv2: Vec2::new(lod_index as f32, 1.0),
-            color: Vec4::new(length, 1.0, 0.0, 1.0),
+            color: Vec4::new(length, 1.0, 0.22, 1.0),
         });
         let ring = &ring_indices[x_segment];
+        let mut cap_ring = Vec::with_capacity(radial_segments as usize);
+        for &src_idx in ring {
+            let mut v = mesh.vertices[src_idx as usize];
+            v.normal = normal;
+            v.color.z = 0.14;
+            cap_ring.push(mesh.vertices.len() as u32);
+            mesh.vertices.push(v);
+        }
         for segment in 0..radial_segments {
-            let current = ring[segment as usize];
-            let next = ring[((segment + 1) % radial_segments) as usize];
+            let current = cap_ring[segment as usize];
+            let next = cap_ring[((segment + 1) % radial_segments) as usize];
             if x_segment == 0 {
                 mesh.indices
                     .extend_from_slice(&[center_index, current, next]);
@@ -6554,18 +6796,50 @@ fn build_log_cylinder_mesh(
 
 fn build_log_card_mesh(layer: &GroundcoverLayer) -> Mesh {
     let mut mesh = Mesh::new();
-    let length = layer.height.max(0.25);
-    let radius = layer.width.max(0.04);
-    append_moss_card(&mut mesh, Vec3::ZERO, 0.0, length, radius * 2.0, 0.0);
-    append_litter_card(
-        &mut mesh,
-        Vec3::new(0.0, radius * 1.8, 0.0),
-        0.0,
-        length,
-        radius * 2.2,
-        0.0,
-        0.0,
-    );
+    let half_l = layer.height.max(0.28) * 0.5;
+    let r = layer.width.max(0.045);
+    // Grounded 3-quad (6-triangle) fallen log ridge prism
+    for (p0, p1, p2, p3, ct) in [
+        (
+            Vec3::new(-half_l, -0.02 * r, -r),
+            Vec3::new(half_l, -0.02 * r, -r * 0.8),
+            Vec3::new(half_l, r * 1.15, -r * 0.25),
+            Vec3::new(-half_l, r * 1.25, -r * 0.3),
+            0.55,
+        ),
+        (
+            Vec3::new(-half_l, r * 1.25, -r * 0.3),
+            Vec3::new(half_l, r * 1.15, -r * 0.25),
+            Vec3::new(half_l, r * 1.15, r * 0.25),
+            Vec3::new(-half_l, r * 1.25, r * 0.3),
+            0.95,
+        ),
+        (
+            Vec3::new(-half_l, r * 1.25, r * 0.3),
+            Vec3::new(half_l, r * 1.15, r * 0.25),
+            Vec3::new(half_l, -0.02 * r, r * 0.8),
+            Vec3::new(-half_l, -0.02 * r, r),
+            0.55,
+        ),
+    ] {
+        let s = mesh.vertices.len() as u32;
+        for (pos, uv) in [
+            (p0, Vec2::new(0.0, 0.0)),
+            (p1, Vec2::new(1.0, 0.0)),
+            (p2, Vec2::new(1.0, 1.0)),
+            (p3, Vec2::new(0.0, 1.0)),
+        ] {
+            mesh.vertices.push(Vertex {
+                position: pos,
+                normal: Vec3::Y,
+                uv,
+                uv2: Vec2::new(2.0, 1.0),
+                color: Vec4::new(half_l * 2.0, 1.0, ct, 1.0),
+            });
+        }
+        mesh.indices
+            .extend_from_slice(&[s, s + 2, s + 1, s, s + 3, s + 2]);
+    }
     mesh.submeshes.push(Submesh {
         index_start: 0,
         index_count: mesh.indices.len() as u32,
@@ -7612,8 +7886,8 @@ kind = "laser_grass"
         let mobile_budget = find_budget("mobile");
         assert!(mobile_budget.passed);
         assert_eq!(mobile_budget.prototype_lod_count, 22);
-        assert_eq!(mobile_budget.max_lod0_triangles, 48);
-        assert_eq!(mobile_budget.max_lod1_triangles, 24);
+        assert_eq!(mobile_budget.max_lod0_triangles, 100);
+        assert_eq!(mobile_budget.max_lod1_triangles, 36);
         assert_eq!(mobile_budget.max_lod2_triangles, 8);
         assert_eq!(mobile_budget.lod0_triangle_budget, 120);
         assert_eq!(mobile_budget.lod1_triangle_budget, 40);
@@ -7630,8 +7904,8 @@ kind = "laser_grass"
         let console_budget = find_budget("console");
         assert!(console_budget.passed);
         assert_eq!(console_budget.prototype_lod_count, 22);
-        assert_eq!(console_budget.max_lod0_triangles, 48);
-        assert_eq!(console_budget.max_lod1_triangles, 24);
+        assert_eq!(console_budget.max_lod0_triangles, 100);
+        assert_eq!(console_budget.max_lod1_triangles, 36);
         assert_eq!(console_budget.max_lod2_triangles, 8);
         assert_eq!(console_budget.lod0_triangle_budget, 300);
         assert_eq!(console_budget.lod1_triangle_budget, 100);

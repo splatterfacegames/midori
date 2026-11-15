@@ -6,7 +6,11 @@ import type { WorkbenchState } from '../model';
 /** Blob URLs for a map set, revoked when the inputs change. Creation lives
  *  in the effect — under StrictMode's remount a useMemo-made URL set would
  *  be revoked by the first cleanup while the DOM still references it. */
-function useMapUrls(maps: MaterialMaps | null, atlas?: Uint8Array): Record<string, string> {
+function useMapUrls(
+  maps: MaterialMaps | null,
+  atlas?: Uint8Array,
+  cardAtlas?: Uint8Array,
+): Record<string, string> {
   const [urls, setUrls] = useState<Record<string, string>>({});
   useEffect(() => {
     const out: Record<string, string> = {};
@@ -19,11 +23,14 @@ function useMapUrls(maps: MaterialMaps | null, atlas?: Uint8Array): Record<strin
     if (atlas) {
       out.impostor = URL.createObjectURL(new Blob([atlas as BlobPart], { type: 'image/png' }));
     }
+    if (cardAtlas) {
+      out.card_atlas = URL.createObjectURL(new Blob([cardAtlas as BlobPart], { type: 'image/png' }));
+    }
     setUrls(out);
     return () => {
       for (const url of Object.values(out)) URL.revokeObjectURL(url);
     };
-  }, [maps, atlas]);
+  }, [maps, atlas, cardAtlas]);
   return urls;
 }
 
@@ -41,7 +48,50 @@ export function ObjectsPanel({
   onToggleLayer: (layer: 'bark' | 'leaves') => void;
 }) {
   const selectedLod = state.lods?.[state.selectedLod];
-  const mapUrls = useMapUrls(state.maps, selectedLod?.impostor_atlas?.png);
+  const mapUrls = useMapUrls(
+    state.maps,
+    selectedLod?.impostor_atlas?.png,
+    state.naturePreview?.card_atlas?.png,
+  );
+
+  if (state.mode === 'nature') {
+    const prototypes = state.naturePreview?.prototypes ?? [];
+    return (
+      <div className="midori-panel-content">
+        <div className="midori-section-title">
+          PROTOTYPES <span>{prototypes.length}</span>
+        </div>
+        {!prototypes.length && <p className="midori-subtle">No groundcover prototypes generated.</p>}
+        <div className="midori-object-list">
+          {prototypes.map((proto, index) => {
+            const lod0 = proto.lods[0];
+            return (
+              <div key={`${proto.name}-${index}`} className="midori-object-row">
+                <span>{proto.name}</span>
+                <small>
+                  {proto.kind}
+                  {lod0 ? ` · ${lod0.triangle_count} tris` : ''}
+                  {proto.uses_card_atlas ? ' · cards' : ''}
+                </small>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="midori-section-title">MATERIALS</div>
+        {mapUrls.card_atlas ? (
+          <div className="midori-materials-strip">
+            <figure className="midori-material-thumb midori-material-thumb-square-lg">
+              <img src={mapUrls.card_atlas} alt="Groundcover card atlas" />
+              <figcaption>Groundcover cards</figcaption>
+            </figure>
+          </div>
+        ) : (
+          <p className="midori-subtle">3D geometric groundcover prototypes (procedural vertex tint + AO).</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="midori-panel-content">

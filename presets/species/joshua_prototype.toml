@@ -13,84 +13,105 @@ family = "dichotomous"
 notes = "Second-family prototype using terminal fork grammar and shared Tree output."
 
 [trunk]
-height = 4.5
+height = 2.9
 height_variance = 0.12
-radius = 0.32
-taper = 0.55
-curve = 3.0
-curve_variance = 1.5
-curve_back = 0.0
-segments = 5
+radius = 0.31
+taper = 0.16
+taper_profile = "smooth"
+curve = 10.0
+curve_variance = 5.0
+curve_back = 3.0
+segments = 7
 
 [branches.level1]
-count = 2
-count_variance = 0
-length = 2.1
+count = 3
+count_variance = 1
+length = 1.85
 length_variance = 0.18
-radius_ratio = 0.85
+radius_ratio = 0.94
 radius_model = "pipe"
-pipe_exponent = 2.0
-taper = 0.45
+pipe_exponent = 3.2
+taper = 0.16
 taper_profile = "smooth"
-angle = 38.0
+angle = 36.0
 angle_variance = 8.0
-rotation = 180.0
-gravity = -0.05
-curve = 10.0
-curve_variance = 4.0
-segments = 4
+rotation = 137.5
+gravity = 0.24
+curve = 22.0
+curve_variance = 9.0
+segments = 6
 
 [branches.level2]
 count = 2
-count_variance = 0
-length = 1.25
+count_variance = 1
+length = 1.35
 length_variance = 0.2
-radius_ratio = 0.82
+radius_ratio = 0.92
 radius_model = "pipe"
-pipe_exponent = 2.0
-taper = 0.5
+pipe_exponent = 3.2
+taper = 0.18
 taper_profile = "smooth"
-angle = 42.0
-angle_variance = 8.0
-rotation = 180.0
-gravity = 0.0
-curve = 8.0
-curve_variance = 4.0
-segments = 3
+angle = 34.0
+angle_variance = 9.0
+rotation = 115.0
+gravity = 0.32
+curve = 20.0
+curve_variance = 8.0
+segments = 5
 
 [branches.level3]
 count = 2
 count_variance = 0
-length = 0.7
-length_variance = 0.25
-radius_ratio = 0.78
+length = 0.95
+length_variance = 0.22
+radius_ratio = 0.90
 radius_model = "pipe"
-pipe_exponent = 2.0
-taper = 0.55
+pipe_exponent = 3.2
+taper = 0.20
 taper_profile = "smooth"
-angle = 45.0
+angle = 32.0
 angle_variance = 10.0
-rotation = 180.0
-gravity = 0.05
-curve = 6.0
-curve_variance = 3.0
-segments = 2
+rotation = 125.0
+gravity = 0.38
+curve = 16.0
+curve_variance = 6.0
+segments = 4
 
 [crown]
 shape = "columnar"
-offset = 0.75
-density = 0.85
-width_ratio = 0.8
+offset = 0.65
+density = 1.0
+width_ratio = 1.0
 
 [leaves]
-count = 360
+count = 280
 min_level = 2
-size = 0.18
-size_variance = 0.25
+size = 0.94
+size_variance = 0.18
 distribution = "endpoint"
-geometry = "polygon"
+geometry = "cross_billboard"
 shape = "needle"
-up_influence = 0.8
+up_influence = 0.42
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.72
+up_bias = 0.30
+clump_weight = 0.82
+clump_level = 3
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.36
+roughness = 0.82
+
+[textures]
+resolution = 512
+bark_style = "furrowed"
+leaf_shape = "needle"
+leaf_card = "puff"
+bark_color = [0.43, 0.36, 0.28]
+leaf_color = [0.34, 0.43, 0.21]
 
 [materials]
 bark = "joshua_stem"

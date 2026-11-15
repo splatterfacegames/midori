@@ -32,6 +32,7 @@ export const CUTOUT_ALPHA = 0.5;
 /** Material maps the preview can bind, keyed by descriptor material. */
 export interface PreviewMaps {
   bark?: TextureSource;
+  barkNormal?: TextureSource;
   leaves?: TextureSource;
   impostor?: TextureSource;
 }
@@ -78,6 +79,9 @@ export function lodToDescriptors(
       if (range.material === 'bark') {
         // Bark V runs in metres along the stem — the map tiles vertically.
         descriptor.mapWrap = 'repeat';
+        if (maps?.barkNormal) {
+          descriptor.normalMap = maps.barkNormal;
+        }
       } else {
         // Leaves/impostor are cutout (matches glTF MASK).
         descriptor.alphaTest = CUTOUT_ALPHA;
@@ -98,6 +102,9 @@ import type { NaturePreview, NatureMesh, ScatterInstance } from './engine';
 
 const KIND_COLORS: Record<string, string> = {
   grass: '#4a7d34',
+  moss: '#487a2a',
+  flower: '#d9d38c',
+  weed: '#668f43',
   forb: '#7d9a3a',
   shrub: '#3c6b33',
   rock: '#8a8578',
@@ -125,18 +132,46 @@ function natureKindColor(kind: string): string {
   return KIND_COLORS[kind] ?? '#5f7a45';
 }
 
+function natureTerrainColor(manifest: unknown): string {
+  if (manifest && typeof manifest === 'object') {
+    const m = manifest as {
+      biome?: string;
+      soil_profile?: string;
+      patch?: { biome?: string };
+      soil?: { profile?: string };
+    };
+    const biome = (m.biome ?? m.patch?.biome ?? '').toLowerCase();
+    const soil = (m.soil_profile ?? m.soil?.profile ?? '').toLowerCase();
+    if (biome.includes('arid') || biome.includes('desert') || soil.includes('sand')) {
+      return '#b59f7e';
+    }
+    if (biome.includes('forest')) {
+      return '#475f39';
+    }
+    if (biome.includes('alpine') || biome.includes('meadow')) {
+      return '#526d3d';
+    }
+  }
+  return '#4f6641';
+}
+
 export function natureToDescriptors(
   preview: NaturePreview,
   revision: number,
 ): MeshDescriptor[] {
   const descriptors: MeshDescriptor[] = [
-    natureMeshDescriptor(preview.terrain, 'nature-terrain', revision, '#4f6641'),
+    natureMeshDescriptor(
+      preview.terrain,
+      'nature-terrain',
+      revision,
+      natureTerrainColor(preview.manifest),
+    ),
   ];
 
   for (const [setIndex, set] of preview.scatter_sets.entries()) {
     const prototype = preview.prototypes[set.layer_index] ??
       preview.prototypes.find((p) => p.name === set.layer_name || p.kind === set.kind);
-    const geometry = prototype?.lods.at(-1) ?? prototype?.lods[0];
+    const geometry = prototype?.lods[0] ?? prototype?.lods.at(-1);
     if (!geometry) continue;
 
     const positions = Float32Array.from(geometry.vertices.positions);
@@ -148,15 +183,25 @@ export function natureToDescriptors(
       rotation: [0, inst.yaw, 0] as const,
       scale: [inst.width, inst.height, inst.width] as const,
     })));
-    descriptors.push({
+    const useAtlas = Boolean(prototype?.uses_card_atlas && preview.card_atlas);
+    const descriptor: MeshDescriptor = {
       entityId: `nature-scatter-${setIndex}`,
       revision,
       positions,
       normals,
       indices,
-      color: natureKindColor(set.kind),
+      color: useAtlas
+        ? '#ffffff'
+        : (prototype?.color_tip ?? natureKindColor(set.kind)),
       instances,
-    });
+    };
+    if (useAtlas && preview.card_atlas) {
+      descriptor.uvs = Float32Array.from(geometry.vertices.uvs);
+      descriptor.map = preview.card_atlas.rgba;
+      descriptor.mapFilter = 'linear';
+      descriptor.alphaTest = CUTOUT_ALPHA;
+    }
+    descriptors.push(descriptor);
   }
   return descriptors;
 }

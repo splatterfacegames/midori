@@ -54,10 +54,10 @@ density = 1.0
 width_ratio = 1.0
 
 [leaves]
-count = 380
+count = 260
 min_level = 1
-size = 0.2
-size_variance = 0.25
+size = 0.31
+size_variance = 0.20
 distribution = "both"
 geometry = "canopy_card"
 shape = "oval"
@@ -65,20 +65,20 @@ up_influence = 0.5
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.95
-up_bias = 0.15
+normal_blend = 0.94
+up_bias = 0.32
 clump_weight = 0.65
 clump_level = 1
-crown_fill = 140
-shell = 0.4
-card_tilt = 30.0
-card_max_angle = 70.0
+crown_fill = 100
+shell = 0.70
+card_tilt = 9.0
+card_max_angle = 26.0
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.2
-hue_variation = 0.16
-ao_strength = 0.65
-roughness = 0.92
+tint_variation = 0.18
+hue_variation = 0.14
+ao_strength = 0.54
+roughness = 0.88
 
 [textures]
 resolution = 256
@@ -86,7 +86,7 @@ bark_style = "smooth"
 leaf_shape = "oval"
 leaf_card = "puff"
 bark_color = [0.34, 0.28, 0.22]
-leaf_color = [0.30, 0.47, 0.15]
+leaf_color = [0.27, 0.46, 0.16]
 
 [lod]
 preset = "custom"

@@ -396,17 +396,17 @@ fn append_material_images(
     let Some(textures) = &config.textures else {
         return Ok(());
     };
-    for (name, tex) in [
-        ("bark_albedo", &textures.bark_albedo),
-        ("bark_normal", &textures.bark_normal),
-        ("leaf_card", &textures.leaf_card),
+    for (name, tex, sampler) in [
+        ("bark_albedo", &textures.bark_albedo, SamplerKind::Repeat),
+        ("bark_normal", &textures.bark_normal, SamplerKind::Repeat),
+        ("leaf_card", &textures.leaf_card, SamplerKind::Clamp),
     ] {
         let png = tex.to_png()?;
         images.push(ImageInfo {
             name: name.to_string(),
             offset: binary.len(),
             len: png.len(),
-            sampler: SamplerKind::Repeat,
+            sampler,
         });
         binary.extend_from_slice(&png);
         pad_binary(binary);
@@ -674,13 +674,6 @@ fn build_gltf_json(
                 "target": 34962  // ARRAY_BUFFER
             }));
         }
-        buffer_views.push(json!({
-            "buffer": 0,
-            "byteOffset": mesh_info.indices_offset,
-            "byteLength": mesh_info.index_count * 4,
-            "target": 34963  // ELEMENT_ARRAY_BUFFER
-        }));
-
         buffer_views.push(json!({
             "buffer": 0,
             "byteOffset": mesh_info.indices_offset,

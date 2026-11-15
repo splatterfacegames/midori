@@ -374,10 +374,11 @@ pub fn build_card_clump_mesh(
         // face normal, blended towards +Y
         let face = across * lean.cos() - Vec3::Y * lean.sin();
         let n = (face * (1.0 - up) + Vec3::Y * up).normalize_or_zero();
+        let sink = Vec3::Y * (-0.018 * h);
         let start = mesh.vertices.len() as u32;
         for (p, uv, t) in [
-            (centre - along * w, Vec2::new(u0, v1), 0.0),
-            (centre + along * w, Vec2::new(u1, v1), 0.0),
+            (centre - along * w + sink, Vec2::new(u0, v1), 0.0),
+            (centre + along * w + sink, Vec2::new(u1, v1), 0.0),
             (centre + along * w + top, Vec2::new(u1, v0), 1.0),
             (centre - along * w + top, Vec2::new(u0, v0), 1.0),
         ] {
@@ -520,14 +521,164 @@ impl Canvas {
         );
     }
 
-    fn ellipse(&mut self, cx: f32, cy: f32, rx: f32, ry: f32, c: [f32; 3]) {
-        let pts: Vec<(f32, f32)> = (0..14)
-            .map(|i| {
-                let a = i as f32 / 14.0 * std::f32::consts::TAU;
-                (cx + a.cos() * rx, cy + a.sin() * ry)
-            })
-            .collect();
-        self.polygon(&pts, c);
+    fn disc(&mut self, cx: f32, cy: f32, rx: f32, ry: f32, inner: [f32; 3], outer: [f32; 3]) {
+        if rx < 0.4 || ry < 0.4 {
+            return;
+        }
+        let x_min = (cx - rx - 1.0).floor().max(0.0) as i64;
+        let x_max = (cx + rx + 1.0).ceil().min(self.w as f32 - 1.0) as i64;
+        let y_min = (cy - ry - 1.0).floor().max(0.0) as i64;
+        let y_max = (cy + ry + 1.0).ceil().min(self.h as f32 - 1.0) as i64;
+        for y in y_min..=y_max {
+            let dy = (y as f32 + 0.5 - cy) / ry;
+            for x in x_min..=x_max {
+                let dx = (x as f32 + 0.5 - cx) / rx;
+                let r2 = dx * dx + dy * dy;
+                if r2 <= 1.0 {
+                    let c = mix(inner, outer, r2.sqrt());
+                    self.px[(y as u32 * self.w + x as u32) as usize] = [
+                        c[0].clamp(0.0, 1.0),
+                        c[1].clamp(0.0, 1.0),
+                        c[2].clamp(0.0, 1.0),
+                        1.0,
+                    ];
+                }
+            }
+        }
+    }
+
+    /// Stamp a rotated, tapered botanical leaf or flower petal with base-to-tip gradient
+    /// and subtle lateral convexity shading.
+    #[allow(clippy::too_many_arguments)]
+    fn stamp_lamina(
+        &mut self,
+        base_pt: (f32, f32),
+        angle: f32,
+        length: f32,
+        half_width: f32,
+        col_base: [f32; 3],
+        col_tip: [f32; 3],
+        broadness: f32,
+    ) {
+        if length < 0.8 || half_width < 0.4 {
+            return;
+        }
+        let dir = (angle.cos(), angle.sin());
+        let nrm = (-dir.1, dir.0);
+        let tip = (base_pt.0 + dir.0 * length, base_pt.1 + dir.1 * length);
+        let pad = half_width + 1.5;
+        let x_min = base_pt
+            .0
+            .min(tip.0 - pad)
+            .min(base_pt.0 - pad)
+            .floor()
+            .max(0.0) as i64;
+        let x_max = base_pt
+            .0
+            .max(tip.0 + pad)
+            .max(base_pt.0 + pad)
+            .ceil()
+            .min(self.w as f32 - 1.0) as i64;
+        let y_min = base_pt
+            .1
+            .min(tip.1 - pad)
+            .min(base_pt.1 - pad)
+            .floor()
+            .max(0.0) as i64;
+        let y_max = base_pt
+            .1
+            .max(tip.1 + pad)
+            .max(base_pt.1 + pad)
+            .ceil()
+            .min(self.h as f32 - 1.0) as i64;
+
+        for y in y_min..=y_max {
+            let py = y as f32 + 0.5 - base_pt.1;
+            for x in x_min..=x_max {
+                let px = x as f32 + 0.5 - base_pt.0;
+                let along = (px * dir.0 + py * dir.1) / length;
+                if !(0.0..=1.0).contains(&along) {
+                    continue;
+                }
+                let across = (px * nrm.0 + py * nrm.1).abs();
+                let profile = (along * std::f32::consts::PI)
+                    .sin()
+                    .max(0.0)
+                    .powf(broadness);
+                let w_here = half_width * profile;
+                if across <= w_here {
+                    let edge_norm = across / w_here.max(1e-4);
+                    // Subtle midrib crease + convex lamina highlight
+                    let camber =
+                        0.90 + 0.16 * (1.0 - (edge_norm - 0.38).abs() * 1.3).clamp(0.0, 1.0);
+                    let c = scale(mix(col_base, col_tip, along.powf(0.85)), camber);
+                    self.px[(y as u32 * self.w + x as u32) as usize] = [
+                        c[0].clamp(0.0, 1.0),
+                        c[1].clamp(0.0, 1.0),
+                        c[2].clamp(0.0, 1.0),
+                        1.0,
+                    ];
+                }
+            }
+        }
+    }
+
+    /// Smoothly shaded quadratic Bezier ribbon stroke from `p0` through `p1` to `p2`.
+    #[allow(clippy::too_many_arguments)]
+    fn ribbon(
+        &mut self,
+        p0: (f32, f32),
+        p1: (f32, f32),
+        p2: (f32, f32),
+        w0: f32,
+        w1: f32,
+        c0: [f32; 3],
+        c1: [f32; 3],
+        steps: u32,
+    ) {
+        let steps = steps.max(4);
+        let eval = |t: f32| -> (f32, f32) {
+            let u = 1.0 - t;
+            (
+                u * u * p0.0 + 2.0 * u * t * p1.0 + t * t * p2.0,
+                u * u * p0.1 + 2.0 * u * t * p1.1 + t * t * p2.1,
+            )
+        };
+        let mut prev = eval(0.0);
+        for i in 1..=steps {
+            let t0 = (i - 1) as f32 / steps as f32;
+            let t1 = i as f32 / steps as f32;
+            let curr = eval(t1);
+            let (dx, dy) = (curr.0 - prev.0, curr.1 - prev.1);
+            let len = (dx * dx + dy * dy).sqrt().max(1e-4);
+            let (nx, ny) = (-dy / len, dx / len);
+            let wa = (w0 + (w1 - w0) * t0.powf(0.85)).max(0.45);
+            let wb = (w0 + (w1 - w0) * t1.powf(0.85)).max(0.35);
+            let tm = (t0 + t1) * 0.5;
+            let col = mix(c0, c1, tm.powf(0.78));
+            let hi = scale(col, 1.06);
+            let lo = scale(col, 0.91);
+            // Two longitudinal halves give subtle midrib depth instead of flat tape
+            self.polygon(
+                &[
+                    (prev.0 - nx * wa, prev.1 - ny * wa),
+                    (prev.0, prev.1),
+                    (curr.0, curr.1),
+                    (curr.0 - nx * wb, curr.1 - ny * wb),
+                ],
+                hi,
+            );
+            self.polygon(
+                &[
+                    (prev.0, prev.1),
+                    (prev.0 + nx * wa, prev.1 + ny * wa),
+                    (curr.0 + nx * wb, curr.1 + ny * wb),
+                    (curr.0, curr.1),
+                ],
+                lo,
+            );
+            prev = curr;
+        }
     }
 
     /// Box-filter down by `f`, then bleed colour into transparent texels (so mips and
@@ -628,65 +779,74 @@ impl Painter<'_> {
         self.rng.next_f32()
     }
 
-    /// Tapered, leaning blades rising from the cell's bottom edge, dark at the root.
+    /// Organic fountain tuft of smoothly curved Bezier grass blades rising from an irregular
+    /// root crown (back shadow layer -> mid layer -> sunlit foreground blades) so card bottoms
+    /// blend naturally into terrain without a flat scissor-cut comb.
     fn blades(&mut self, count: u32, tips: &[[f32; 3]], hmin: f32, hmax: f32) {
         let c = self.c;
-        for _ in 0..count {
-            let x0 = self.ox + c * (0.12 + 0.76 * self.r());
-            let hgt = c * (hmin + (hmax - hmin) * self.r());
-            let lean = (self.r() - 0.5) * c * 0.55;
-            let w = c * (0.011 + 0.012 * self.r());
-            let tip = scale(tips[self.rng.index(tips.len())], 0.85 + 0.3 * self.r());
-            for k in 0..6 {
-                let (t0, t1) = (k as f32 / 6.0, (k + 1) as f32 / 6.0);
-                let col = mix(self.base, tip, ((t0 + t1) * 0.5).powf(0.8));
-                let (xa, xb) = (x0 + lean * t0 * t0, x0 + lean * t1 * t1);
-                let (ya, yb) = (self.oy + c - hgt * t0, self.oy + c - hgt * t1);
-                let (wa, wb) = (w * (1.0 - t0 * 0.85), w * (1.0 - t1 * 0.85));
-                self.canvas.polygon(
-                    &[(xa - wa, ya), (xa + wa, ya), (xb + wb, yb), (xb - wb, yb)],
-                    col,
-                );
-            }
+        for i in 0..count {
+            let depth = i as f32 / count.max(1) as f32; // 0 = back/shadow, 1 = front/sunlit
+            let spread = (self.r() - 0.5) + (self.r() - 0.5); // triangular around tuft centre
+            let x0 = self.ox + c * (0.50 + spread * 0.34).clamp(0.14, 0.86);
+            let y0 = self.oy + c * (0.945 + 0.045 * self.r());
+            let hgt = c * (hmin + (hmax - hmin) * self.r()) * (1.0 - spread.abs() * 0.16);
+            // Blades splay outward gracefully from the tuft crown with natural droop near tips
+            let lean = (spread * 0.34 + (self.r() - 0.5) * 0.24) * c;
+            let p1 = (
+                (x0 + lean * 0.38).clamp(self.ox + c * 0.05, self.ox + c * 0.95),
+                y0 - hgt * 0.58,
+            );
+            let p2 = (
+                (x0 + lean).clamp(self.ox + c * 0.04, self.ox + c * 0.96),
+                (y0 - hgt + lean.abs() * 0.14).max(self.oy + c * 0.04),
+            );
+            let w0 = c * (0.0085 + 0.0095 * self.r());
+            let shade = 0.68 + 0.44 * depth + 0.14 * self.r();
+            let root_col = scale(self.base, 0.58 + 0.30 * depth);
+            let tip_col = scale(tips[self.rng.index(tips.len())], shade);
+            self.canvas
+                .ribbon((x0, y0), p1, p2, w0, c * 0.0014, root_col, tip_col, 18);
         }
     }
 
-    /// Flower heads on stems: `petals` round a centre (none: a plain head).
-    #[allow(clippy::too_many_arguments)]
-    fn heads(
-        &mut self,
-        count: u32,
-        colours: &[[f32; 3]],
-        rad: f32,
-        ymin: f32,
-        ymax: f32,
-        petals: u32,
-        centre: Option<[f32; 3]>,
-    ) {
+    /// Curved botanical stem from irregular tuft root to `(fx, fy)` with optional cauline leaves.
+    fn stem_to(&mut self, fx: f32, fy: f32, width: f32, leaf_pairs: u32, tips: &[[f32; 3]]) {
         let c = self.c;
-        for _ in 0..count {
-            let fx = self.ox + c * (0.15 + 0.7 * self.r());
-            let fy = self.oy + c * (ymin + (ymax - ymin) * self.r());
-            let stem_x = fx + (self.r() - 0.5) * c * 0.03;
-            self.canvas.line(
-                (fx, fy),
-                (stem_x, self.oy + c),
-                c * 0.008,
-                scale(self.base, 1.3),
-            );
-            let col = colours[self.rng.index(colours.len())];
-            let r = c * rad * (0.7 + 0.6 * self.r());
-            if petals == 0 {
-                self.canvas.ellipse(fx, fy, r, r, col);
-            } else {
-                for p in 0..petals {
-                    let a = p as f32 * std::f32::consts::TAU / petals as f32;
-                    self.canvas
-                        .ellipse(fx + a.cos() * r, fy + a.sin() * r, r * 0.7, r * 0.7, col);
-                }
-            }
-            if let Some(cc) = centre {
-                self.canvas.ellipse(fx, fy, r * 0.6, r * 0.6, cc);
+        let root_x =
+            (self.ox + c * 0.50 + (fx - (self.ox + c * 0.50)) * 0.58 + (self.r() - 0.5) * c * 0.08)
+                .clamp(self.ox + c * 0.16, self.ox + c * 0.84);
+        let root_y = self.oy + c * (0.95 + 0.04 * self.r());
+        let mid_x = (root_x + fx) * 0.5 + (self.r() - 0.5) * c * 0.07;
+        let mid_y = (root_y + fy) * 0.52;
+        let stem_base = scale(self.base, 0.72);
+        let stem_top = mix(scale(self.base, 1.22), tips[0], 0.35);
+        self.canvas.ribbon(
+            (root_x, root_y),
+            (mid_x, mid_y),
+            (fx, fy),
+            width * 1.25,
+            width * 0.72,
+            stem_base,
+            stem_top,
+            14,
+        );
+        for k in 0..leaf_pairs {
+            let t = 0.25 + 0.48 * (k as f32 + 0.4 * self.r()) / leaf_pairs.max(1) as f32;
+            let u = 1.0 - t;
+            let lx = u * u * root_x + 2.0 * u * t * mid_x + t * t * fx;
+            let ly = u * u * root_y + 2.0 * u * t * mid_y + t * t * fy;
+            for side in [-1.0f32, 1.0] {
+                let ang = -std::f32::consts::FRAC_PI_2 + side * (0.68 + 0.25 * self.r());
+                let llen = c * (0.055 + 0.035 * (1.0 - t));
+                self.canvas.stamp_lamina(
+                    (lx, ly),
+                    ang,
+                    llen,
+                    llen * 0.26,
+                    scale(self.base, 0.88),
+                    mix(self.base, tips[0], 0.55),
+                    0.75,
+                );
             }
         }
     }
@@ -694,155 +854,570 @@ impl Painter<'_> {
     fn paint(&mut self, species: CardSpecies, tips: &[[f32; 3]]) {
         let c = self.c;
         let (ox, oy) = (self.ox, self.oy);
-        let golden = [[0.82, 0.74, 0.42], [0.74, 0.66, 0.36]];
+        let golden = [[0.84, 0.74, 0.38], [0.76, 0.65, 0.31], [0.90, 0.82, 0.48]];
         match species {
-            CardSpecies::Grass => self.blades(75, tips, 0.45, 0.95),
-            CardSpecies::GoldenGrass => self.blades(60, &golden, 0.5, 1.0),
-            CardSpecies::OatSeeds => {
-                self.blades(45, tips, 0.4, 0.8);
-                for _ in 0..16 {
-                    let fx = ox + c * (0.15 + 0.7 * self.r());
-                    let fy = oy + c * (0.08 + 0.3 * self.r());
-                    let sx = fx + (self.r() - 0.5) * c * 0.02;
-                    self.canvas
-                        .line((fx, fy), (sx, oy + c), c * 0.006, scale(golden[0], 0.9));
-                    for k in 0..6 {
-                        let kx = fx + if k % 2 == 0 { -0.006 } else { 0.006 } * c * 1.5;
-                        self.canvas.ellipse(
-                            kx,
-                            fy + k as f32 * c * 0.024,
-                            c * 0.009,
-                            c * 0.014,
-                            golden[k % 2],
+            CardSpecies::Grass => {
+                self.blades(86, tips, 0.42, 0.92);
+                // Occasional fine meadow-grass seed heads
+                for _ in 0..6 {
+                    let fx = ox + c * (0.20 + 0.60 * self.r());
+                    let fy = oy + c * (0.10 + 0.22 * self.r());
+                    self.stem_to(fx, fy + c * 0.07, c * 0.0035, 0, tips);
+                    for k in 0..7 {
+                        let t = k as f32 / 6.0;
+                        let py = fy + c * 0.07 * (1.0 - t);
+                        let side = if k % 2 == 0 { -1.0 } else { 1.0 };
+                        let ang = -std::f32::consts::FRAC_PI_2 + side * 0.45;
+                        self.canvas.stamp_lamina(
+                            (fx, py),
+                            ang,
+                            c * 0.024,
+                            c * 0.0055,
+                            mix(self.base, golden[0], 0.55),
+                            golden[2],
+                            0.75,
                         );
+                    }
+                }
+            }
+            CardSpecies::GoldenGrass => {
+                self.blades(72, &golden, 0.46, 0.94);
+                for _ in 0..8 {
+                    let fx = ox + c * (0.18 + 0.64 * self.r());
+                    let fy = oy + c * (0.09 + 0.22 * self.r());
+                    self.stem_to(fx, fy + c * 0.08, c * 0.0035, 0, &golden);
+                    for k in 0..8 {
+                        let t = k as f32 / 7.0;
+                        let py = fy + c * 0.08 * (1.0 - t);
+                        let side = if k % 2 == 0 { -1.0 } else { 1.0 };
+                        self.canvas.stamp_lamina(
+                            (fx, py),
+                            -std::f32::consts::FRAC_PI_2 + side * 0.38,
+                            c * 0.028 * (1.0 - t * 0.35),
+                            c * 0.006,
+                            golden[1],
+                            golden[2],
+                            0.78,
+                        );
+                    }
+                }
+            }
+            CardSpecies::OatSeeds => {
+                self.blades(44, tips, 0.36, 0.72);
+                // Arching golden culms with nodding wild-oat panicle spikelets + awns
+                for _ in 0..13 {
+                    let fx = ox + c * (0.16 + 0.68 * self.r());
+                    let fy = oy + c * (0.10 + 0.28 * self.r());
+                    self.stem_to(fx, fy + c * 0.14, c * 0.0042, 1, &golden);
+                    let arch = (self.r() - 0.5) * c * 0.09;
+                    self.canvas.ribbon(
+                        (fx, fy + c * 0.14),
+                        (fx + arch * 0.5, fy + c * 0.05),
+                        (fx + arch, fy),
+                        c * 0.0038,
+                        c * 0.0018,
+                        golden[1],
+                        golden[0],
+                        10,
+                    );
+                    for k in 0..6 {
+                        let t = k as f32 / 5.0;
+                        let px = fx + arch * t;
+                        let py = fy + c * 0.13 * (1.0 - t);
+                        let side = if k % 2 == 0 { -1.0f32 } else { 1.0 };
+                        let sx = px + side * c * (0.018 + 0.010 * (1.0 - t));
+                        let sy = py + c * 0.016;
+                        self.canvas.line((px, py), (sx, sy), c * 0.0022, golden[1]);
+                        // Paired papery oat glumes hanging downward
+                        for g in [-0.18f32, 0.18] {
+                            let gang = std::f32::consts::FRAC_PI_2 + side * 0.28 + g;
+                            let glen = c * (0.032 - 0.008 * t);
+                            self.canvas.stamp_lamina(
+                                (sx, sy),
+                                gang,
+                                glen,
+                                c * 0.0068,
+                                golden[1],
+                                golden[2],
+                                0.72,
+                            );
+                            // Fine bristle awn
+                            self.canvas.line(
+                                (sx + gang.cos() * glen * 0.7, sy + gang.sin() * glen * 0.7),
+                                (sx + gang.cos() * glen * 1.45, sy + gang.sin() * glen * 1.45),
+                                c * 0.0016,
+                                golden[0],
+                            );
+                        }
                     }
                 }
             }
             CardSpecies::Daisy => {
-                self.blades(45, tips, 0.45, 0.95);
-                self.heads(
-                    18,
-                    &[[0.97, 0.96, 0.9]],
-                    0.02,
-                    0.12,
-                    0.55,
-                    6,
-                    Some([1.0, 0.8, 0.2]),
-                );
-            }
-            CardSpecies::Buttercup => {
-                self.blades(45, tips, 0.45, 0.95);
-                self.heads(
-                    18,
-                    &[[1.0, 0.84, 0.18]],
-                    0.018,
-                    0.12,
-                    0.55,
-                    5,
-                    Some([0.95, 0.7, 0.12]),
-                );
-            }
-            CardSpecies::Clover => {
-                self.blades(45, tips, 0.4, 0.8);
-                self.heads(
-                    16,
-                    &[[0.88, 0.52, 0.72], [0.78, 0.42, 0.66]],
-                    0.018,
-                    0.25,
-                    0.6,
-                    8,
-                    None,
-                );
-            }
-            CardSpecies::Bellflower => {
-                self.blades(45, tips, 0.45, 0.95);
-                self.heads(
-                    16,
-                    &[[0.5, 0.6, 0.95], [0.42, 0.5, 0.88]],
-                    0.017,
-                    0.12,
-                    0.5,
-                    5,
-                    Some([0.9, 0.9, 1.0]),
-                );
-            }
-            CardSpecies::Yarrow => {
-                self.blades(40, tips, 0.4, 0.85);
-                for _ in 0..8 {
-                    let fx = ox + c * (0.15 + 0.7 * self.r());
-                    let fy = oy + c * (0.1 + 0.3 * self.r());
-                    self.canvas
-                        .line((fx, fy), (fx, oy + c), c * 0.007, scale(self.base, 1.3));
-                    for _ in 0..14 {
-                        let dx = (self.r() - 0.5) * c * 0.09;
-                        let dy = (self.r() - 0.5) * c * 0.03;
-                        let col = if self.r() < 0.8 {
-                            [0.96, 0.95, 0.88]
-                        } else {
-                            [0.95, 0.85, 0.85]
-                        };
-                        self.canvas
-                            .ellipse(fx + dx, fy + dy, c * 0.013, c * 0.013, col);
+                self.blades(42, tips, 0.34, 0.74);
+                // Collect blossoms bottom-to-top / back-to-front so foreground heads overlap cleanly
+                for i in 0..14 {
+                    let fx = ox + c * (0.15 + 0.70 * self.r());
+                    let fy = oy + c * (0.13 + 0.44 * self.r());
+                    self.stem_to(fx, fy, c * 0.005, 2, tips);
+                    let r = c * (0.042 + 0.022 * self.r()) * (0.88 + 0.18 * (i as f32 / 14.0));
+                    let tilt = 0.62 + 0.38 * self.r(); // natural 3/4 perspective foreshortening
+                    let ray_n = 15 + (i % 4);
+                    let rot0 = self.r() * std::f32::consts::TAU;
+                    for p in 0..ray_n {
+                        let a = rot0 + p as f32 * std::f32::consts::TAU / ray_n as f32;
+                        let dx = a.cos();
+                        let dy = a.sin() * tilt;
+                        let ang = dy.atan2(dx);
+                        let plen = r * (dx * dx + dy * dy).sqrt().max(0.35);
+                        self.canvas.stamp_lamina(
+                            (fx + dx * r * 0.18, fy + dy * r * 0.18),
+                            ang,
+                            plen * 0.92,
+                            r * 0.14,
+                            [0.86, 0.88, 0.84],
+                            [0.99, 0.99, 0.96],
+                            0.68,
+                        );
                     }
+                    self.canvas.disc(
+                        fx,
+                        fy,
+                        r * 0.30,
+                        r * 0.30 * tilt,
+                        [1.0, 0.86, 0.22],
+                        [0.86, 0.56, 0.08],
+                    );
                 }
             }
-            CardSpecies::Poppy => {
-                self.blades(40, tips, 0.4, 0.85);
-                self.heads(
-                    10,
-                    &[[0.88, 0.2, 0.12], [0.94, 0.3, 0.14]],
-                    0.024,
-                    0.15,
-                    0.5,
-                    4,
-                    Some([0.15, 0.1, 0.08]),
-                );
+            CardSpecies::Buttercup => {
+                self.blades(42, tips, 0.35, 0.76);
+                for _ in 0..16 {
+                    let fx = ox + c * (0.15 + 0.70 * self.r());
+                    let fy = oy + c * (0.13 + 0.45 * self.r());
+                    self.stem_to(fx, fy, c * 0.0045, 2, tips);
+                    let r = c * (0.032 + 0.018 * self.r());
+                    let tilt = 0.68 + 0.32 * self.r();
+                    let rot0 = self.r() * std::f32::consts::TAU;
+                    for p in 0..5 {
+                        let a = rot0 + p as f32 * std::f32::consts::TAU / 5.0;
+                        let dx = a.cos();
+                        let dy = a.sin() * tilt;
+                        let ang = dy.atan2(dx);
+                        let plen = r * (dx * dx + dy * dy).sqrt().max(0.45);
+                        // Wide glossy cupped buttercup petal
+                        self.canvas.stamp_lamina(
+                            (fx + dx * r * 0.08, fy + dy * r * 0.08),
+                            ang,
+                            plen,
+                            r * 0.46,
+                            [0.94, 0.68, 0.06],
+                            [1.0, 0.90, 0.22],
+                            0.52,
+                        );
+                    }
+                    self.canvas.disc(
+                        fx,
+                        fy,
+                        r * 0.24,
+                        r * 0.24 * tilt,
+                        [0.74, 0.78, 0.16],
+                        [0.88, 0.58, 0.06],
+                    );
+                }
             }
-            CardSpecies::Lupin => {
-                self.blades(40, tips, 0.35, 0.7);
-                for _ in 0..9 {
-                    let fx = ox + c * (0.15 + 0.7 * self.r());
-                    let fy = oy + c * (0.08 + 0.25 * self.r());
-                    self.canvas
-                        .line((fx, fy), (fx, oy + c), c * 0.009, scale(self.base, 1.3));
-                    let lc = if self.r() < 0.7 {
-                        [0.62, 0.42, 0.82]
+            CardSpecies::Clover => {
+                self.blades(28, tips, 0.28, 0.62);
+                // Rich mat of trifoliate clover leaves with pale V-chevrons
+                for _ in 0..22 {
+                    let lx = ox + c * (0.14 + 0.72 * self.r());
+                    let ly = oy + c * (0.48 + 0.40 * self.r());
+                    self.stem_to(lx, ly, c * 0.004, 0, tips);
+                    let rot0 = self.r() * std::f32::consts::TAU;
+                    let lr = c * (0.030 + 0.014 * self.r());
+                    for k in 0..3 {
+                        let a = rot0 + k as f32 * std::f32::consts::TAU / 3.0;
+                        self.canvas.stamp_lamina(
+                            (lx, ly),
+                            a,
+                            lr,
+                            lr * 0.52,
+                            scale(self.base, 0.90),
+                            mix(self.base, tips[0], 0.52),
+                            0.55,
+                        );
+                        // Characteristic pale clover leaflet chevron
+                        let cx = lx + a.cos() * lr * 0.42;
+                        let cy = ly + a.sin() * lr * 0.42;
+                        self.canvas.disc(
+                            cx,
+                            cy,
+                            lr * 0.16,
+                            lr * 0.12,
+                            [0.74, 0.84, 0.58],
+                            mix(self.base, tips[0], 0.55),
+                        );
+                    }
+                }
+                // Rounded red-clover globe heads built from ~30 layered tubular florets (zero donut hole!)
+                for _ in 0..13 {
+                    let fx = ox + c * (0.16 + 0.68 * self.r());
+                    let fy = oy + c * (0.20 + 0.40 * self.r());
+                    self.stem_to(fx, fy + c * 0.02, c * 0.0048, 1, tips);
+                    let r = c * (0.030 + 0.015 * self.r());
+                    let hue_alt = self.r();
+                    let deep = if hue_alt < 0.6 {
+                        [0.58, 0.18, 0.42]
                     } else {
-                        [0.92, 0.6, 0.78]
+                        [0.68, 0.24, 0.50]
                     };
-                    for k in 0..9 {
-                        let rr = c * 0.022 * (1.0 - k as f32 / 12.0);
-                        self.canvas.ellipse(
-                            fx,
-                            fy + k as f32 * c * 0.03,
-                            rr,
-                            rr,
-                            scale(lc, 0.85 + 0.03 * k as f32),
+                    let bright = if hue_alt < 0.6 {
+                        [0.92, 0.54, 0.78]
+                    } else {
+                        [0.96, 0.68, 0.86]
+                    };
+                    // Solid shadowed core + radiating tubular florets from bottom of globe to sunlit top
+                    self.canvas.disc(fx, fy, r * 0.72, r * 0.82, bright, deep);
+                    for k in 0..28 {
+                        let kt = k as f32 / 27.0;
+                        let row_y = fy + r * (0.65 - 1.35 * kt);
+                        let row_w = (1.0 - (1.0 - 2.0 * kt).powi(2)).max(0.15).sqrt() * r * 0.85;
+                        let ox_f = (self.r() - 0.5) * 2.0 * row_w;
+                        let ang = -std::f32::consts::FRAC_PI_2 + (ox_f / r.max(1.0)) * 0.85;
+                        self.canvas.stamp_lamina(
+                            (fx + ox_f * 0.55, row_y + r * 0.15),
+                            ang,
+                            r * 0.48,
+                            r * 0.13,
+                            mix(deep, bright, kt * 0.5),
+                            mix(deep, bright, 0.45 + kt * 0.55),
+                            0.65,
                         );
                     }
                 }
             }
-            CardSpecies::Fern => {
-                for _ in 0..7 {
-                    let fx = ox + c * (0.2 + 0.6 * self.r());
-                    let hgt = c * (0.5 + 0.4 * self.r());
-                    let lean = (self.r() - 0.5) * c * 0.4;
-                    for k in 0..14 {
-                        let t = k as f32 / 14.0;
-                        let (px, py) = (fx + lean * t * t, oy + c - hgt * t);
-                        let ln = c * 0.09 * (1.0 - t);
-                        let col = mix(self.base, tips[0], 0.3 + 0.7 * t);
-                        self.canvas
-                            .line((px, py), (px - ln, py - ln * 0.4), c * 0.01, col);
-                        self.canvas
-                            .line((px, py), (px + ln, py - ln * 0.4), c * 0.01, col);
-                    }
-                    self.canvas.line(
-                        (fx, oy + c),
-                        (fx + lean, oy + c - hgt),
-                        c * 0.008,
-                        scale(self.base, 1.2),
+            CardSpecies::Bellflower => {
+                self.blades(38, tips, 0.36, 0.78);
+                // Slender arching harebell stems with nodding violet-blue bell corollas
+                for _ in 0..14 {
+                    let sx = ox + c * (0.18 + 0.64 * self.r());
+                    let sy = oy + c * (0.14 + 0.40 * self.r());
+                    self.stem_to(sx, sy, c * 0.0040, 1, tips);
+                    let side = if self.r() < 0.5 { -1.0f32 } else { 1.0 };
+                    let bx = sx + side * c * (0.028 + 0.018 * self.r());
+                    let by = sy + c * 0.018;
+                    // Delicate curved pedicel + green calyx
+                    self.canvas.ribbon(
+                        (sx, sy),
+                        (sx + side * c * 0.018, sy - c * 0.016),
+                        (bx, by),
+                        c * 0.0034,
+                        c * 0.0024,
+                        scale(self.base, 1.05),
+                        scale(self.base, 1.25),
+                        8,
                     );
+                    let r = c * (0.034 + 0.015 * self.r());
+                    let hang = std::f32::consts::FRAC_PI_2 - side * (0.25 + 0.25 * self.r());
+                    let deep_violet = [0.30, 0.36, 0.82];
+                    let light_periwinkle = [0.64, 0.72, 0.99];
+                    // Flared 5-lobed nodding bell
+                    for lobe in -2..=2 {
+                        let la = hang + lobe as f32 * 0.22;
+                        let shade_k = 1.0 - (lobe as f32).abs() * 0.10;
+                        self.canvas.stamp_lamina(
+                            (bx, by),
+                            la,
+                            r * (1.05 - (lobe as f32).abs() * 0.06),
+                            r * 0.28,
+                            scale(deep_violet, shade_k),
+                            scale(light_periwinkle, shade_k),
+                            0.55,
+                        );
+                    }
+                    // Green 5-toothed sepal cap at base of bell
+                    self.canvas.disc(
+                        bx,
+                        by,
+                        r * 0.16,
+                        r * 0.14,
+                        mix(self.base, tips[0], 0.4),
+                        self.base,
+                    );
+                }
+            }
+            CardSpecies::Yarrow => {
+                self.blades(28, tips, 0.30, 0.65);
+                // Upright stems with feathery bipinnate leaves & flat-topped white/blush corymb umbels
+                for _ in 0..9 {
+                    let fx = ox + c * (0.16 + 0.68 * self.r());
+                    let fy = oy + c * (0.12 + 0.32 * self.r());
+                    let rx = (ox + c * 0.50 + (fx - (ox + c * 0.50)) * 0.62)
+                        .clamp(ox + c * 0.16, ox + c * 0.84);
+                    let ry = oy + c * (0.95 + 0.035 * self.r());
+                    self.canvas.ribbon(
+                        (rx, ry),
+                        ((rx + fx) * 0.5, (ry + fy) * 0.5),
+                        (fx, fy + c * 0.045),
+                        c * 0.006,
+                        c * 0.004,
+                        scale(self.base, 0.75),
+                        scale(self.base, 1.25),
+                        12,
+                    );
+                    // Feathery fern-like cauline yarrow leaves along stem
+                    for lk in 0..4 {
+                        let lt = 0.22 + 0.52 * lk as f32 / 3.0;
+                        let lx = rx + (fx - rx) * lt;
+                        let ly = ry + (fy - ry) * lt;
+                        for side in [-1.0f32, 1.0] {
+                            let la = -std::f32::consts::FRAC_PI_2 + side * 0.92;
+                            let llen = c * (0.075 - 0.030 * lt);
+                            let tip_l = (lx + la.cos() * llen, ly + la.sin() * llen);
+                            self.canvas
+                                .line((lx, ly), tip_l, c * 0.003, scale(self.base, 1.05));
+                            for pk in 1..=5 {
+                                let pt = pk as f32 / 5.5;
+                                let px = lx + (tip_l.0 - lx) * pt;
+                                let py = ly + (tip_l.1 - ly) * pt;
+                                for ps in [-1.0f32, 1.0] {
+                                    self.canvas.stamp_lamina(
+                                        (px, py),
+                                        la + ps * 0.85,
+                                        llen * 0.28 * (1.0 - pt * 0.4),
+                                        c * 0.004,
+                                        self.base,
+                                        mix(self.base, tips[0], 0.55),
+                                        0.7,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    // Branching pedicels into flat-topped compound corymb of tiny 5-rayed florets
+                    let umbel_w = c * (0.060 + 0.032 * self.r());
+                    let blush = self.r() < 0.28;
+                    let petal_col = if blush {
+                        [0.97, 0.84, 0.88]
+                    } else {
+                        [0.97, 0.96, 0.90]
+                    };
+                    for u in 0..18 {
+                        let ux = fx
+                            + ((u as f32 / 17.0) - 0.5) * umbel_w * 1.8
+                            + (self.r() - 0.5) * c * 0.018;
+                        let arch = ((ux - fx) / umbel_w.max(1.0)).powi(2) * c * 0.014;
+                        let uy = fy + arch + (self.r() - 0.5) * c * 0.018;
+                        if u % 3 == 0 {
+                            self.canvas.line(
+                                (fx, fy + c * 0.048),
+                                (ux, uy),
+                                c * 0.0024,
+                                scale(self.base, 1.2),
+                            );
+                        }
+                        let fr = c * (0.010 + 0.004 * self.r());
+                        for p in 0..5 {
+                            let pa = p as f32 * std::f32::consts::TAU / 5.0 + u as f32 * 0.4;
+                            self.canvas.disc(
+                                ux + pa.cos() * fr * 0.65,
+                                uy + pa.sin() * fr * 0.52,
+                                fr * 0.58,
+                                fr * 0.48,
+                                petal_col,
+                                scale(petal_col, 0.90),
+                            );
+                        }
+                        self.canvas.disc(
+                            ux,
+                            uy,
+                            fr * 0.34,
+                            fr * 0.28,
+                            [0.86, 0.78, 0.46],
+                            [0.72, 0.64, 0.36],
+                        );
+                    }
+                }
+            }
+            CardSpecies::Poppy => {
+                self.blades(36, tips, 0.32, 0.72);
+                // Sinuous stems + silky crinkled 4-petal scarlet poppies with dark basal blotches
+                for _ in 0..10 {
+                    let fx = ox + c * (0.17 + 0.66 * self.r());
+                    let fy = oy + c * (0.14 + 0.38 * self.r());
+                    self.stem_to(fx, fy, c * 0.0052, 2, tips);
+                    let r = c * (0.048 + 0.024 * self.r());
+                    let tilt = 0.62 + 0.34 * self.r();
+                    let rot0 = self.r() * std::f32::consts::TAU;
+                    let scarlet = if self.r() < 0.5 {
+                        [0.92, 0.16, 0.10]
+                    } else {
+                        [0.96, 0.24, 0.12]
+                    };
+                    // 4 wide overlapping silky petals (each composed of 2 slightly fanned sub-lobes)
+                    for p in 0..4 {
+                        let base_a = rot0 + p as f32 * std::f32::consts::FRAC_PI_2;
+                        for sub in [-0.22f32, 0.22] {
+                            let a = base_a + sub;
+                            let dx = a.cos();
+                            let dy = a.sin() * tilt;
+                            let ang = dy.atan2(dx);
+                            let plen = r * (dx * dx + dy * dy).sqrt().max(0.48);
+                            let pshade = if p % 2 == 0 { 0.92 } else { 1.04 };
+                            self.canvas.stamp_lamina(
+                                (fx, fy),
+                                ang,
+                                plen,
+                                r * 0.56,
+                                [0.46, 0.06, 0.06],
+                                scale(scarlet, pshade),
+                                0.44,
+                            );
+                        }
+                    }
+                    // Characteristic dark purple-black basal blotch + pale green central seed capsule
+                    self.canvas.disc(
+                        fx,
+                        fy,
+                        r * 0.24,
+                        r * 0.22 * tilt,
+                        [0.10, 0.06, 0.08],
+                        [0.24, 0.08, 0.10],
+                    );
+                    self.canvas.disc(
+                        fx,
+                        fy,
+                        r * 0.10,
+                        r * 0.09 * tilt,
+                        [0.54, 0.66, 0.34],
+                        [0.26, 0.34, 0.18],
+                    );
+                }
+            }
+            CardSpecies::Lupin => {
+                self.blades(24, tips, 0.28, 0.56);
+                // Basal palmate lupin leaves (7-8 radiating lance leaflets!)
+                for _ in 0..10 {
+                    let lx = ox + c * (0.16 + 0.68 * self.r());
+                    let ly = oy + c * (0.58 + 0.28 * self.r());
+                    self.stem_to(lx, ly, c * 0.0042, 0, tips);
+                    let lr = c * (0.044 + 0.018 * self.r());
+                    for k in 0..7 {
+                        let a = k as f32 * std::f32::consts::TAU / 7.0 + 0.2;
+                        self.canvas.stamp_lamina(
+                            (lx, ly),
+                            a,
+                            lr,
+                            lr * 0.22,
+                            scale(self.base, 0.85),
+                            mix(self.base, tips[0], 0.55),
+                            0.72,
+                        );
+                    }
+                }
+                // Tall tapered conical racemes of whorled two-tone violet/rose & cream pea-florets
+                for _ in 0..8 {
+                    let fx = ox + c * (0.16 + 0.68 * self.r());
+                    let top_y = oy + c * (0.07 + 0.18 * self.r());
+                    let spike_h = c * (0.28 + 0.12 * self.r());
+                    let bot_y = top_y + spike_h;
+                    let lean = (self.r() - 0.5) * c * 0.05;
+                    self.stem_to(fx, bot_y, c * 0.0065, 1, tips);
+                    self.canvas.line(
+                        (fx, bot_y),
+                        (fx + lean, top_y),
+                        c * 0.005,
+                        scale(self.base, 1.15),
+                    );
+                    let variant = self.r();
+                    let (wing_col, banner_col) = if variant < 0.55 {
+                        ([0.44, 0.26, 0.78], [0.84, 0.78, 0.98]) // classic indigo-violet + cream banner
+                    } else if variant < 0.82 {
+                        ([0.82, 0.34, 0.64], [0.98, 0.82, 0.92]) // rose-magenta + blush banner
+                    } else {
+                        ([0.56, 0.40, 0.88], [0.94, 0.88, 0.99]) // lavender-blue
+                    };
+                    let whorls = 14;
+                    for w in 0..whorls {
+                        // Paint from bottom whorl up to tight apical buds
+                        let t = w as f32 / (whorls - 1) as f32;
+                        let wy = bot_y - spike_h * t;
+                        let wx = fx + lean * t;
+                        let cone_r = c * 0.034 * (1.0 - t * 0.78);
+                        let n_florets = if t > 0.78 { 3 } else { 5 };
+                        for f in 0..n_florets {
+                            let u = (f as f32 / (n_florets - 1).max(1) as f32) * 2.0 - 1.0;
+                            let px = wx + u * cone_r * 0.72;
+                            let py = wy + (1.0 - u.abs()) * c * 0.006;
+                            let ang = -std::f32::consts::FRAC_PI_2 + u * 1.05;
+                            let flen = cone_r * (0.95 - 0.25 * t) + c * 0.008;
+                            self.canvas.stamp_lamina(
+                                (px, py),
+                                ang,
+                                flen,
+                                flen * 0.48,
+                                scale(wing_col, 0.82 + 0.22 * (1.0 - u.abs())),
+                                mix(wing_col, banner_col, 0.45 + 0.45 * t),
+                                0.58,
+                            );
+                        }
+                    }
+                }
+            }
+            CardSpecies::Fern => {
+                // 7 arching woodland fern fronds unfurling from a shaded crown with 18 pairs of tapered pinnae
+                for f_idx in 0..7 {
+                    let depth = f_idx as f32 / 6.0;
+                    let spread = (f_idx as f32 / 6.0 - 0.5) * 1.5 + (self.r() - 0.5) * 0.35;
+                    let rx = (ox + c * (0.50 + spread * 0.14)).clamp(ox + c * 0.24, ox + c * 0.76);
+                    let ry = oy + c * (0.95 + 0.035 * self.r());
+                    let hgt = c * (0.58 + 0.30 * self.r()) * (1.0 - spread.abs() * 0.12);
+                    let lean = spread * c * 0.26;
+                    let p1 = (rx + lean * 0.42, ry - hgt * 0.58);
+                    let p2 = (
+                        (rx + lean).clamp(ox + c * 0.07, ox + c * 0.93),
+                        (ry - hgt + lean.abs() * 0.18).max(oy + c * 0.06),
+                    );
+                    let shade = 0.68 + 0.42 * depth;
+                    let rachis_base = [0.24 * shade, 0.26 * shade, 0.13 * shade];
+                    let frond_tip = scale(tips[0], shade * 1.05);
+                    self.canvas.ribbon(
+                        (rx, ry),
+                        p1,
+                        p2,
+                        c * 0.0075,
+                        c * 0.0022,
+                        rachis_base,
+                        frond_tip,
+                        18,
+                    );
+                    let pairs = 18;
+                    for k in 2..pairs {
+                        let t = k as f32 / pairs as f32;
+                        let u = 1.0 - t;
+                        let px = u * u * rx + 2.0 * u * t * p1.0 + t * t * p2.0;
+                        let py = u * u * ry + 2.0 * u * t * p1.1 + t * t * p2.1;
+                        let tx = 2.0 * u * (p1.0 - rx) + 2.0 * t * (p2.0 - p1.0);
+                        let ty = 2.0 * u * (p1.1 - ry) + 2.0 * t * (p2.1 - p1.1);
+                        let tang = ty.atan2(tx);
+                        // Botanical fern pinna envelope: slightly shorter at very base, broadest at t~0.28, tapering to tip
+                        let env = (t * std::f32::consts::PI * 0.96).sin().max(0.0).powf(0.62)
+                            * (1.0 - t * 0.35);
+                        let plen = c * 0.125 * env;
+                        let col_in = scale(mix(self.base, tips[0], 0.18 + 0.48 * t), shade * 0.92);
+                        let col_out = scale(mix(self.base, tips[0], 0.42 + 0.55 * t), shade * 1.08);
+                        for side in [-1.0f32, 1.0] {
+                            let pa = tang + side * (1.12 - 0.24 * t);
+                            self.canvas.stamp_lamina(
+                                (px, py),
+                                pa,
+                                plen,
+                                (plen * 0.22).max(c * 0.006),
+                                col_in,
+                                col_out,
+                                0.66,
+                            );
+                        }
+                    }
                 }
             }
         }

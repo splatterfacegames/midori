@@ -6,68 +6,82 @@ name = "Pine"
 scientific = "Pinus sylvestris"
 
 [trunk]
-height = 10.0
+height = 10.5
 height_variance = 0.1
-radius = 0.35
-taper = 0.85
-curve = 3.0
-curve_variance = 2.0
-curve_back = 0.0
+radius = 0.34
+taper = 0.93
+taper_profile = "smooth"
+curve = 4.0
+curve_variance = 2.5
+curve_back = 1.5
 segments = 10
 
 [branches.level1]
-count = 8
-count_variance = 1
-length = 3.0
-length_variance = 0.15
-radius_ratio = 0.4
-angle = 75.0
-angle_variance = 10.0
-rotation = 137.5
-gravity = 0.1
-curve = 15.0
+count = 35
+count_variance = 2
+length = 3.6
+length_variance = 0.14
+radius_ratio = 0.32
+taper = 0.86
+angle = 78.0
+angle_variance = 6.0
+rotation = 72.0
+gravity = -0.10
+curve = -18.0
 curve_variance = 5.0
 segments = 5
 
 [branches.level2]
-count = 5
+count = 4
 count_variance = 1
 length = 1.2
 length_variance = 0.2
 radius_ratio = 0.45
-angle = 45.0
+angle = 50.0
 angle_variance = 12.0
 rotation = 137.5
-gravity = 0.05
-curve = 10.0
+gravity = -0.04
+curve = -10.0
 segments = 3
 
 [branches.level3]
-count = 4
+count = 3
 count_variance = 1
-length = 0.4
-length_variance = 0.3
-radius_ratio = 0.35
-angle = 40.0
+length = 0.52
+length_variance = 0.25
+radius_ratio = 0.4
+angle = 42.0
 gravity = 0.0
-curve = 5.0
+curve = -6.0
 segments = 2
 
 [crown]
 shape = "conical"
-offset = 0.25
-density = 0.85
-width_ratio = 0.6
+offset = 0.22
+density = 0.96
+width_ratio = 1.0
 
 [leaves]
-count = 5000
-min_level = 2
-size = 0.08
-size_variance = 0.15
-distribution = "along_branch"
-geometry = "billboard"
+count = 2600
+min_level = 1
+size = 0.60
+size_variance = 0.18
+distribution = "both"
+geometry = "cross_billboard"
 shape = "needle"
-up_influence = 0.1
+up_influence = 0.28
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.80
+up_bias = 0.25
+clump_weight = 0.60
+clump_level = 1
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.54
+roughness = 0.82
 
 [textures]
 bark_prompt = "Scots pine bark, reddish-brown upper, grey fissured lower, scaly plates"
@@ -76,8 +90,8 @@ resolution = 512
 bark_style = "plated"
 leaf_shape = "needle"
 leaf_card = "cluster"
-bark_color = [0.44, 0.26, 0.16]
-leaf_color = [0.24, 0.42, 0.3]
+bark_color = [0.46, 0.28, 0.18]
+leaf_color = [0.18, 0.36, 0.20]
 
 [lod]
 preset = "balanced"

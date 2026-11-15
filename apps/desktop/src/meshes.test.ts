@@ -110,9 +110,11 @@ describe('lodToDescriptors', () => {
         colors: [],
       },
     };
-    const out = lodToDescriptors(stems, 1, { bark: true, leaves: true }, { bark });
+    const barkNormal = stubMap(128);
+    const out = lodToDescriptors(stems, 1, { bark: true, leaves: true }, { bark, barkNormal });
     expect(out).toHaveLength(1);
     const d = out[0];
+    expect(d.normalMap).toBe(barkNormal);
     expect(d.map).toBe(bark); // original map, no baked tiling
     expect(d.mapWrap).toBe('repeat');
     expect(d.mapFilter).toBe('linear');
@@ -219,10 +221,45 @@ describe('natureToDescriptors', () => {
     expect(placed.revision).toBe(7);
   });
 
-  it('uses the last LOD of the resolved prototype and kind colors', () => {
-    const out = natureToDescriptors(naturePreview(1), 0);
+  it('uses the highest-detail LOD0 of the resolved prototype and fallback kind colors', () => {
+    const preview = naturePreview(1);
+    preview.prototypes[0].lods = [
+      { ...natureMesh, name: 'near', indices: [0, 1, 2] },
+      { ...natureMesh, name: 'far', indices: [2, 1, 0] },
+    ];
+    const out = natureToDescriptors(preview, 0);
     expect(out[1].positions).toBeInstanceOf(Float32Array);
+    expect(Array.from(out[1].indices ?? [])).toEqual([0, 1, 2]);
     expect(out[1].color).toBe('#4a7d34');
+  });
+
+  it('binds the painted card_atlas with alphaTest cutout for card-based prototypes', () => {
+    const preview = naturePreview(2);
+    const rgba = { data: new Uint8Array(16), width: 2, height: 2 };
+    preview.card_atlas = { rgba };
+    preview.prototypes[0].uses_card_atlas = true;
+    preview.prototypes[0].color_tip = '#a9c85f';
+    const out = natureToDescriptors(preview, 3);
+    expect(out[1].color).toBe('#ffffff');
+    expect(out[1].map).toBe(rgba);
+    expect(out[1].mapFilter).toBe('linear');
+    expect(out[1].alphaTest).toBe(CUTOUT_ALPHA);
+    expect(out[1].uvs).toBeInstanceOf(Float32Array);
+  });
+
+  it('prefers the authored color_tip on untextured geometric prototypes', () => {
+    const preview = naturePreview(1);
+    preview.prototypes[0].color_tip = '#a9c85f';
+    const out = natureToDescriptors(preview, 0);
+    expect(out[1].color).toBe('#a9c85f');
+    expect(out[1].map).toBeUndefined();
+  });
+
+  it('tints arid terrain sand-colored instead of temperate green', () => {
+    const preview = naturePreview(1);
+    preview.manifest = { patch: { biome: 'arid_scrub' } };
+    const out = natureToDescriptors(preview, 0);
+    expect(out[0].color).toBe('#b59f7e');
   });
 
   it('passes every scatter placement through the instance descriptor', () => {

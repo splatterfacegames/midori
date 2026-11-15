@@ -14,72 +14,88 @@ family = "weber_penn"
 notes = "Broadleaf tree using the current trunk/branch/leaf path."
 
 [trunk]
-height = 6.0
-height_variance = 0.15
-radius = 0.45
-taper = 0.75
-curve = 8.0
-curve_variance = 4.0
-curve_back = 3.0
+height = 6.2
+height_variance = 0.12
+radius = 0.46
+taper = 0.90
+taper_profile = "smooth"
+curve = 10.0
+curve_variance = 5.0
+curve_back = 4.0
 segments = 8
 
 [branches.level1]
-count = 6
+count = 8
 count_variance = 2
-length = 4.5
-length_variance = 0.25
-radius_ratio = 0.55
-angle = 55.0
-angle_variance = 20.0
+length = 4.6
+length_variance = 0.2
+radius_ratio = 0.54
+taper = 0.82
+taper_profile = "smooth"
+angle = 56.0
+angle_variance = 14.0
 rotation = 137.5
-gravity = -0.15
-curve = 25.0
-curve_variance = 10.0
+gravity = -0.14
+curve = 20.0
+curve_variance = 12.0
 segments = 6
 
 [branches.level2]
 count = 5
-count_variance = 2
-length = 2.0
-length_variance = 0.3
+count_variance = 1
+length = 2.2
+length_variance = 0.25
 radius_ratio = 0.5
-angle = 50.0
-angle_variance = 18.0
+taper = 0.8
+angle = 48.0
+angle_variance = 15.0
 rotation = 137.5
-gravity = -0.2
-curve = 30.0
-curve_variance = 15.0
+gravity = -0.12
+curve = 22.0
+curve_variance = 14.0
 segments = 5
 
 [branches.level3]
 count = 4
-count_variance = 2
-length = 0.8
-length_variance = 0.4
-radius_ratio = 0.35
-angle = 60.0
-angle_variance = 25.0
+count_variance = 1
+length = 1.05
+length_variance = 0.3
+radius_ratio = 0.4
+angle = 52.0
+angle_variance = 20.0
 rotation = 137.5
-gravity = -0.35
-curve = 45.0
-curve_variance = 20.0
+gravity = -0.18
+curve = 26.0
+curve_variance = 16.0
 segments = 3
 
 [crown]
 shape = "spherical"
-offset = 0.35
+offset = 0.30
 density = 1.0
-width_ratio = 1.2
+width_ratio = 1.15
 
 [leaves]
-count = 3000
+count = 2600
 min_level = 2
-size = 0.12
-size_variance = 0.3
+size = 0.64
+size_variance = 0.24
 distribution = "both"
-geometry = "polygon"
+geometry = "cross_billboard"
 shape = "oak_lobed"
-up_influence = 0.3
+up_influence = 0.28
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.85
+up_bias = 0.22
+clump_weight = 0.65
+clump_level = 1
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.14
+ao_strength = 0.52
+roughness = 0.78
 
 [textures]
 bark_prompt = "English oak tree bark, deep fissures, grey-brown, coarse texture"
@@ -88,8 +104,8 @@ resolution = 512
 bark_style = "furrowed"
 leaf_shape = "lobed"
 leaf_card = "cluster"
-bark_color = [0.36, 0.3, 0.25]
-leaf_color = [0.17, 0.35, 0.12]
+bark_color = [0.36, 0.30, 0.24]
+leaf_color = [0.22, 0.42, 0.14]
 
 [materials]
 bark = "oak_bark"

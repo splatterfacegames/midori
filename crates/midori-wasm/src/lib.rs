@@ -350,14 +350,20 @@ impl MidoriNatureGenerator {
             .patch
             .generate_groundcover_prototypes()
             .into_iter()
-            .map(|prototype| NaturePrototypeOutput {
-                name: prototype.name,
-                kind: groundcover_kind_name(prototype.kind).to_string(),
-                lods: prototype
-                    .lods
-                    .into_iter()
-                    .map(|lod| MeshPreviewOutput::from_mesh(&lod.mesh, &lod.name))
-                    .collect(),
+            .enumerate()
+            .map(|(index, prototype)| {
+                let layer = self.patch.groundcover.layers.get(index);
+                NaturePrototypeOutput {
+                    name: prototype.name,
+                    kind: groundcover_kind_name(prototype.kind).to_string(),
+                    uses_card_atlas: layer.is_some_and(|l| l.cards.is_some()),
+                    color_tip: layer.map(|l| l.color_tip.clone()).filter(|c| !c.is_empty()),
+                    lods: prototype
+                        .lods
+                        .into_iter()
+                        .map(|lod| MeshPreviewOutput::from_mesh(&lod.mesh, &lod.name))
+                        .collect(),
+                }
             })
             .collect();
         let prototype_count = prototypes.len() as u32;
@@ -367,12 +373,20 @@ impl MidoriNatureGenerator {
             .flat_map(|set| &set.chunks)
             .map(|chunk| chunk.instances.len())
             .sum::<usize>() as u32;
+        let card_atlas = self.patch.card_atlas().map(|atlas| {
+            GeneratedMap::lossy_png(&RgbaTexture {
+                width: atlas.image.width(),
+                height: atlas.image.height(),
+                pixels: atlas.image.into_raw(),
+            })
+        });
         let manifest = self.patch.export_manifest(preview_resolution);
         let result = NaturePreviewOutput {
             manifest,
             terrain,
             prototypes,
             scatter_sets,
+            card_atlas,
             stats: NaturePreviewStats {
                 tile_size: self.patch.patch.size,
                 terrain_vertex_count: terrain_mesh.vertex_count() as u32,
@@ -416,6 +430,8 @@ struct NaturePreviewOutput {
     terrain: MeshPreviewOutput,
     prototypes: Vec<NaturePrototypeOutput>,
     scatter_sets: Vec<ScatterSet>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    card_atlas: Option<GeneratedMap>,
     stats: NaturePreviewStats,
 }
 
@@ -424,6 +440,10 @@ struct NaturePreviewOutput {
 struct NaturePrototypeOutput {
     name: String,
     kind: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    uses_card_atlas: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    color_tip: Option<String>,
     lods: Vec<MeshPreviewOutput>,
 }
 

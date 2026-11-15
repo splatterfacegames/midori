@@ -33,9 +33,9 @@ density = 0.16
 coverage = 0.72
 patch_scale = 0.11
 patch_softness = 0.28
-height = 1.2
-width = 0.052
-curl = 0.72
+height = 0.52
+width = 0.045
+curl = 0.85
 color_base = "#344b20"
 color_tip = "#a9c85f"
 

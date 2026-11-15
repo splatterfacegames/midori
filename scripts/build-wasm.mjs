@@ -24,7 +24,7 @@ const outDir = resolve(root, 'apps/desktop/src/wasm');
 const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
 const remap = [
   `--remap-path-prefix=${resolve(root)}=/midori`,
-  ...(home ? [`--remap-path-prefix=${resolve(home)}/.cargo=/cargo`] : []),
+  ...(home ? [`--remap-path-prefix=${resolve(home, '.cargo')}=/cargo`] : []),
 ];
 // When the rust-src component is installed, rustc embeds real toolchain
 // paths (~/.rustup/toolchains/...) instead of virtual /rustc/<commit> ones.
@@ -34,7 +34,7 @@ const s = spawnSync('rustc', ['--print', 'sysroot'], { encoding: 'utf8' });
 const sysroot = s.stdout?.trim();
 const commit = v.stdout?.match(/^commit-hash: ([0-9a-f]+)$/m)?.[1];
 if (sysroot && commit) {
-  remap.push(`--remap-path-prefix=${sysroot}/lib/rustlib/src/rust=/rustc/${commit}`);
+  remap.push(`--remap-path-prefix=${resolve(sysroot, 'lib/rustlib/src/rust')}=/rustc/${commit}`);
 }
 const rustflags = [process.env.RUSTFLAGS ?? '', ...remap].filter(Boolean).join(' ');
 

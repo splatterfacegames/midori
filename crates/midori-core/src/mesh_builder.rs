@@ -216,14 +216,21 @@ impl<'a> MeshBuilder<'a> {
             .sum();
 
         let child_offsets = self.included_child_offsets(stem);
-        let samples = self.ring_samples(stem, &child_offsets, total_length);
+        let term_children = self.included_terminal_child_count(stem);
+        let samples = self.ring_samples(stem, &child_offsets, term_children, total_length);
         if samples.len() < 2 {
             return;
         }
 
-        // Generate ring vertices for each segment joint
+        // Generate ring vertices for each segment joint.
+        // Keep the ground-level trunk ring horizontal so tilted trunks sit flush on y = 0.
         let mut rings: Vec<Vec<u32>> = Vec::new();
-        let mut frame = RingFrame::from_direction(samples[0].direction);
+        let initial_dir = if stem.level == 0 {
+            Vec3::Y
+        } else {
+            samples[0].direction
+        };
+        let mut frame = RingFrame::from_direction(initial_dir);
 
         for (sample_idx, sample) in samples.iter().enumerate() {
             if sample_idx > 0 {
@@ -245,11 +252,22 @@ impl<'a> MeshBuilder<'a> {
             self.connect_rings(&rings[i], &rings[i + 1]);
         }
 
-        // Cap the end unless an included child actually continues from the tip.
-        if !has_terminal_child(&child_offsets) && !rings.is_empty() {
+        // Cap the end unless a single included child continues directly from the tip.
+        // Multi-child terminal forks (e.g., dichotomous Y-splits) are capped so wide parent
+        // rims never leave open annular shelves around angled child collars.
+        if term_children != 1 && !rings.is_empty() {
             let tip_normal = normalized_or_up(stem.segments.last().unwrap().direction);
             self.cap_ring(rings.last().unwrap(), tip_normal, stem);
         }
+    }
+
+    fn included_terminal_child_count(&self, stem: &Stem) -> usize {
+        stem.child_ids
+            .iter()
+            .filter_map(|&child_id| self.tree.stems.iter().find(|s| s.id == child_id))
+            .filter(|child| self.includes_stem(child))
+            .filter(|child| child.parent_offset.clamp(0.0, 1.0) >= 1.0 - RING_T_EPSILON * 2.0)
+            .count()
     }
 
     fn included_child_offsets(&self, stem: &Stem) -> Vec<f32> {
@@ -276,6 +294,7 @@ impl<'a> MeshBuilder<'a> {
         &self,
         stem: &Stem,
         child_offsets: &[f32],
+        term_children: usize,
         total_length: f32,
     ) -> Vec<RingSample> {
         let mut t_values = Vec::with_capacity(stem.segments.len() + child_offsets.len() + 1);
@@ -296,16 +315,26 @@ impl<'a> MeshBuilder<'a> {
         t_values.sort_by(|a, b| a.total_cmp(b));
         t_values.dedup_by(|a, b| (*a - *b).abs() < RING_T_EPSILON);
 
-        t_values
+        let mut samples: Vec<RingSample> = t_values
             .into_iter()
             .map(|t| RingSample {
                 position: stem.point_at(t),
                 radius: stem.radius_at(t)
-                    * self.calculate_radius_scale(stem.level, t, child_offsets),
+                    * self.calculate_radius_scale(stem.level, t, child_offsets, term_children),
                 direction: self.direction_at_ring(stem, t, total_length),
                 v_coord: t * total_length * self.config.texture_v_scale,
             })
-            .collect()
+            .collect();
+
+        // Tuck non-trunk child base rings slightly along -direction so angled branches and
+        // Y-forks emerge cleanly from inside their parent stem without collar gaps.
+        if stem.level > 0 && samples.len() >= 2 {
+            let tuck = (samples[0].radius * 0.55).min(total_length * 0.22);
+            let dir0 = samples[0].direction;
+            samples[0].position -= dir0 * tuck;
+        }
+
+        samples
     }
 
     fn direction_at_ring(&self, stem: &Stem, t: f32, total_length: f32) -> Vec3 {
@@ -345,8 +374,26 @@ impl<'a> MeshBuilder<'a> {
         normalized_or_up(stem.segments.last().unwrap().direction)
     }
 
-    fn calculate_radius_scale(&self, level: u8, t: f32, child_offsets: &[f32]) -> f32 {
-        self.calculate_collar_swell(t, child_offsets) * self.calculate_base_swell(level, t)
+    fn calculate_radius_scale(
+        &self,
+        level: u8,
+        t: f32,
+        child_offsets: &[f32],
+        term_children: usize,
+    ) -> f32 {
+        let mut collar = self.calculate_collar_swell(t, child_offsets);
+        // Prevent branch collar swell near un-continued or multi-forked stem tips from creating
+        // wide mushroom shelves wider than child branches.
+        if term_children != 1 && t > 0.80 {
+            let tip_fade = ((1.0 - t) / 0.20).clamp(0.0, 1.0);
+            collar = 1.0 + (collar - 1.0) * tip_fade;
+            if term_children >= 2 {
+                // Smoothly pull multi-fork parent rim inward into the Y-crotch
+                let fork_cinch = 1.0 - 0.24 * (1.0 - tip_fade);
+                collar *= fork_cinch;
+            }
+        }
+        collar * self.calculate_base_swell(level, t)
     }
 
     /// Calculate branch collar swelling at a position along the stem
@@ -448,16 +495,16 @@ impl<'a> MeshBuilder<'a> {
             let b0 = ring_b[i];
             let b1 = ring_b[i + 1];
 
-            // Two triangles per quad (CCW winding)
+            // Two triangles per quad (CCW outward winding: tangent x bitangent = +direction)
             // First triangle
             self.mesh.indices.push(a0);
-            self.mesh.indices.push(b0);
+            self.mesh.indices.push(a1);
             self.mesh.indices.push(b1);
 
             // Second triangle
             self.mesh.indices.push(a0);
             self.mesh.indices.push(b1);
-            self.mesh.indices.push(a1);
+            self.mesh.indices.push(b0);
         }
     }
 
@@ -612,12 +659,6 @@ fn normalized_or(value: Vec3, fallback: Vec3) -> Vec3 {
     } else {
         fallback.normalize_or_zero()
     }
-}
-
-fn has_terminal_child(child_offsets: &[f32]) -> bool {
-    child_offsets
-        .iter()
-        .any(|&offset| offset >= 1.0 - RING_T_EPSILON)
 }
 
 fn position_key(position: Vec3) -> (i32, i32, i32) {
@@ -928,6 +969,28 @@ mod tests {
 
         assert_eq!(builder.mesh.vertices[0].normal, Vec3::X);
         assert_eq!(builder.mesh.vertices[1].normal, Vec3::Y);
+    }
+
+    #[test]
+    fn test_cylinder_triangles_wind_outward() {
+        let tree = create_tree_with_multiple_levels();
+        let mesh = build_mesh(&tree);
+
+        for tri in mesh.indices.as_chunks::<3>().0 {
+            let v0 = &mesh.vertices[tri[0] as usize];
+            let v1 = &mesh.vertices[tri[1] as usize];
+            let v2 = &mesh.vertices[tri[2] as usize];
+            let face_normal = (v1.position - v0.position).cross(v2.position - v0.position);
+            if face_normal.length_squared() <= 1e-10 {
+                continue;
+            }
+            let avg_vertex_normal = v0.normal + v1.normal + v2.normal;
+            assert!(
+                face_normal.dot(avg_vertex_normal) > 0.0,
+                "Triangle {:?} winds inward relative to vertex normals",
+                tri
+            );
+        }
     }
 
     #[test]

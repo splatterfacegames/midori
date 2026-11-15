@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, beforeAll } from 'vitest';
 import { MidoriModel } from './model';
-import { PRESETS } from './presets';
+import { NATURE_PRESETS, PRESETS } from './presets';
 import { getParam, setParam } from './species';
 import type { SpeciesJson } from './species';
 
@@ -161,6 +161,26 @@ describe('MidoriModel', () => {
     const plainNames = plainGltf.materials.map((m: { name?: string }) => m.name);
     expect(plainNames.slice(0, 2)).toEqual(['bark', 'leaves']);
     expect(plainNames[2]).toMatch(/^impostor_/);
+  });
+
+  it('loads dichotomous and top-down canopy species presets', () => {
+    for (const id of ['joshua_prototype', 'topdown_conifer']) {
+      model.loadPreset(id);
+      expect(model.getState().sourceError).toBeNull();
+      expect(model.getState().lods?.[0]?.triangle_count).toBeGreaterThan(0);
+    }
+  });
+
+  it('previews alpine_meadow with a generated groundcover card atlas', () => {
+    const alpine = NATURE_PRESETS.find((p) => p.id === 'alpine_meadow');
+    expect(alpine).toBeDefined();
+    expect(model.loadNatureToml(alpine!.toml, alpine!.label)).toBe(true);
+    expect(model.getState().json).toBeNull();
+    const preview = model.getState().naturePreview;
+    expect(preview).not.toBeNull();
+    expect(preview!.card_atlas).toBeDefined();
+    expect(preview!.card_atlas!.rgba.width).toBeGreaterThan(0);
+    expect(preview!.prototypes.some((p) => p.uses_card_atlas)).toBe(true);
   });
 });
 

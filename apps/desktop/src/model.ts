@@ -147,6 +147,7 @@ export class MidoriModel {
         natureToml: toml,
         naturePreview: preview,
         toml,
+        json: null,
         sourceDraft: toml,
         sourceDirty: false,
         sourceError: null,

@@ -257,17 +257,28 @@ impl<'a> TreeGenerator<'a> {
         let mut stem = Stem::new(self.next_stem_id(), 0);
         let mut position = Vec3::ZERO;
         let mut direction = Vec3::Y; // Start pointing up
+        let mut bend_axis = Vec3::Z;
         let mut radius = trunk.radius;
 
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
 
-            // Calculate curve for this segment
-            let curve_amount =
-                self.calculate_curve(t, trunk.curve, trunk.curve_variance, trunk.curve_back);
+            // Calculate curve for this segment (normalized by segment count)
+            let curve_amount = self.calculate_curve(
+                t,
+                trunk.curve,
+                trunk.curve_variance,
+                trunk.curve_back,
+                segment_count,
+            );
 
-            // Apply curve rotation
-            direction = self.apply_curve(direction, curve_amount, 0.0);
+            // Transport bend plane smoothly so crossing dir.y = 0.99 never snaps 90 degrees
+            bend_axis = transport_axis(bend_axis, direction);
+            let roll = self.rng.variance_add(radians(trunk.curve_variance * 0.25));
+            direction = rotate_around_axis(direction, bend_axis, curve_amount);
+            if roll.abs() > f32::EPSILON {
+                bend_axis = rotate_around_axis(bend_axis, direction, roll);
+            }
 
             // Calculate taper
             let next_t = (i + 1) as f32 / segment_count as f32;
@@ -322,36 +333,103 @@ impl<'a> TreeGenerator<'a> {
             + self.rng.variance_add(branch_params.count_variance as f32) as i32)
             .max(0) as u32;
 
-        // Crown offset - start branches at this fraction of parent
-        let crown_offset = self.species.crown.offset;
+        // Crown offset applies to primary scaffold branches off the trunk; deeper
+        // sub-branches start after a short collar offset along their parent limb.
+        let start_offset = if level == 1 {
+            self.species.crown.offset.clamp(0.0, 0.96)
+        } else {
+            0.18
+        };
 
-        // Generate branches using phyllotaxis (golden angle)
+        // Detect N-fold whorled phyllotaxis when `rotation` divides 360 deg into 3..=10
+        // equal spokes (e.g. 72 deg -> 5-branch conifer whorl, 45 deg -> 8-frond palm whorl);
+        // otherwise use spiral phyllotaxis (e.g. 137.5 deg golden angle).
+        let rot_deg = branch_params.rotation.abs();
+        let approx_spokes = if rot_deg > 1.0 {
+            (360.0 / rot_deg).round()
+        } else {
+            1.0
+        };
+        let whorl_size = if (3.0..=10.0).contains(&approx_spokes)
+            && (approx_spokes * rot_deg - 360.0).abs() < 1.5
+        {
+            approx_spokes as u32
+        } else {
+            1
+        };
+        let num_whorls = if count > 0 {
+            count.div_ceil(whorl_size)
+        } else {
+            0
+        };
+
         for i in 0..count {
             if self.tree.stems.len() >= self.budget.max_stems as usize {
                 self.over_budget = true;
                 return;
             }
 
-            // Position along parent (crown offset to tip)
-            let t = crown_offset + (1.0 - crown_offset) * (i as f32 / count.max(1) as f32);
-
-            // Rotation around parent using golden angle
-            let rotation_angle =
-                i as f32 * radians(branch_params.rotation) + self.rng.variance_add(radians(15.0));
+            let (crown_t, rotation_angle) = if whorl_size > 1 {
+                let w_idx = i / whorl_size;
+                let in_whorl = i % whorl_size;
+                let this_whorl_n = (count - w_idx * whorl_size).min(whorl_size).max(1);
+                let base_frac = if num_whorls <= 1 {
+                    0.5
+                } else {
+                    (w_idx as f32 + 0.30) / (num_whorls as f32 - 0.35)
+                };
+                let jitter = self.rng.variance_add(0.06 / num_whorls.max(1) as f32);
+                let ct = (base_frac + jitter).clamp(0.0, 0.99);
+                let spoke_step = crate::constants::TAU / this_whorl_n as f32;
+                // Alternate adjacent whorls by half a spoke so tiers interlock naturally
+                let whorl_phase = (w_idx as f32) * spoke_step * 0.5;
+                let spoke = spoke_step * (in_whorl as f32);
+                let rot = whorl_phase + spoke + self.rng.variance_add(radians(9.0));
+                (ct, rot)
+            } else {
+                // Span smoothly from start_offset up to the parent apex (~0.985)
+                let base_frac = if count <= 1 {
+                    0.5
+                } else {
+                    (i as f32 + 0.35) / (count as f32 - 0.25)
+                };
+                let jitter = self.rng.variance_add(0.22 / count.max(1) as f32);
+                let ct = (base_frac + jitter).clamp(0.0, 0.99);
+                let rot = i as f32 * radians(branch_params.rotation)
+                    + self.rng.variance_add(radians(15.0));
+                (ct, rot)
+            };
+            let t = start_offset + (1.0 - start_offset) * crown_t;
 
             // Get parent position and direction at this point
             let spawn_pos = parent.point_at(t);
             let parent_dir = parent.direction_at(t);
 
-            // Calculate branch direction
-            let branch_angle =
-                radians(branch_params.angle + self.rng.variance_add(branch_params.angle_variance));
+            // Calculate branch direction: near crown apex on level 1, narrow insertion angle
+            // so upper branches form a natural leader / fountain crown instead of sticking out 90 deg.
+            let apex_angle_scale = if level == 1 {
+                if whorl_size > 1 {
+                    lerp(1.05, 0.48, crown_t.powf(1.25))
+                } else {
+                    lerp(1.0, 0.68, crown_t * crown_t)
+                }
+            } else {
+                lerp(1.0, 0.82, crown_t)
+            };
+            let branch_angle = radians(
+                branch_params.angle * apex_angle_scale
+                    + self.rng.variance_add(branch_params.angle_variance),
+            );
 
             let branch_dir =
                 self.calculate_branch_direction(parent_dir, branch_angle, rotation_angle);
 
-            // Apply crown shape modifier
-            let length_mod = self.crown_length_modifier(t);
+            // Apply crown envelope modifier at level 1; taper sub-branches gently along parent
+            let length_mod = if level == 1 {
+                self.crown_length_modifier(crown_t)
+            } else {
+                lerp(1.05, 0.52, crown_t)
+            };
 
             // Generate the branch stem
             let branch = self.generate_branch(BranchSpec {
@@ -409,20 +487,39 @@ impl<'a> TreeGenerator<'a> {
 
         let mut pos = spec.position;
         let mut dir = spec.direction;
+        // Outward vertical-plane pitch axis so positive curve arches outward/downward smoothly
+        let mut bend_axis = Vec3::Y
+            .cross(dir)
+            .try_normalize()
+            .unwrap_or_else(|| create_basis(dir).0);
         let mut radius = branch_base_radius(parent_radius, spec.params, spec.sibling_count);
         let base_radius = radius;
 
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
 
-            // Calculate curve with variance
-            let curve_amount =
-                self.calculate_curve(t, spec.params.curve, spec.params.curve_variance, 0.0);
+            // Calculate curve with variance (normalized across segments)
+            let curve_amount = self.calculate_curve(
+                t,
+                spec.params.curve,
+                spec.params.curve_variance,
+                0.0,
+                segment_count,
+            );
+            let lateral_wander = radians(self.rng.variance_add(spec.params.curve_variance * 0.45))
+                / (segment_count as f32).sqrt();
 
             // Apply gravity influence
             let gravity_influence = spec.params.gravity * segment_length;
 
-            dir = self.apply_curve_and_gravity(dir, curve_amount, gravity_influence);
+            bend_axis = transport_axis(bend_axis, dir);
+            dir = self.apply_curve_and_gravity(
+                dir,
+                bend_axis,
+                curve_amount,
+                lateral_wander,
+                gravity_influence,
+            );
 
             // Taper radius
             let next_t = (i + 1) as f32 / segment_count as f32;
@@ -450,14 +547,23 @@ impl<'a> TreeGenerator<'a> {
         stem
     }
 
-    /// Calculate curve amount for a segment
-    fn calculate_curve(&mut self, t: f32, curve: f32, variance: f32, curve_back: f32) -> f32 {
-        let base = radians(curve * t);
-        let var = radians(self.rng.variance_add(variance));
+    /// Calculate per-segment curve angle in radians, normalized by segment count
+    fn calculate_curve(
+        &mut self,
+        t: f32,
+        curve: f32,
+        variance: f32,
+        curve_back: f32,
+        segment_count: u32,
+    ) -> f32 {
+        let segs = segment_count.max(1) as f32;
+        let weight = 0.6 + 0.8 * t;
+        let base = radians(curve * weight) / segs;
+        let var = radians(self.rng.variance_add(variance)) / segs.sqrt();
 
-        // S-curve: bend back at end
+        // S-curve: bend back in upper half
         let back = if t > 0.5 && curve_back != 0.0 {
-            radians(curve_back * (t - 0.5) * 2.0)
+            radians(curve_back * (t - 0.5) * 4.0) / segs
         } else {
             0.0
         };
@@ -465,34 +571,34 @@ impl<'a> TreeGenerator<'a> {
         base + var - back
     }
 
-    /// Apply curve rotation to a direction vector
-    fn apply_curve(&self, direction: Vec3, curve: f32, roll: f32) -> Vec3 {
-        if curve.abs() < f32::EPSILON && roll.abs() < f32::EPSILON {
-            return direction;
-        }
-
-        // Create perpendicular axis for rotation
-        let (tangent, _) = create_basis(direction);
-
-        // Apply curve rotation around tangent
-        let rotated = rotate_around_axis(direction, tangent, curve);
-
-        if roll.abs() > f32::EPSILON {
-            rotate_around_axis(rotated, direction, roll)
-        } else {
-            rotated
-        }
-    }
-
     /// Apply curve and gravity to a direction vector
-    fn apply_curve_and_gravity(&self, direction: Vec3, curve: f32, gravity: f32) -> Vec3 {
-        let curved = self.apply_curve(direction, curve, 0.0);
+    fn apply_curve_and_gravity(
+        &self,
+        direction: Vec3,
+        bend_axis: Vec3,
+        curve: f32,
+        lateral_wander: f32,
+        gravity: f32,
+    ) -> Vec3 {
+        let mut curved = if curve.abs() > f32::EPSILON {
+            rotate_around_axis(direction, bend_axis, curve)
+        } else {
+            direction
+        };
+        if lateral_wander.abs() > f32::EPSILON {
+            let bitangent = curved.cross(bend_axis).normalize_or_zero();
+            if bitangent.length_squared() > 0.001 {
+                curved = rotate_around_axis(curved, bitangent, lateral_wander);
+            }
+        }
 
         if gravity.abs() > 0.001 {
-            // Gravity pulls toward or away from Y axis
-            let gravity_dir = Vec3::new(0.0, -gravity.signum(), 0.0);
-            let blend = gravity.abs().min(1.0);
-            (curved + gravity_dir * blend).normalize()
+            // Negative gravity droops (-Y); positive gravity lifts (+Y)
+            let gravity_dir = Vec3::new(0.0, gravity.signum(), 0.0);
+            let blend = gravity.abs().min(0.95);
+            (curved + gravity_dir * blend)
+                .try_normalize()
+                .unwrap_or(curved)
         } else {
             curved
         }
@@ -513,36 +619,37 @@ impl<'a> TreeGenerator<'a> {
         rotate_around_axis(tilted, parent_dir, rotation_angle)
     }
 
-    /// Calculate length modifier based on crown shape
+    /// Calculate length modifier based on crown-normalized height fraction [0, 1]
     fn crown_length_modifier(&self, height_fraction: f32) -> f32 {
         let crown = &self.species.crown;
+        let h = height_fraction.clamp(0.0, 1.0);
 
         let shape_mod = match crown.shape {
             CrownShape::Spherical => {
-                // Max length in middle, shorter at top and bottom
-                let centered = (height_fraction - 0.5) * 2.0; // -1 to 1
-                1.0 - centered.abs()
+                // Broad rounded decurrent dome: full mid-crown, graceful upper dome
+                let centered = (h - 0.42) * 1.55;
+                (1.0 - centered * centered).max(0.20).sqrt()
             }
             CrownShape::Conical => {
-                // Longest at bottom, shortest at top
-                1.0 - height_fraction
+                // Classic conifer spire: widest at base, tapering crisply to leader apex
+                0.15 + 0.85 * (1.0 - h).powf(1.24)
             }
             CrownShape::Hemispherical => {
-                // Circular profile (half sphere)
-                (1.0 - height_fraction * height_fraction).sqrt()
+                // Umbrella / dome profile: widest at base of crown, rounded top
+                (1.0 - (h * 0.88).powi(2)).max(0.18).sqrt()
             }
             CrownShape::Flame => {
-                // Parabolic, max at 0.5 (like a candle flame)
-                height_fraction * (1.0 - height_fraction) * 4.0
+                // Parabolic, max near middle (like a candle flame)
+                ((h + 0.12) * (1.08 - h) * 3.4).clamp(0.22, 1.0)
             }
             CrownShape::Columnar => {
-                // Constant length (vertical column)
-                1.0
+                // Upright columnar profile
+                0.85 + 0.15 * (1.0 - (h - 0.5).abs() * 2.0)
             }
         };
 
         // Apply minimum, density, and width ratio
-        shape_mod.max(0.1) * crown.density * crown.width_ratio
+        shape_mod.max(0.15) * crown.density * crown.width_ratio
     }
 
     /// Get the next stem ID and increment the counter
@@ -612,13 +719,20 @@ impl<'a> DichotomousGenerator<'a> {
         let mut stem = Stem::new(self.next_stem_id(), 0);
         let mut position = Vec3::ZERO;
         let mut direction = Vec3::Y;
+        let mut bend_axis = Vec3::Z;
         let mut radius = trunk.radius;
 
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
-            let curve_amount =
-                self.calculate_curve(t, trunk.curve, trunk.curve_variance, trunk.curve_back);
-            direction = self.apply_curve(direction, curve_amount, 0.0);
+            let curve_amount = self.calculate_curve(
+                t,
+                trunk.curve,
+                trunk.curve_variance,
+                trunk.curve_back,
+                segment_count,
+            );
+            bend_axis = transport_axis(bend_axis, direction);
+            direction = rotate_around_axis(direction, bend_axis, curve_amount);
 
             let next_t = (i + 1) as f32 / segment_count as f32;
             let next_radius = tapered_radius(
@@ -674,7 +788,11 @@ impl<'a> DichotomousGenerator<'a> {
         let fork_count = count.clamp(1, 4);
         let spawn_pos = parent.tip();
         let parent_dir = parent.direction_at(1.0);
-        let length_mod = self.crown_length_modifier(level as f32 / MAX_BRANCH_LEVELS as f32);
+        let length_mod = if level == 1 {
+            self.crown_length_modifier(0.35)
+        } else {
+            1.0
+        };
 
         for i in 0..fork_count {
             if self.tree.stems.len() >= self.budget.max_stems as usize {
@@ -748,15 +866,25 @@ impl<'a> DichotomousGenerator<'a> {
         let segment_length = length / segment_count as f32;
         let mut pos = spec.position;
         let mut dir = spec.direction;
+        let mut bend_axis = Vec3::Y
+            .cross(dir)
+            .try_normalize()
+            .unwrap_or_else(|| create_basis(dir).0);
         let mut radius = branch_base_radius(parent_radius, spec.params, spec.sibling_count);
         let base_radius = radius;
 
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
-            let curve_amount =
-                self.calculate_curve(t, spec.params.curve, spec.params.curve_variance, 0.0);
+            let curve_amount = self.calculate_curve(
+                t,
+                spec.params.curve,
+                spec.params.curve_variance,
+                0.0,
+                segment_count,
+            );
             let gravity_influence = spec.params.gravity * segment_length;
-            dir = self.apply_curve_and_gravity(dir, curve_amount, gravity_influence);
+            bend_axis = transport_axis(bend_axis, dir);
+            dir = self.apply_curve_and_gravity(dir, bend_axis, curve_amount, gravity_influence);
 
             let next_t = (i + 1) as f32 / segment_count as f32;
             let next_radius = tapered_radius(
@@ -783,11 +911,19 @@ impl<'a> DichotomousGenerator<'a> {
         stem
     }
 
-    fn calculate_curve(&mut self, t: f32, curve: f32, variance: f32, curve_back: f32) -> f32 {
-        let base = radians(curve * t);
-        let var = radians(self.rng.variance_add(variance));
+    fn calculate_curve(
+        &mut self,
+        t: f32,
+        curve: f32,
+        variance: f32,
+        curve_back: f32,
+        segment_count: u32,
+    ) -> f32 {
+        let segs = segment_count.max(1) as f32;
+        let base = radians(curve * (0.6 + 0.8 * t)) / segs;
+        let var = radians(self.rng.variance_add(variance)) / segs.sqrt();
         let back = if t > 0.5 && curve_back != 0.0 {
-            radians(curve_back * (t - 0.5) * 2.0)
+            radians(curve_back * (t - 0.5) * 4.0) / segs
         } else {
             0.0
         };
@@ -795,28 +931,26 @@ impl<'a> DichotomousGenerator<'a> {
         base + var - back
     }
 
-    fn apply_curve(&self, direction: Vec3, curve: f32, roll: f32) -> Vec3 {
-        if curve.abs() < f32::EPSILON && roll.abs() < f32::EPSILON {
-            return direction;
-        }
-
-        let (tangent, _) = create_basis(direction);
-        let rotated = rotate_around_axis(direction, tangent, curve);
-
-        if roll.abs() > f32::EPSILON {
-            rotate_around_axis(rotated, direction, roll)
+    fn apply_curve_and_gravity(
+        &self,
+        direction: Vec3,
+        bend_axis: Vec3,
+        curve: f32,
+        gravity: f32,
+    ) -> Vec3 {
+        let curved = if curve.abs() > f32::EPSILON {
+            rotate_around_axis(direction, bend_axis, curve)
         } else {
-            rotated
-        }
-    }
-
-    fn apply_curve_and_gravity(&self, direction: Vec3, curve: f32, gravity: f32) -> Vec3 {
-        let curved = self.apply_curve(direction, curve, 0.0);
+            direction
+        };
 
         if gravity.abs() > 0.001 {
-            let gravity_dir = Vec3::new(0.0, -gravity.signum(), 0.0);
-            let blend = gravity.abs().min(1.0);
-            (curved + gravity_dir * blend).normalize()
+            // Negative gravity droops (-Y); positive gravity lifts (+Y)
+            let gravity_dir = Vec3::new(0.0, gravity.signum(), 0.0);
+            let blend = gravity.abs().min(0.95);
+            (curved + gravity_dir * blend)
+                .try_normalize()
+                .unwrap_or(curved)
         } else {
             curved
         }
@@ -855,6 +989,14 @@ impl<'a> DichotomousGenerator<'a> {
         self.next_stem_id += 1;
         id
     }
+}
+
+fn transport_axis(axis: Vec3, direction: Vec3) -> Vec3 {
+    let dir = direction.try_normalize().unwrap_or(Vec3::Y);
+    let projected = axis - dir * axis.dot(dir);
+    projected
+        .try_normalize()
+        .unwrap_or_else(|| create_basis(dir).0)
 }
 
 fn branch_base_radius(parent_radius: f32, params: &BranchParams, sibling_count: u32) -> f32 {

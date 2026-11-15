@@ -199,6 +199,8 @@ export interface NatureMesh {
 export interface NaturePrototype {
   name: string;
   kind: string;
+  uses_card_atlas?: boolean;
+  color_tip?: string;
   lods: NatureMesh[];
 }
 
@@ -231,6 +233,7 @@ export interface NaturePreview {
   terrain: NatureMesh;
   prototypes: NaturePrototype[];
   scatter_sets: ScatterSet[];
+  card_atlas?: GeneratedMap;
   stats: {
     tile_size: number;
     terrain_vertex_count: number;
@@ -248,9 +251,11 @@ export function generateNaturePreview(
   previewResolution = 48,
   scatterChunkSize = 16,
 ): NaturePreview {
-  return generate_nature_preview_from_toml(
+  const out = generate_nature_preview_from_toml(
     toml,
     previewResolution,
     scatterChunkSize,
   ) as NaturePreview;
+  if (out.card_atlas) normalizeMap(out.card_atlas);
+  return out;
 }

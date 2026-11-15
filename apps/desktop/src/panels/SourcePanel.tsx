@@ -25,7 +25,8 @@ export function SourcePanel({
     <div className="midori-source">
       <div className="midori-source-toolbar">
         <span className="midori-subtle">
-          species.toml {state.sourceDirty ? '· modified' : '· applied'}
+          {state.mode === 'nature' ? 'nature_patch.toml' : 'species.toml'}{' '}
+          {state.sourceDirty ? '· modified' : '· applied'}
         </span>
         <div className="midori-source-actions">
           <button type="button" disabled={!state.sourceDirty} onClick={onRevert} title="Revert to applied source">

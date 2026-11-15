@@ -22,53 +22,54 @@ curve_variance = 1.5
 segments = 6
 
 [branches.level1]
-count = 26
+count = 30
 count_variance = 2
-length = 0.95
-length_variance = 0.15
-radius_ratio = 0.45
-angle = 76.0
-angle_variance = 8.0
-rotation = 137.5
-gravity = 0.05
-curve = 8.0
+length = 1.12
+length_variance = 0.12
+radius_ratio = 0.42
+angle = 78.0
+angle_variance = 6.0
+rotation = 60.0
+gravity = -0.12
+curve = -12.0
 curve_variance = 4.0
 segments = 3
 
 [crown]
 shape = "conical"
-offset = 0.18
-density = 0.9
-width_ratio = 0.6
+offset = 0.16
+density = 0.96
+width_ratio = 0.88
 
 [leaves]
-count = 880
+count = 680
 min_level = 1
-size = 0.40
-size_variance = 0.2
-distribution = "along_branch"
+size = 0.54
+size_variance = 0.16
+distribution = "both"
 geometry = "canopy_card"
 shape = "needle"
-up_influence = 0.6
+up_influence = 0.65
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.8
-up_bias = 0.8
-clump_weight = 0.3
+normal_blend = 0.86
+up_bias = 0.76
+clump_weight = 0.28
 clump_level = 1
-shell = 0.0
-card_tilt = 18.0
-card_max_angle = 55.0
+crown_fill = 60
+shell = 0.55
+card_tilt = 9.0
+card_max_angle = 28.0
 card_roll = "radial"
-card_offset = 0.6
+card_offset = 0.28
 single_sided = true
 vertex_color = "tint_ao"
 tint_variation = 0.16
-hue_variation = 0.1
-ao_strength = 0.5
-card_scale_by_clump = 0.9
-roughness = 0.92
+hue_variation = 0.10
+ao_strength = 0.50
+card_scale_by_clump = 0.75
+roughness = 0.88
 
 [textures]
 resolution = 512
@@ -76,7 +77,7 @@ bark_style = "plated"
 leaf_shape = "needle"
 leaf_card = "frond"
 bark_color = [0.36, 0.24, 0.16]
-leaf_color = [0.13, 0.27, 0.12]
+leaf_color = [0.16, 0.34, 0.16]
 
 [lod]
 preset = "custom"

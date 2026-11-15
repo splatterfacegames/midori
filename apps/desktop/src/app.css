@@ -61,11 +61,28 @@
   padding: 6px 8px;
   border-radius: 4px;
   text-align: left;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.midori-preset svg {
+  flex-shrink: 0;
+}
+
+.midori-preset span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .midori-preset small {
   margin-left: auto;
   opacity: 0.5;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 78px;
 }
 
 .midori-action-stack {
@@ -211,6 +228,10 @@
 
 .midori-material-thumb-wide {
   width: 148px;
+}
+
+.midori-material-thumb-square-lg {
+  width: 184px;
 }
 
 .midori-material-thumb img {

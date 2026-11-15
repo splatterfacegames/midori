@@ -3,9 +3,13 @@
  * `presets/species/` TOML documents — the same files the CLI consumes.
  */
 
+import joshuaPrototypeToml from '../../../presets/species/joshua_prototype.toml?raw';
 import oakToml from '../../../presets/species/oak.toml?raw';
 import palmToml from '../../../presets/species/palm.toml?raw';
 import pineToml from '../../../presets/species/pine.toml?raw';
+import topdownBroadleafToml from '../../../presets/species/topdown_broadleaf.toml?raw';
+import topdownConiferToml from '../../../presets/species/topdown_conifer.toml?raw';
+import topdownShrubToml from '../../../presets/species/topdown_shrub.toml?raw';
 import willowToml from '../../../presets/species/willow.toml?raw';
 
 export interface SpeciesPreset {
@@ -19,6 +23,10 @@ export const PRESETS: SpeciesPreset[] = [
   { id: 'pine', label: 'Pine', toml: pineToml },
   { id: 'palm', label: 'Palm', toml: palmToml },
   { id: 'willow', label: 'Willow', toml: willowToml },
+  { id: 'joshua_prototype', label: 'Joshua tree', toml: joshuaPrototypeToml },
+  { id: 'topdown_broadleaf', label: 'Top-down broadleaf', toml: topdownBroadleafToml },
+  { id: 'topdown_conifer', label: 'Top-down conifer', toml: topdownConiferToml },
+  { id: 'topdown_shrub', label: 'Top-down shrub', toml: topdownShrubToml },
 ];
 
 /**
@@ -26,12 +34,14 @@ export const PRESETS: SpeciesPreset[] = [
  * `presets/nature/` TOML documents — the same files `midori nature` consumes.
  */
 
+import alpineMeadowToml from '../../../presets/nature/alpine_meadow.toml?raw';
 import aridScrubToml from '../../../presets/nature/arid_scrub.toml?raw';
 import floweringMeadowToml from '../../../presets/nature/flowering_meadow.toml?raw';
 import temperateForestFloorToml from '../../../presets/nature/temperate_forest_floor.toml?raw';
 
 export const NATURE_PRESETS: SpeciesPreset[] = [
-  { id: 'arid_scrub', label: 'Arid scrub', toml: aridScrubToml },
+  { id: 'alpine_meadow', label: 'Alpine meadow', toml: alpineMeadowToml },
   { id: 'flowering_meadow', label: 'Flowering meadow', toml: floweringMeadowToml },
   { id: 'temperate_forest_floor', label: 'Temperate forest floor', toml: temperateForestFloorToml },
+  { id: 'arid_scrub', label: 'Arid scrub', toml: aridScrubToml },
 ];
