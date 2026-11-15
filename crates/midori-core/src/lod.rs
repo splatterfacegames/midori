@@ -582,7 +582,7 @@ fn generate_single_lod(
             tree.leaves.clone()
         } else {
             (0..max_leaves)
-                .map(|i| tree.leaves[i * total / max_leaves.max(1)].clone())
+                .map(|i| tree.leaves[i * total / max_leaves.max(1)])
                 .collect()
         };
         // Canopy cards: grow the surviving cards so crown coverage holds.

@@ -414,7 +414,7 @@ impl CanopyContext {
                 let cc = self.clump_center[c];
                 let d = leaf.position - cc;
                 let len = d.length();
-                let mut out = leaf.clone();
+                let mut out = *leaf;
                 if len > 1e-4 {
                     // Keep some depth jitter so the shell isn't a hard sphere.
                     let target = self.clump_radius[c] * (0.75 + 0.25 * (i as f32 * 0.618).fract());
