@@ -48,10 +48,10 @@ describe('MidoriModel', () => {
     expect(oak?.textures.resolution).toBe(maps!.bark_albedo.rgba.width);
   });
 
-  it('bakes a crown impostor on the last balanced LOD', () => {
+  it('bakes a crown impostor on the last LOD', () => {
     const lods = model.getState().lods ?? [];
     const last = lods[lods.length - 1];
-    expect(last.name).toBe('Low');
+    expect(last.name).toBe('Impostor');
     const impostor = last.submeshes.find((sub) => sub.material === 'impostor');
     expect(impostor).toBeDefined();
     expect(impostor!.index_count).toBeGreaterThan(0);
@@ -155,12 +155,16 @@ describe('MidoriModel', () => {
     const plainGltf = JSON.parse(
       new TextDecoder().decode(plain.find((f) => f.name === 'oak.gltf')!.data),
     );
-    // The impostor atlas embeds regardless — it is the impostor's content.
-    expect(plainGltf.images?.map((i: { name: string }) => i.name)).toEqual(['impostor_lod2']);
-    expect(plainGltf.materials.length).toBe(3);
+    // The impostor atlases embed regardless — they are the impostor's content.
+    expect(plainGltf.images?.map((i: { name: string }) => i.name)).toEqual([
+      'impostor_lod2',
+      'impostor_lod3',
+    ]);
+    expect(plainGltf.materials.length).toBe(4);
     const plainNames = plainGltf.materials.map((m: { name?: string }) => m.name);
     expect(plainNames.slice(0, 2)).toEqual(['bark', 'leaves']);
     expect(plainNames[2]).toMatch(/^impostor_/);
+    expect(plainNames[3]).toMatch(/^impostor_/);
   });
 
   it('loads dichotomous, top-down, maple, and ginkgo species presets', () => {

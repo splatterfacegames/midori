@@ -1,80 +1,80 @@
 # Palm (Cocos nucifera)
-# Single trunk, no branches, fronds radiate from crown.
+# Slender ringed tropical trunk crowned by distinct arching pinnate fronds clothed in sword pinnae.
 
 [species]
 name = "Palm"
 scientific = "Cocos nucifera"
 
 [trunk]
-height = 10.5
-height_variance = 0.1
-radius = 0.28
-taper = 0.44
+height = 10.2
+height_variance = 0.10
+radius = 0.30
+taper = 0.42
 taper_profile = "smooth"
-curve = 22.0
+curve = 24.0
 curve_variance = 6.0
-curve_back = 8.0
-segments = 16
+curve_back = 9.0
+segments = 22
 
 [branches.level1]
-# Arching pinnate palm rachises radiating in stacked whorls from the crownshaft
-count = 24
-count_variance = 2
-length = 4.1
+# 28 distinct arching palm rachises radiating in a star burst with sky between individual fronds
+count = 28
+count_variance = 3
+length = 4.6
 length_variance = 0.10
-radius_ratio = 0.17
+radius_ratio = 0.13
 taper = 0.92
-angle = 88.0
-angle_variance = 8.0
-rotation = 45.0
-gravity = -0.22
-curve = 48.0
-curve_variance = 7.0
-segments = 10
-
-# No level2/3 branches - fronds carry sword-shaped leaflets along the rachis
+angle = 68.0
+angle_variance = 32.0
+rotation = 137.5
+gravity = -0.26
+curve = 56.0
+curve_variance = 4.0
+segments = 14
 
 [crown]
 shape = "columnar"
-offset = 0.94
+offset = 0.96
 density = 1.0
 width_ratio = 1.0
 
 [leaves]
-count = 1380
+count = 145
 min_level = 1
-size = 0.96
-size_variance = 0.14
+size = 1.34
+size_variance = 0.08
 distribution = "along_branch"
 geometry = "billboard"
 shape = "willow"
-up_influence = -0.22
+up_influence = 0.0
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.65
-up_bias = 0.28
-clump_weight = 0.45
+normal_blend = 0.68
+up_bias = 0.32
+clump_weight = 0.0
 clump_level = 1
+crown_fill = 0
+shell = 0.0
 single_sided = true
 vertex_color = "tint_ao"
 tint_variation = 0.14
 hue_variation = 0.10
-ao_strength = 0.42
-roughness = 0.52
+ao_strength = 0.38
+roughness = 0.78
 
 [textures]
-bark_prompt = "Coconut palm trunk, grey-brown, horizontal ring scars, fibrous texture"
-leaf_prompt = "Palm frond leaflet, long narrow blade, parallel venation, glossy green"
-resolution = 512
+bark_prompt = "Coconut palm trunk, grey-brown, crisp annular leaf-scar rings and vertical fibers"
+leaf_prompt = "Pinnate palm frond with golden-green rachis and 28 pairs of arching glossy sword pinnae"
+resolution = 1024
 bark_style = "smooth"
 leaf_shape = "willow"
-leaf_card = "single"
-bark_color = [0.46, 0.40, 0.33]
-leaf_color = [0.20, 0.44, 0.15]
+leaf_card = "frond"
+bark_color = [0.54, 0.47, 0.39]
+leaf_color = [0.16, 0.40, 0.11]
 
 [lod]
-preset = "balanced"
+preset = "high_quality"
 
 [platform]
 target = "modern_pc"

@@ -16,8 +16,8 @@ fn oak_preset_seed_42_snapshot() {
     let species = Species::from_file(&workspace_preset("presets/species/oak.toml")).unwrap();
     let tree = generate_tree(&species, 42).unwrap();
 
-    assert_eq!(tree.stem_count(), 235);
-    assert_eq!(tree.leaf_count(), 3323);
+    assert_eq!(tree.stem_count(), 183);
+    assert_eq!(tree.leaf_count(), 2113);
     assert!(tree.bounds.is_valid());
 
     let lods = generate_lod_meshes_with_config(&tree, &species, &LodGenerationConfig::balanced());
@@ -37,9 +37,9 @@ fn oak_preset_seed_42_snapshot() {
     assert_eq!(
         stats,
         vec![
-            (0, 33221, 35976, 3323),
-            (1, 11090, 13056, 1329),
-            (2, 1847, 2589, 1)
+            (0, 47658, 48640, 2113),
+            (1, 15153, 17601, 845),
+            (2, 2412, 3555, 1)
         ]
     );
 

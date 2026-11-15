@@ -1,5 +1,5 @@
 # Oak (Quercus robur)
-# Broad, spreading crown with thick trunk. Irregular branching.
+# Broad, spreading crown with thick fluted trunk and muscular gnarled boughs.
 # Morphology note: docs/morphology/oak.md
 
 [species]
@@ -11,112 +11,115 @@ tags = ["broadleaf", "deciduous", "spreading_crown"]
 
 [generator]
 family = "weber_penn"
-notes = "Broadleaf tree using the current trunk/branch/leaf path."
+notes = "Broadleaf hero tree with muscular bough hierarchy and 1024px botanical sprays."
 
 [trunk]
-height = 6.4
+height = 6.2
 height_variance = 0.12
-radius = 0.50
-taper = 0.88
-taper_profile = "smooth"
-curve = 13.0
+radius = 0.56
+taper = 0.86
+taper_profile = "exponential"
+curve = 16.0
 curve_variance = 6.0
-curve_back = 6.0
-segments = 9
+curve_back = 9.0
+segments = 18
 
 [branches.level1]
-count = 9
+count = 8
 count_variance = 2
-length = 4.8
-length_variance = 0.2
-radius_ratio = 0.56
-radius_model = "pipe"
+length = 4.9
+length_variance = 0.18
+radius_ratio = 0.60
+radius_model = "ratio"
 pipe_exponent = 2.28
-taper = 0.82
-taper_profile = "smooth"
-angle = 58.0
-angle_variance = 14.0
+taper = 0.80
+taper_profile = "exponential"
+angle = 56.0
+angle_variance = 13.0
 rotation = 137.5
-gravity = -0.10
-curve = 22.0
-curve_variance = 12.0
-segments = 7
+gravity = -0.09
+curve = 28.0
+curve_variance = 18.0
+segments = 13
 
 [branches.level2]
 count = 5
 count_variance = 1
-length = 2.3
-length_variance = 0.25
-radius_ratio = 0.50
-radius_model = "pipe"
+length = 2.4
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
 pipe_exponent = 2.25
-taper = 0.8
+taper = 0.80
+taper_profile = "smooth"
 angle = 50.0
-angle_variance = 15.0
+angle_variance = 14.0
 rotation = 137.5
 gravity = -0.10
-curve = 22.0
-curve_variance = 14.0
-segments = 5
+curve = 24.0
+curve_variance = 12.0
+segments = 9
 
 [branches.level3]
 count = 4
 count_variance = 1
-length = 1.08
-length_variance = 0.3
-radius_ratio = 0.4
+length = 1.15
+length_variance = 0.26
+radius_ratio = 0.46
+taper = 0.82
 angle = 52.0
-angle_variance = 20.0
+angle_variance = 18.0
 rotation = 137.5
-gravity = -0.14
-curve = 24.0
-curve_variance = 16.0
-segments = 3
+gravity = -0.13
+curve = 22.0
+curve_variance = 14.0
+segments = 6
 
 [crown]
 shape = "spherical"
 offset = 0.30
 density = 1.0
-width_ratio = 1.22
+width_ratio = 1.24
 
 [leaves]
-count = 3200
+count = 2200
 min_level = 2
-size = 0.68
-size_variance = 0.24
+size = 0.72
+size_variance = 0.22
 distribution = "both"
 geometry = "cross_billboard"
 shape = "oak_lobed"
-up_influence = 0.32
+up_influence = 0.34
 
 [canopy]
 normals = "canopy"
 normal_blend = 0.86
-up_bias = 0.26
-clump_weight = 0.72
+up_bias = 0.28
+clump_weight = 0.74
 clump_level = 1
-crown_fill = 240
-shell = 0.52
+crown_fill = 0
+shell = 0.24
+single_sided = true
 vertex_color = "tint_ao"
 tint_variation = 0.20
 hue_variation = 0.14
-ao_strength = 0.50
-roughness = 0.76
+ao_strength = 0.52
+roughness = 0.72
 
 [textures]
-bark_prompt = "English oak tree bark, deep fissures, grey-brown, coarse texture"
-leaf_prompt = "Oak leaves with rounded lobes, dark green, visible venation"
-resolution = 512
+bark_prompt = "English oak tree bark, deep diamond fissures, grey-brown corky ridges"
+leaf_prompt = "Quercus robur oak branchlet spray with deeply lobed leaves and crisp venation"
+resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "lobed"
 leaf_card = "cluster"
-bark_color = [0.36, 0.30, 0.24]
-leaf_color = [0.22, 0.42, 0.14]
+bark_color = [0.46, 0.39, 0.31]
+leaf_color = [0.22, 0.43, 0.14]
 
 [materials]
 bark = "oak_bark"
 foliage = "oak_leaf"
-notes = "Metadata placeholders only; texture/PBR asset pipeline is parked."
+notes = "1024px procedural bark & botanical leaf cluster spray."
 
 [[control_groups]]
 key = "shape"
@@ -139,7 +142,7 @@ max = 2.0
 step = 0.05
 
 [lod]
-preset = "balanced"
+preset = "high_quality"
 
 [platform]
 target = "modern_pc"

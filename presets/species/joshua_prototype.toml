@@ -1,5 +1,6 @@
 # Joshua Tree Prototype (Yucca brevifolia)
-# Minimal dichotomous generator preset. Morphology note: docs/morphology/joshua-tree.md
+# Dichotomous Mojave desert yucca with fibrous furrowed limbs and terminal bayonet rosettes.
+# Morphology note: docs/morphology/joshua-tree.md
 
 [species]
 name = "Joshua Prototype"
@@ -10,62 +11,62 @@ tags = ["yucca", "desert", "dichotomous", "prototype"]
 
 [generator]
 family = "dichotomous"
-notes = "Second-family prototype using terminal fork grammar and shared Tree output."
+notes = "Second-family generator using terminal fork grammar and shared Tree output."
 
 [trunk]
-height = 2.9
+height = 3.0
 height_variance = 0.12
-radius = 0.31
+radius = 0.32
 taper = 0.16
 taper_profile = "smooth"
-curve = 10.0
+curve = 12.0
 curve_variance = 5.0
-curve_back = 3.0
-segments = 7
+curve_back = 4.0
+segments = 14
 
 [branches.level1]
 count = 3
 count_variance = 1
-length = 1.85
+length = 1.90
 length_variance = 0.18
-radius_ratio = 0.94
-radius_model = "pipe"
+radius_ratio = 0.76
+radius_model = "ratio"
 pipe_exponent = 3.2
 taper = 0.16
 taper_profile = "smooth"
-angle = 36.0
+angle = 34.0
 angle_variance = 8.0
 rotation = 137.5
 gravity = 0.24
 curve = 22.0
 curve_variance = 9.0
-segments = 6
+segments = 11
 
 [branches.level2]
 count = 2
 count_variance = 1
-length = 1.35
-length_variance = 0.2
-radius_ratio = 0.92
-radius_model = "pipe"
+length = 1.38
+length_variance = 0.20
+radius_ratio = 0.78
+radius_model = "ratio"
 pipe_exponent = 3.2
 taper = 0.18
 taper_profile = "smooth"
-angle = 34.0
+angle = 32.0
 angle_variance = 9.0
 rotation = 115.0
 gravity = 0.32
 curve = 20.0
 curve_variance = 8.0
-segments = 5
+segments = 9
 
 [branches.level3]
 count = 2
 count_variance = 0
-length = 0.95
+length = 0.96
 length_variance = 0.22
-radius_ratio = 0.90
-radius_model = "pipe"
+radius_ratio = 0.80
+radius_model = "ratio"
 pipe_exponent = 3.2
 taper = 0.20
 taper_profile = "smooth"
@@ -75,7 +76,7 @@ rotation = 125.0
 gravity = 0.38
 curve = 16.0
 curve_variance = 6.0
-segments = 4
+segments = 7
 
 [crown]
 shape = "columnar"
@@ -84,39 +85,41 @@ density = 1.0
 width_ratio = 1.0
 
 [leaves]
-count = 360
+count = 420
 min_level = 1
-size = 1.02
+size = 1.08
 size_variance = 0.18
 distribution = "endpoint"
 geometry = "cross_billboard"
 shape = "needle"
-up_influence = 0.42
+up_influence = 0.44
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.72
-up_bias = 0.30
-clump_weight = 0.82
+normal_blend = 0.74
+up_bias = 0.32
+clump_weight = 0.84
 clump_level = 3
+crown_fill = 0
+single_sided = true
 vertex_color = "tint_ao"
 tint_variation = 0.16
 hue_variation = 0.10
-ao_strength = 0.36
-roughness = 0.82
+ao_strength = 0.38
+roughness = 0.80
 
 [textures]
-resolution = 512
+resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "needle"
 leaf_card = "puff"
 bark_color = [0.43, 0.36, 0.28]
-leaf_color = [0.34, 0.43, 0.21]
+leaf_color = [0.34, 0.44, 0.21]
 
 [materials]
 bark = "joshua_stem"
 foliage = "joshua_rosette"
-notes = "Metadata placeholders only; texture/PBR asset pipeline is parked."
+notes = "1024px fibrous stem bark and yucca bayonet rosette card."
 
 [[control_groups]]
 key = "forks"
@@ -139,7 +142,7 @@ max = 70.0
 step = 1.0
 
 [lod]
-preset = "balanced"
+preset = "high_quality"
 
 [platform]
 target = "modern_pc"

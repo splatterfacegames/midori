@@ -117,6 +117,9 @@ pub fn place_leaves(tree: &Tree, species: &Species, rng: &mut Rng) -> Vec<Leaf> 
 
     let tree_min_y = tree.bounds.min.y;
     let tree_span_y = (tree.bounds.max.y - tree.bounds.min.y).max(1.0);
+    let is_pinnate_rachis = species.textures.leaf_card == crate::species::LeafCardLayout::Frond
+        && species.branches.level2.is_none()
+        && params.distribution == LeafDistribution::AlongBranch;
 
     for stem in &candidate_stems {
         if leaves.len() >= params.count as usize {
@@ -129,6 +132,47 @@ pub fn place_leaves(tree: &Tree, species: &Species, rng: &mut Rng) -> Vec<Leaf> 
         for k in 0..stem_leaf_count {
             if leaves.len() >= params.count as usize {
                 break;
+            }
+
+            if is_pinnate_rachis {
+                // Coaxial pinnate frond segments chained seamlessly along each arching palm rachis
+                let count_f = stem_leaf_count.max(1) as f32;
+                let u0 = k as f32 / count_f;
+                let t_start = (0.06 + u0 * 0.76).clamp(0.04, 0.88);
+                let t_end = (t_start + (0.94 / count_f).max(0.18)).clamp(t_start + 0.08, 1.0);
+                let p_start = stem.point_at(t_start);
+                let p_end = stem.point_at(t_end);
+                let chord_dir = (p_end - p_start)
+                    .try_normalize()
+                    .unwrap_or_else(|| stem.direction_at(t_start));
+                let aim_dir = (chord_dir + Vec3::Y * 0.13)
+                    .try_normalize()
+                    .unwrap_or(chord_dir);
+                let base_rot = Quat::from_rotation_arc(Vec3::Y, aim_dir);
+                let sky_in_plane = Vec3::Y - aim_dir * Vec3::Y.dot(aim_dir);
+                let align_roll = if let Some(sky_dir) = sky_in_plane.try_normalize() {
+                    let base_z = base_rot * Vec3::Z;
+                    let base_x = base_rot * Vec3::X;
+                    sky_dir.dot(base_x).atan2(sky_dir.dot(base_z))
+                } else {
+                    0.0
+                };
+                let rotation =
+                    Quat::from_axis_angle(aim_dir, align_roll + rng.range(-0.10, 0.10)) * base_rot;
+                let env = 0.74
+                    + 0.34
+                        * (((u0 + 0.5 / count_f) * PI).clamp(0.0, PI))
+                            .sin()
+                            .max(0.0)
+                            .powf(0.55);
+                let scale = params.size * env * rng.variance_mul(params.size_variance);
+                leaves.push(Leaf {
+                    position: p_start,
+                    rotation,
+                    scale,
+                    stem_id: stem.id,
+                });
+                continue;
             }
 
             // Choose placement point (stratified along stem for AlongBranch)
@@ -352,8 +396,21 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
     };
     let per_leaf = match config.geometry {
         LeafGeometry::Polygon => 1 + config.effective_resolution().max(6) as usize,
-        LeafGeometry::CrossBillboard => 8,
-        LeafGeometry::Billboard | LeafGeometry::CanopyCard => 4,
+        LeafGeometry::CrossBillboard => {
+            if config.canopy.single_sided {
+                18
+            } else {
+                8
+            }
+        }
+        LeafGeometry::Billboard => {
+            if config.canopy.single_sided {
+                9
+            } else {
+                4
+            }
+        }
+        LeafGeometry::CanopyCard => 4,
         LeafGeometry::None => 0,
     };
     canopy.shade(&mut mesh, leaves, per_leaf, config.geometry);
@@ -493,9 +550,11 @@ impl CanopyContext {
                 let len = d.length();
                 let mut out = *leaf;
                 if len > 1e-4 {
-                    // Keep some depth jitter so the shell isn't a hard sphere.
+                    // Keep natural depth jitter and clamp max shift so leaves never float detached
                     let target = self.clump_radius[c] * (0.75 + 0.25 * (i as f32 * 0.618).fract());
-                    out.position = cc + d / len * (len + (target - len) * t);
+                    let max_shift = leaf.scale * 0.35;
+                    let delta = ((target - len) * t).clamp(-max_shift, max_shift);
+                    out.position = cc + d / len * (len + delta);
                 }
                 out
             })
@@ -785,7 +844,7 @@ fn generate_billboards(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> Mes
     mesh
 }
 
-/// Add a billboard quad for a leaf
+/// Add a billboard or 3D-arched botanical spray wing for a leaf
 fn add_billboard_quad(
     mesh: &mut Mesh,
     leaf: &Leaf,
@@ -793,6 +852,53 @@ fn add_billboard_quad(
     config: &LeafConfig,
     tree: &Tree,
 ) {
+    let quad_rotation = Quat::from_rotation_arc(Vec3::Z, normal_dir);
+    let final_rotation = leaf.rotation * quad_rotation;
+
+    if config.canopy.single_sided {
+        // Emit a 3x3 (9-vertex, 8-triangle) 3D-curved botanical spray wing with longitudinal
+        // arch and lateral V-keel camber so zoomed-in foliage never reads as flat postcards.
+        let base_idx = mesh.vertices.len() as u32;
+        let half_w = leaf.scale * 0.5;
+        let xs = [-1.0_f32, 0.0, 1.0];
+        let ys = [0.0_f32, 0.52, 1.0];
+
+        for &yn in &ys {
+            // Rise gently out from petiole, crest near mid-spray, then droop at tip
+            let z_arch = leaf.scale * (0.16 * yn - 0.30 * yn * yn);
+            let dz_dy = 0.16 - 0.60 * yn;
+            for &xn in &xs {
+                // Raised central rachis keel (+z) with gently swept lateral margins (-z)
+                let z_keel = leaf.scale * (0.032 * (1.0 - xn.abs()) - 0.068 * xn * xn);
+                let dz_dx = -0.272 * xn;
+                let local_pos = Vec3::new(xn * half_w, yn * leaf.scale, z_arch + z_keel);
+                let local_nrm = Vec3::new(-dz_dx, -dz_dy * 0.55, 1.0).normalize();
+
+                let world_pos = leaf.position + final_rotation * local_pos;
+                let world_nrm = (final_rotation * local_nrm).normalize_or_zero();
+                let uv = Vec2::new(xn * 0.5 + 0.5, 1.0 - yn);
+
+                let mut vertex = Vertex::new(world_pos, world_nrm, uv);
+                if config.pivot_painter {
+                    encode_leaf_pivot_painter(&mut vertex, leaf, tree);
+                }
+                mesh.vertices.push(vertex);
+            }
+        }
+
+        for ry in 0..2_u32 {
+            for rx in 0..2_u32 {
+                let i00 = base_idx + ry * 3 + rx;
+                let i10 = i00 + 1;
+                let i01 = i00 + 3;
+                let i11 = i01 + 1;
+                mesh.indices
+                    .extend_from_slice(&[i00, i10, i11, i00, i11, i01]);
+            }
+        }
+        return;
+    }
+
     let base_idx = mesh.vertices.len() as u32;
     let half_size = leaf.scale * 0.5;
 
@@ -814,10 +920,6 @@ fn add_billboard_quad(
         Vec2::new(1.0, 0.0),
         Vec2::new(0.0, 0.0),
     ];
-
-    // Rotate to align with normal direction, then apply leaf rotation
-    let quad_rotation = Quat::from_rotation_arc(Vec3::Z, normal_dir);
-    let final_rotation = leaf.rotation * quad_rotation;
 
     let normal = final_rotation * Vec3::Z;
 
@@ -841,12 +943,7 @@ fn add_billboard_quad(
     mesh.indices.push(base_idx + 2);
     mesh.indices.push(base_idx + 3);
 
-    if config.canopy.single_sided {
-        // The double-sided foliage material renders the back; skip duplicates.
-        return;
-    }
-
-    // Back face triangles (opposite winding for two-sided rendering)
+    // Back face triangles (opposite winding for legacy two-sided mode)
     mesh.indices.push(base_idx);
     mesh.indices.push(base_idx + 2);
     mesh.indices.push(base_idx + 1);
@@ -952,44 +1049,43 @@ pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
         }
         LeafShape::OakLobed => {
             // Quercus robur obovate blade: cuneate narrow base, widest in upper third,
-            // 4 pairs of forward-swept rounded lobes + rounded terminal lobe.
+            // 4-5 pairs of deep forward-swept rounded lobes + rounded terminal lobe.
             let y_norm = ((py + 0.50) / 1.02).clamp(0.0, 1.0);
             let obovate =
-                (y_norm * PI).sin().max(0.0).powf(0.75) * (0.62 + 0.58 * y_norm.powf(0.7));
-            // Forward-swept lobe coordinate (sinuses angle upward toward midrib)
-            let wave_phase = (y_norm * 4.2 - px * 0.85) * TAU;
-            let lobe_wave = 0.68 + 0.34 * (wave_phase.cos() * 0.5 + 0.5).max(0.0).powf(0.85);
-            let half_w = 0.34 * obovate * lobe_wave;
+                (y_norm * PI).sin().max(0.0).powf(0.72) * (0.56 + 0.64 * y_norm.powf(0.68));
+            let wave_phase = (y_norm * 4.5 - px * 0.92) * TAU;
+            let lobe_wave = 0.52 + 0.50 * (wave_phase.cos() * 0.5 + 0.5).max(0.0).powf(0.78);
+            let half_w = 0.36 * obovate * lobe_wave;
             let d_side = px - half_w;
             let d_end = py.abs() - 0.51;
             smooth_max_2d(d_side, d_end)
         }
         LeafShape::Maple => {
-            // 7-lobed Acer palmatum (Momiji Japanese Maple) palmate star blade with deep V-sinuses
-            let shifted = Vec2::new(p.x, py + 0.16);
+            // 7-lobed Acer palmatum (Momiji Japanese Maple) deeply incised palmate star blade
+            let shifted = Vec2::new(p.x, py + 0.18);
             let r = shifted.length();
             let angle = shifted.x.abs().atan2(shifted.y); // 0 at +y apex, PI at -y base
-            let l0 = (-((angle - 0.0) / 0.23).powi(2)).exp();
-            let l1 = 0.90 * (-((angle - 0.72) / 0.22).powi(2)).exp();
-            let l2 = 0.74 * (-((angle - 1.42) / 0.21).powi(2)).exp();
-            let l3 = 0.44 * (-((angle - 2.05) / 0.19).powi(2)).exp();
+            let l0 = (-((angle - 0.0) / 0.185).powi(2)).exp();
+            let l1 = 0.92 * (-((angle - 0.68) / 0.175).powi(2)).exp();
+            let l2 = 0.76 * (-((angle - 1.36) / 0.165).powi(2)).exp();
+            let l3 = 0.46 * (-((angle - 1.98) / 0.150).powi(2)).exp();
             let lobe_env = l0.max(l1).max(l2).max(l3);
-            let teeth = 0.022 * (angle * 22.0).sin().abs() * lobe_env;
-            let target_r = 0.13 + 0.47 * lobe_env + teeth;
+            let teeth = 0.026 * (angle * 28.0).sin().abs() * lobe_env.powf(0.7);
+            let target_r = 0.088 + 0.51 * lobe_env + teeth;
             r - target_r
         }
         LeafShape::Ginkgo => {
-            // Bilobed fan-shaped Ginkgo biloba blade: slender cuneate wedge base opening
-            // into a broad undulating ~117-deg fan with a characteristic central apical notch.
-            let fan = Vec2::new(p.x, py + 0.42);
+            // Bilobed fan-shaped Ginkgo biloba blade: slender cuneate petiole opening into
+            // a crisp ~115-deg fan with a prominent central V-notch and ruffled margin.
+            let fan = Vec2::new(p.x, py + 0.44);
             let r = fan.length();
             let angle = fan.x.abs().atan2(fan.y.max(1e-4));
-            let notch = 0.13 * (-(angle / 0.14).powi(2)).exp();
-            let ruffle = 0.020 * (angle * 15.0).cos() * (1.0 - (angle / 1.05).clamp(0.0, 1.0));
-            let max_r = 0.86 - notch + ruffle - 0.08 * (angle / 1.05).powi(2);
-            let wedge_angle = 1.02_f32;
-            let d_side = fan.x.abs() * wedge_angle.cos() - fan.y * wedge_angle.sin() - 0.028;
-            let d_bot = -0.44 - py;
+            let notch = 0.19 * (-(angle / 0.105).powi(2)).exp();
+            let ruffle = 0.024 * (angle * 17.0).cos() * (1.0 - (angle / 1.02).clamp(0.0, 1.0));
+            let max_r = 0.88 - notch + ruffle - 0.09 * (angle / 1.02).powi(2);
+            let wedge_angle = 1.00_f32;
+            let d_side = fan.x.abs() * wedge_angle.cos() - fan.y * wedge_angle.sin() - 0.020;
+            let d_bot = -0.45 - py;
             let d_arc = r - max_r;
             smooth_max_2d(d_side, d_arc.max(d_bot))
         }

@@ -1,8 +1,5 @@
 # Top-down broadleaf (oak/beech-like) for RTS / top-down cameras.
 # Game scale (1 unit = 1 m-ish tank hull): ~2.8 tall, ~2 across.
-# Foliage is a few hundred outward-facing "puff" canopy cards grouped into
-# clumps per main limb, with canopy normals and baked tint+AO in COLOR_0 so
-# the crown reads as rounded, lumpy, multi-green masses from above.
 
 [species]
 name = "Topdown Broadleaf"
@@ -16,38 +13,40 @@ family = "weber_penn"
 [trunk]
 height = 2.1
 height_variance = 0.12
-radius = 0.09
-taper = 0.8
-curve = 3.0
-curve_variance = 2.0
-segments = 6
+radius = 0.10
+taper = 0.80
+taper_profile = "exponential"
+curve = 6.0
+curve_variance = 3.0
+segments = 10
 
 [branches.level1]
 count = 6
 count_variance = 1
-length = 0.8
-length_variance = 0.25
-radius_ratio = 0.55
+length = 0.85
+length_variance = 0.22
+radius_ratio = 0.58
+taper = 0.80
 angle = 48.0
 angle_variance = 15.0
 rotation = 137.5
 gravity = 0.05
 curve = 20.0
 curve_variance = 10.0
-segments = 4
+segments = 7
 
 [branches.level2]
 count = 5
 count_variance = 1
-length = 0.42
-length_variance = 0.3
-radius_ratio = 0.5
+length = 0.44
+length_variance = 0.28
+radius_ratio = 0.52
 angle = 45.0
 angle_variance = 15.0
 rotation = 137.5
 gravity = 0.0
 curve = 20.0
-segments = 2
+segments = 4
 
 [crown]
 shape = "spherical"
@@ -56,9 +55,9 @@ density = 1.0
 width_ratio = 1.2
 
 [leaves]
-count = 460
+count = 480
 min_level = 1
-size = 0.45
+size = 0.46
 size_variance = 0.22
 distribution = "both"
 geometry = "canopy_card"
@@ -71,8 +70,8 @@ normal_blend = 0.94
 up_bias = 0.30
 clump_weight = 0.65
 clump_level = 1
-crown_fill = 160
-shell = 0.72
+crown_fill = 140
+shell = 0.68
 card_tilt = 9.0
 card_max_angle = 26.0
 single_sided = true
@@ -80,10 +79,10 @@ vertex_color = "tint_ao"
 tint_variation = 0.20
 hue_variation = 0.14
 ao_strength = 0.54
-roughness = 0.88
+roughness = 0.82
 
 [textures]
-resolution = 512
+resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "oval"
 leaf_card = "puff"
@@ -96,21 +95,21 @@ preset = "custom"
 [[lod.levels]]
 index = 0
 name = "LOD0"
-target_triangles = 2500
-branch_levels = 1
+target_triangles = 4500
+branch_levels = 2
 leaf_geometry = "canopy_card"
 leaf_reduction = 1.0
-ring_resolution = [6, 4, 3, 3]
+ring_resolution = [16, 10, 6, 4]
 screen_height = 0.2
 
 [[lod.levels]]
 index = 1
 name = "LOD1"
-target_triangles = 800
-branch_levels = 0
+target_triangles = 1200
+branch_levels = 1
 leaf_geometry = "canopy_card"
-leaf_reduction = 0.32
-ring_resolution = [5, 3, 3, 3]
+leaf_reduction = 0.35
+ring_resolution = [8, 5, 4, 3]
 screen_height = 0.05
 
 [platform]

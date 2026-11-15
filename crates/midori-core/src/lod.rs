@@ -167,12 +167,12 @@ impl LodGenerationConfig {
                 LodLevelConfig {
                     index: 0,
                     name: "High".to_string(),
-                    target_triangles: 30000,
-                    max_triangles: 45000,
+                    target_triangles: 45000,
+                    max_triangles: 65000,
                     branch_levels: 4,
                     leaf_geometry: LeafGeometry::CrossBillboard,
                     leaf_reduction: 1.0,
-                    ring_resolution: [24, 16, 10, 6], // Smooth at medium range
+                    ring_resolution: [32, 22, 14, 8], // Smooth close-up cylinders across trunk & limbs
                     screen_height: 0.4,
                     crown_impostor: false,
                 },
@@ -507,13 +507,17 @@ pub fn generate_lod_meshes_with_config(
     species: &Species,
     config: &LodGenerationConfig,
 ) -> LodMeshSet {
-    // Impostor bakes sample the species' procedural maps; generate them once
-    // per set rather than per impostor level.
+    // Impostor bakes rasterize into a compact distant atlas; cap temporary texture
+    // resolution at 256 so 1024x1024 hero species stay instantaneous during mesh generation.
     let impostor_textures = config
         .levels
         .iter()
         .any(|level| level.crown_impostor)
-        .then(|| TextureSet::generate(species));
+        .then(|| {
+            let mut imp_species = species.clone();
+            imp_species.textures.resolution = imp_species.textures.resolution.min(256);
+            TextureSet::generate(&imp_species)
+        });
 
     let mut meshes = Vec::with_capacity(config.levels.len());
     for level_config in &config.levels {

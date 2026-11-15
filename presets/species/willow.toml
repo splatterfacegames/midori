@@ -1,108 +1,113 @@
 # Willow (Salix babylonica)
-# Weeping form, long drooping branches.
+# Gnarled furrowed trunk, muscular arching fountain limbs, and cascading curtains of lanceolate leaves.
 
 [species]
 name = "Willow"
 scientific = "Salix babylonica"
 
 [trunk]
-height = 6.5
+height = 6.4
 height_variance = 0.14
-radius = 0.50
-taper = 0.88
-taper_profile = "smooth"
-curve = 10.0
-curve_variance = 4.0
-segments = 8
+radius = 0.54
+taper = 0.86
+taper_profile = "exponential"
+curve = 14.0
+curve_variance = 5.0
+curve_back = 7.0
+segments = 16
 
 [branches.level1]
 count = 9
 count_variance = 2
-length = 4.2
+length = 4.3
 length_variance = 0.18
-radius_ratio = 0.46
-taper = 0.82
-taper_profile = "smooth"
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.80
+taper_profile = "exponential"
 angle = 48.0
 angle_variance = 12.0
 rotation = 137.5
 gravity = -0.18
 curve = 28.0
 curve_variance = 10.0
-segments = 6
+segments = 11
 
 [branches.level2]
 count = 5
 count_variance = 1
-length = 3.0
+length = 3.1
 length_variance = 0.22
-radius_ratio = 0.38
-taper = 0.84
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.82
+taper_profile = "smooth"
 angle = 42.0
 angle_variance = 15.0
 rotation = 137.5
-gravity = -0.55
+gravity = -0.52
 curve = 38.0
 curve_variance = 14.0
-segments = 7
+segments = 10
 
 [branches.level3]
 # Long cascading weeping curtain shoots
 count = 6
 count_variance = 2
-length = 2.65
-length_variance = 0.25
-radius_ratio = 0.20
-taper = 0.85
-angle = 28.0
-angle_variance = 18.0
+length = 2.85
+length_variance = 0.24
+radius_ratio = 0.26
+taper = 0.84
+angle = 26.0
+angle_variance = 16.0
 rotation = 137.5
 gravity = -0.92
-curve = 20.0
-segments = 8
+curve = 22.0
+segments = 11
 
 [crown]
 shape = "hemispherical"
-offset = 0.38
+offset = 0.36
 density = 1.0
-width_ratio = 1.15
+width_ratio = 1.18
 
 [leaves]
-count = 4400
-min_level = 1
-size = 0.64
+count = 2600
+min_level = 2
+size = 0.68
 size_variance = 0.20
 distribution = "along_branch"
 geometry = "cross_billboard"
 shape = "willow"
-up_influence = -0.52
+up_influence = -0.58
 
 [canopy]
 normals = "canopy"
 normal_blend = 0.82
 up_bias = 0.28
-clump_weight = 0.58
+clump_weight = 0.56
 clump_level = 1
-crown_fill = 320
-shell = 0.48
+crown_fill = 0
+shell = 0.16
+single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.16
+tint_variation = 0.18
 hue_variation = 0.12
 ao_strength = 0.48
-roughness = 0.76
+roughness = 0.72
 
 [textures]
-bark_prompt = "Weeping willow bark, grey-brown, deep ridged furrows, rough texture"
-leaf_prompt = "Willow leaf, narrow lanceolate, light green, fine serrated edge"
-resolution = 512
+bark_prompt = "Weeping willow bark, grey-brown, deep braided ridged furrows"
+leaf_prompt = "Salix babylonica weeping willow spray with slender lanceolate leaves"
+resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "willow"
 leaf_card = "cluster"
-bark_color = [0.40, 0.34, 0.27]
-leaf_color = [0.36, 0.52, 0.20]
+bark_color = [0.47, 0.40, 0.32]
+leaf_color = [0.34, 0.52, 0.19]
 
 [lod]
-preset = "balanced"
+preset = "high_quality"
 
 [platform]
 target = "modern_pc"

@@ -272,9 +272,13 @@ impl<'a> TreeGenerator<'a> {
                 segment_count,
             );
 
-            // Transport bend plane smoothly so crossing dir.y = 0.99 never snaps 90 degrees
+            // Smooth 3D organic twist along height so high-segment trunks sweep in sinuous S-curves
             bend_axis = transport_axis(bend_axis, direction);
-            let roll = self.rng.variance_add(radians(trunk.curve_variance * 0.25));
+            let harmonic_roll = radians(trunk.curve_variance * 1.15) * (t * TAU * 1.35).sin()
+                / segment_count.max(1) as f32;
+            let roll = harmonic_roll
+                + self.rng.variance_add(radians(trunk.curve_variance * 0.32))
+                    / (segment_count.max(1) as f32).sqrt();
             direction = rotate_around_axis(direction, bend_axis, curve_amount);
             if roll.abs() > f32::EPSILON {
                 bend_axis = rotate_around_axis(bend_axis, direction, roll);
@@ -369,7 +373,17 @@ impl<'a> TreeGenerator<'a> {
                 return;
             }
 
-            let (crown_t, rotation_angle) = if whorl_size > 1 {
+            let is_apical_leader = whorl_size == 1
+                && count >= 3
+                && level <= 2
+                && self.species.crown.offset < 0.85
+                && i == count - 1;
+
+            let (crown_t, rotation_angle) = if is_apical_leader {
+                let rot = i as f32 * radians(branch_params.rotation)
+                    + self.rng.variance_add(radians(15.0));
+                (1.0, rot)
+            } else if whorl_size > 1 {
                 let w_idx = i / whorl_size;
                 let in_whorl = i % whorl_size;
                 let this_whorl_n = (count - w_idx * whorl_size).min(whorl_size).max(1);
@@ -379,7 +393,7 @@ impl<'a> TreeGenerator<'a> {
                     (w_idx as f32 + 0.30) / (num_whorls as f32 - 0.35)
                 };
                 let jitter = self.rng.variance_add(0.06 / num_whorls.max(1) as f32);
-                let ct = (base_frac + jitter).clamp(0.0, 0.99);
+                let ct = (base_frac + jitter).clamp(0.0, 0.985);
                 let spoke_step = crate::constants::TAU / this_whorl_n as f32;
                 // Alternate adjacent whorls by half a spoke so tiers interlock naturally
                 let whorl_phase = (w_idx as f32) * spoke_step * 0.5;
@@ -387,34 +401,45 @@ impl<'a> TreeGenerator<'a> {
                 let rot = whorl_phase + spoke + self.rng.variance_add(radians(9.0));
                 (ct, rot)
             } else {
-                // Span smoothly from start_offset up to the parent apex (~0.985)
-                let base_frac = if count <= 1 {
+                // Lateral branches span smoothly up to ~0.95, leaving the apex for the leader
+                let lateral_n = if count >= 3 && level <= 2 && self.species.crown.offset < 0.85 {
+                    count - 1
+                } else {
+                    count
+                };
+                let base_frac = if lateral_n <= 1 {
                     0.5
                 } else {
-                    (i as f32 + 0.35) / (count as f32 - 0.25)
+                    (i as f32 + 0.30) / (lateral_n as f32 - 0.10)
                 };
-                let jitter = self.rng.variance_add(0.22 / count.max(1) as f32);
-                let ct = (base_frac + jitter).clamp(0.0, 0.99);
+                let jitter = self.rng.variance_add(0.20 / lateral_n.max(1) as f32);
+                let ct = (base_frac + jitter).clamp(0.0, 0.96);
                 let rot = i as f32 * radians(branch_params.rotation)
                     + self.rng.variance_add(radians(15.0));
                 (ct, rot)
             };
-            let t = start_offset + (1.0 - start_offset) * crown_t;
+            let t = if is_apical_leader {
+                1.0
+            } else {
+                start_offset + (1.0 - start_offset) * crown_t
+            };
 
             // Get parent position and direction at this point
             let spawn_pos = parent.point_at(t);
             let parent_dir = parent.direction_at(t);
 
             // Calculate branch direction: near crown apex on level 1, narrow insertion angle
-            // so upper branches form a natural leader / fountain crown instead of sticking out 90 deg.
-            let apex_angle_scale = if level == 1 {
+            // so upper branches and sympodial leaders flow organically out of their parent stem.
+            let apex_angle_scale = if is_apical_leader {
+                0.34
+            } else if level == 1 {
                 if whorl_size > 1 {
                     lerp(1.05, 0.48, crown_t.powf(1.25))
                 } else {
-                    lerp(1.0, 0.68, crown_t * crown_t)
+                    lerp(1.0, 0.62, crown_t * crown_t)
                 }
             } else {
-                lerp(1.0, 0.82, crown_t)
+                lerp(1.0, 0.78, crown_t)
             };
             let branch_angle = radians(
                 branch_params.angle * apex_angle_scale
@@ -494,20 +519,30 @@ impl<'a> TreeGenerator<'a> {
             .unwrap_or_else(|| create_basis(dir).0);
         let mut radius = branch_base_radius(parent_radius, spec.params, spec.sibling_count);
         let base_radius = radius;
+        let gnarl_phase_a = (stem.id as f32 * 2.399_963) % TAU;
+        let gnarl_phase_b = (stem.id as f32 * 3.883_222 + 1.1) % TAU;
+        let gnarl_amp = if segment_count >= 6 {
+            radians(spec.params.curve_variance * 2.15) / segment_count as f32
+        } else {
+            0.0
+        };
 
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
 
-            // Calculate curve with variance (normalized across segments)
+            // Calculate curve with variance + coherent 3D living-wood sinuosity
+            let harmonic_pitch = (t * TAU * 1.15 + gnarl_phase_a).sin() * gnarl_amp;
+            let harmonic_yaw = (t * TAU * 0.95 + gnarl_phase_b).cos() * gnarl_amp * 1.25;
             let curve_amount = self.calculate_curve(
                 t,
                 spec.params.curve,
                 spec.params.curve_variance,
                 0.0,
                 segment_count,
-            );
+            ) + harmonic_pitch;
             let lateral_wander = radians(self.rng.variance_add(spec.params.curve_variance * 0.45))
-                / (segment_count as f32).sqrt();
+                / (segment_count as f32).sqrt()
+                + harmonic_yaw;
 
             // Apply gravity influence
             let gravity_influence = spec.params.gravity * segment_length;

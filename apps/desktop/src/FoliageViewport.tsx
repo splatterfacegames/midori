@@ -126,7 +126,7 @@ function createDataTexture(
   tex.generateMipmaps = true;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.magFilter = THREE.LinearFilter;
-  tex.anisotropy = Math.min(8, Math.max(1, maxAnisotropy));
+  tex.anisotropy = Math.min(16, Math.max(1, maxAnisotropy));
   tex.flipY = false;
   tex.needsUpdate = true;
   return tex;
@@ -435,7 +435,7 @@ export function FoliageViewport({
     controls.enableDamping = true;
     controls.dampingFactor = 0.07;
     controls.maxPolarAngle = Math.PI * 0.495;
-    controls.minDistance = 0.6;
+    controls.minDistance = 0.35;
     controls.maxDistance = 180;
 
     const sunDir = sunDirectionFromAngles(initialMood.sunAzimuthDeg, initialMood.sunElevationDeg);
@@ -867,7 +867,7 @@ export function FoliageViewport({
         if (isBark) {
           const barkMat = new THREE.MeshStandardMaterial({
             color: maps?.bark_albedo ? '#ffffff' : '#6c5138',
-            roughness: 0.88,
+            roughness: 0.86,
             metalness: 0.0,
           });
           if (maps?.bark_albedo) {
@@ -875,7 +875,7 @@ export function FoliageViewport({
           }
           if (maps?.bark_normal) {
             barkMat.normalMap = createDataTexture(maps.bark_normal.rgba, false, true, maxAniso);
-            barkMat.normalScale = new THREE.Vector2(1.25, 1.25);
+            barkMat.normalScale = new THREE.Vector2(1.65, 1.65);
           }
           barkMat.onBeforeCompile = (shader) => {
             shader.uniforms.uTime = shared.uTime;
@@ -890,13 +890,17 @@ export function FoliageViewport({
                 uniform float uWindStrength;
                 uniform float uTreeHeight;
                 uniform float uTreeMinY;
-                varying float vBarkRootAo;`,
+                varying float vBarkRootAo;
+                varying vec3 vBarkPos;
+                varying vec3 vBarkObjNormal;`,
               )
               .replace(
                 '#include <begin_vertex>',
                 `#include <begin_vertex>
+                vBarkPos = transformed;
+                vBarkObjNormal = normalize(normal);
                 float hNorm = clamp((transformed.y - uTreeMinY) / max(uTreeHeight, 0.5), 0.0, 1.0);
-                vBarkRootAo = mix(0.64, 1.0, smoothstep(0.0, 0.16, hNorm));
+                vBarkRootAo = mix(0.68, 1.0, smoothstep(0.0, 0.14, hNorm));
                 float boughSway = sin(uTime * 1.35 + transformed.x * 0.25 + transformed.z * 0.22) * 0.072 * pow(hNorm, 1.75) * uWindStrength;
                 transformed.x += boughSway;
                 transformed.z += boughSway * 0.6;`,
@@ -905,16 +909,32 @@ export function FoliageViewport({
               .replace(
                 '#include <common>',
                 `#include <common>
-                varying float vBarkRootAo;`,
+                uniform float uTreeMinY;
+                varying float vBarkRootAo;
+                varying vec3 vBarkPos;
+                varying vec3 vBarkObjNormal;`,
               )
               .replace(
                 '#include <color_fragment>',
                 `#include <color_fragment>
-                diffuseColor.rgb *= vBarkRootAo;`,
+                float barkGrain = sin(vBarkPos.y * 95.0 + sin(vBarkPos.x * 42.0 + vBarkPos.z * 42.0) * 2.2) * 0.5 + 0.5;
+                diffuseColor.rgb *= (0.94 + 0.11 * barkGrain) * vBarkRootAo;
+                float collarY = vBarkPos.y - uTreeMinY;
+                float mossNoise = sin(vBarkPos.x * 19.0 + vBarkPos.z * 23.0) * cos(vBarkPos.y * 17.0 - vBarkPos.x * 13.0);
+                float mossMask = (1.0 - smoothstep(0.04, 0.44, collarY))
+                  * smoothstep(-0.15, 0.55, vBarkObjNormal.y + mossNoise * 0.38)
+                  * 0.52;
+                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.14, 0.24, 0.08), clamp(mossMask, 0.0, 0.55));`,
+              )
+              .replace(
+                '#include <roughnessmap_fragment>',
+                `#include <roughnessmap_fragment>
+                float barkLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+                roughnessFactor = clamp(mix(0.96, 0.76, smoothstep(0.06, 0.38, barkLum)), 0.65, 0.98);`,
               )
               .replace(
                 '#include <opaque_fragment>',
-                `outgoingLight += diffuseColor.rgb * 0.055;
+                `outgoingLight += diffuseColor.rgb * 0.105;
                 #include <opaque_fragment>`,
               );
           };
@@ -939,14 +959,15 @@ export function FoliageViewport({
             geo.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
           }
 
-          const mapSource =
-            sub.material === 'impostor' ? lod.impostor_atlas?.rgba : maps?.leaf_card.rgba;
+          const isImpostor = sub.material === 'impostor';
+          const mapSource = isImpostor ? lod.impostor_atlas?.rgba : maps?.leaf_card.rgba;
           const leafMat = new THREE.MeshStandardMaterial({
             color: mapSource ? '#ffffff' : '#4c8a3d',
             vertexColors: hasTintAo,
-            alphaTest: mapSource ? 0.36 : 0.0,
+            alphaTest: mapSource ? 0.28 : 0.0,
+            alphaToCoverage: Boolean(mapSource),
             side: THREE.DoubleSide,
-            roughness: 0.72,
+            roughness: 0.84,
             metalness: 0.0,
           });
           if (mapSource) {
@@ -961,6 +982,7 @@ export function FoliageViewport({
             shader.uniforms.uSunDir = shared.uSunDir;
             shader.uniforms.uSubsurfaceColor = shared.uSubsurfaceColor;
             shader.uniforms.uSubsurfaceIntensity = shared.uSubsurfaceIntensity;
+            shader.uniforms.uKeepCanopyNormal = { value: isImpostor ? 0.0 : 0.82 };
 
             shader.vertexShader = shader.vertexShader
               .replace(
@@ -993,16 +1015,34 @@ export function FoliageViewport({
                 `#include <common>
                 uniform vec3 uSunDir;
                 uniform vec3 uSubsurfaceColor;
-                uniform float uSubsurfaceIntensity;`,
+                uniform float uSubsurfaceIntensity;
+                uniform float uKeepCanopyNormal;`,
+              )
+              .replace(
+                '#include <normal_fragment_maps>',
+                `#include <normal_fragment_maps>
+                if (uKeepCanopyNormal > 0.0) {
+                  vec3 canopyOutward = normalize(vNormal);
+                  float leafLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+                  vec3 vpDx = dFdx(vViewPosition);
+                  vec3 vpDy = dFdy(vViewPosition);
+                  vec3 veinBump = (vpDx * dFdx(leafLum) + vpDy * dFdy(leafLum)) * 1.6;
+                  normal = normalize(mix(normal, canopyOutward, uKeepCanopyNormal) + veinBump);
+                  vec3 viewDirClamp = normalize(vViewPosition);
+                  float nvClamp = dot(normal, viewDirClamp);
+                  if (nvClamp < 0.30) {
+                    normal = normalize(normal + viewDirClamp * (0.30 - nvClamp));
+                  }
+                }`,
               )
               .replace(
                 '#include <opaque_fragment>',
                 `vec3 sssViewDir = normalize(vViewPosition);
                 vec3 sunViewDir = normalize((viewMatrix * vec4(uSunDir, 0.0)).xyz);
-                float backLit = pow(clamp(dot(-sssViewDir, sunViewDir), 0.0, 1.0), 2.5);
+                float backLit = pow(clamp(dot(-sssViewDir, sunViewDir), 0.0, 1.0), 2.2);
                 float wrapDiff = clamp(dot(normal, sunViewDir) * 0.5 + 0.5, 0.0, 1.0);
-                outgoingLight += diffuseColor.rgb * uSubsurfaceColor * (0.28 + 0.72 * backLit) * uSubsurfaceIntensity;
-                outgoingLight += diffuseColor.rgb * (0.09 * wrapDiff);
+                outgoingLight += diffuseColor.rgb * uSubsurfaceColor * (0.24 + 0.78 * backLit) * uSubsurfaceIntensity;
+                outgoingLight += diffuseColor.rgb * (0.10 * wrapDiff);
                 #include <opaque_fragment>`,
               );
           };

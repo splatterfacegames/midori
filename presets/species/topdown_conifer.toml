@@ -1,7 +1,5 @@
 # Top-down conifer (spruce/fir-like) for RTS / top-down cameras.
-# Game scale: ~3 tall, ~1.3 across. Whorled near-horizontal limbs, each limb a
-# foliage clump of frond cards facing up/out, so from above it reads as a dark
-# star-edged cone with lighter tips.
+# Game scale: ~3 tall, ~1.3 across. Whorled near-horizontal limbs clothed in feathered frond cards.
 
 [species]
 name = "Topdown Conifer"
@@ -15,25 +13,26 @@ family = "weber_penn"
 [trunk]
 height = 3.0
 height_variance = 0.12
-radius = 0.07
-taper = 0.95
-curve = 2.0
-curve_variance = 1.5
-segments = 6
+radius = 0.08
+taper = 0.92
+taper_profile = "exponential"
+curve = 4.0
+curve_variance = 2.0
+segments = 10
 
 [branches.level1]
 count = 30
 count_variance = 2
-length = 1.12
+length = 1.14
 length_variance = 0.12
-radius_ratio = 0.42
+radius_ratio = 0.44
 angle = 78.0
 angle_variance = 6.0
 rotation = 60.0
 gravity = -0.12
 curve = -12.0
 curve_variance = 4.0
-segments = 3
+segments = 6
 
 [crown]
 shape = "conical"
@@ -42,7 +41,7 @@ density = 0.98
 width_ratio = 0.96
 
 [leaves]
-count = 760
+count = 780
 min_level = 1
 size = 0.56
 size_variance = 0.16
@@ -57,8 +56,8 @@ normal_blend = 0.86
 up_bias = 0.74
 clump_weight = 0.30
 clump_level = 1
-crown_fill = 80
-shell = 0.58
+crown_fill = 60
+shell = 0.54
 card_tilt = 14.0
 card_max_angle = 34.0
 card_roll = "radial"
@@ -69,15 +68,15 @@ tint_variation = 0.16
 hue_variation = 0.10
 ao_strength = 0.50
 card_scale_by_clump = 0.75
-roughness = 0.88
+roughness = 0.82
 
 [textures]
-resolution = 512
+resolution = 1024
 bark_style = "plated"
 leaf_shape = "needle"
 leaf_card = "frond"
-bark_color = [0.36, 0.24, 0.16]
-leaf_color = [0.16, 0.34, 0.16]
+bark_color = [0.38, 0.24, 0.16]
+leaf_color = [0.16, 0.35, 0.16]
 
 [lod]
 preset = "custom"
@@ -85,21 +84,21 @@ preset = "custom"
 [[lod.levels]]
 index = 0
 name = "LOD0"
-target_triangles = 2500
+target_triangles = 4500
 branch_levels = 2
 leaf_geometry = "canopy_card"
 leaf_reduction = 1.0
-ring_resolution = [6, 3, 3, 3]
+ring_resolution = [16, 10, 6, 4]
 screen_height = 0.2
 
 [[lod.levels]]
 index = 1
 name = "LOD1"
-target_triangles = 800
+target_triangles = 1200
 branch_levels = 0
 leaf_geometry = "canopy_card"
-leaf_reduction = 0.3
-ring_resolution = [5, 3, 3, 3]
+leaf_reduction = 0.32
+ring_resolution = [8, 5, 4, 3]
 screen_height = 0.05
 
 [platform]

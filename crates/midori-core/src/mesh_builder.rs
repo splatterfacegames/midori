@@ -270,6 +270,21 @@ impl<'a> MeshBuilder<'a> {
             .count()
     }
 
+    fn parent_terminal_fork_info(&self, stem: &Stem) -> Option<(Vec3, Vec3, f32)> {
+        if stem.level == 0 || stem.parent_offset <= 0.94 {
+            return None;
+        }
+        let parent_id = stem.parent_id?;
+        let parent = self.tree.stems.iter().find(|s| s.id == parent_id)?;
+        if self.included_terminal_child_count(parent) < 2 || parent.segments.is_empty() {
+            return None;
+        }
+        let tip_pos = parent.tip();
+        let tip_dir = normalized_or_up(parent.segments.last().unwrap().direction);
+        let tip_r = parent.radius_at(1.0);
+        Some((tip_pos, tip_dir, tip_r))
+    }
+
     fn included_child_offsets(&self, stem: &Stem) -> Vec<f32> {
         let mut offsets: Vec<f32> = stem
             .child_ids
@@ -315,21 +330,44 @@ impl<'a> MeshBuilder<'a> {
         t_values.sort_by(|a, b| a.total_cmp(b));
         t_values.dedup_by(|a, b| (*a - *b).abs() < RING_T_EPSILON);
 
+        let base_radius = stem
+            .segments
+            .first()
+            .map(|s| s.start_radius)
+            .unwrap_or(0.15);
+        // Scale axial V coordinate by stem circumference so bark texels stay 1:1 square on both
+        // thick trunks and slender branches without horizontal stretching.
+        let circ = (TAU * base_radius).clamp(0.28, 3.20);
+        let axial_v_repeats = total_length / circ;
+
         let mut samples: Vec<RingSample> = t_values
             .into_iter()
             .map(|t| RingSample {
                 position: stem.point_at(t),
                 radius: stem.radius_at(t)
-                    * self.calculate_radius_scale(stem.level, t, child_offsets, term_children),
+                    * self.calculate_radius_scale(
+                        stem.level,
+                        stem.parent_offset,
+                        t,
+                        child_offsets,
+                        term_children,
+                    ),
                 direction: self.direction_at_ring(stem, t, total_length),
-                v_coord: t * total_length * self.config.texture_v_scale,
+                v_coord: t * axial_v_repeats * self.config.texture_v_scale,
             })
             .collect();
 
-        // Tuck non-trunk child base rings slightly along -direction so angled branches and
-        // Y-forks emerge cleanly from inside their parent stem without collar gaps.
-        if stem.level > 0 && samples.len() >= 2 {
-            let tuck = (samples[0].radius * 0.55).min(total_length * 0.22);
+        // Tuck non-trunk child base rings so angled lateral branches and dichotomous Y-forks
+        // emerge cleanly from inside their parent stem without collar gaps or protruding flanges.
+        if let Some((parent_tip, parent_dir, parent_tip_r)) = self.parent_terminal_fork_info(stem) {
+            if samples.len() >= 2 {
+                samples[0].radius = samples[0].radius.min(parent_tip_r * 0.78);
+                let tuck = (samples[0].radius * 0.34).min(total_length * 0.18);
+                samples[0].position = parent_tip - parent_dir * tuck;
+                samples[0].direction = parent_dir;
+            }
+        } else if stem.level > 0 && samples.len() >= 2 {
+            let tuck = (samples[0].radius * 0.55).min(total_length * 0.24);
             let dir0 = samples[0].direction;
             samples[0].position -= dir0 * tuck;
         }
@@ -377,6 +415,7 @@ impl<'a> MeshBuilder<'a> {
     fn calculate_radius_scale(
         &self,
         level: u8,
+        parent_offset: f32,
         t: f32,
         child_offsets: &[f32],
         term_children: usize,
@@ -388,12 +427,15 @@ impl<'a> MeshBuilder<'a> {
             let tip_fade = ((1.0 - t) / 0.20).clamp(0.0, 1.0);
             collar = 1.0 + (collar - 1.0) * tip_fade;
             if term_children >= 2 {
-                // Smoothly pull multi-fork parent rim inward into the Y-crotch
-                let fork_cinch = 1.0 - 0.24 * (1.0 - tip_fade);
-                collar *= fork_cinch;
+                collar *= 1.0 - 0.09 * (1.0 - tip_fade);
             }
         }
-        collar * self.calculate_base_swell(level, t)
+        let base_swell = if level > 0 && parent_offset > 0.94 {
+            1.0
+        } else {
+            self.calculate_base_swell(level, t)
+        };
+        collar * base_swell
     }
 
     /// Calculate branch collar swelling at a position along the stem
@@ -465,6 +507,9 @@ impl<'a> MeshBuilder<'a> {
         };
         let seed_phase = (self.tree.seed as f32 * 0.618_034).fract() * TAU;
 
+        let stem_phase =
+            ((self.tree.seed as f32 * 0.618_034 + stem.id as f32 * 0.381_966).fract()) * TAU;
+
         // Generate resolution+1 vertices (0 to resolution inclusive)
         // Last vertex duplicates position of first but has U=1.0 for proper UV wrap
         for i in 0..=resolution {
@@ -477,12 +522,26 @@ impl<'a> MeshBuilder<'a> {
             let tangent_dir = -frame.tangent * angle.sin() + frame.bitangent * angle.cos();
 
             let (buttress_mul, normal_twist) =
-                if stem.level == 0 && resolution >= 8 && h_frac < 0.24 {
-                    let falloff = (1.0 - h_frac / 0.24).powi(2);
-                    let phase = angle * 5.0 + seed_phase + 0.35 * (angle * 2.0 - seed_phase).sin();
-                    let lobe = phase.cos().max(-0.25);
-                    let deriv = -phase.sin() * 0.28 * falloff;
-                    (1.0 + 0.24 * falloff * lobe, deriv)
+                if stem.level == 0 && resolution >= 8 && h_frac < 0.28 {
+                    let falloff = (1.0 - h_frac / 0.28).powi(2);
+                    let phase = angle * 5.0 + seed_phase + 0.38 * (angle * 2.0 - seed_phase).sin();
+                    let lobe = phase.cos().max(-0.28);
+                    let deriv = -phase.sin() * 0.30 * falloff;
+                    let bark_ridge = if resolution >= 20 {
+                        (angle * 11.0 + v_coord * 2.4 + stem_phase).cos() * 0.026
+                            + (angle * 19.0 - v_coord * 3.8 + seed_phase).sin() * 0.014
+                    } else {
+                        0.0
+                    };
+                    (1.0 + 0.28 * falloff * lobe + bark_ridge, deriv)
+                } else if resolution >= 20 && stem.level <= 1 {
+                    // Subtle 3D bark furrow & gnarl relief on high-detail LOD0 trunks and primary boughs
+                    let amp = if stem.level == 0 { 0.032 } else { 0.022 };
+                    let p1 = angle * 9.0 + v_coord * 2.1 + stem_phase;
+                    let p2 = angle * 17.0 - v_coord * 3.4 + seed_phase;
+                    let ridge = amp * (0.68 * p1.cos() + 0.32 * p2.sin());
+                    let deriv = amp * (-0.68 * 9.0 * p1.sin() + 0.32 * 17.0 * p2.cos()) * 0.16;
+                    (1.0 + ridge, deriv)
                 } else {
                     (1.0, 0.0)
                 };
@@ -551,7 +610,7 @@ impl<'a> MeshBuilder<'a> {
                 .map(|&i| (self.mesh.vertices[i as usize].position - avg_center).length())
                 .sum::<f32>()
                 / actual_count as f32;
-            avg_center - normal * (avg_r * 0.30)
+            avg_center + normal * (avg_r * 0.28)
         } else {
             avg_center
         };
@@ -624,16 +683,20 @@ impl<'a> MeshBuilder<'a> {
     fn adaptive_ring_resolution(&self, level: u8, radius: f32) -> u32 {
         let base = self.ring_resolution_for_level(level);
 
-        // Very thin branches (< 2cm) use half resolution
-        if radius < 0.02 {
+        if base >= 8 {
+            // High-detail LODs keep smooth round branches even on slender limbs and twigs
+            if radius < 0.016 {
+                (base * 2 / 3).max(6)
+            } else if radius < 0.045 {
+                (base * 3 / 4).max(8)
+            } else {
+                base
+            }
+        } else if radius < 0.02 {
             (base / 2).max(3)
-        }
-        // Thin branches (< 5cm) use 2/3 resolution
-        else if radius < 0.05 {
+        } else if radius < 0.05 {
             (base * 2 / 3).max(4)
-        }
-        // Normal branches use full resolution
-        else {
+        } else {
             base
         }
     }
