@@ -303,7 +303,7 @@ def main() -> int:
         raise AssertionError("fake editor import unexpectedly produced a dry-run report")
     if report["scatter_binary_chunks"] != 26:
         raise AssertionError(f"unexpected chunk count: {report['scatter_binary_chunks']}")
-    if report["scatter_binary_instances"] != 222:
+    if report["scatter_binary_instances"] != 4511:
         raise AssertionError(f"unexpected instance count: {report['scatter_binary_instances']}")
     manifest = json.loads((package_dir / "midori_nature.json").read_text(encoding="utf-8"))
     expected_source_files = importer.collect_source_files(manifest, "unreal_yminus_file")
@@ -576,7 +576,7 @@ def main() -> int:
             raise AssertionError("fake foliage asset has wrong cull interval")
     if report.get("scatter_binary_records_validated") is not True:
         raise AssertionError("fake editor import did not validate scatter binary records")
-    if report.get("scatter_binary_records_read") != 222:
+    if report.get("scatter_binary_records_read") != 4511:
         raise AssertionError(f"unexpected record count: {report.get('scatter_binary_records_read')}")
     if len(report.get("scatter_chunks", [])) != 26:
         raise AssertionError("fake editor import did not report every scatter chunk")

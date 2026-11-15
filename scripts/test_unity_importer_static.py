@@ -194,7 +194,7 @@ def main() -> int:
         default=Path("target/midori_engine_validation/forest_floor"),
     )
     parser.add_argument("--expect-chunks", type=int, default=26)
-    parser.add_argument("--expect-instances", type=int, default=222)
+    parser.add_argument("--expect-instances", type=int, default=4511)
     args = parser.parse_args()
 
     check_source_contract(args.source)

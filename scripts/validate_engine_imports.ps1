@@ -320,7 +320,7 @@ Invoke-Checked "python" @(
     (Join-Path $repoRoot "scripts/test_unity_importer_static.py"),
     "--package-dir", $packageDir,
     "--expect-chunks", "26",
-    "--expect-instances", "222"
+    "--expect-instances", "4511"
 )
 
 Invoke-Checked "python" @(

@@ -544,7 +544,7 @@ def check_midori_report(verifier: EvidenceVerifier, report: dict[str, Any]) -> d
     check_prototype_surface_targets(verifier, "midori", manifest)
     check_midori_profile_budgets(verifier, report, manifest)
     verifier.require_equal("midori.scatter_binary_chunks", len(report.get("scatter_binary_files", [])), 26)
-    verifier.require_equal("midori.scatter_binary_instances", report.get("scatter_binary_instances"), 222)
+    verifier.require_equal("midori.scatter_binary_instances", report.get("scatter_binary_instances"), 4511)
     check_midori_scatter_summaries(verifier, report)
     verifier.require_equal("midori.shader_policy", manifest.get("shader_policy"), "preview_only")
     verifier.require_equal("midori.texture_pipeline", manifest.get("texture_pipeline"), "parked")
@@ -1065,7 +1065,7 @@ def check_engine_import_recipes(
             verifier.require_equal(
                 f"{prefix}.engine_import_recipe_summary.{engine}.scatter_instances",
                 summary.get("scatter_instances"),
-                222,
+                4511,
             )
             verifier.require_equal(
                 f"{prefix}.engine_import_recipe_summary.{engine}.scatter_binary_chunks",
@@ -2191,7 +2191,7 @@ def check_summary(
     verifier.require_equal(
         "summary.unity_preflight_compile_stub_scatter_binary_instances",
         summary.get("unity_preflight", {}).get("compile_stub_scatter_binary_instances"),
-        222,
+        4511,
     )
     verifier.require_equal(
         "summary.unity_preflight_compile_stub_records_validated",
@@ -2537,7 +2537,7 @@ def check_summary(
         verifier.require_equal(
             "summary.unity_preflight_compile_stub_report_scatter_instances",
             compile_stub_report.get("scatter_binary_instances"),
-            222,
+            4511,
         )
         verifier.require_equal(
             "summary.unity_preflight_compile_stub_report_scatter_chunks",
@@ -2589,7 +2589,7 @@ def check_summary(
     verifier.require_equal(
         "summary.unity_preflight_instances",
         summary.get("unity_preflight", {}).get("scatter_binary_instances"),
-        222,
+        4511,
     )
     verifier.require_equal(
         "summary.profile_notes_preflight_status",
@@ -2604,7 +2604,7 @@ def check_summary(
     verifier.require_equal(
         "summary.unreal_dry_run_instances",
         summary.get("unreal", {}).get("scatter_binary_instances"),
-        222,
+        4511,
     )
     verifier.require_equal(
         "summary.unreal_dry_run_records_validated",
@@ -2614,7 +2614,7 @@ def check_summary(
     verifier.require_equal(
         "summary.unreal_dry_run_records_read",
         summary.get("unreal", {}).get("scatter_binary_records_read"),
-        222,
+        4511,
     )
     verifier.require(
         "summary.unreal_dry_run_file_checksum_xor",
@@ -2752,7 +2752,7 @@ def check_summary(
         verifier.require_equal(
             "summary.unreal_fake_editor_report_scatter_instances",
             fake_editor_report.get("scatter_binary_instances"),
-            222,
+            4511,
         )
         verifier.require_equal(
             "summary.unreal_fake_editor_report_scatter_records_validated",
@@ -2762,7 +2762,7 @@ def check_summary(
         verifier.require_equal(
             "summary.unreal_fake_editor_report_scatter_records_read",
             fake_editor_report.get("scatter_binary_records_read"),
-            222,
+            4511,
         )
         verifier.require(
             "summary.unreal_fake_editor_report_scatter_file_checksum",
@@ -3021,7 +3021,7 @@ def check_unity_report(
         f"{report.get('nonZeroDetailCells')} nonzero detail cells",
         "Unity detail density must produce nonzero detail cells",
     )
-    verifier.require_equal("unity.scatter_instances", report.get("scatterBinaryInstances"), 222)
+    verifier.require_equal("unity.scatter_instances", report.get("scatterBinaryInstances"), 4511)
     check_unity_scatter_report(verifier, report)
 
 
@@ -3062,7 +3062,7 @@ def check_unity_screenshot_report(
 def check_unity_scatter_report(verifier: EvidenceVerifier, report: dict[str, Any]) -> None:
     verifier.require_equal("unity.scatter_chunks", report.get("scatterBinaryChunks"), 26)
     verifier.require_equal("unity.scatter_records_validated", report.get("scatterBinaryRecordsValidated"), True)
-    verifier.require_equal("unity.scatter_records_read", report.get("scatterBinaryRecordsRead"), 222)
+    verifier.require_equal("unity.scatter_records_read", report.get("scatterBinaryRecordsRead"), 4511)
     verifier.require(
         "unity.scatter_file_checksum_xor",
         is_nonzero_hex_checksum(report.get("scatterBinaryFileChecksumXor")),
@@ -3148,7 +3148,7 @@ def check_unity_scatter_report(verifier: EvidenceVerifier, report: dict[str, Any
             "Unity scatter color variation range must be ordered and inside 0..1",
         )
 
-    verifier.require_equal("unity.scatter_chunk_report_instances", total_instances, 222)
+    verifier.require_equal("unity.scatter_chunk_report_instances", total_instances, 4511)
 
 
 def check_unreal_report(
@@ -3258,7 +3258,7 @@ def check_unreal_report(
     check_prototype_surface_target_report(verifier, "unreal", report, manifest)
     check_unreal_import_tasks(verifier, "unreal", report, manifest)
     verifier.require_equal("unreal.wind_packing", report.get("wind_packing"), manifest["wind_packing"])
-    verifier.require_equal("unreal.scatter_instances", report.get("scatter_binary_instances"), 222)
+    verifier.require_equal("unreal.scatter_instances", report.get("scatter_binary_instances"), 4511)
     check_unreal_scatter_report(verifier, report, "unreal")
 
 
@@ -3423,7 +3423,7 @@ def check_unreal_dry_run_report(
     check_prototype_surface_target_report(verifier, "unreal_dry_run", report, manifest)
     check_unreal_import_tasks(verifier, "unreal_dry_run", report, manifest)
     verifier.require_equal("unreal_dry_run.wind_packing", report.get("wind_packing"), manifest["wind_packing"])
-    verifier.require_equal("unreal_dry_run.scatter_instances", report.get("scatter_binary_instances"), 222)
+    verifier.require_equal("unreal_dry_run.scatter_instances", report.get("scatter_binary_instances"), 4511)
     check_unreal_scatter_report(verifier, report, "unreal_dry_run")
 
 
@@ -3499,7 +3499,7 @@ def check_unreal_import_tasks(
 def check_unreal_scatter_report(verifier: EvidenceVerifier, report: dict[str, Any], prefix: str) -> None:
     verifier.require_equal(f"{prefix}.scatter_chunks", report.get("scatter_binary_chunks"), 26)
     verifier.require_equal(f"{prefix}.scatter_records_validated", report.get("scatter_binary_records_validated"), True)
-    verifier.require_equal(f"{prefix}.scatter_records_read", report.get("scatter_binary_records_read"), 222)
+    verifier.require_equal(f"{prefix}.scatter_records_read", report.get("scatter_binary_records_read"), 4511)
     verifier.require(
         f"{prefix}.scatter_file_checksum_xor",
         is_nonzero_hex_checksum(report.get("scatter_binary_file_checksum_xor")),
@@ -3585,7 +3585,7 @@ def check_unreal_scatter_report(verifier: EvidenceVerifier, report: dict[str, An
             f"{prefix} scatter color variation range must be ordered and inside 0..1",
         )
 
-    verifier.require_equal(f"{prefix}.scatter_chunk_report_instances", total_instances, 222)
+    verifier.require_equal(f"{prefix}.scatter_chunk_report_instances", total_instances, 4511)
 
 
 def check_artifact(verifier: EvidenceVerifier, name: str, path: Path) -> None:
