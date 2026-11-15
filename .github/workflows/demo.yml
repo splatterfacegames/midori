@@ -1,0 +1,40 @@
+name: Deploy demo
+
+# Publishes the browser workbench to https://midori.splatterfacegames.com
+# (Cloudflare Worker `midori-demo`, owner-only behind Cloudflare Access).
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: midori-demo-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      # Same private-dependency auth as ci.yml's workbench job.
+      - name: Configure git auth for private jethaforge dep
+        run: |
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global credential.helper \
+            '!f() { echo "username=x-access-token"; echo "password=${{ secrets.JETHAFORGE_TOKEN }}"; }; f'
+      - run: npm ci
+      # The committed wasm bundle is the engine; no Rust toolchain needed here.
+      - run: npm run build
+      - name: Publish workbench and access-checking Worker
+        run: npx --yes wrangler@4.162.0 deploy --config deploy/demo/wrangler.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
