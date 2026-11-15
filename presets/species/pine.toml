@@ -6,39 +6,39 @@ name = "Pine"
 scientific = "Pinus sylvestris"
 
 [trunk]
-height = 9.6
+height = 9.8
 height_variance = 0.10
-radius = 0.42
-taper = 0.88
+radius = 0.44
+taper = 0.78
 taper_profile = "exponential"
-curve = 24.0
-curve_variance = 6.0
-curve_back = 16.0
+curve = 28.0
+curve_variance = 9.0
+curve_back = 18.0
 segments = 20
 
 [branches.level1]
-count = 14
+count = 13
 count_variance = 2
-whorl_size = 2
-length = 4.1
-length_variance = 0.16
-radius_ratio = 0.48
+whorl_size = 1
+length = 4.2
+length_variance = 0.18
+radius_ratio = 0.50
 radius_model = "ratio"
 pipe_exponent = 2.35
-taper = 0.82
+taper = 0.80
 taper_profile = "exponential"
-angle = 78.0
-angle_variance = 8.0
+angle = 74.0
+angle_variance = 10.0
 rotation = 137.5
-gravity = -0.05
+gravity = -0.11
 curve = -26.0
-curve_variance = 16.0
-segments = 12
+curve_variance = 18.0
+segments = 14
 
 [branches.level2]
 count = 4
 count_variance = 1
-length = 1.55
+length = 1.58
 length_variance = 0.20
 radius_ratio = 0.54
 radius_model = "ratio"
@@ -46,27 +46,29 @@ taper = 0.80
 angle = 54.0
 angle_variance = 12.0
 rotation = 137.5
-gravity = -0.02
-curve = -14.0
-segments = 7
+gravity = -0.04
+curve = -16.0
+curve_variance = 14.0
+segments = 9
 
 [branches.level3]
 count = 4
 count_variance = 1
-length = 0.68
+length = 0.70
 length_variance = 0.22
 radius_ratio = 0.48
 taper = 0.82
 angle = 46.0
 gravity = 0.02
-curve = -10.0
-segments = 4
+curve = -12.0
+curve_variance = 10.0
+segments = 6
 
 [crown]
 shape = "conical"
-offset = 0.34
+offset = 0.32
 density = 0.98
-width_ratio = 1.18
+width_ratio = 1.20
 
 [leaves]
 count = 2100
@@ -100,7 +102,7 @@ resolution = 1024
 bark_style = "plated"
 leaf_shape = "needle"
 leaf_card = "cluster"
-bark_color = [0.58, 0.32, 0.19]
+bark_color = [0.56, 0.31, 0.19]
 leaf_color = [0.20, 0.44, 0.20]
 
 [lod]

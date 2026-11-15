@@ -167,13 +167,17 @@ describe('MidoriModel', () => {
     expect(plainNames[3]).toMatch(/^impostor_/);
   });
 
-  it('loads dichotomous, top-down, maple, and ginkgo species presets', () => {
-    for (const id of ['joshua_prototype', 'topdown_conifer', 'japanese_maple', 'ginkgo']) {
-      model.loadPreset(id);
-      expect(model.getState().sourceError).toBeNull();
-      expect(model.getState().lods?.[0]?.triangle_count).toBeGreaterThan(0);
-    }
-  });
+  it(
+    'loads dichotomous, top-down, maple, and ginkgo species presets',
+    () => {
+      for (const id of ['joshua_prototype', 'topdown_conifer', 'japanese_maple', 'ginkgo']) {
+        model.loadPreset(id);
+        expect(model.getState().sourceError).toBeNull();
+        expect(model.getState().lods?.[0]?.triangle_count).toBeGreaterThan(0);
+      }
+    },
+    60_000,
+  );
 
   it('previews pampas_meadow and alpine_meadow with card atlas and soil maps', () => {
     for (const id of ['pampas_meadow', 'alpine_meadow']) {

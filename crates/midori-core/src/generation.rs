@@ -424,9 +424,15 @@ impl<'a> TreeGenerator<'a> {
                 start_offset + (1.0 - start_offset) * crown_t
             };
 
-            // Get parent position and direction at this point
-            let spawn_pos = parent.point_at(t);
-            let parent_dir = parent.direction_at(t);
+            // Read live parent pose (reflecting sympodial deflection & sapwood division from lower boughs)
+            let (spawn_pos, parent_dir, parent_seg_count) = match self.tree.get_stem(parent_id) {
+                Some(live_parent) => (
+                    live_parent.point_at(t),
+                    live_parent.direction_at(t),
+                    live_parent.segments.len(),
+                ),
+                None => return,
+            };
 
             // Calculate branch direction: near crown apex on level 1, narrow insertion angle
             // so upper branches and sympodial leaders flow organically out of their parent stem.
@@ -473,11 +479,23 @@ impl<'a> TreeGenerator<'a> {
                 continue;
             }
 
+            let branch_base_r = branch.base_radius();
             let branch_id = self.tree.add_stem(branch);
 
             // Add child reference to parent
             if let Some(parent) = self.tree.get_stem_mut(parent_id) {
                 parent.child_ids.push(branch_id);
+            }
+
+            // Sympodial reaction deflection & da Vinci sapwood division on high-segment scaffold stems
+            if !is_apical_leader
+                && level <= 1
+                && whorl_size == 1
+                && parent_seg_count >= 8
+                && branch_params.radius_model == BranchRadiusModel::Ratio
+                && self.species.crown.offset < 0.85
+            {
+                self.apply_scaffold_fork_reaction(parent_id, t, branch_dir, branch_base_r);
             }
 
             // Recursively generate children
@@ -522,7 +540,7 @@ impl<'a> TreeGenerator<'a> {
         let gnarl_phase_a = (stem.id as f32 * 2.399_963) % TAU;
         let gnarl_phase_b = (stem.id as f32 * 3.883_222 + 1.1) % TAU;
         let gnarl_amp = if segment_count >= 6 {
-            radians(spec.params.curve_variance * 2.15) / segment_count as f32
+            radians(spec.params.curve_variance * 2.55) / segment_count as f32
         } else {
             0.0
         };
@@ -530,9 +548,14 @@ impl<'a> TreeGenerator<'a> {
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
 
-            // Calculate curve with variance + coherent 3D living-wood sinuosity
-            let harmonic_pitch = (t * TAU * 1.15 + gnarl_phase_a).sin() * gnarl_amp;
-            let harmonic_yaw = (t * TAU * 0.95 + gnarl_phase_b).cos() * gnarl_amp * 1.25;
+            // Calculate curve with variance + 2-octave 3D living-wood gnarl & elbows
+            let harmonic_pitch = ((t * TAU * 1.15 + gnarl_phase_a).sin() * 0.72
+                + (t * TAU * 2.65 - gnarl_phase_b).sin() * 0.42)
+                * gnarl_amp;
+            let harmonic_yaw = ((t * TAU * 0.95 + gnarl_phase_b).cos() * 0.78
+                + (t * TAU * 2.35 + gnarl_phase_a).sin() * 0.46)
+                * gnarl_amp
+                * 1.30;
             let curve_amount = self.calculate_curve(
                 t,
                 spec.params.curve,
@@ -540,12 +563,18 @@ impl<'a> TreeGenerator<'a> {
                 0.0,
                 segment_count,
             ) + harmonic_pitch;
-            let lateral_wander = radians(self.rng.variance_add(spec.params.curve_variance * 0.45))
+            let lateral_wander = radians(self.rng.variance_add(spec.params.curve_variance * 0.48))
                 / (segment_count as f32).sqrt()
                 + harmonic_yaw;
 
-            // Apply gravity influence
-            let gravity_influence = spec.params.gravity * segment_length;
+            // Apply gravity sag through mid-bough + apical phototropic skyward lift on horizontal/drooping tips
+            let photo_lift =
+                if segment_count >= 6 && spec.params.gravity > -0.62 && t > 0.50 && dir.y < 0.34 {
+                    (t - 0.50).powf(1.35) * 0.40 * (0.34 - dir.y).clamp(0.0, 1.0) * segment_length
+                } else {
+                    0.0
+                };
+            let gravity_influence = spec.params.gravity * segment_length + photo_lift;
 
             bend_axis = transport_axis(bend_axis, dir);
             dir = self.apply_curve_and_gravity(
@@ -692,6 +721,114 @@ impl<'a> TreeGenerator<'a> {
         let id = self.next_stem_id;
         self.next_stem_id += 1;
         id
+    }
+
+    /// Deflect a scaffold stem away from a heavy lateral limb and step down its remaining
+    /// sapwood radius (da Vinci area division), translating any already-spawned upper children.
+    fn apply_scaffold_fork_reaction(
+        &mut self,
+        parent_id: u32,
+        fork_t: f32,
+        branch_dir: Vec3,
+        branch_base_r: f32,
+    ) {
+        let (existing_upper_children, old_positions) = match self.tree.get_stem(parent_id) {
+            Some(parent) => {
+                let n = parent.segments.len();
+                if n < 8 {
+                    return;
+                }
+                let parent_r = parent.radius_at(fork_t).max(MIN_RADIUS);
+                let ratio = (branch_base_r / parent_r).clamp(0.0, 0.88);
+                if ratio < 0.36 {
+                    return;
+                }
+                let fork_seg = ((fork_t * n as f32).floor() as usize).min(n - 1);
+                if fork_seg + 1 >= n {
+                    return;
+                }
+                let upper: Vec<(u32, f32)> = parent
+                    .child_ids
+                    .iter()
+                    .filter_map(|&cid| self.tree.get_stem(cid))
+                    .filter(|c| c.parent_offset > fork_t + 0.001)
+                    .map(|c| (c.id, c.parent_offset))
+                    .collect();
+                let old_pts: Vec<Vec3> = upper.iter().map(|&(_, ct)| parent.point_at(ct)).collect();
+                (upper, old_pts)
+            }
+            None => return,
+        };
+
+        let new_positions = {
+            let parent = match self.tree.get_stem_mut(parent_id) {
+                Some(p) => p,
+                None => return,
+            };
+            let n = parent.segments.len();
+            let parent_r = parent.radius_at(fork_t).max(MIN_RADIUS);
+            let ratio = (branch_base_r / parent_r).clamp(0.0, 0.88);
+            let fork_seg = ((fork_t * n as f32).floor() as usize).min(n - 1);
+            let p_dir = parent.segments[fork_seg]
+                .direction
+                .try_normalize()
+                .unwrap_or(Vec3::Y);
+            let lat = branch_dir - p_dir * branch_dir.dot(p_dir);
+            let axis = p_dir.cross(lat).try_normalize();
+
+            let rad_scale = (1.0 - 0.34 * ratio * ratio).clamp(0.75, 0.98).sqrt();
+            let deflect = (0.30 * ratio * ratio).clamp(0.03, 0.16);
+
+            parent.segments[fork_seg].end_radius =
+                (parent.segments[fork_seg].end_radius * (0.5 + 0.5 * rad_scale)).max(MIN_RADIUS);
+
+            for k in (fork_seg + 1)..n {
+                let prev_end = parent.segments[k - 1].end;
+                let prev_r = parent.segments[k - 1].end_radius;
+                let seg_len = (parent.segments[k].end - parent.segments[k].start).length();
+                if let Some(ax) = axis {
+                    parent.segments[k].direction =
+                        rotate_around_axis(parent.segments[k].direction, ax, -deflect);
+                }
+                parent.segments[k].start = prev_end;
+                parent.segments[k].end = prev_end + parent.segments[k].direction * seg_len;
+                parent.segments[k].start_radius = prev_r;
+                parent.segments[k].end_radius =
+                    (parent.segments[k].end_radius * rad_scale).max(MIN_RADIUS);
+            }
+
+            existing_upper_children
+                .iter()
+                .map(|&(_, ct)| parent.point_at(ct))
+                .collect::<Vec<Vec3>>()
+        };
+
+        for (((cid, _), old_p), new_p) in existing_upper_children
+            .into_iter()
+            .zip(old_positions)
+            .zip(new_positions)
+        {
+            let delta = new_p - old_p;
+            if delta.length_squared() > 1e-10 {
+                self.translate_subtree(cid, delta);
+            }
+        }
+    }
+
+    fn translate_subtree(&mut self, root_id: u32, delta: Vec3) {
+        let children = match self.tree.get_stem_mut(root_id) {
+            Some(stem) => {
+                for seg in &mut stem.segments {
+                    seg.start += delta;
+                    seg.end += delta;
+                }
+                stem.child_ids.clone()
+            }
+            None => return,
+        };
+        for cid in children {
+            self.translate_subtree(cid, delta);
+        }
     }
 }
 
@@ -908,17 +1045,36 @@ impl<'a> DichotomousGenerator<'a> {
         let mut radius = branch_base_radius(parent_radius, spec.params, spec.sibling_count);
         let base_radius = radius;
 
+        let gnarl_phase = (stem.id as f32 * 2.399_963) % TAU;
+        let gnarl_amp = if segment_count >= 6 {
+            radians(spec.params.curve_variance * 1.9) / segment_count as f32
+        } else {
+            0.0
+        };
+
         for i in 0..segment_count {
             let t = i as f32 / segment_count as f32;
+            let s_curve_back = if segment_count >= 6 {
+                spec.params.curve * 0.52
+            } else {
+                0.0
+            };
             let curve_amount = self.calculate_curve(
                 t,
                 spec.params.curve,
                 spec.params.curve_variance,
-                0.0,
+                s_curve_back,
                 segment_count,
-            );
+            ) + (t * TAU * 1.1 + gnarl_phase).sin() * gnarl_amp;
+            let lateral_yaw = (t * TAU * 0.9 - gnarl_phase).cos() * gnarl_amp * 0.95;
             let gravity_influence = spec.params.gravity * segment_length;
             bend_axis = transport_axis(bend_axis, dir);
+            if lateral_yaw.abs() > f32::EPSILON {
+                let bitan = dir.cross(bend_axis).normalize_or_zero();
+                if bitan.length_squared() > 0.001 {
+                    dir = rotate_around_axis(dir, bitan, lateral_yaw);
+                }
+            }
             dir = self.apply_curve_and_gravity(dir, bend_axis, curve_amount, gravity_influence);
 
             let next_t = (i + 1) as f32 / segment_count as f32;

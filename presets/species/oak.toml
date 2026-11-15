@@ -14,33 +14,33 @@ family = "weber_penn"
 notes = "Broadleaf hero tree with muscular bough hierarchy and 1024px botanical sprays."
 
 [trunk]
-height = 6.2
+height = 6.5
 height_variance = 0.12
-radius = 0.56
-taper = 0.86
+radius = 0.58
+taper = 0.74
 taper_profile = "exponential"
-curve = 16.0
-curve_variance = 6.0
-curve_back = 9.0
+curve = 20.0
+curve_variance = 8.0
+curve_back = 12.0
 segments = 18
 
 [branches.level1]
 count = 8
 count_variance = 2
-length = 4.9
+length = 5.0
 length_variance = 0.18
 radius_ratio = 0.60
 radius_model = "ratio"
 pipe_exponent = 2.28
-taper = 0.80
+taper = 0.78
 taper_profile = "exponential"
-angle = 56.0
+angle = 58.0
 angle_variance = 13.0
 rotation = 137.5
-gravity = -0.09
-curve = 28.0
+gravity = -0.12
+curve = 30.0
 curve_variance = 18.0
-segments = 13
+segments = 15
 
 [branches.level2]
 count = 5
@@ -50,15 +50,15 @@ length_variance = 0.22
 radius_ratio = 0.54
 radius_model = "ratio"
 pipe_exponent = 2.25
-taper = 0.80
+taper = 0.78
 taper_profile = "smooth"
 angle = 50.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = -0.10
+gravity = -0.11
 curve = 24.0
-curve_variance = 12.0
-segments = 9
+curve_variance = 14.0
+segments = 10
 
 [branches.level3]
 count = 4
@@ -66,20 +66,20 @@ count_variance = 1
 length = 1.15
 length_variance = 0.26
 radius_ratio = 0.46
-taper = 0.82
+taper = 0.80
 angle = 52.0
 angle_variance = 18.0
 rotation = 137.5
 gravity = -0.13
 curve = 22.0
 curve_variance = 14.0
-segments = 6
+segments = 7
 
 [crown]
 shape = "spherical"
-offset = 0.30
+offset = 0.25
 density = 1.0
-width_ratio = 1.24
+width_ratio = 1.26
 
 [leaves]
 count = 2200
@@ -113,7 +113,7 @@ resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "lobed"
 leaf_card = "cluster"
-bark_color = [0.46, 0.39, 0.31]
+bark_color = [0.42, 0.36, 0.29]
 leaf_color = [0.22, 0.43, 0.14]
 
 [materials]

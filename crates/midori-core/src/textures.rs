@@ -270,9 +270,27 @@ impl TextureSet {
             .resolution
             .clamp(MIN_TEXTURE_RESOLUTION, MAX_TEXTURE_RESOLUTION);
         let seed = species_texture_seed(species);
-        let height = bark_heightfield(params.bark_style, seed, res);
+        let is_palm_ringed = params.bark_style == BarkStyle::Smooth
+            && params.leaf_card == LeafCardLayout::Frond
+            && species.branches.level2.is_none();
+        let is_arid = species.generator.family == crate::species::GeneratorFamily::Dichotomous
+            || species.species.biome.eq_ignore_ascii_case("desert")
+            || is_palm_ringed;
+        let height = if is_palm_ringed {
+            palm_bark_heightfield(seed, res)
+        } else {
+            bark_heightfield(params.bark_style, seed, res)
+        };
         Self {
-            bark_albedo: bark_albedo_from_height(&height, res, params.bark_color, seed),
+            bark_albedo: bark_albedo_from_height(
+                &height,
+                res,
+                params.bark_style,
+                is_arid,
+                is_palm_ringed,
+                params.bark_color,
+                seed,
+            ),
             bark_normal: normal_from_height(&height, res),
             leaf_card: leaf_card(
                 params.leaf_shape,
@@ -449,104 +467,213 @@ fn voronoi_f1_f2(seed: u64, x: f32, y: f32, px: i32, py: i32) -> (f32, f32, f32)
 
 /// Tileable bark heightfield in [0,1], evaluated per texel.
 fn bark_height_at(style: BarkStyle, u: f32, v: f32, seed: u64) -> f32 {
+    use std::f32::consts::TAU;
     let u = u.rem_euclid(1.0);
     let v = v.rem_euclid(1.0);
     match style {
         BarkStyle::Furrowed => {
-            // Razor-sharp interlocking diamond-fissure rhytidome (Quercus / Ginkgo / Salix / Yucca):
-            // Anisotropic vertically-elongated Voronoi (F2 - F1) bark canyons + high-octave corky
-            // wood-fiber striae so every furrow, crack, and ridge stays tack-sharp at 30cm zoom!
-            let warp_u = (fbm(seed ^ 0xB1, u * 12.0, v * 6.0, 12, 6, 4) - 0.5) * 0.048;
-            let warp_v = (fbm(seed ^ 0xB8, u * 12.0, v * 6.0, 12, 6, 3) - 0.5) * 0.032;
+            // High-definition diamond-interlocking / anastomosing rough cork bark (Quercus / Ginkgo / Salix / Yucca):
+            // 26 primary braided cork ridges (~7cm wide on mature trunks) separated by deep V-shaped diamond canyons.
+            let warp_macro = (fbm(seed ^ 0x11, u * 6.0, v * 3.0, 6, 3, 4) - 0.5) * 0.085;
+            let warp_med = (fbm(seed ^ 0x12, u * 16.0, v * 6.0, 16, 6, 4) - 0.5) * 0.038;
+            // High-frequency fibrous edge splintering up to 256px
+            let tear_u = (fbm(seed ^ 0x13, u * 80.0, v * 32.0, 80, 32, 3) - 0.5) * 0.016
+                + (value_noise(seed ^ 0x14, u * 256.0, v * 96.0, 256, 96) - 0.5) * 0.007;
 
-            let (f1_a, f2_a, cell_a) =
-                voronoi_f1_f2(seed ^ 0xB2, (u + warp_u) * 26.0, (v + warp_v) * 4.0, 26, 4);
-            let (f1_b, f2_b, cell_b) = voronoi_f1_f2(
-                seed ^ 0xB9,
-                (u - warp_u * 0.7) * 52.0,
-                (v + warp_v * 0.8) * 8.0,
-                52,
-                8,
+            // Occasional callused branch-scar eye deflecting bark ridges organically
+            let (knot_d, _, knot_c) = voronoi_f1_f2(seed ^ 0x15, u * 5.0, v * 5.0, 5, 5);
+            let knot_push = if knot_c > 0.86 && knot_d < 0.30 {
+                ((0.30 - knot_d) / 0.30).powi(2) * 0.038
+            } else {
+                0.0
+            };
+
+            let uw1 = u + warp_macro + warp_med + tear_u + knot_push;
+            let uw2 = u + warp_macro * 0.65 - warp_med * 0.75 + tear_u - knot_push;
+
+            // Two opposing diagonal-braided 26-strand ridged-cork networks (exact integer 26x4 periodic shear!)
+            // Combining lerp with c1.min(c2) carves deep anastomosing V-canyons (h -> 0) between rough cork plateaus.
+            let c1 = ((uw1 * 26.0 + v * 4.0) * TAU).cos().abs();
+            let c2 = ((uw2 * 26.0 - v * 4.0) * TAU).cos().abs();
+            let braid_mix = fbm(seed ^ 0x17, u * 8.0, v * 4.0, 8, 4, 3);
+            let diamond_net = lerp(c1, c2, braid_mix) * 0.56 + c1.min(c2) * 0.44;
+
+            let mut h = diamond_net.clamp(0.0, 1.0).powf(0.74);
+
+            // Secondary 52-strand longitudinal splits dividing wide cork ridges into craggy bark strips
+            let sub_split = (((uw1 * 52.0
+                + (fbm(seed ^ 0x18, u * 20.0, v * 8.0, 20, 8, 2) - 0.5) * 0.42)
+                * TAU)
+                .cos()
+                .abs())
+            .powf(0.50);
+            h *= 0.80 + 0.20 * sub_split;
+
+            // Rough, bumpy cork cragginess + ultra-crisp 192/384px longitudinal wood-fiber striae
+            let cork_crag = fbm(seed ^ 0x19, u * 96.0, v * 48.0, 96, 48, 3);
+            let fiber_a = fbm(
+                seed ^ 0x1A,
+                (u + warp_med * 0.4) * 192.0,
+                v * 32.0,
+                192,
+                32,
+                3,
             );
+            let groove_a = (1.0 - (2.0 * fiber_a - 1.0).abs()).powf(1.55);
+            let fiber_b = value_noise(seed ^ 0x1B, u * 384.0, v * 96.0, 384, 96);
+            h = h * (0.74 + 0.15 * cork_crag + 0.17 * groove_a) + (fiber_b - 0.5) * 0.068;
 
-            // Deep V-shaped diamond fissure canyons rising steeply into sculpted corky ridges
-            let canyon_a = smooth(((f2_a - f1_a) / 0.19).clamp(0.0, 1.0));
-            let canyon_b = smooth(((f2_b - f1_b) / 0.22).clamp(0.0, 1.0));
-            let ridge_crown = 0.62 + 0.36 * cell_a;
-            let mut h = canyon_a * ridge_crown * (0.72 + 0.28 * canyon_b * (0.75 + 0.25 * cell_b));
+            // Subtle short horizontal bark-stress cracks across individual high cork ridges
+            if h > 0.46 {
+                let check_n = fbm(
+                    seed ^ 0x1C,
+                    (u + warp_macro * 0.5) * 32.0,
+                    v * 48.0,
+                    32,
+                    48,
+                    3,
+                );
+                let check_line = (check_n - 0.50).abs();
+                if check_line < 0.026 {
+                    let cut = (1.0 - check_line / 0.026).powi(2);
+                    h *= 1.0 - 0.34 * cut;
+                }
+            }
 
-            // Fine vertical wood-bark cracks & high-frequency fiber grooves (up to 384x64)
-            let fine_crack = fbm(seed ^ 0xBA, (u + warp_u * 0.4) * 96.0, v * 24.0, 96, 24, 3);
-            let groove = (1.0 - (2.0 * fine_crack - 1.0).abs()).powf(1.5);
-            let micro_fiber = fbm(seed ^ 0xBB, u * 256.0, v * 48.0, 256, 48, 2);
-            h = h * (0.78 + 0.22 * groove) * (0.86 + 0.22 * micro_fiber);
-
-            // Crisp transverse block fractures across corky ridges
-            let cross = value_noise(seed ^ 0xB3, (u + warp_u) * 32.0, v * 24.0, 32, 24);
-            if cross < 0.24 {
-                let cleft = ((0.24 - cross) / 0.24).powi(2);
-                h *= 1.0 - 0.55 * cleft;
+            if knot_c > 0.86 && knot_d < 0.24 {
+                let r_norm = knot_d / 0.24;
+                let callus = (-(r_norm - 0.60).powi(2) / 0.045).exp() * 0.18;
+                let pit = (1.0 - (r_norm / 0.40).clamp(0.0, 1.0)).powi(2) * 0.38;
+                h = h + callus - pit;
             }
 
             h.clamp(0.0, 1.0)
         }
         BarkStyle::Plated => {
-            // Japanese Red Pine / Scots Pine (Akamatsu) interlocking puzzle-bark plates:
-            // Voronoi (F2 - F1) edge distance yields crisp polygonal fissures with flat,
-            // terraced, flaky bark scales (eliminating rounded polka-dot pillows).
-            let warp_u = (fbm(seed ^ 0xBC, u * 8.0, v * 8.0, 8, 8, 3) - 0.5) * 0.042;
-            let warp_v = (fbm(seed ^ 0xBD, u * 8.0, v * 8.0, 8, 8, 2) - 0.5) * 0.028;
-            let (f1_a, f2_a, cell_a) =
-                voronoi_f1_f2(seed ^ 0xB4, (u + warp_u) * 16.0, (v + warp_v) * 6.0, 16, 6);
+            // High-definition Akamatsu / Ponderosa exfoliating puzzle-flake bark:
+            // 24x12 primary elongated scales + 48x24 sub-flakes with crisp ragged papery edges!
+            let macro_u = (fbm(seed ^ 0x21, u * 8.0, v * 6.0, 8, 6, 3) - 0.5) * 0.042;
+            let macro_v = (fbm(seed ^ 0x22, u * 8.0, v * 6.0, 8, 6, 2) - 0.5) * 0.028;
+            let jag_u = (fbm(seed ^ 0x23, u * 64.0, v * 48.0, 64, 48, 3) - 0.5) * 0.018
+                + (value_noise(seed ^ 0x24, u * 256.0, v * 192.0, 256, 192) - 0.5) * 0.007;
+            let jag_v = (fbm(seed ^ 0x25, u * 64.0, v * 48.0, 64, 48, 2) - 0.5) * 0.014;
+
+            let uw = u + macro_u + jag_u;
+            let vw = v + macro_v + jag_v;
+
+            let (f1_a, f2_a, cell_a) = voronoi_f1_f2(seed ^ 0x26, uw * 24.0, vw * 11.0, 24, 11);
             let (f1_b, f2_b, cell_b) = voronoi_f1_f2(
-                seed ^ 0xBE,
-                (u - warp_u * 0.6) * 32.0,
-                (v + warp_v) * 12.0,
-                32,
-                12,
+                seed ^ 0x27,
+                (u - macro_u * 0.4 + jag_u * 1.1) * 48.0,
+                (v + macro_v * 0.5 + jag_v) * 22.0,
+                48,
+                22,
             );
 
-            // Sharp polygonal fissure canyons where F2 - F1 -> 0, flat terraced plate interiors
-            let border_a = smooth(((f2_a - f1_a) / 0.115).clamp(0.0, 1.0));
-            let border_b = smooth(((f2_b - f1_b) / 0.14).clamp(0.0, 1.0));
+            let rift_mod = 0.075 + 0.115 * fbm(seed ^ 0x28, u * 16.0, v * 4.0, 16, 4, 3);
+            let border_a = smooth(((f2_a - f1_a) / rift_mod).clamp(0.0, 1.0));
+            let border_b = smooth(((f2_b - f1_b) / 0.105).clamp(0.0, 1.0));
 
-            // Stepped exfoliating bark-scale height per plate + subtle horizontal scale lip
-            let plate_elev = 0.52 + 0.44 * cell_a;
-            let sub_step = 0.78 + 0.22 * cell_b;
-            let flake = value_noise(seed ^ 0xB5, u * 96.0, v * 32.0, 96, 32);
-            let h = border_a * plate_elev * (0.76 + 0.24 * border_b * sub_step);
-            (h * (0.88 + 0.20 * flake)).clamp(0.0, 1.0)
+            // Subtle papery exfoliating laminae + rich high-frequency flaky grain inside every scale
+            let lamina_field = fbm(seed ^ 0x29, uw * 36.0, vw * 18.0, 36, 18, 4) * 0.68
+                + (1.0 - f1_a.clamp(0.0, 0.85)) * 0.38;
+            let laminae_steps = (lamina_field * 4.0).floor() / 4.0;
+            let plate_tilt = 0.62 + 0.28 * cell_a + 0.12 * cell_b;
+
+            let cork_pit = value_noise(seed ^ 0x2A, u * 256.0, v * 128.0, 256, 128);
+            let fine_grain = fbm(seed ^ 0x2B, u * 192.0, v * 64.0, 192, 64, 3);
+
+            let interior = lerp(lamina_field, laminae_steps, 0.24);
+            let mut h = border_a * plate_tilt * (0.72 + 0.28 * border_b) * (0.60 + 0.44 * interior);
+            h = h * (0.82 + 0.22 * fine_grain) + (cork_pit - 0.5) * 0.068;
+            h.clamp(0.0, 1.0)
         }
         BarkStyle::Smooth => {
-            // Silky Momiji maple / smooth ringed bark: crisp tensioned vertical snake-bark striae,
-            // delicate hair-fine horizontal lenticel dashes, and subtle organic growth rings.
-            let macro_undul = fbm(seed ^ 0xB6, u * 12.0, v * 12.0, 12, 12, 3);
-            let ring_warp = (fbm(seed ^ 0xBE, u * 12.0, v * 12.0, 12, 12, 2) - 0.5) * 0.34;
-            let ring_phase = (v * 18.0 + ring_warp).rem_euclid(1.0);
-            let scar_groove = (-(ring_phase - 0.20).powi(2) / 0.0035).exp();
-            let scar_ridge = (-(ring_phase - 0.27).powi(2) / 0.0065).exp();
+            // Silky Momiji Japanese Maple / Beech living bark (ZERO synthetic horizontal lathe rings!):
+            // Subtle muscular sapwood flutes, meandering vertical snake-bark striations, scattered
+            // horizontal cork lenticel dashes with callus lips, and healed twig-scar eyes.
+            let muscle_flute = fbm(seed ^ 0x31, u * 6.0, v * 2.0, 6, 2, 3);
+            let patch_undul = fbm(seed ^ 0x32, u * 14.0, v * 8.0, 14, 8, 3);
+            let warp_u = (fbm(seed ^ 0x33, u * 8.0, v * 4.0, 8, 4, 3) - 0.5) * 0.035;
 
-            // Fine tensioned vertical snake-bark striations (up to 384x48)
-            let stria_raw = fbm(seed ^ 0xBF, u * 128.0, v * 16.0, 128, 16, 3);
-            let stria_vein = (1.0 - (2.0 * stria_raw - 1.0).abs()).powf(2.2);
-            let micro_grain = value_noise(seed ^ 0xB0, u * 256.0, v * 64.0, 256, 64);
+            // Delicate meandering vertical snake-bark striations & fine epidermis grain
+            let stria_a = fbm(seed ^ 0x34, (u + warp_u) * 80.0, v * 10.0, 80, 10, 3);
+            let vein_a = (1.0 - (2.0 * stria_a - 1.0).abs()).powf(2.0);
+            let stria_b = value_noise(seed ^ 0x35, (u - warp_u * 0.5) * 192.0, v * 28.0, 192, 28);
+            let epidermis = value_noise(seed ^ 0x36, u * 256.0, v * 128.0, 256, 128);
 
-            // Crisp, slender horizontal corky lenticel dashes (64x256 cell resolution)
-            let (lf1, _, lcell) = voronoi_f1_f2(seed ^ 0xB7, u * 48.0, v * 224.0, 48, 224);
-            let lenticel = if lcell > 0.80 && lf1 < 0.30 {
-                (0.30 - lf1) * 0.62
+            // Scattered horizontal cork lenticel dashes (aperiodic 2-scale distribution)
+            let (lf1, _, lcell1) = voronoi_f1_f2(seed ^ 0x37, u * 28.0, v * 144.0, 28, 144);
+            let lenticel_major = if lcell1 > 0.83 && lf1 < 0.34 {
+                let r = lf1 / 0.34;
+                let rim = (-(r - 0.55).powi(2) / 0.08).exp() * 0.12;
+                let cleft = (1.0 - (r / 0.38).clamp(0.0, 1.0)) * 0.14;
+                rim - cleft
+            } else {
+                0.0
+            };
+            let (lf2, _, lcell2) = voronoi_f1_f2(seed ^ 0x38, u * 56.0, v * 256.0, 56, 256);
+            let lenticel_minor = if lcell2 > 0.80 && lf2 < 0.30 {
+                (0.30 - lf2) * 0.32
             } else {
                 0.0
             };
 
-            let h = 0.42 + 0.16 * macro_undul - 0.065 * scar_groove
-                + 0.048 * scar_ridge
-                + 0.18 * stria_vein
-                + 0.10 * micro_grain
-                + lenticel;
+            // Occasional healed self-pruned twig collar ("bark eye" chevron)
+            let (kf1, _, kcell) = voronoi_f1_f2(seed ^ 0x39, u * 4.0, v * 8.0, 4, 8);
+            let eye_scar = if kcell > 0.87 && kf1 < 0.30 {
+                let kr = kf1 / 0.30;
+                (-(kr - 0.62).powi(2) / 0.05).exp() * 0.14
+                    - (1.0 - (kr / 0.35).clamp(0.0, 1.0)) * 0.18
+            } else {
+                0.0
+            };
+
+            let h = 0.44
+                + 0.15 * (muscle_flute - 0.5)
+                + 0.11 * (patch_undul - 0.5)
+                + 0.16 * vein_a
+                + 0.07 * (stria_b - 0.5)
+                + 0.06 * (epidermis - 0.5)
+                + lenticel_major
+                + lenticel_minor
+                + eye_scar;
             h.clamp(0.0, 1.0)
         }
     }
+}
+
+/// Dedicated tropical ringed trunk heightfield for pinnate palms (irregular wavy frond-base
+/// annular scars + frayed vertical vascular coir fibers).
+fn palm_bark_heightfield(seed: u64, res: u32) -> Vec<f32> {
+    let mut h = vec![0.0; (res * res) as usize];
+    let inv = 1.0 / res as f32;
+    for y in 0..res {
+        let v = (y as f32 + 0.5) * inv;
+        let row = (y * res) as usize;
+        for x in 0..res {
+            let u = (x as f32 + 0.5) * inv;
+            let ring_warp = (fbm(seed ^ 0x41, u * 8.0, v * 8.0, 8, 8, 3) - 0.5) * 0.42
+                + (value_noise(seed ^ 0x42, u * 32.0, v * 16.0, 32, 16) - 0.5) * 0.11;
+            let phase = (v * 14.0 + ring_warp).rem_euclid(1.0);
+            let ring_amp = 0.55 + 0.45 * fbm(seed ^ 0x43, u * 4.0, v * 14.0, 4, 14, 2);
+            let scar_cleft = (-(phase - 0.18).powi(2) / 0.0045).exp() * ring_amp;
+            let scar_lip = (-(phase - 0.28).powi(2) / 0.009).exp() * ring_amp;
+
+            // Dense frayed vertical coconut coir fibers & weathered pitting
+            let coir = fbm(seed ^ 0x44, u * 192.0, v * 24.0, 192, 24, 3);
+            let fiber = (1.0 - (2.0 * coir - 1.0).abs()).powf(1.7);
+            let pit = value_noise(seed ^ 0x45, u * 128.0, v * 128.0, 128, 128);
+            let undul = fbm(seed ^ 0x46, u * 8.0, v * 6.0, 8, 6, 3);
+
+            let val = 0.46 + 0.14 * (undul - 0.5) - 0.16 * scar_cleft
+                + 0.13 * scar_lip
+                + 0.18 * fiber
+                + 0.08 * (pit - 0.5);
+            h[row + x as usize] = val.clamp(0.0, 1.0);
+        }
+    }
+    h
 }
 
 /// Evaluate the bark heightfield over the whole texture.
@@ -564,31 +691,63 @@ fn bark_heightfield(style: BarkStyle, seed: u64, res: u32) -> Vec<f32> {
     h
 }
 
-/// Albedo: 4-stop botanical bark ramp (deep charcoal crevice AO -> warm cinnamon inner-phloem
-/// fissure wall -> grained mid-bark -> weathered silvered ridge crown + crisp crustose lichen).
+/// Albedo: multi-zone botanical bark synthesis with deep cavity AO, warm active-crack phloem,
+/// independent 2D weathering/rain-streak variation, longitudinal wood-fiber streaks, cork pores,
+/// and scalloped crustose lichen + bryophyte dappling on temperate trees.
+#[allow(clippy::too_many_arguments)]
 fn bark_albedo_from_height(
     height: &[f32],
     res: u32,
+    style: BarkStyle,
+    is_arid: bool,
+    is_palm_ringed: bool,
     color: Option<[f32; 3]>,
     seed: u64,
 ) -> RgbaTexture {
     let base = color.unwrap_or([0.42, 0.34, 0.26]);
-    let crevice = [base[0] * 0.18, base[1] * 0.16, base[2] * 0.15];
-    let phloem = [
-        (base[0] * 0.86 + 0.06).min(1.0),
-        (base[1] * 0.62 + 0.03).min(1.0),
-        (base[2] * 0.46).min(1.0),
+    let crevice = match style {
+        BarkStyle::Furrowed => [base[0] * 0.16, base[1] * 0.15, base[2] * 0.14],
+        _ => [base[0] * 0.24, base[1] * 0.22, base[2] * 0.20],
+    };
+    let phloem = match style {
+        BarkStyle::Plated => [
+            (base[0] * 0.98 + 0.03).min(1.0),
+            (base[1] * 0.72 + 0.01).min(1.0),
+            (base[2] * 0.54).min(1.0),
+        ],
+        BarkStyle::Smooth => [
+            (base[0] * 0.76).min(1.0),
+            (base[1] * 0.74).min(1.0),
+            (base[2] * 0.70).min(1.0),
+        ],
+        BarkStyle::Furrowed => [
+            (base[0] * 0.76 + 0.02).min(1.0),
+            (base[1] * 0.66 + 0.01).min(1.0),
+            (base[2] * 0.54).min(1.0),
+        ],
+    };
+    let mid_warm = [
+        (base[0] * 1.02 + 0.01).min(1.0),
+        (base[1] * 0.99 + 0.01).min(1.0),
+        (base[2] * 0.94).min(1.0),
     ];
-    let mid = [
-        (base[0] * 1.08).min(1.0),
-        (base[1] * 1.04).min(1.0),
-        (base[2] * 0.98).min(1.0),
+    let mid_cool = [
+        (base[0] * 0.93).min(1.0),
+        (base[1] * 0.95).min(1.0),
+        (base[2] * 0.97 + 0.015).min(1.0),
     ];
-    let crown = [
-        (base[0] * 1.42 + 0.06).min(1.0),
-        (base[1] * 1.40 + 0.06).min(1.0),
-        (base[2] * 1.36 + 0.06).min(1.0),
-    ];
+    let crown_ash = match style {
+        BarkStyle::Plated => [
+            (base[0] * 1.10 + 0.03).min(1.0),
+            (base[1] * 1.08 + 0.035).min(1.0),
+            (base[2] * 1.08 + 0.04).min(1.0),
+        ],
+        _ => [
+            (base[0] * 1.18 + 0.035).min(1.0),
+            (base[1] * 1.20 + 0.04).min(1.0),
+            (base[2] * 1.20 + 0.045).min(1.0),
+        ],
+    };
 
     let mut tex = RgbaTexture::new(res, res);
     let inv = 1.0 / res as f32;
@@ -598,43 +757,81 @@ fn bark_albedo_from_height(
         for x in 0..res {
             let i = row + x as usize;
             let u = (x as f32 + 0.5) * inv;
-            let fiber = value_noise(seed ^ 0xA9, u * 128.0, v * 32.0, 128, 32);
-            let micro = value_noise(seed ^ 0xAC, u * 256.0, v * 64.0, 256, 64);
-            let patch = fbm(seed ^ 0xAA, u * 8.0, v * 8.0, 8, 8, 2);
-            let lichen_speck = value_noise(seed ^ 0xAD, u * 64.0, v * 64.0, 64, 64);
+
+            // Independent 2D weathering zones, vertical rain-streak runoff, and fine wood-fiber grain
+            let weather_zone = fbm(seed ^ 0xA1, u * 6.0, v * 4.0, 6, 4, 3);
+            let rain_streak = fbm(seed ^ 0xA2, u * 18.0, v * 2.0, 18, 2, 3);
+            let fiber_streak = fbm(seed ^ 0xA3, u * 160.0, v * 20.0, 160, 20, 3);
+            let cork_pore = value_noise(seed ^ 0xA4, u * 256.0, v * 128.0, 256, 128);
 
             let h = height[i];
-            let t = (h * 0.84 + fiber * 0.11 + micro * 0.05).clamp(0.0, 1.0);
-            let mut rgb = if t < 0.26 {
-                let k = t / 0.26;
+            let mid = [
+                lerp(mid_warm[0], mid_cool[0], weather_zone),
+                lerp(mid_warm[1], mid_cool[1], weather_zone),
+                lerp(mid_warm[2], mid_cool[2], weather_zone),
+            ];
+
+            let t = (h * 0.84 + fiber_streak * 0.11 + cork_pore * 0.05).clamp(0.0, 1.0);
+            let mut rgb = if t < 0.24 {
+                let k = t / 0.24;
                 [
                     lerp(crevice[0], phloem[0], k),
                     lerp(crevice[1], phloem[1], k),
                     lerp(crevice[2], phloem[2], k),
                 ]
-            } else if t < 0.62 {
-                let k = (t - 0.26) / 0.36;
+            } else if t < 0.64 {
+                let k = (t - 0.24) / 0.40;
                 [
                     lerp(phloem[0], mid[0], k),
                     lerp(phloem[1], mid[1], k),
                     lerp(phloem[2], mid[2], k),
                 ]
             } else {
-                let k = (t - 0.62) / 0.38;
+                let k = ((t - 0.64) / 0.36) * (0.55 + 0.45 * weather_zone);
                 [
-                    lerp(mid[0], crown[0], k),
-                    lerp(mid[1], crown[1], k),
-                    lerp(mid[2], crown[2], k),
+                    lerp(mid[0], crown_ash[0], k),
+                    lerp(mid[1], crown_ash[1], k),
+                    lerp(mid[2], crown_ash[2], k),
                 ]
             };
 
-            // Crisp crustose sage-grey lichen colonies on weathered outer bark ridges
-            if patch > 0.68 && h > 0.62 && lichen_speck > 0.52 {
-                let m = (((patch - 0.68) / 0.32) * ((lichen_speck - 0.52) / 0.48) * 0.55)
-                    .clamp(0.0, 0.38);
-                rgb[0] = lerp(rgb[0], 0.48, m);
-                rgb[1] = lerp(rgb[1], 0.53, m);
-                rgb[2] = lerp(rgb[2], 0.43, m);
+            // Vertical dark moisture/tannin runoff streaks & fine wood-fiber contrast
+            let streak_mul = 0.86 + 0.24 * rain_streak;
+            let grain_mul = 0.90 + 0.20 * fiber_streak - (0.5 - cork_pore).max(0.0) * 0.12;
+            rgb[0] *= streak_mul * grain_mul;
+            rgb[1] *= streak_mul * grain_mul;
+            rgb[2] *= streak_mul * grain_mul;
+
+            // Russet cork lenticel pigment on smooth bark
+            if style == BarkStyle::Smooth && !is_palm_ringed && cork_pore > 0.82 && h < 0.46 {
+                rgb[0] *= 0.68;
+                rgb[1] *= 0.60;
+                rgb[2] *= 0.54;
+            }
+
+            // Temperate powdery micro-lichen stippling & damp crevice bryophyte dappling (zero round polka dots!)
+            if !is_arid {
+                let lic_macro = fbm(seed ^ 0xA5, u * 10.0, v * 10.0, 10, 10, 4);
+                let lic_micro = fbm(seed ^ 0xA6, u * 96.0, v * 96.0, 96, 96, 3);
+                let lic_speck = value_noise(seed ^ 0xA7, u * 256.0, v * 256.0, 256, 256);
+                let lic_mask = ((lic_macro - 0.62) / 0.30).clamp(0.0, 1.0)
+                    * ((lic_micro - 0.46) / 0.42).clamp(0.0, 1.0)
+                    * (0.45 + 0.55 * lic_speck);
+                if lic_mask > 0.02 && h > 0.48 {
+                    let blend = (lic_mask * 0.46).clamp(0.0, 0.34);
+                    rgb[0] = lerp(rgb[0], 0.48, blend);
+                    rgb[1] = lerp(rgb[1], 0.53, blend);
+                    rgb[2] = lerp(rgb[2], 0.45, blend);
+                } else if style != BarkStyle::Plated && weather_zone > 0.64 && rain_streak < 0.42 {
+                    let moss_t = (((weather_zone - 0.64) / 0.36)
+                        * ((0.42 - rain_streak) / 0.42)
+                        * cork_pore
+                        * 0.50)
+                        .clamp(0.0, 0.30);
+                    rgb[0] = lerp(rgb[0], 0.18, moss_t);
+                    rgb[1] = lerp(rgb[1], 0.27, moss_t);
+                    rgb[2] = lerp(rgb[2], 0.11, moss_t);
+                }
             }
 
             let px = [
@@ -649,14 +846,17 @@ fn bark_albedo_from_height(
     tex
 }
 
-/// Tangent-space normal map from a heightfield (3x3 Sobel + macro ridge bevel,
+/// Tangent-space normal map from a heightfield (3-scale Sobel + mid/macro canyon bevels,
 /// OpenGL +Y — the glTF convention).
 fn normal_from_height(height: &[f32], res: u32) -> RgbaTexture {
     let mut tex = RgbaTexture::new(res, res);
     let n = res as i32;
-    let fine_strength = (res as f32 / 128.0) * 1.45;
-    let macro_step = (res / 256).max(2) as i32;
-    let macro_strength = 1.65;
+    let scale = (res as f32 / 256.0).clamp(0.5, 4.5);
+    let fine_strength = 2.8 * scale;
+    let mid_step = 2_i32;
+    let mid_strength = 2.4 * (scale * 0.5).clamp(0.5, 2.2);
+    let macro_step = (res / 200).max(4) as i32;
+    let macro_strength = 1.6;
     let sample = |x: i32, y: i32| -> f32 {
         let wx = wrap_period(x, n) as usize;
         let wy = wrap_period(y, n) as usize;
@@ -665,7 +865,7 @@ fn normal_from_height(height: &[f32], res: u32) -> RgbaTexture {
 
     for y in 0..res as i32 {
         for x in 0..res as i32 {
-            // 3x3 Sobel fine gradient
+            // 1-texel 3x3 Sobel micro-fiber & cork-pore gradient (primary tack-sharp detail!)
             let tl = sample(x - 1, y - 1);
             let tc = sample(x, y - 1);
             let tr = sample(x + 1, y - 1);
@@ -678,14 +878,24 @@ fn normal_from_height(height: &[f32], res: u32) -> RgbaTexture {
             let gx_fine = ((tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl)) * 0.125 * fine_strength;
             let gy_fine = ((bl + 2.0 * bc + br) - (tl + 2.0 * tc + tr)) * 0.125 * fine_strength;
 
-            // Wider-tap macro gradient so deep fissures hold bold sculptural bevels at 1024x1024
+            // Crisp 2-texel bark-fissure & flake-edge bevel
+            let gx_mid = (sample(x + mid_step, y) - sample(x - mid_step, y)) * 0.5 * mid_strength;
+            let gy_mid = (sample(x, y + mid_step) - sample(x, y - mid_step)) * 0.5 * mid_strength;
+
+            // Subtle broad bark-ridge contour bevel
             let gx_macro =
                 (sample(x + macro_step, y) - sample(x - macro_step, y)) * 0.5 * macro_strength;
             let gy_macro =
                 (sample(x, y + macro_step) - sample(x, y - macro_step)) * 0.5 * macro_strength;
 
-            let dx = gx_fine * 0.65 + gx_macro * 0.35;
-            let dy = gy_fine * 0.65 + gy_macro * 0.35;
+            let mut dx = gx_fine * 0.66 + gx_mid * 0.24 + gx_macro * 0.10;
+            let mut dy = gy_fine * 0.66 + gy_mid * 0.24 + gy_macro * 0.10;
+            let slope_len = (dx * dx + dy * dy).sqrt();
+            if slope_len > 1.42 {
+                let inv_s = 1.42 / slope_len;
+                dx *= inv_s;
+                dy *= inv_s;
+            }
             let nrm = Vec3::new(-dx, dy, 1.0).normalize();
             tex.set(
                 x as u32,

@@ -865,9 +865,32 @@ export function FoliageViewport({
         geo.setIndex(new THREE.BufferAttribute(subIndices, 1));
 
         if (isBark) {
+          const lastIdx = subIndices.length > 0 ? subIndices[subIndices.length - 1] : 0;
+          const hasBarkTintAo =
+            rawColors.length === vCount * 4 &&
+            rawColors[lastIdx * 4 + 3] > 0.95 &&
+            rawColors[lastIdx * 4 + 1] > 0.35;
+          if (hasBarkTintAo) {
+            const rgb = new Float32Array(vCount * 3);
+            for (let v = 0; v < vCount; v++) {
+              rgb[v * 3] = rawColors[v * 4];
+              rgb[v * 3 + 1] = rawColors[v * 4 + 1];
+              rgb[v * 3 + 2] = rawColors[v * 4 + 2];
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
+          }
+
+          const rawUv2 = lod.vertices.uv2s;
+          const barkUv2 =
+            rawUv2 && rawUv2.length === vCount * 2
+              ? Float32Array.from(rawUv2)
+              : new Float32Array(vCount * 2);
+          geo.setAttribute('aBarkUv2', new THREE.BufferAttribute(barkUv2, 2));
+
           const barkMat = new THREE.MeshStandardMaterial({
             color: maps?.bark_albedo ? '#ffffff' : '#6c5138',
-            roughness: 0.86,
+            vertexColors: hasBarkTintAo,
+            roughness: 0.88,
             metalness: 0.0,
           });
           if (maps?.bark_albedo) {
@@ -875,7 +898,7 @@ export function FoliageViewport({
           }
           if (maps?.bark_normal) {
             barkMat.normalMap = createDataTexture(maps.bark_normal.rgba, false, true, maxAniso);
-            barkMat.normalScale = new THREE.Vector2(1.65, 1.65);
+            barkMat.normalScale = new THREE.Vector2(1.55, 1.55);
           }
           barkMat.onBeforeCompile = (shader) => {
             shader.uniforms.uTime = shared.uTime;
@@ -886,11 +909,13 @@ export function FoliageViewport({
               .replace(
                 '#include <common>',
                 `#include <common>
+                attribute vec2 aBarkUv2;
                 uniform float uTime;
                 uniform float uWindStrength;
                 uniform float uTreeHeight;
                 uniform float uTreeMinY;
                 varying float vBarkRootAo;
+                varying float vBarkDepth;
                 varying vec3 vBarkPos;
                 varying vec3 vBarkObjNormal;`,
               )
@@ -899,9 +924,12 @@ export function FoliageViewport({
                 `#include <begin_vertex>
                 vBarkPos = transformed;
                 vBarkObjNormal = normalize(normal);
+                vBarkDepth = aBarkUv2.x;
                 float hNorm = clamp((transformed.y - uTreeMinY) / max(uTreeHeight, 0.5), 0.0, 1.0);
-                vBarkRootAo = mix(0.68, 1.0, smoothstep(0.0, 0.14, hNorm));
-                float boughSway = sin(uTime * 1.35 + transformed.x * 0.25 + transformed.z * 0.22) * 0.072 * pow(hNorm, 1.75) * uWindStrength;
+                vBarkRootAo = mix(0.82, 1.0, smoothstep(0.0, 0.12, hNorm));
+                float branchFlex = mix(0.35, 1.45, smoothstep(0.0, 0.75, aBarkUv2.x));
+                float boughSway = sin(uTime * 1.35 + aBarkUv2.y * 6.283 + transformed.x * 0.25 + transformed.z * 0.22)
+                  * 0.068 * pow(hNorm, 1.65) * branchFlex * uWindStrength;
                 transformed.x += boughSway;
                 transformed.z += boughSway * 0.6;`,
               );
@@ -911,6 +939,7 @@ export function FoliageViewport({
                 `#include <common>
                 uniform float uTreeMinY;
                 varying float vBarkRootAo;
+                varying float vBarkDepth;
                 varying vec3 vBarkPos;
                 varying vec3 vBarkObjNormal;`,
               )
@@ -918,23 +947,41 @@ export function FoliageViewport({
                 '#include <color_fragment>',
                 `#include <color_fragment>
                 float barkGrain = sin(vBarkPos.y * 95.0 + sin(vBarkPos.x * 42.0 + vBarkPos.z * 42.0) * 2.2) * 0.5 + 0.5;
-                diffuseColor.rgb *= (0.94 + 0.11 * barkGrain) * vBarkRootAo;
+                float grainAmp = mix(0.09, 0.03, smoothstep(0.25, 0.70, vBarkDepth));
+                diffuseColor.rgb *= (1.0 - grainAmp * 0.5 + grainAmp * barkGrain) * vBarkRootAo;
                 float collarY = vBarkPos.y - uTreeMinY;
                 float mossNoise = sin(vBarkPos.x * 19.0 + vBarkPos.z * 23.0) * cos(vBarkPos.y * 17.0 - vBarkPos.x * 13.0);
-                float mossMask = (1.0 - smoothstep(0.04, 0.44, collarY))
-                  * smoothstep(-0.15, 0.55, vBarkObjNormal.y + mossNoise * 0.38)
-                  * 0.52;
-                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.14, 0.24, 0.08), clamp(mossMask, 0.0, 0.55));`,
+                float rootMoss = (1.0 - smoothstep(0.04, 0.48, collarY))
+                  * smoothstep(-0.10, 0.55, vBarkObjNormal.y + mossNoise * 0.36)
+                  * (1.0 - smoothstep(0.15, 0.45, vBarkDepth))
+                  * 0.48;
+                float boughMoss = (1.0 - smoothstep(0.22, 0.48, vBarkDepth))
+                  * smoothstep(0.66, 0.94, vBarkObjNormal.y + mossNoise * 0.20)
+                  * smoothstep(0.6, 2.5, collarY)
+                  * 0.10;
+                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.15, 0.25, 0.09), clamp(rootMoss + boughMoss, 0.0, 0.50));`,
+              )
+              .replace(
+                '#include <normal_fragment_maps>',
+                `#ifdef USE_NORMALMAP_TANGENTSPACE
+                vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;
+                float hierarchyRelief = mix(1.0, 0.28, smoothstep(0.20, 0.72, vBarkDepth));
+                mapN.xy *= normalScale * hierarchyRelief;
+                normal = normalize( tbn * mapN );
+                #else
+                #include <normal_fragment_maps>
+                #endif`,
               )
               .replace(
                 '#include <roughnessmap_fragment>',
                 `#include <roughnessmap_fragment>
                 float barkLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-                roughnessFactor = clamp(mix(0.96, 0.76, smoothstep(0.06, 0.38, barkLum)), 0.65, 0.98);`,
+                float twigSmooth = smoothstep(0.35, 0.75, vBarkDepth) * 0.12;
+                roughnessFactor = clamp(mix(0.96, 0.76, smoothstep(0.06, 0.38, barkLum)) - twigSmooth, 0.62, 0.98);`,
               )
               .replace(
                 '#include <opaque_fragment>',
-                `outgoingLight += diffuseColor.rgb * 0.105;
+                `outgoingLight += diffuseColor.rgb * 0.095;
                 #include <opaque_fragment>`,
               );
           };

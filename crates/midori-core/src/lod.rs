@@ -98,8 +98,8 @@ impl LodGenerationConfig {
                 LodLevelConfig {
                     index: 0,
                     name: "Ultra".to_string(),
-                    target_triangles: 50000,
-                    max_triangles: 75000,
+                    target_triangles: 55000,
+                    max_triangles: 90000,
                     branch_levels: 4,
                     leaf_geometry: LeafGeometry::Polygon,
                     leaf_reduction: 1.0,
@@ -167,8 +167,8 @@ impl LodGenerationConfig {
                 LodLevelConfig {
                     index: 0,
                     name: "High".to_string(),
-                    target_triangles: 45000,
-                    max_triangles: 65000,
+                    target_triangles: 50000,
+                    max_triangles: 85000,
                     branch_levels: 4,
                     leaf_geometry: LeafGeometry::CrossBillboard,
                     leaf_reduction: 1.0,
@@ -179,8 +179,8 @@ impl LodGenerationConfig {
                 LodLevelConfig {
                     index: 1,
                     name: "Medium".to_string(),
-                    target_triangles: 12000,
-                    max_triangles: 18000,
+                    target_triangles: 16000,
+                    max_triangles: 25000,
                     branch_levels: 3,
                     leaf_geometry: LeafGeometry::CrossBillboard,
                     leaf_reduction: 0.6,
@@ -628,11 +628,87 @@ fn generate_single_lod(
         });
     }
 
-    // Tint+AO vertex colour mode: bark carries plain white so engines that
-    // multiply albedo by COLOR_0 leave the bark texture untouched.
+    // Tint+AO vertex colour mode: bake anatomical branch-crotch contact AO,
+    // root-buttress soil occlusion, interior canopy limb self-shadowing, and
+    // subtle young-shoot bark warmth into COLOR_0 so glTF / engine PBR shaders
+    // ground branch junctions and wood hierarchy automatically.
     if species.canopy.vertex_color == crate::species::FoliageVertexColor::TintAo {
+        let bounds_min = tree.bounds.min;
+        let bounds_size = tree.bounds.size();
+        let has_bounds = bounds_size.length_squared() > 1e-6;
+        let (crown_center, crown_inv_r) = if !tree.leaves.is_empty() {
+            let mut sum = Vec3::ZERO;
+            for leaf in &tree.leaves {
+                sum += leaf.position;
+            }
+            let c = sum / tree.leaves.len() as f32;
+            let mut max_r2 = 0.25_f32;
+            for leaf in &tree.leaves {
+                max_r2 = max_r2.max((leaf.position - c).length_squared());
+            }
+            (c, 1.0 / max_r2.sqrt())
+        } else {
+            (Vec3::ZERO, 0.0)
+        };
+        let trunk_base_r = tree.stems.first().map(|s| s.base_radius()).unwrap_or(0.30);
+        let ao_scale = species.canopy.ao_strength.clamp(0.0, 1.0);
+        let smooth01 = |e0: f32, e1: f32, x: f32| -> f32 {
+            let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        };
+
         for v in &mut branch_mesh.vertices {
-            v.color = glam::Vec4::ONE;
+            let depth = v.uv2.x.clamp(0.0, 1.0); // 0.0 = trunk, 0.25 = L1, 0.50 = L2, 0.75 = L3
+
+            // 1. Anatomical branch-crotch contact AO reaching past parent radius onto visible collar
+            let crotch_ao = if depth > 0.05 && has_bounds {
+                let pivot = bounds_min + Vec3::new(v.color.x, v.color.y, v.color.z) * bounds_size;
+                let collar_dist = (v.position - pivot).length();
+                let parent_r_est = trunk_base_r * (1.0 - depth * 1.15).clamp(0.12, 0.78);
+                let inner = parent_r_est * 0.72;
+                let outer = parent_r_est * 1.15 + (0.30 - 0.16 * depth).max(0.10);
+                let base_ao = 0.68 + 0.32 * smooth01(inner, outer, collar_dist);
+                let under = (0.22 - v.normal.y).clamp(0.0, 0.55)
+                    * (1.0 - smooth01(inner, outer, collar_dist));
+                (base_ao - 0.10 * under).clamp(0.60, 1.0)
+            } else {
+                1.0
+            };
+
+            // 2. Root-collar & concave root-flute soil contact AO
+            let h_ground = v.position.y - bounds_min.y.min(0.0);
+            let root_ao = if h_ground < 0.62 {
+                let radial_xz = Vec2::new(v.position.x, v.position.z);
+                let norm_xz = Vec2::new(v.normal.x, v.normal.z);
+                let flute_crevice =
+                    if radial_xz.length_squared() > 1e-4 && norm_xz.length_squared() > 1e-4 {
+                        (1.0 - radial_xz.normalize().dot(norm_xz.normalize()).abs()).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                let base = 0.72 + 0.28 * smooth01(-0.04, 0.56, h_ground);
+                (base - 0.10 * flute_crevice * (1.0 - smooth01(0.0, 0.45, h_ground)))
+                    .clamp(0.64, 1.0)
+            } else {
+                1.0
+            };
+
+            // 3. Gentle canopy interior self-shadowing on inner crown limbs
+            let canopy_ao = if crown_inv_r > 0.0 && depth >= 0.20 {
+                let d_crown = (v.position - crown_center).length() * crown_inv_r;
+                let raw = 0.80 + 0.20 * smooth01(0.18, 0.88, d_crown);
+                1.0 - (1.0 - raw) * ao_scale
+            } else {
+                1.0
+            };
+
+            let ao = (crotch_ao * root_ao * canopy_ao).clamp(0.54, 1.0);
+
+            // 4. Subtle living young-shoot bark tint on outer branches & twigs
+            let young_t = smooth01(0.32, 0.78, depth);
+            let tint = Vec3::ONE.lerp(Vec3::new(1.04, 0.99, 0.91), young_t);
+            let rgb = (tint * ao).clamp(Vec3::ZERO, Vec3::ONE);
+            v.color = Vec4::new(rgb.x, rgb.y, rgb.z, 1.0);
         }
     }
 

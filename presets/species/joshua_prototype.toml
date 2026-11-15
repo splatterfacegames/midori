@@ -17,12 +17,12 @@ notes = "Second-family generator using terminal fork grammar and shared Tree out
 height = 3.0
 height_variance = 0.12
 radius = 0.32
-taper = 0.16
+taper = 0.26
 taper_profile = "smooth"
-curve = 12.0
-curve_variance = 5.0
-curve_back = 4.0
-segments = 14
+curve = 18.0
+curve_variance = 7.0
+curve_back = 10.0
+segments = 16
 
 [branches.level1]
 count = 3
@@ -32,15 +32,15 @@ length_variance = 0.18
 radius_ratio = 0.76
 radius_model = "ratio"
 pipe_exponent = 3.2
-taper = 0.16
+taper = 0.24
 taper_profile = "smooth"
-angle = 34.0
-angle_variance = 8.0
+angle = 36.0
+angle_variance = 9.0
 rotation = 137.5
-gravity = 0.24
-curve = 22.0
-curve_variance = 9.0
-segments = 11
+gravity = 0.14
+curve = 28.0
+curve_variance = 14.0
+segments = 12
 
 [branches.level2]
 count = 2
@@ -50,15 +50,15 @@ length_variance = 0.20
 radius_ratio = 0.78
 radius_model = "ratio"
 pipe_exponent = 3.2
-taper = 0.18
+taper = 0.24
 taper_profile = "smooth"
-angle = 32.0
-angle_variance = 9.0
+angle = 34.0
+angle_variance = 10.0
 rotation = 115.0
-gravity = 0.32
-curve = 20.0
-curve_variance = 8.0
-segments = 9
+gravity = 0.18
+curve = 26.0
+curve_variance = 12.0
+segments = 10
 
 [branches.level3]
 count = 2
@@ -68,15 +68,15 @@ length_variance = 0.22
 radius_ratio = 0.80
 radius_model = "ratio"
 pipe_exponent = 3.2
-taper = 0.20
+taper = 0.24
 taper_profile = "smooth"
 angle = 32.0
 angle_variance = 10.0
 rotation = 125.0
-gravity = 0.38
-curve = 16.0
-curve_variance = 6.0
-segments = 7
+gravity = 0.22
+curve = 22.0
+curve_variance = 10.0
+segments = 8
 
 [crown]
 shape = "columnar"

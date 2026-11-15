@@ -522,6 +522,7 @@ struct SubmeshOutput {
 /// a Uint8Array.
 #[derive(serde::Serialize)]
 struct RgbaOutput {
+    #[serde(serialize_with = "serialize_bytes")]
     data: Vec<u8>,
     width: u32,
     height: u32,
@@ -543,9 +544,32 @@ impl From<&RgbaTexture> for RgbaOutput {
 struct GeneratedMap {
     /// PNG-encoded bytes (absent only if encoding failed — the atlas path
     /// tolerates it, `generateMaps` does not).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_opt_bytes"
+    )]
     png: Option<Vec<u8>>,
     rgba: RgbaOutput,
+}
+
+fn serialize_bytes<S: serde::Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_bytes(bytes)
+}
+
+fn serialize_opt_bytes<S: serde::Serializer>(
+    bytes: &Option<Vec<u8>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    struct ByteSlice<'a>(&'a [u8]);
+    impl serde::Serialize for ByteSlice<'_> {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            serializer.serialize_bytes(self.0)
+        }
+    }
+    match bytes {
+        Some(b) => serializer.serialize_some(&ByteSlice(b)),
+        None => serializer.serialize_none(),
+    }
 }
 
 impl GeneratedMap {

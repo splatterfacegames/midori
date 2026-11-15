@@ -43,12 +43,12 @@ impl Default for MeshConfig {
             ring_resolution: [24, 16, 10, 6],
             texture_v_scale: 1.0,
             pivot_painter: true,
-            branch_collar_swell: 1.35,
-            collar_falloff: 0.15,
-            trunk_base_flare: 1.18,
-            trunk_base_flare_height: 0.12,
-            branch_base_swell: 1.2,
-            branch_base_falloff: 0.14,
+            branch_collar_swell: 1.24,
+            collar_falloff: 0.085,
+            trunk_base_flare: 1.38,
+            trunk_base_flare_height: 0.18,
+            branch_base_swell: 1.32,
+            branch_base_falloff: 0.13,
         }
     }
 }
@@ -65,6 +65,14 @@ struct RingSample {
     radius: f32,
     direction: Vec3,
     v_coord: f32,
+    t_norm: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ChildAttachment {
+    offset_t: f32,
+    radial_dir: Vec3,
+    weight: f32,
 }
 
 impl RingFrame {
@@ -215,12 +223,13 @@ impl<'a> MeshBuilder<'a> {
             .map(|s| (s.end - s.start).length())
             .sum();
 
-        let child_offsets = self.included_child_offsets(stem);
+        let attachments = self.included_child_attachments(stem);
         let term_children = self.included_terminal_child_count(stem);
-        let samples = self.ring_samples(stem, &child_offsets, term_children, total_length);
+        let samples = self.ring_samples(stem, &attachments, term_children, total_length, ring_res);
         if samples.len() < 2 {
             return;
         }
+        let parent_weld_info = self.child_weld_info(stem, total_length);
 
         // Generate ring vertices for each segment joint.
         // Keep the ground-level trunk ring horizontal so tilted trunks sit flush on y = 0.
@@ -237,12 +246,13 @@ impl<'a> MeshBuilder<'a> {
                 frame = frame.transported(sample.direction);
             }
             let ring = self.create_ring(
-                sample.position,
+                sample,
                 frame,
-                sample.radius,
                 ring_res,
-                sample.v_coord,
                 stem,
+                &attachments,
+                term_children,
+                parent_weld_info,
             );
             rings.push(ring);
         }
@@ -279,24 +289,91 @@ impl<'a> MeshBuilder<'a> {
         if self.included_terminal_child_count(parent) < 2 || parent.segments.is_empty() {
             return None;
         }
-        let tip_pos = parent.tip();
-        let tip_dir = normalized_or_up(parent.segments.last().unwrap().direction);
+        let p_len = parent.length();
+        let p_avg_r = parent
+            .segments
+            .iter()
+            .map(|s| (s.start_radius + s.end_radius) * 0.5)
+            .sum::<f32>()
+            / parent.segments.len() as f32;
+        let p_res = self.adaptive_ring_resolution(parent.level, p_avg_r);
+        let (tip_pos, tip_dir) = if p_res >= 12 && parent.segments.len() >= 4 {
+            self.smooth_stem_pose(parent, 1.0, p_len)
+        } else {
+            (
+                parent.tip(),
+                normalized_or_up(parent.segments.last().unwrap().direction),
+            )
+        };
         let tip_r = parent.radius_at(1.0);
         Some((tip_pos, tip_dir, tip_r))
     }
 
-    fn included_child_offsets(&self, stem: &Stem) -> Vec<f32> {
-        let mut offsets: Vec<f32> = stem
+    /// Returns `(parent_outward_dir, t_junction, parent_radius, is_terminal_fork)` for child collar welding.
+    fn child_weld_info(&self, stem: &Stem, total_length: f32) -> Option<(Vec3, f32, f32, bool)> {
+        if stem.level == 0 || total_length <= f32::EPSILON {
+            return None;
+        }
+        let parent_id = stem.parent_id?;
+        let parent = self.tree.stems.iter().find(|s| s.id == parent_id)?;
+        if stem.parent_offset > 0.94 {
+            if self.included_terminal_child_count(parent) >= 2 && !parent.segments.is_empty() {
+                let p_dir = normalized_or_up(parent.segments.last().unwrap().direction);
+                let p_r = parent.radius_at(1.0);
+                return Some((p_dir, 0.0, p_r, true));
+            }
+            return None;
+        }
+        let p_dir = parent.direction_at(stem.parent_offset);
+        let p_r = parent.radius_at(stem.parent_offset);
+        let c_dir = stem
+            .segments
+            .first()
+            .map(|s| normalized_or_up(s.direction))
+            .unwrap_or(Vec3::X);
+        let sin_ang = (1.0 - p_dir.dot(c_dir).clamp(-0.98, 0.98).powi(2))
+            .max(0.16)
+            .sqrt();
+        let t_exit = ((p_r * 0.92) / sin_ang / total_length).clamp(0.025, 0.28);
+        let radial = (c_dir - p_dir * c_dir.dot(p_dir))
+            .try_normalize()
+            .or_else(|| c_dir.try_normalize())?;
+        Some((radial, t_exit, p_r, false))
+    }
+
+    fn included_child_attachments(&self, stem: &Stem) -> Vec<ChildAttachment> {
+        let mut list: Vec<ChildAttachment> = stem
             .child_ids
             .iter()
             .filter_map(|&child_id| self.tree.stems.iter().find(|s| s.id == child_id))
             .filter(|child| self.includes_stem(child))
-            .map(|child| child.parent_offset.clamp(0.0, 1.0))
+            .map(|child| {
+                let offset_t = child.parent_offset.clamp(0.0, 1.0);
+                let p_dir = stem.direction_at(offset_t);
+                let c_dir = child
+                    .segments
+                    .first()
+                    .map(|s| s.direction)
+                    .unwrap_or(Vec3::X);
+                let radial_dir = (c_dir - p_dir * c_dir.dot(p_dir))
+                    .try_normalize()
+                    .unwrap_or_else(|| normalized_or_up(c_dir));
+                let weight = if stem.segments.len() >= 4 {
+                    let pr = stem.radius_at(offset_t).max(0.01);
+                    (child.base_radius() / pr * 1.45).clamp(0.22, 1.0)
+                } else {
+                    1.0
+                };
+                ChildAttachment {
+                    offset_t,
+                    radial_dir,
+                    weight,
+                }
+            })
             .collect();
 
-        offsets.sort_by(|a, b| a.total_cmp(b));
-        offsets.dedup_by(|a, b| (*a - *b).abs() < RING_T_EPSILON);
-        offsets
+        list.sort_by(|a, b| a.offset_t.total_cmp(&b.offset_t));
+        list
     }
 
     fn includes_stem(&self, stem: &Stem) -> bool {
@@ -305,28 +382,130 @@ impl<'a> MeshBuilder<'a> {
             .unwrap_or(true)
     }
 
+    /// Evaluate smooth Catmull-Rom centerline position and tangent along a multi-segment stem.
+    fn smooth_stem_pose(&self, stem: &Stem, t: f32, total_length: f32) -> (Vec3, Vec3) {
+        let n = stem.segments.len();
+        if n < 3 || total_length <= f32::EPSILON {
+            return (
+                stem.point_at(t),
+                self.direction_at_ring(stem, t, total_length),
+            );
+        }
+
+        let target_len = t.clamp(0.0, 1.0) * total_length;
+        let mut acc = 0.0_f32;
+        let mut seg_idx = n - 1;
+        let mut local_u = 1.0_f32;
+        for (idx, seg) in stem.segments.iter().enumerate() {
+            let sl = (seg.end - seg.start).length();
+            if target_len <= acc + sl || idx + 1 == n {
+                seg_idx = idx;
+                local_u = if sl > f32::EPSILON {
+                    ((target_len - acc) / sl).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                break;
+            }
+            acc += sl;
+        }
+
+        let knot = |k: isize| -> Vec3 {
+            if k < 0 {
+                let p0 = stem.segments[0].start;
+                let p1 = stem.segments[0].end;
+                p0 * 2.0 - p1
+            } else if k == 0 {
+                stem.segments[0].start
+            } else if (k as usize) <= n {
+                stem.segments[k as usize - 1].end
+            } else {
+                let pn = stem.segments[n - 1].end;
+                let pm = stem.segments[n - 1].start;
+                pn * 2.0 - pm
+            }
+        };
+
+        let i = seg_idx as isize;
+        let p0 = knot(i - 1);
+        let p1 = knot(i);
+        let p2 = knot(i + 1);
+        let p3 = knot(i + 2);
+
+        let u = local_u;
+        let u2 = u * u;
+        let u3 = u2 * u;
+
+        let pos = 0.5
+            * ((2.0 * p1)
+                + (-p0 + p2) * u
+                + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * u2
+                + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * u3);
+        let deriv = 0.5
+            * ((-p0 + p2)
+                + (4.0 * p0 - 10.0 * p1 + 8.0 * p2 - 2.0 * p3) * u
+                + (-3.0 * p0 + 9.0 * p1 - 9.0 * p2 + 3.0 * p3) * u2);
+        let dir = deriv
+            .try_normalize()
+            .unwrap_or_else(|| self.direction_at_ring(stem, t, total_length));
+        (pos, dir)
+    }
+
     fn ring_samples(
         &self,
         stem: &Stem,
-        child_offsets: &[f32],
+        attachments: &[ChildAttachment],
         term_children: usize,
         total_length: f32,
+        ring_res: u32,
     ) -> Vec<RingSample> {
-        let mut t_values = Vec::with_capacity(stem.segments.len() + child_offsets.len() + 1);
+        let smooth_subdiv = ring_res >= 12 && stem.segments.len() >= 4;
+        let mut t_values = Vec::with_capacity(stem.segments.len() * 2 + attachments.len() + 4);
         t_values.push(0.0);
 
         let mut accumulated_length = 0.0;
         for seg in &stem.segments {
+            let prev_t = if total_length > f32::EPSILON {
+                accumulated_length / total_length
+            } else {
+                0.0
+            };
             accumulated_length += (seg.end - seg.start).length();
             let t = if total_length > f32::EPSILON {
                 accumulated_length / total_length
             } else {
                 1.0
             };
+            if smooth_subdiv && stem.level <= 2 {
+                t_values.push(((prev_t + t) * 0.5).clamp(0.0, 1.0));
+            }
             t_values.push(t.clamp(0.0, 1.0));
         }
 
-        t_values.extend(child_offsets.iter().copied());
+        let weld_info = self.child_weld_info(stem, total_length);
+        if smooth_subdiv {
+            if let Some((_, t_exit, _, is_term)) = weld_info {
+                if is_term {
+                    t_values.push(0.042);
+                    t_values.push(0.105);
+                } else {
+                    t_values.push((t_exit * 0.55).clamp(0.01, 0.90));
+                    t_values.push((t_exit * 0.86).clamp(0.015, 0.92));
+                    t_values.push((t_exit * 1.02).clamp(0.02, 0.94));
+                    t_values.push((t_exit * 1.28).clamp(0.03, 0.95));
+                    t_values.push((t_exit * 1.35 + 0.045).clamp(0.04, 0.97));
+                    t_values.push((t_exit * 1.35 + 0.095).clamp(0.06, 0.985));
+                }
+            }
+            if term_children >= 2 {
+                t_values.push(0.91);
+                t_values.push(0.965);
+            }
+        }
+
+        for att in attachments {
+            t_values.push(att.offset_t);
+        }
         t_values.sort_by(|a, b| a.total_cmp(b));
         t_values.dedup_by(|a, b| (*a - *b).abs() < RING_T_EPSILON);
 
@@ -335,39 +514,125 @@ impl<'a> MeshBuilder<'a> {
             .first()
             .map(|s| s.start_radius)
             .unwrap_or(0.15);
-        // Scale axial V coordinate by stem circumference so bark texels stay 1:1 square on both
-        // thick trunks and slender branches without horizontal stretching.
-        let circ = (TAU * base_radius).clamp(0.28, 3.20);
+        // Scale axial V coordinate by stem circumference so bark texels stay sharp and 1:1 square.
+        let circ = (TAU * base_radius).clamp(0.20, 1.85);
         let axial_v_repeats = total_length / circ;
+
+        // Lock child branch start to parent's smoothed spline centerline when parent is subdivided
+        let parent_anchor_delta = if smooth_subdiv && stem.level > 0 && stem.parent_offset <= 0.94 {
+            stem.parent_id
+                .and_then(|pid| self.tree.stems.iter().find(|s| s.id == pid))
+                .map(|parent| {
+                    let p_len = parent.length();
+                    let p_avg_r = parent
+                        .segments
+                        .iter()
+                        .map(|s| (s.start_radius + s.end_radius) * 0.5)
+                        .sum::<f32>()
+                        / parent.segments.len().max(1) as f32;
+                    if self.adaptive_ring_resolution(parent.level, p_avg_r) >= 12
+                        && parent.segments.len() >= 4
+                    {
+                        self.smooth_stem_pose(parent, stem.parent_offset, p_len).0
+                            - parent.point_at(stem.parent_offset)
+                    } else {
+                        Vec3::ZERO
+                    }
+                })
+                .unwrap_or(Vec3::ZERO)
+        } else {
+            Vec3::ZERO
+        };
 
         let mut samples: Vec<RingSample> = t_values
             .into_iter()
-            .map(|t| RingSample {
-                position: stem.point_at(t),
-                radius: stem.radius_at(t)
-                    * self.calculate_radius_scale(
-                        stem.level,
-                        stem.parent_offset,
-                        t,
-                        child_offsets,
-                        term_children,
-                    ),
-                direction: self.direction_at_ring(stem, t, total_length),
-                v_coord: t * axial_v_repeats * self.config.texture_v_scale,
+            .map(|t| {
+                let (mut position, direction) = if smooth_subdiv {
+                    self.smooth_stem_pose(stem, t, total_length)
+                } else {
+                    (
+                        stem.point_at(t),
+                        self.direction_at_ring(stem, t, total_length),
+                    )
+                };
+                if parent_anchor_delta.length_squared() > 1e-8 {
+                    let fade = 1.0 - (t / 0.36).clamp(0.0, 1.0);
+                    position += parent_anchor_delta * (fade * fade);
+                }
+                let raw_r = stem.radius_at(t);
+                let radius = if smooth_subdiv && let Some((_, t_exit, p_r, false)) = weld_info {
+                    // Lateral branch exit fillet: pinch buried centerline root (t=0) so it never
+                    // pokes out the opposite/side trunk wall, and flare collar smoothly across
+                    // the oblique bark exit ellipse (out to ~1.35 * t_exit + 0.09).
+                    let peak = (raw_r * 1.16).min((p_r * 0.70).max(raw_r * 1.01));
+                    let collar_end = (t_exit * 1.35 + 0.09).min(0.65);
+                    let collar_r = if t < t_exit * 0.92 {
+                        let u = (t / (t_exit * 0.92).max(0.01)).clamp(0.0, 1.0);
+                        let s = u * u * (3.0 - 2.0 * u);
+                        raw_r * 0.44 + (peak - raw_r * 0.44) * s
+                    } else if t < collar_end {
+                        let span = (collar_end - t_exit * 0.92).max(0.02);
+                        let u = ((t - t_exit * 0.92) / span).clamp(0.0, 1.0);
+                        let s = u * u * (3.0 - 2.0 * u);
+                        peak + (raw_r - peak) * s
+                    } else {
+                        raw_r
+                    };
+                    let tip_scale = if term_children >= 2 && t > 0.84 {
+                        let u = ((t - 0.84) / 0.16).clamp(0.0, 1.0);
+                        1.0 - 0.26 * (u * u * (3.0 - 2.0 * u))
+                    } else {
+                        1.0
+                    };
+                    collar_r * tip_scale
+                } else if smooth_subdiv && term_children >= 2 && t > 0.84 {
+                    let u = ((t - 0.84) / 0.16).clamp(0.0, 1.0);
+                    let tip_scale = 1.0 - 0.26 * (u * u * (3.0 - 2.0 * u));
+                    raw_r * self.calculate_base_swell(stem.level, t) * tip_scale
+                } else {
+                    raw_r
+                        * self.calculate_radius_scale(
+                            stem.level,
+                            stem.parent_offset,
+                            t,
+                            term_children,
+                        )
+                };
+                RingSample {
+                    position,
+                    radius,
+                    direction,
+                    v_coord: t * axial_v_repeats * self.config.texture_v_scale,
+                    t_norm: t,
+                }
             })
             .collect();
 
-        // Tuck non-trunk child base rings so angled lateral branches and dichotomous Y-forks
-        // emerge cleanly from inside their parent stem without collar gaps or protruding flanges.
+        // Sink high-detail trunk base slightly so spreading root buttresses anchor into soil
+        if stem.level == 0 && ring_res >= 16 && !samples.is_empty() {
+            samples[0].position.y -= 0.038;
+        }
+
+        // Seamless union for dichotomous / terminal multi-branch Y-forks (e.g. Joshua Tree):
+        // Child bases envelop the tapered parent tip and curve smoothly into their fork angles.
         if let Some((parent_tip, parent_dir, parent_tip_r)) = self.parent_terminal_fork_info(stem) {
-            if samples.len() >= 2 {
+            if smooth_subdiv && samples.len() >= 3 {
+                let target_r0 = samples[0].radius.max(parent_tip_r * 0.77);
+                samples[0].radius = target_r0;
+                samples[0].position = parent_tip - parent_dir * (parent_tip_r * 0.24);
+                samples[0].direction = parent_dir;
+                samples[1].radius = samples[1].radius.max(parent_tip_r * 0.75);
+                samples[1].direction = (parent_dir * 0.42 + samples[1].direction * 0.58)
+                    .try_normalize()
+                    .unwrap_or(samples[1].direction);
+            } else if samples.len() >= 2 {
                 samples[0].radius = samples[0].radius.min(parent_tip_r * 0.78);
                 let tuck = (samples[0].radius * 0.34).min(total_length * 0.18);
                 samples[0].position = parent_tip - parent_dir * tuck;
                 samples[0].direction = parent_dir;
             }
-        } else if stem.level > 0 && samples.len() >= 2 {
-            let tuck = (samples[0].radius * 0.55).min(total_length * 0.24);
+        } else if !smooth_subdiv && stem.level > 0 && samples.len() >= 2 {
+            let tuck = (samples[0].radius * 0.48).min(total_length * 0.22);
             let dir0 = samples[0].direction;
             samples[0].position -= dir0 * tuck;
         }
@@ -417,49 +682,54 @@ impl<'a> MeshBuilder<'a> {
         level: u8,
         parent_offset: f32,
         t: f32,
-        child_offsets: &[f32],
         term_children: usize,
     ) -> f32 {
-        let mut collar = self.calculate_collar_swell(t, child_offsets);
-        // Prevent branch collar swell near un-continued or multi-forked stem tips from creating
-        // wide mushroom shelves wider than child branches.
-        if term_children != 1 && t > 0.80 {
+        let mut rim_scale = 1.0;
+        if term_children >= 2 && t > 0.80 {
             let tip_fade = ((1.0 - t) / 0.20).clamp(0.0, 1.0);
-            collar = 1.0 + (collar - 1.0) * tip_fade;
-            if term_children >= 2 {
-                collar *= 1.0 - 0.09 * (1.0 - tip_fade);
-            }
+            rim_scale *= 1.0 - 0.09 * (1.0 - tip_fade);
         }
         let base_swell = if level > 0 && parent_offset > 0.94 {
             1.0
         } else {
             self.calculate_base_swell(level, t)
         };
-        collar * base_swell
+        rim_scale * base_swell
     }
 
-    /// Calculate branch collar swelling at a position along the stem
-    fn calculate_collar_swell(&self, t: f32, child_offsets: &[f32]) -> f32 {
-        if child_offsets.is_empty() || self.config.branch_collar_swell <= 1.0 {
+    /// Directional anatomical branch-shoulder swelling on the side of the parent stem facing
+    /// each attached child branch (eliminating symmetric 360-degree sausage bulges).
+    fn directional_collar_swell(
+        &self,
+        t: f32,
+        offset: Vec3,
+        attachments: &[ChildAttachment],
+        term_children: usize,
+    ) -> f32 {
+        if attachments.is_empty() || self.config.branch_collar_swell <= 1.0 {
             return 1.0;
         }
 
-        let falloff = self.config.collar_falloff;
-        let max_swell = self.config.branch_collar_swell;
+        let falloff = self.config.collar_falloff.max(0.001);
+        let max_extra = self.config.branch_collar_swell - 1.0;
+        let tip_fade = if term_children != 1 && t > 0.80 {
+            ((1.0 - t) / 0.20).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
 
-        // Find the maximum swelling contribution from all child attachments
-        let mut swell = 1.0f32;
-        for &child_t in child_offsets {
-            let dist = (t - child_t).abs();
+        let mut extra = 0.0_f32;
+        for att in attachments {
+            let dist = (t - att.offset_t).abs();
             if dist < falloff {
-                // Smooth falloff using cosine interpolation
-                let factor = (1.0 - dist / falloff).powi(2);
-                let local_swell = 1.0 + (max_swell - 1.0) * factor;
-                swell = swell.max(local_swell);
+                let axial = (1.0 - dist / falloff).powi(2);
+                let align = ((offset.dot(att.radial_dir) + 0.12) / 0.92).clamp(0.0, 1.0);
+                let ang_smooth = align * align * (3.0 - 2.0 * align);
+                extra = extra.max(max_extra * att.weight * axial * ang_smooth * tip_fade);
             }
         }
 
-        swell
+        1.0 + extra
     }
 
     fn calculate_base_swell(&self, level: u8, t: f32) -> f32 {
@@ -484,15 +754,22 @@ impl<'a> MeshBuilder<'a> {
         1.0 + (max_swell - 1.0) * smooth
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn create_ring(
         &mut self,
-        center: Vec3,
+        sample: &RingSample,
         frame: RingFrame,
-        radius: f32,
         resolution: u32,
-        v_coord: f32,
         stem: &Stem,
+        attachments: &[ChildAttachment],
+        term_children: usize,
+        parent_weld_info: Option<(Vec3, f32, f32, bool)>,
     ) -> Vec<u32> {
+        let center = sample.position;
+        let radius = sample.radius;
+        let v_coord = sample.v_coord;
+        let t_norm = sample.t_norm;
+
         // +1 for seam vertex at U=1.0 to avoid texture seam artifacts
         let mut ring_indices = Vec::with_capacity(resolution as usize + 1);
         let trunk_len = if stem.level == 0 {
@@ -506,7 +783,6 @@ impl<'a> MeshBuilder<'a> {
             1.0
         };
         let seed_phase = (self.tree.seed as f32 * 0.618_034).fract() * TAU;
-
         let stem_phase =
             ((self.tree.seed as f32 * 0.618_034 + stem.id as f32 * 0.381_966).fract()) * TAU;
 
@@ -521,33 +797,92 @@ impl<'a> MeshBuilder<'a> {
             let offset = frame.tangent * angle.cos() + frame.bitangent * angle.sin();
             let tangent_dir = -frame.tangent * angle.sin() + frame.bitangent * angle.cos();
 
+            let shoulder_mul =
+                self.directional_collar_swell(t_norm, offset, attachments, term_children);
+
+            // Asymmetric underside reaction-wood bracket right across the oblique bark-surface exit collar
+            let crotch_bracket = if let Some((_, t_exit, p_r, false)) = parent_weld_info
+                && resolution >= 12
+                && t_norm > t_exit * 0.55
+                && t_norm < t_exit * 1.35 + 0.085
+            {
+                let center_t = t_exit * 1.06;
+                let span = (t_exit * 0.45 + 0.085).max(0.04);
+                let dist = ((t_norm - center_t).abs() / span).clamp(0.0, 1.0);
+                let bell = (1.0 - dist).powi(2);
+                let under = (-offset.y).clamp(0.0, 1.0);
+                let raw_mul = 1.0 + 0.16 * bell * (0.20 + 0.80 * under);
+                let max_mul = (p_r * 0.74 / radius.max(0.005)).max(1.0);
+                raw_mul.min(max_mul)
+            } else {
+                1.0
+            };
+
             let (buttress_mul, normal_twist) =
-                if stem.level == 0 && resolution >= 8 && h_frac < 0.28 {
+                if stem.level == 0 && resolution >= 16 && h_frac < 0.34 {
+                    // Organic asymmetric spreading 3D root buttress toes & concave flutes
+                    let falloff = (1.0 - h_frac / 0.34).powi(2);
+                    let spiral = h_frac * 2.1;
+                    let a3 = angle * 3.0 + seed_phase + spiral * 0.5;
+                    let a5 = angle * 5.0 - seed_phase * 1.35 + spiral;
+                    let a7 = angle * 7.0 + stem_phase - spiral * 0.7;
+                    let raw = 0.42 * a3.cos() + 0.36 * a5.cos() + 0.26 * a7.sin();
+                    let raw_d =
+                        -0.42 * 3.0 * a3.sin() - 0.36 * 5.0 * a5.sin() + 0.26 * 7.0 * a7.cos();
+                    let toe = raw.max(0.0).powf(1.45) * 0.64 - (-raw).max(0.0) * 0.14;
+                    let flute_ridge = if resolution >= 20 {
+                        let m1 = angle * 4.0 + v_coord * 0.65 + stem_phase;
+                        let r1 = angle * 13.0 + v_coord * 2.2 + stem_phase;
+                        let r2 = angle * 21.0 - v_coord * 3.5 + seed_phase;
+                        0.036 * m1.cos() + 0.026 * r1.cos() + 0.014 * r2.sin()
+                    } else {
+                        0.0
+                    };
+                    (1.0 + falloff * toe + flute_ridge, -raw_d * 0.18 * falloff)
+                } else if stem.level == 0 && resolution >= 8 && h_frac < 0.28 {
                     let falloff = (1.0 - h_frac / 0.28).powi(2);
                     let phase = angle * 5.0 + seed_phase + 0.38 * (angle * 2.0 - seed_phase).sin();
                     let lobe = phase.cos().max(-0.28);
                     let deriv = -phase.sin() * 0.30 * falloff;
-                    let bark_ridge = if resolution >= 20 {
-                        (angle * 11.0 + v_coord * 2.4 + stem_phase).cos() * 0.026
-                            + (angle * 19.0 - v_coord * 3.8 + seed_phase).sin() * 0.014
-                    } else {
-                        0.0
-                    };
-                    (1.0 + 0.28 * falloff * lobe + bark_ridge, deriv)
+                    (1.0 + 0.28 * falloff * lobe, deriv)
                 } else if resolution >= 20 && stem.level <= 1 {
-                    // Subtle 3D bark furrow & gnarl relief on high-detail LOD0 trunks and primary boughs
-                    let amp = if stem.level == 0 { 0.032 } else { 0.022 };
-                    let p1 = angle * 9.0 + v_coord * 2.1 + stem_phase;
-                    let p2 = angle * 17.0 - v_coord * 3.4 + seed_phase;
-                    let ridge = amp * (0.68 * p1.cos() + 0.32 * p2.sin());
-                    let deriv = amp * (-0.68 * 9.0 * p1.sin() + 0.32 * 17.0 * p2.cos()) * 0.16;
-                    (1.0 + ridge, deriv)
+                    // Multi-scale 3D sapwood fluting + craggy bark furrow relief on LOD0 trunks & boughs
+                    let muscle_amp = if stem.level == 0 { 0.044 } else { 0.028 };
+                    let bark_amp = if stem.level == 0 { 0.030 } else { 0.018 };
+                    let m1 = angle * 3.0 + v_coord * 0.55 + stem_phase;
+                    let m2 = angle * 5.0 - v_coord * 0.85 + seed_phase;
+                    let p1 = angle * 11.0 + v_coord * 1.9 + stem_phase;
+                    let p2 = angle * 19.0 - v_coord * 3.1 + seed_phase;
+                    let muscle = muscle_amp * (0.62 * m1.cos() + 0.38 * m2.sin());
+                    let ridge = bark_amp * (0.66 * p1.cos() + 0.34 * p2.sin());
+                    let deriv = (muscle_amp * (-0.62 * 3.0 * m1.sin() + 0.38 * 5.0 * m2.cos())
+                        + bark_amp * (-0.66 * 11.0 * p1.sin() + 0.34 * 19.0 * p2.cos()))
+                        * 0.14;
+                    (1.0 + muscle + ridge, deriv)
                 } else {
                     (1.0, 0.0)
                 };
 
-            let position = center + offset * (radius * buttress_mul);
-            let normal = (offset + tangent_dir * normal_twist).normalize_or_zero(); // Points outward
+            let total_r = radius * shoulder_mul * crotch_bracket * buttress_mul;
+            let position = center + offset * total_r;
+            let mut normal = (offset + tangent_dir * normal_twist).normalize_or_zero();
+
+            // Smoothly weld child collar normals into parent bark surface right at the visible exit seam
+            if let Some((p_out, t_exit, _, is_term)) = parent_weld_info {
+                if is_term && t_norm < 0.10 {
+                    let weld = ((1.0 - t_norm / 0.10).clamp(0.0, 1.0)).powi(2) * 0.52;
+                    let target = (offset + p_out * 0.35).normalize_or_zero();
+                    normal = (normal * (1.0 - weld) + target * weld).normalize_or_zero();
+                } else if !is_term && t_norm > t_exit * 0.55 && t_norm < t_exit * 1.35 + 0.085 {
+                    let center_t = t_exit * 1.06;
+                    let half_w = (t_exit * 0.45 + 0.085).max(0.04);
+                    let dist = ((t_norm - center_t).abs() / half_w).clamp(0.0, 1.0);
+                    let weld = (1.0 - dist * dist) * 0.78;
+                    let collar_target = (p_out + offset * 0.45).normalize_or_zero();
+                    normal = (normal * (1.0 - weld) + collar_target * weld).normalize_or_zero();
+                }
+            }
+
             // U goes from 0.0 to 1.0 (inclusive) for seamless texture wrap
             let uv = Vec2::new(i as f32 / resolution as f32, v_coord);
 

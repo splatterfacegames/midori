@@ -15,12 +15,12 @@ notes = "Ascending temple ginkgo boughs clothed in bilobed golden fan sprays."
 [trunk]
 height = 8.2
 height_variance = 0.10
-radius = 0.54
-taper = 0.88
+radius = 0.56
+taper = 0.78
 taper_profile = "exponential"
-curve = 11.0
-curve_variance = 4.0
-curve_back = 6.0
+curve = 16.0
+curve_variance = 6.0
+curve_back = 9.0
 segments = 18
 
 [branches.level1]
@@ -31,15 +31,15 @@ length_variance = 0.20
 radius_ratio = 0.56
 radius_model = "ratio"
 pipe_exponent = 2.3
-taper = 0.82
+taper = 0.80
 taper_profile = "exponential"
-angle = 44.0
-angle_variance = 10.0
+angle = 46.0
+angle_variance = 11.0
 rotation = 137.5
-gravity = -0.06
-curve = -18.0
-curve_variance = 15.0
-segments = 12
+gravity = -0.08
+curve = -20.0
+curve_variance = 16.0
+segments = 14
 
 [branches.level2]
 count = 5
@@ -54,9 +54,9 @@ angle = 46.0
 angle_variance = 14.0
 rotation = 137.5
 gravity = -0.08
-curve = 16.0
-curve_variance = 10.0
-segments = 8
+curve = 18.0
+curve_variance = 12.0
+segments = 10
 
 [branches.level3]
 count = 4
@@ -71,7 +71,7 @@ rotation = 137.5
 gravity = -0.10
 curve = 18.0
 curve_variance = 12.0
-segments = 5
+segments = 7
 
 [crown]
 shape = "flame"
@@ -111,7 +111,7 @@ resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "ginkgo"
 leaf_card = "cluster"
-bark_color = [0.48, 0.43, 0.36]
+bark_color = [0.45, 0.40, 0.34]
 leaf_color = [0.92, 0.72, 0.10]
 
 [lod]
