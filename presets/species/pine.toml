@@ -7,71 +7,71 @@ scientific = "Pinus sylvestris"
 
 [trunk]
 height = 9.8
-height_variance = 0.10
+height_variance = 0.12
 radius = 0.44
 taper = 0.78
 taper_profile = "exponential"
-curve = 28.0
-curve_variance = 9.0
-curve_back = 18.0
-segments = 20
+curve = 42.0
+curve_variance = 14.0
+curve_back = 44.0
+segments = 22
 
 [branches.level1]
-count = 13
+count = 14
 count_variance = 2
 whorl_size = 1
 length = 4.2
-length_variance = 0.18
-radius_ratio = 0.50
+length_variance = 0.20
+radius_ratio = 0.52
 radius_model = "ratio"
 pipe_exponent = 2.35
 taper = 0.80
 taper_profile = "exponential"
 angle = 74.0
-angle_variance = 10.0
+angle_variance = 11.0
 rotation = 137.5
-gravity = -0.11
-curve = -26.0
-curve_variance = 18.0
-segments = 14
+gravity = -0.06
+curve = 24.0
+curve_variance = 22.0
+segments = 16
 
 [branches.level2]
-count = 4
+count = 5
 count_variance = 1
-length = 1.58
-length_variance = 0.20
+length = 1.62
+length_variance = 0.22
 radius_ratio = 0.54
 radius_model = "ratio"
 taper = 0.80
-angle = 54.0
-angle_variance = 12.0
+angle = 56.0
+angle_variance = 14.0
 rotation = 137.5
-gravity = -0.04
-curve = -16.0
-curve_variance = 14.0
-segments = 9
+gravity = -0.03
+curve = -20.0
+curve_variance = 18.0
+segments = 10
 
 [branches.level3]
 count = 4
 count_variance = 1
-length = 0.70
-length_variance = 0.22
+length = 0.72
+length_variance = 0.24
 radius_ratio = 0.48
 taper = 0.82
-angle = 46.0
-gravity = 0.02
-curve = -12.0
-curve_variance = 10.0
+angle = 48.0
+gravity = 0.03
+curve = -18.0
+curve_variance = 15.0
 segments = 6
 
 [crown]
 shape = "conical"
-offset = 0.32
+offset = 0.30
 density = 0.98
-width_ratio = 1.20
+width_ratio = 1.22
 
 [leaves]
-count = 2100
+count = 2200
 min_level = 2
 size = 0.70
 size_variance = 0.18

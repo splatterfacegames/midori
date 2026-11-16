@@ -13,74 +13,74 @@ family = "weber_penn"
 notes = "Ascending temple ginkgo boughs clothed in bilobed golden fan sprays."
 
 [trunk]
-height = 8.2
-height_variance = 0.10
+height = 8.4
+height_variance = 0.12
 radius = 0.56
 taper = 0.78
 taper_profile = "exponential"
-curve = 16.0
-curve_variance = 6.0
-curve_back = 9.0
-segments = 18
+curve = 26.0
+curve_variance = 11.0
+curve_back = 28.0
+segments = 20
 
 [branches.level1]
-count = 10
+count = 11
 count_variance = 2
-length = 4.6
+length = 4.55
 length_variance = 0.20
 radius_ratio = 0.56
 radius_model = "ratio"
 pipe_exponent = 2.3
 taper = 0.80
 taper_profile = "exponential"
-angle = 46.0
-angle_variance = 11.0
+angle = 48.0
+angle_variance = 12.0
 rotation = 137.5
-gravity = -0.08
-curve = -20.0
-curve_variance = 16.0
-segments = 14
+gravity = -0.05
+curve = 22.0
+curve_variance = 20.0
+segments = 15
 
 [branches.level2]
-count = 5
+count = 6
 count_variance = 1
-length = 2.15
-length_variance = 0.22
+length = 2.18
+length_variance = 0.24
 radius_ratio = 0.50
 radius_model = "ratio"
 taper = 0.80
 taper_profile = "smooth"
-angle = 46.0
-angle_variance = 14.0
+angle = 48.0
+angle_variance = 15.0
 rotation = 137.5
-gravity = -0.08
-curve = 18.0
-curve_variance = 12.0
+gravity = -0.06
+curve = -20.0
+curve_variance = 18.0
 segments = 10
 
 [branches.level3]
-count = 4
+count = 5
 count_variance = 1
-length = 1.02
+length = 1.05
 length_variance = 0.24
 radius_ratio = 0.44
 taper = 0.82
 angle = 50.0
 angle_variance = 18.0
 rotation = 137.5
-gravity = -0.10
-curve = 18.0
-curve_variance = 12.0
+gravity = -0.08
+curve = 20.0
+curve_variance = 16.0
 segments = 7
 
 [crown]
 shape = "flame"
-offset = 0.26
+offset = 0.24
 density = 1.0
-width_ratio = 1.12
+width_ratio = 1.15
 
 [leaves]
-count = 2300
+count = 2400
 min_level = 2
 size = 0.68
 size_variance = 0.20

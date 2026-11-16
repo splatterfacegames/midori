@@ -6,32 +6,32 @@ name = "Willow"
 scientific = "Salix babylonica"
 
 [trunk]
-height = 6.4
+height = 6.6
 height_variance = 0.14
 radius = 0.56
 taper = 0.76
 taper_profile = "exponential"
-curve = 18.0
-curve_variance = 7.0
-curve_back = 10.0
-segments = 18
+curve = 30.0
+curve_variance = 12.0
+curve_back = 30.0
+segments = 20
 
 [branches.level1]
-count = 9
+count = 10
 count_variance = 2
-length = 4.4
-length_variance = 0.18
+length = 4.5
+length_variance = 0.20
 radius_ratio = 0.58
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "exponential"
-angle = 50.0
-angle_variance = 12.0
+angle = 54.0
+angle_variance = 14.0
 rotation = 137.5
-gravity = -0.18
-curve = 30.0
-curve_variance = 14.0
-segments = 14
+gravity = -0.16
+curve = 38.0
+curve_variance = 22.0
+segments = 15
 
 [branches.level2]
 count = 5
@@ -42,13 +42,13 @@ radius_ratio = 0.46
 radius_model = "ratio"
 taper = 0.82
 taper_profile = "smooth"
-angle = 42.0
-angle_variance = 15.0
+angle = 44.0
+angle_variance = 16.0
 rotation = 137.5
-gravity = -0.52
-curve = 38.0
-curve_variance = 14.0
-segments = 11
+gravity = -0.50
+curve = 42.0
+curve_variance = 18.0
+segments = 12
 
 [branches.level3]
 # Long cascading weeping curtain shoots

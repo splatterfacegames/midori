@@ -13,75 +13,75 @@ family = "weber_penn"
 notes = "Sinuous multi-tier Momiji form with palmate 7-lobed autumn foliage pads."
 
 [trunk]
-height = 5.1
-height_variance = 0.12
-radius = 0.35
+height = 5.4
+height_variance = 0.14
+radius = 0.36
 taper = 0.74
 taper_profile = "exponential"
-curve = 28.0
-curve_variance = 9.0
-curve_back = 18.0
-segments = 18
+curve = 38.0
+curve_variance = 14.0
+curve_back = 40.0
+segments = 22
 
 [branches.level1]
-count = 7
+count = 8
 count_variance = 2
 length = 4.15
-length_variance = 0.18
+length_variance = 0.20
 radius_ratio = 0.60
 radius_model = "ratio"
 pipe_exponent = 2.25
 taper = 0.78
 taper_profile = "exponential"
 angle = 62.0
-angle_variance = 9.0
+angle_variance = 11.0
 rotation = 137.5
-gravity = -0.09
-curve = -22.0
-curve_variance = 13.0
-segments = 15
+gravity = -0.05
+curve = 24.0
+curve_variance = 22.0
+segments = 16
 
 [branches.level2]
-count = 5
+count = 6
 count_variance = 1
-length = 1.65
-length_variance = 0.20
+length = 1.75
+length_variance = 0.22
 radius_ratio = 0.52
 radius_model = "ratio"
 pipe_exponent = 2.2
 taper = 0.78
 taper_profile = "smooth"
-angle = 54.0
-angle_variance = 14.0
+angle = 56.0
+angle_variance = 16.0
 rotation = 137.5
-gravity = -0.08
-curve = -20.0
-curve_variance = 13.0
-segments = 10
+gravity = -0.05
+curve = -24.0
+curve_variance = 20.0
+segments = 11
 
 [branches.level3]
-count = 4
+count = 5
 count_variance = 1
-length = 0.96
+length = 0.98
 length_variance = 0.24
 radius_ratio = 0.44
 taper = 0.80
-angle = 48.0
-angle_variance = 16.0
+angle = 50.0
+angle_variance = 18.0
 rotation = 137.5
-gravity = -0.08
-curve = 16.0
-curve_variance = 12.0
+gravity = -0.05
+curve = 22.0
+curve_variance = 18.0
 segments = 7
 
 [crown]
 shape = "hemispherical"
-offset = 0.24
+offset = 0.19
 density = 1.0
-width_ratio = 1.32
+width_ratio = 1.34
 
 [leaves]
-count = 2200
+count = 2300
 min_level = 2
 size = 0.64
 size_variance = 0.20

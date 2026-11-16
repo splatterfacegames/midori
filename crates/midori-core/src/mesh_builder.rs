@@ -269,6 +269,18 @@ impl<'a> MeshBuilder<'a> {
             let tip_normal = normalized_or_up(stem.segments.last().unwrap().direction);
             self.cap_ring(rings.last().unwrap(), tip_normal, stem);
         }
+
+        // Sculptural 3D exposed surface roots (nebari) flowing out of trunk buttress flutes
+        let base_r = stem.segments[0].start_radius;
+        let tip_r = stem.segments.last().unwrap().end_radius;
+        if stem.level == 0
+            && ring_res >= 16
+            && stem.segments.len() >= 10
+            && base_r >= 0.25
+            && tip_r < base_r * 0.44
+        {
+            self.build_trunk_roots(stem, ring_res);
+        }
     }
 
     fn included_terminal_child_count(&self, stem: &Stem) -> usize {
@@ -608,9 +620,9 @@ impl<'a> MeshBuilder<'a> {
             })
             .collect();
 
-        // Sink high-detail trunk base slightly so spreading root buttresses anchor into soil
+        // Sink high-detail trunk base well below y = 0 so spreading buttresses & roots anchor cleanly into soil
         if stem.level == 0 && ring_res >= 16 && !samples.is_empty() {
-            samples[0].position.y -= 0.038;
+            samples[0].position.y -= 0.085;
         }
 
         // Seamless union for dichotomous / terminal multi-branch Y-forks (e.g. Joshua Tree):
@@ -819,53 +831,90 @@ impl<'a> MeshBuilder<'a> {
             };
 
             let (buttress_mul, normal_twist) =
-                if stem.level == 0 && resolution >= 16 && h_frac < 0.34 {
-                    // Organic asymmetric spreading 3D root buttress toes & concave flutes
-                    let falloff = (1.0 - h_frac / 0.34).powi(2);
-                    let spiral = h_frac * 2.1;
-                    let a3 = angle * 3.0 + seed_phase + spiral * 0.5;
-                    let a5 = angle * 5.0 - seed_phase * 1.35 + spiral;
-                    let a7 = angle * 7.0 + stem_phase - spiral * 0.7;
-                    let raw = 0.42 * a3.cos() + 0.36 * a5.cos() + 0.26 * a7.sin();
-                    let raw_d =
-                        -0.42 * 3.0 * a3.sin() - 0.36 * 5.0 * a5.sin() + 0.26 * 7.0 * a7.cos();
-                    let toe = raw.max(0.0).powf(1.45) * 0.64 - (-raw).max(0.0) * 0.14;
+                if stem.level == 0 && resolution >= 16 && h_frac < 0.36 {
+                    // 5-lobed organic asymmetric root buttress flutes aligned directly with the 5 nebari surface roots
+                    let falloff = (1.0 - h_frac / 0.36).powi(2);
+                    let root_base_az = seed_phase * 0.20;
+                    let spiral = h_frac * 0.95;
+                    let a5 = (angle - root_base_az) * 5.0 - spiral;
+                    let a3 = angle * 3.0 + seed_phase + spiral * 0.6;
+                    let asym = 0.78 + 0.22 * (angle * 2.0 - seed_phase).cos();
+                    let raw = 0.68 * asym * a5.cos() + 0.32 * a3.cos();
+                    let raw_d = -0.68 * asym * 5.0 * a5.sin() - 0.32 * 3.0 * a3.sin();
+                    let toe = raw.max(0.0).powf(1.35) * 0.74 - (-raw).max(0.0) * 0.16;
                     let flute_ridge = if resolution >= 20 {
-                        let m1 = angle * 4.0 + v_coord * 0.65 + stem_phase;
+                        let m1 = angle * 4.0 + v_coord * 0.72 + stem_phase;
                         let r1 = angle * 13.0 + v_coord * 2.2 + stem_phase;
                         let r2 = angle * 21.0 - v_coord * 3.5 + seed_phase;
-                        0.036 * m1.cos() + 0.026 * r1.cos() + 0.014 * r2.sin()
+                        0.042 * m1.cos() + 0.028 * r1.cos() + 0.015 * r2.sin()
                     } else {
                         0.0
                     };
-                    (1.0 + falloff * toe + flute_ridge, -raw_d * 0.18 * falloff)
+                    (1.0 + falloff * toe + flute_ridge, -raw_d * 0.15 * falloff)
                 } else if stem.level == 0 && resolution >= 8 && h_frac < 0.28 {
                     let falloff = (1.0 - h_frac / 0.28).powi(2);
                     let phase = angle * 5.0 + seed_phase + 0.38 * (angle * 2.0 - seed_phase).sin();
                     let lobe = phase.cos().max(-0.28);
                     let deriv = -phase.sin() * 0.30 * falloff;
                     (1.0 + 0.28 * falloff * lobe, deriv)
-                } else if resolution >= 20 && stem.level <= 1 {
-                    // Multi-scale 3D sapwood fluting + craggy bark furrow relief on LOD0 trunks & boughs
-                    let muscle_amp = if stem.level == 0 { 0.044 } else { 0.028 };
-                    let bark_amp = if stem.level == 0 { 0.030 } else { 0.018 };
-                    let m1 = angle * 3.0 + v_coord * 0.55 + stem_phase;
-                    let m2 = angle * 5.0 - v_coord * 0.85 + seed_phase;
-                    let p1 = angle * 11.0 + v_coord * 1.9 + stem_phase;
-                    let p2 = angle * 19.0 - v_coord * 3.1 + seed_phase;
+                } else if resolution >= 12 && stem.level <= 2 {
+                    // Twisting 3D sapwood muscle cords + craggy bark furrow relief across trunks & boughs
+                    let (muscle_amp, bark_amp) = match stem.level {
+                        0 => (0.056, 0.034),
+                        1 => (0.040, 0.022),
+                        _ => (0.024, 0.012),
+                    };
+                    let m1 = angle * 3.0 + v_coord * 0.68 + stem_phase;
+                    let m2 = angle * 5.0 - v_coord * 0.96 + seed_phase;
                     let muscle = muscle_amp * (0.62 * m1.cos() + 0.38 * m2.sin());
-                    let ridge = bark_amp * (0.66 * p1.cos() + 0.34 * p2.sin());
+                    let (ridge, ridge_d) = if resolution >= 18 {
+                        let p1 = angle * 11.0 + v_coord * 1.9 + stem_phase;
+                        let p2 = angle * 19.0 - v_coord * 3.1 + seed_phase;
+                        (
+                            bark_amp * (0.66 * p1.cos() + 0.34 * p2.sin()),
+                            bark_amp * (-0.66 * 11.0 * p1.sin() + 0.34 * 19.0 * p2.cos()),
+                        )
+                    } else {
+                        (0.0, 0.0)
+                    };
                     let deriv = (muscle_amp * (-0.62 * 3.0 * m1.sin() + 0.38 * 5.0 * m2.cos())
-                        + bark_amp * (-0.66 * 11.0 * p1.sin() + 0.34 * 19.0 * p2.cos()))
+                        + ridge_d)
                         * 0.14;
                     (1.0 + muscle + ridge, deriv)
                 } else {
                     (1.0, 0.0)
                 };
 
-            let total_r = radius * shoulder_mul * crotch_bracket * buttress_mul;
+            // Gravity reaction-wood elliptical cross-section on horizontal/angled boughs
+            let ellip_mul = if stem.level >= 1 && resolution >= 12 {
+                let horiz = (1.0 - sample.direction.y.abs()).clamp(0.0, 1.0);
+                let vert_align = offset.y * offset.y;
+                1.0 + horiz * (0.13 * vert_align - 0.05 * (1.0 - vert_align))
+            } else {
+                1.0
+            };
+
+            // Localized asymmetric 3D callus burls / healed branch knuckles on ancient trunks & primary limbs
+            let burl_mul = if stem.level <= 1 && resolution >= 16 && stem.segments.len() >= 8 {
+                let b1_t = 0.24 + 0.24 * ((stem_phase * 0.37).sin() * 0.5 + 0.5);
+                let b2_t = 0.58 + 0.22 * ((stem_phase * 0.73 + seed_phase).cos() * 0.5 + 0.5);
+                let b1_ang = stem_phase * 1.3 + seed_phase * 0.5;
+                let b2_ang = stem_phase * 2.4 - seed_phase * 0.8;
+                let d1 = (t_norm - b1_t) / 0.065;
+                let d2 = (t_norm - b2_t) / 0.058;
+                let a1 = (angle - b1_ang).cos().max(0.0).powi(3);
+                let a2 = (angle - b2_ang).cos().max(0.0).powi(3);
+                let swell = 0.16 * (-0.5 * d1 * d1).exp() * a1 + 0.14 * (-0.5 * d2 * d2).exp() * a2;
+                1.0 + swell
+            } else {
+                1.0
+            };
+
+            let clamped_twist = normal_twist.clamp(-0.38, 0.38);
+            let total_r =
+                radius * shoulder_mul * crotch_bracket * buttress_mul * ellip_mul * burl_mul;
             let position = center + offset * total_r;
-            let mut normal = (offset + tangent_dir * normal_twist).normalize_or_zero();
+            let mut normal = (offset + tangent_dir * clamped_twist).normalize_or_zero();
 
             // Smoothly weld child collar normals into parent bark surface right at the visible exit seam
             if let Some((p_out, t_exit, _, is_term)) = parent_weld_info {
@@ -1001,6 +1050,278 @@ impl<'a> MeshBuilder<'a> {
         let stiffness = 1.0 - depth;
 
         vertex.color = Vec4::new(pivot_norm.x, pivot_norm.y, pivot_norm.z, stiffness);
+    }
+
+    fn encode_custom_pivot_painter(
+        &self,
+        vertex: &mut Vertex,
+        depth: f32,
+        phase: f32,
+        pivot: Vec3,
+    ) {
+        let clamped_depth = depth.clamp(0.0, 1.0);
+        vertex.uv2 = Vec2::new(clamped_depth, phase.fract().abs());
+        let bounds = &self.tree.bounds;
+        let size = bounds.size();
+        let pivot_norm = if size.length() > 0.001 {
+            (pivot - bounds.min) / size
+        } else {
+            Vec3::ZERO
+        };
+        vertex.color = Vec4::new(
+            pivot_norm.x,
+            pivot_norm.y,
+            pivot_norm.z,
+            (1.0 - clamped_depth).clamp(0.0, 1.0),
+        );
+    }
+
+    /// Emit 3D snaking & forked exposed surface buttress roots (nebari) that flow seamlessly out of
+    /// the trunk's 5 buttress flutes, hug the terrain without air gaps, and match trunk bark texel scale.
+    fn build_trunk_roots(&mut self, stem: &Stem, trunk_ring_res: u32) {
+        let base_pos = stem.base();
+        let ground_y = base_pos.y;
+        let base_r = stem.segments[0].start_radius;
+        let seed_f = self.tree.seed as f32;
+        let seed_phase = (seed_f * 0.618_034).fract() * TAU;
+        let root_base_az = seed_phase * 0.20;
+        let root_res = (trunk_ring_res / 2).clamp(12, 16);
+        let fork_res = (root_res * 3 / 4).clamp(8, 12);
+
+        // Five primary 3D snaking buttress roots aligned directly with the 5 trunk buttress flute peaks
+        let root_count = 5usize;
+        for r_idx in 0..root_count {
+            let h1 = ((seed_f * 0.317 + r_idx as f32 * 0.754_877).fract()).abs();
+            let h2 = ((seed_f * 0.519 + r_idx as f32 * 0.414_213).fract()).abs();
+            let h3 = ((seed_f * 0.793 + r_idx as f32 * 0.618_034).fract()).abs();
+
+            let az =
+                root_base_az + (r_idx as f32 / root_count as f32) * TAU + 0.05 + (h1 - 0.5) * 0.14;
+            let rad_dir = Vec3::new(az.cos(), 0.0, az.sin());
+            let side_dir = Vec3::new(-az.sin(), 0.0, az.cos());
+
+            let reach = base_r * (2.15 + 0.95 * h2);
+            let start_h = base_r * (1.28 + 0.18 * h3);
+            let r_peak = base_r * (0.29 + 0.06 * h1);
+            let s_sign = if r_idx % 2 == 0 { 1.0 } else { -1.0 };
+            let wave_phase = h2 * TAU;
+
+            let steps = 13usize;
+            let mut spine = Vec::with_capacity(steps + 1);
+            let mut radii = Vec::with_capacity(steps + 1);
+
+            for k in 0..=steps {
+                let u = k as f32 / steps as f32;
+                // Start deep inside upper-base sapwood so there is zero bulbous shoulder on the trunk wall,
+                // then sweep outward along the trunk buttress flute and snake across the ground.
+                let radial_dist = base_r * 0.20 + (base_r * 0.34 + reach) * u.powf(0.96);
+                let out_u = ((u - 0.20) / 0.80).clamp(0.0, 1.0);
+                let s_bend = reach
+                    * s_sign
+                    * (0.19
+                        * (out_u * std::f32::consts::PI * 1.75 + wave_phase * 0.30).sin()
+                        * out_u.powf(1.15)
+                        + 0.06 * (out_u * TAU * 1.6 - wave_phase).sin() * out_u);
+
+                // Radius starts tucked thin inside trunk core, swells through the buttress skirt, then tapers
+                let r = if u < 0.22 {
+                    let su = u / 0.22;
+                    r_peak * (0.52 + 0.48 * su * (2.0 - su))
+                } else {
+                    let tu = (u - 0.22) / 0.78;
+                    (r_peak * (1.0 - 0.86 * tu.powf(0.82))).max(0.020)
+                };
+
+                // Concave buttress sweep down onto ground; once on ground, bottom 35% stays buried below y = 0!
+                let flare_frac = (1.0 - (u / 0.36).min(1.0)).powf(2.35);
+                let flare_y = start_h * flare_frac;
+                let tip_sink = if u > 0.74 {
+                    let su = (u - 0.74) / 0.26;
+                    -0.055 * su * su
+                } else {
+                    0.0
+                };
+                let ground_hug_y = r * 0.18 * (1.0 - flare_frac);
+                let y = ground_y + flare_y + ground_hug_y + tip_sink;
+
+                let pos = Vec3::new(base_pos.x, y, base_pos.z)
+                    + rad_dir * radial_dist
+                    + side_dir * s_bend;
+                spine.push(pos);
+                radii.push(r);
+            }
+
+            let root_phase = (r_idx as f32 * GOLDEN_RATIO + h1).fract();
+            self.emit_root_tube(&spine, &radii, root_res, base_r, root_phase);
+
+            // Secondary forked ground-hugging root toe on 3 of the 5 primary roots
+            if r_idx % 2 == 0 {
+                let fork_idx = 6usize;
+                let fork_origin = spine[fork_idx];
+                let parent_tan = (spine[fork_idx + 1] - spine[fork_idx - 1]).normalize_or_zero();
+                let parent_horiz = Vec3::new(parent_tan.x, 0.0, parent_tan.z)
+                    .try_normalize()
+                    .unwrap_or(rad_dir);
+                let parent_side = Vec3::new(-parent_horiz.z, 0.0, parent_horiz.x);
+                let fork_sign = if h3 > 0.48 { 1.0 } else { -1.0 };
+                let fork_ang = fork_sign * (0.64 + 0.20 * h1);
+                let fork_dir = (parent_horiz * fork_ang.cos() + parent_side * fork_ang.sin())
+                    .normalize_or_zero();
+                let fork_perp = Vec3::new(-fork_dir.z, 0.0, fork_dir.x);
+                let fork_len = reach * (0.48 + 0.14 * h3);
+                let fork_r0 = radii[fork_idx] * 0.70;
+
+                let f_steps = 8usize;
+                let mut f_spine = Vec::with_capacity(f_steps + 1);
+                let mut f_radii = Vec::with_capacity(f_steps + 1);
+                let tucked_xz = fork_origin - fork_dir * (radii[fork_idx] * 0.45);
+                for fk in 0..=f_steps {
+                    let fu = fk as f32 / f_steps as f32;
+                    let f_dist = fork_len * fu;
+                    let f_lat = fork_len
+                        * (-fork_sign)
+                        * 0.17
+                        * (fu * std::f32::consts::PI * 1.45 + h2).sin()
+                        * fu;
+                    let fr = (fork_r0 * (1.0 - 0.82 * fu.powf(0.84))).max(0.016);
+                    let f_sink = if fu > 0.70 {
+                        let su = (fu - 0.70) / 0.30;
+                        -0.050 * su * su
+                    } else {
+                        0.0
+                    };
+                    // Ground-anchored centerline so secondary root toes never hover above y = 0
+                    let fy = ground_y + fr * 0.16 + f_sink;
+                    let f_pos = Vec3::new(tucked_xz.x, fy, tucked_xz.z)
+                        + fork_dir * f_dist
+                        + fork_perp * f_lat;
+                    f_spine.push(f_pos);
+                    f_radii.push(fr);
+                }
+                self.emit_root_tube(
+                    &f_spine,
+                    &f_radii,
+                    fork_res,
+                    base_r,
+                    (root_phase + 0.37).fract(),
+                );
+            }
+        }
+    }
+
+    fn emit_root_tube(
+        &mut self,
+        spine: &[Vec3],
+        radii: &[f32],
+        resolution: u32,
+        trunk_base_r: f32,
+        pivot_phase: f32,
+    ) {
+        if spine.len() < 2 || spine.len() != radii.len() || resolution < 4 {
+            return;
+        }
+
+        let n_pts = spine.len();
+        let mut dirs = Vec::with_capacity(n_pts);
+        for k in 0..n_pts {
+            let raw_dir = if k == 0 {
+                spine[1] - spine[0]
+            } else if k + 1 == n_pts {
+                spine[k] - spine[k - 1]
+            } else {
+                spine[k + 1] - spine[k - 1]
+            };
+            dirs.push(normalized_or_up(raw_dir));
+        }
+
+        let avg_r = (radii.iter().sum::<f32>() / n_pts as f32).max(0.025);
+        // Match bark texel scale to trunk circumference so bark plates never shrink into miniature scales
+        let trunk_circum = (TAU * trunk_base_r * 0.76).max(0.55);
+        let u_span = ((avg_r * 2.5) / trunk_base_r.max(0.20)).clamp(0.28, 0.48);
+        let u_base = (pivot_phase * 0.50).clamp(0.0, 1.0 - u_span);
+
+        let mut cum_len = 0.0_f32;
+        let mut frame = RingFrame::from_direction(dirs[0]);
+        let mut rings = Vec::with_capacity(n_pts);
+        let seed_phase = (self.tree.seed as f32 * 0.618_034).fract() * TAU + pivot_phase * TAU;
+
+        for k in 0..n_pts {
+            if k > 0 {
+                cum_len += (spine[k] - spine[k - 1]).length();
+                frame = frame.transported(dirs[k]);
+            }
+            let u_frac = k as f32 / (n_pts - 1) as f32;
+            let v_coord = (cum_len / trunk_circum * self.config.texture_v_scale).max(0.0);
+            let r_here = radii[k];
+            let mut ring = Vec::with_capacity(resolution as usize + 1);
+
+            for i in 0..=resolution {
+                let angle = if i == resolution {
+                    0.0
+                } else {
+                    (i as f32 / resolution as f32) * TAU
+                };
+                let offset = frame.tangent * angle.cos() + frame.bitangent * angle.sin();
+                let tangent_dir = -frame.tangent * angle.sin() + frame.bitangent * angle.cos();
+
+                // Wide earth-gripping buttress base + muscular dorsal root crest
+                let horiz_sq = (1.0 - offset.y * offset.y).clamp(0.0, 1.0);
+                let dorsal = offset.y.max(0.0);
+                let width_aspect = 1.0 + 0.30 * horiz_sq;
+                let crest_aspect = 1.0 + 0.24 * dorsal * dorsal * (1.0 - u_frac * 0.45);
+                let f1 = angle * 3.0 + v_coord * 1.1 + seed_phase;
+                let flute = 0.055 * f1.cos();
+                let twist = (-0.055 * 3.0 * f1.sin() * 0.14).clamp(-0.22, 0.22);
+
+                let shape_mul = width_aspect * crest_aspect * (1.0 + flute);
+                let pos = spine[k] + offset * (r_here * shape_mul);
+                let normal = (offset + tangent_dir * twist).normalize_or_zero();
+
+                // Seamless mirrored UV wrap matching trunk bark plate scale
+                let t_u = i as f32 / resolution as f32;
+                let tri_u = 1.0 - (2.0 * t_u - 1.0).abs();
+                let uv = Vec2::new(u_base + u_span * tri_u, v_coord);
+
+                let mut vertex = Vertex::new(pos, normal, uv);
+                if self.config.pivot_painter {
+                    self.encode_custom_pivot_painter(&mut vertex, 0.0, pivot_phase, Vec3::ZERO);
+                }
+                let idx = self.mesh.vertices.len() as u32;
+                self.mesh.vertices.push(vertex);
+                ring.push(idx);
+            }
+            rings.push(ring);
+        }
+
+        for k in 0..rings.len() - 1 {
+            self.connect_rings(&rings[k], &rings[k + 1]);
+        }
+
+        // Cap buried root tip cleanly
+        if let Some(last_ring) = rings.last() {
+            let actual_count = last_ring.len() - 1;
+            if actual_count >= 3 {
+                let tip_normal = dirs[n_pts - 1];
+                let center: Vec3 = last_ring[..actual_count]
+                    .iter()
+                    .map(|&idx| self.mesh.vertices[idx as usize].position)
+                    .sum::<Vec3>()
+                    / actual_count as f32;
+                let mut vertex = Vertex::new(center, tip_normal, Vec2::new(0.5, 0.5));
+                if self.config.pivot_painter {
+                    self.encode_custom_pivot_painter(&mut vertex, 0.0, pivot_phase, Vec3::ZERO);
+                }
+                let center_idx = self.mesh.vertices.len() as u32;
+                self.mesh.vertices.push(vertex);
+                self.cap_center_indices.push(center_idx);
+                for i in 0..actual_count {
+                    let next_i = (i + 1) % actual_count;
+                    self.mesh.indices.push(last_ring[i]);
+                    self.mesh.indices.push(last_ring[next_i]);
+                    self.mesh.indices.push(center_idx);
+                }
+            }
+        }
     }
 
     fn ring_resolution_for_level(&self, level: u8) -> u32 {

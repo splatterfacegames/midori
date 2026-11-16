@@ -1292,8 +1292,8 @@ fn generate_ultra_lods() -> Vec<LodLevel> {
         LodLevel {
             index: 0,
             name: "Ultra".to_string(),
-            target_triangles: 55000,
-            max_triangles: Some(90000),
+            target_triangles: 70000,
+            max_triangles: Some(135000),
             branch_levels: 4,
             leaf_geometry: LeafGeometry::Polygon,
             leaf_reduction: 1.0,
@@ -1304,8 +1304,8 @@ fn generate_ultra_lods() -> Vec<LodLevel> {
         LodLevel {
             index: 1,
             name: "High".to_string(),
-            target_triangles: 25000,
-            max_triangles: Some(35000),
+            target_triangles: 28000,
+            max_triangles: Some(42000),
             branch_levels: 4,
             leaf_geometry: LeafGeometry::CrossBillboard,
             leaf_reduction: 0.8,
@@ -1358,8 +1358,8 @@ fn generate_high_quality_lods() -> Vec<LodLevel> {
         LodLevel {
             index: 0,
             name: "High".to_string(),
-            target_triangles: 50000,
-            max_triangles: Some(85000),
+            target_triangles: 65000,
+            max_triangles: Some(125000),
             branch_levels: 4,
             leaf_geometry: LeafGeometry::CrossBillboard,
             leaf_reduction: 1.0,
@@ -1370,8 +1370,8 @@ fn generate_high_quality_lods() -> Vec<LodLevel> {
         LodLevel {
             index: 1,
             name: "Medium".to_string(),
-            target_triangles: 16000,
-            max_triangles: Some(25000),
+            target_triangles: 20000,
+            max_triangles: Some(32000),
             branch_levels: 3,
             leaf_geometry: LeafGeometry::CrossBillboard,
             leaf_reduction: 0.6,
