@@ -486,7 +486,12 @@ impl<'a> TreeGenerator<'a> {
 
             // Calculate branch direction: near crown apex on level 1, narrow insertion angle
             // so upper branches and sympodial leaders flow organically out of their parent stem.
-            let apex_angle_scale = if is_apical_leader {
+            // Terminal palm-style rosettes (crown.offset >= 0.90) fan continuously from drooping
+            // lower skirt fronds (crown_t = 0) up to steep skyward spear fronds at the apex (crown_t = 1).
+            let is_palm_rosette = level == 1 && self.species.crown.offset >= 0.90;
+            let apex_angle_scale = if is_palm_rosette {
+                lerp(1.48, 0.24, crown_t.powf(0.88))
+            } else if is_apical_leader {
                 0.38
             } else if level == 1 {
                 if whorl_size > 1 {
@@ -497,16 +502,23 @@ impl<'a> TreeGenerator<'a> {
             } else {
                 lerp(1.02, 0.78, crown_t)
             };
+            let eff_angle_var = if is_palm_rosette {
+                branch_params.angle_variance * 0.35
+            } else {
+                branch_params.angle_variance
+            };
             let branch_angle = radians(
-                branch_params.angle * apex_angle_scale
-                    + self.rng.variance_add(branch_params.angle_variance),
+                branch_params.angle * apex_angle_scale + self.rng.variance_add(eff_angle_var),
             );
 
             let branch_dir =
                 self.calculate_branch_direction(parent_dir, branch_angle, rotation_angle);
 
             // Apply crown envelope modifier at level 1; taper sub-branches gently along parent
-            let length_mod = if level == 1 {
+            let length_mod = if is_palm_rosette {
+                // Mature mid-crown fronds are longest; youngest central spear fronds slightly shorter
+                0.86 + 0.22 * (crown_t * PI * 0.86 + 0.18).sin().max(0.0)
+            } else if level == 1 {
                 self.crown_length_modifier(crown_t)
             } else {
                 lerp(1.06, 0.54, crown_t)

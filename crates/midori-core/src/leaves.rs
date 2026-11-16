@@ -32,6 +32,8 @@ pub struct LeafConfig {
     pub up_influence: f32,
     /// Enable Pivot Painter data
     pub pivot_painter: bool,
+    /// Emit continuous 3D gullwing-cambered pinnate frond ribbons along arching palm rachises
+    pub palm_frond_ribbon: bool,
     /// Canopy shaping (normals, card orientation, vertex tint/AO)
     pub canopy: CanopyParams,
 }
@@ -45,9 +47,18 @@ impl Default for LeafConfig {
             polygon_resolution: 0, // Use shape's recommended resolution
             up_influence: 0.25,
             pivot_painter: true,
+            palm_frond_ribbon: false,
             canopy: CanopyParams::default(),
         }
     }
+}
+
+/// True when `species` represents a pinnate palm crown whose L1 stems are frond rachises.
+pub(crate) fn is_pinnate_palm_species(species: &Species) -> bool {
+    species.textures.leaf_card == crate::species::LeafCardLayout::Frond
+        && species.leaves.shape == LeafShape::Willow
+        && species.branches.level2.is_none()
+        && species.leaves.distribution == LeafDistribution::AlongBranch
 }
 
 impl LeafConfig {
@@ -60,6 +71,7 @@ impl LeafConfig {
             polygon_resolution: 0,
             up_influence: species.leaves.up_influence,
             pivot_painter: true,
+            palm_frond_ribbon: is_pinnate_palm_species(species),
             canopy: species.canopy.clone(),
         }
     }
@@ -117,9 +129,39 @@ pub fn place_leaves(tree: &Tree, species: &Species, rng: &mut Rng) -> Vec<Leaf> 
 
     let tree_min_y = tree.bounds.min.y;
     let tree_span_y = (tree.bounds.max.y - tree.bounds.min.y).max(1.0);
-    let is_pinnate_rachis = species.textures.leaf_card == crate::species::LeafCardLayout::Frond
-        && species.branches.level2.is_none()
-        && params.distribution == LeafDistribution::AlongBranch;
+    let is_pinnate_rachis = is_pinnate_palm_species(species);
+
+    if is_pinnate_rachis {
+        // Emit 1 continuous full-length 3D curved frond ribbon per palm rachis stem
+        for stem in &candidate_stems {
+            if leaves.len() >= params.count as usize {
+                break;
+            }
+            let p_start = stem.point_at(0.06);
+            let aim_dir = (stem.point_at(0.65) - p_start)
+                .try_normalize()
+                .unwrap_or_else(|| stem.direction_at(0.25));
+            let base_rot = Quat::from_rotation_arc(Vec3::Y, aim_dir);
+            let sky_in_plane = Vec3::Y - aim_dir * Vec3::Y.dot(aim_dir);
+            let align_roll = if let Some(sky_dir) = sky_in_plane.try_normalize() {
+                let base_z = base_rot * Vec3::Z;
+                let base_x = base_rot * Vec3::X;
+                sky_dir.dot(base_x).atan2(sky_dir.dot(base_z))
+            } else {
+                0.0
+            };
+            let rotation =
+                Quat::from_axis_angle(aim_dir, align_roll + rng.range(-0.18, 0.18)) * base_rot;
+            let scale = params.size * rng.variance_mul(params.size_variance);
+            leaves.push(Leaf {
+                position: p_start,
+                rotation,
+                scale,
+                stem_id: stem.id,
+            });
+        }
+        return leaves;
+    }
 
     for stem in &candidate_stems {
         if leaves.len() >= params.count as usize {
@@ -132,47 +174,6 @@ pub fn place_leaves(tree: &Tree, species: &Species, rng: &mut Rng) -> Vec<Leaf> 
         for k in 0..stem_leaf_count {
             if leaves.len() >= params.count as usize {
                 break;
-            }
-
-            if is_pinnate_rachis {
-                // Coaxial pinnate frond segments chained seamlessly along each arching palm rachis
-                let count_f = stem_leaf_count.max(1) as f32;
-                let u0 = k as f32 / count_f;
-                let t_start = (0.06 + u0 * 0.76).clamp(0.04, 0.88);
-                let t_end = (t_start + (0.94 / count_f).max(0.18)).clamp(t_start + 0.08, 1.0);
-                let p_start = stem.point_at(t_start);
-                let p_end = stem.point_at(t_end);
-                let chord_dir = (p_end - p_start)
-                    .try_normalize()
-                    .unwrap_or_else(|| stem.direction_at(t_start));
-                let aim_dir = (chord_dir + Vec3::Y * 0.13)
-                    .try_normalize()
-                    .unwrap_or(chord_dir);
-                let base_rot = Quat::from_rotation_arc(Vec3::Y, aim_dir);
-                let sky_in_plane = Vec3::Y - aim_dir * Vec3::Y.dot(aim_dir);
-                let align_roll = if let Some(sky_dir) = sky_in_plane.try_normalize() {
-                    let base_z = base_rot * Vec3::Z;
-                    let base_x = base_rot * Vec3::X;
-                    sky_dir.dot(base_x).atan2(sky_dir.dot(base_z))
-                } else {
-                    0.0
-                };
-                let rotation =
-                    Quat::from_axis_angle(aim_dir, align_roll + rng.range(-0.10, 0.10)) * base_rot;
-                let env = 0.74
-                    + 0.34
-                        * (((u0 + 0.5 / count_f) * PI).clamp(0.0, PI))
-                            .sin()
-                            .max(0.0)
-                            .powf(0.55);
-                let scale = params.size * env * rng.variance_mul(params.size_variance);
-                leaves.push(Leaf {
-                    position: p_start,
-                    rotation,
-                    scale,
-                    stem_id: stem.id,
-                });
-                continue;
             }
 
             // Choose placement point (stratified along stem for AlongBranch)
@@ -387,33 +388,49 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
     } else {
         leaves
     };
-    let mut mesh = match config.geometry {
-        LeafGeometry::Polygon => generate_polygon_leaves(leaves, config, tree),
-        LeafGeometry::CrossBillboard => generate_cross_billboards(leaves, config, tree),
-        LeafGeometry::Billboard => generate_billboards(leaves, config, tree),
-        LeafGeometry::CanopyCard => generate_canopy_cards(leaves, config, tree, &canopy),
-        LeafGeometry::None => Mesh::new(),
-    };
-    let per_leaf = match config.geometry {
-        LeafGeometry::Polygon => 1 + config.effective_resolution().max(6) as usize,
-        LeafGeometry::CrossBillboard => {
-            if config.canopy.single_sided {
-                18
-            } else {
-                8
+    let (mut mesh, per_leaf) = if config.palm_frond_ribbon {
+        let rows = 18usize;
+        let cols = 7usize;
+        (
+            generate_palm_frond_ribbons(leaves, config, tree, rows),
+            (rows + 1) * cols,
+        )
+    } else {
+        let mesh = match config.geometry {
+            LeafGeometry::Polygon => generate_polygon_leaves(leaves, config, tree),
+            LeafGeometry::CrossBillboard => generate_cross_billboards(leaves, config, tree),
+            LeafGeometry::Billboard => generate_billboards(leaves, config, tree),
+            LeafGeometry::CanopyCard => generate_canopy_cards(leaves, config, tree, &canopy),
+            LeafGeometry::None => Mesh::new(),
+        };
+        let per_leaf = match config.geometry {
+            LeafGeometry::Polygon => 1 + config.effective_resolution().max(6) as usize,
+            LeafGeometry::CrossBillboard => {
+                if config.canopy.single_sided {
+                    18
+                } else {
+                    8
+                }
             }
-        }
-        LeafGeometry::Billboard => {
-            if config.canopy.single_sided {
-                9
-            } else {
-                4
+            LeafGeometry::Billboard => {
+                if config.canopy.single_sided {
+                    9
+                } else {
+                    4
+                }
             }
-        }
-        LeafGeometry::CanopyCard => 4,
-        LeafGeometry::None => 0,
+            LeafGeometry::CanopyCard => 4,
+            LeafGeometry::None => 0,
+        };
+        (mesh, per_leaf)
     };
-    canopy.shade(&mut mesh, leaves, per_leaf, config.geometry);
+    canopy.shade(
+        &mut mesh,
+        leaves,
+        per_leaf,
+        config.geometry,
+        config.palm_frond_ribbon,
+    );
     mesh
 }
 
@@ -563,7 +580,14 @@ impl CanopyContext {
 
     /// Bend normals and/or write tint+AO colours for leaf vertices laid out
     /// as `per_leaf` consecutive vertices per leaf.
-    fn shade(&self, mesh: &mut Mesh, leaves: &[Leaf], per_leaf: usize, geometry: LeafGeometry) {
+    fn shade(
+        &self,
+        mesh: &mut Mesh,
+        leaves: &[Leaf],
+        per_leaf: usize,
+        geometry: LeafGeometry,
+        per_vertex_pos: bool,
+    ) {
         let bend = self.params.normals == FoliageNormals::Canopy;
         let tint = self.params.vertex_color == FoliageVertexColor::TintAo;
         if (!bend && !tint) || per_leaf == 0 {
@@ -576,10 +600,15 @@ impl CanopyContext {
             if start >= end {
                 break;
             }
-            let out = self.outward(i, leaf.position);
-            let color = tint.then(|| self.tint_ao(i, leaf.position));
+            let leaf_out = self.outward(i, leaf.position);
+            let leaf_color = (!per_vertex_pos && tint).then(|| self.tint_ao(i, leaf.position));
             for v in &mut mesh.vertices[start..end] {
                 if bend {
+                    let out = if per_vertex_pos {
+                        self.outward(i, v.position)
+                    } else {
+                        leaf_out
+                    };
                     // Canopy cards already face `out`; bending each vertex
                     // toward its own offset rounds the card a little too.
                     let local = if geometry == LeafGeometry::CanopyCard {
@@ -596,7 +625,9 @@ impl CanopyContext {
                     };
                     v.normal = geom.lerp(local, blend).try_normalize().unwrap_or(local);
                 }
-                if let Some(c) = color {
+                if per_vertex_pos && tint {
+                    v.color = self.tint_ao(i, v.position);
+                } else if let Some(c) = leaf_color {
                     v.color = c;
                 }
             }
@@ -831,6 +862,155 @@ fn generate_billboards(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> Mes
 
     for leaf in leaves {
         add_billboard_quad(&mut mesh, leaf, Vec3::Z, config, tree);
+    }
+
+    if !mesh.indices.is_empty() {
+        mesh.submeshes.push(Submesh {
+            index_start: 0,
+            index_count: mesh.indices.len() as u32,
+            material: MaterialType::Leaves,
+        });
+    }
+
+    mesh
+}
+
+/// Generate continuous 3D gullwing-cambered pinnate palm frond ribbons following each L1 rachis.
+///
+/// Each frond is a wide (`~2.0m`), sweeping 17x5 grid that rises in an authentic V-keel off the
+/// central rachis, droops gracefully at the sword-pinnae tips, and twists subtly in 3D so broad
+/// leafy planes catch sunlight from every viewing angle (eliminating cylindrical pipe artifacts).
+fn generate_palm_frond_ribbons(
+    leaves: &[Leaf],
+    config: &LeafConfig,
+    tree: &Tree,
+    rows: usize,
+) -> Mesh {
+    let mut mesh = Mesh::new();
+    let xs = [-1.0_f32, -0.68, -0.34, 0.0, 0.34, 0.68, 1.0];
+    let cols = xs.len();
+
+    for leaf in leaves {
+        let base_idx = mesh.vertices.len() as u32;
+        let stem_opt = tree
+            .get_stem(leaf.stem_id)
+            .filter(|s| !s.segments.is_empty());
+
+        // Sample spine positions & tangents along the arching 3D rachis (+ feathery tip overhang)
+        let mut spine = Vec::with_capacity(rows + 1);
+        let mut tangs = Vec::with_capacity(rows + 1);
+
+        if let Some(stem) = stem_opt {
+            let tip_dir = stem
+                .direction_at(1.0)
+                .try_normalize()
+                .unwrap_or(Vec3::NEG_Y);
+            let overhang = (stem.length() * 0.08).clamp(0.18, 0.40);
+            for r in 0..=rows {
+                let u = r as f32 / rows as f32;
+                let t = 0.06 + u * 0.94;
+                let p_base = stem.point_at(t.min(1.0));
+                let extra = if u > 0.88 {
+                    let eu = (u - 0.88) / 0.12;
+                    tip_dir * (overhang * eu) + Vec3::NEG_Y * (overhang * 0.28 * eu * eu)
+                } else {
+                    Vec3::ZERO
+                };
+                spine.push(p_base + extra);
+            }
+        } else {
+            let fwd = (leaf.rotation * Vec3::Y).try_normalize().unwrap_or(Vec3::X);
+            let len = leaf.scale * 2.2;
+            for r in 0..=rows {
+                let u = r as f32 / rows as f32;
+                let p =
+                    leaf.position + fwd * (len * u) + Vec3::Y * (len * (0.12 * u - 0.36 * u * u));
+                spine.push(p);
+            }
+        }
+
+        for r in 0..=rows {
+            let d = if r == 0 {
+                spine[1] - spine[0]
+            } else if r == rows {
+                spine[rows] - spine[rows - 1]
+            } else {
+                spine[r + 1] - spine[r - 1]
+            };
+            tangs.push(d.try_normalize().unwrap_or(Vec3::Y));
+        }
+
+        // Parallel-transported horizontal side axis (`side x tang = +skyward up`)
+        let mut side = tangs[0]
+            .cross(Vec3::Y)
+            .try_normalize()
+            .unwrap_or_else(|| create_basis(tangs[0]).0);
+        // Deterministic natural tropical wind/gravity twist per frond (-28..+28 deg along outer half)
+        let hash = ((leaf.stem_id as f32 * 0.618_034 + tree.seed as f32 * 0.317).fract()) - 0.5;
+        let max_twist = hash * 0.96;
+
+        for r in 0..=rows {
+            let tang = tangs[r];
+            if r > 0 {
+                let proj = side - tang * side.dot(tang);
+                if let Some(s) = proj.try_normalize() {
+                    side = s;
+                }
+            }
+            let up = side.cross(tang).try_normalize().unwrap_or(Vec3::Y);
+            let u = r as f32 / rows as f32;
+
+            let twist = max_twist * u.powf(1.18);
+            let s_vec = rotate_around_axis(side, tang, twist);
+            let u_vec = rotate_around_axis(up, tang, twist);
+
+            let base_grow = (0.48 + 0.52 * (u / 0.22).clamp(0.0, 1.0).sqrt()).min(1.0);
+            let tip_taper = if u > 0.58 {
+                let tu = (u - 0.58) / 0.42;
+                1.0 - 0.68 * tu.powf(1.35)
+            } else {
+                1.0
+            };
+            let width_env = base_grow * tip_taper * (0.94 + 0.12 * (u * PI).sin());
+            let half_w = leaf.scale * 0.50 * width_env;
+
+            for &xn in &xs {
+                let ax = xn.abs();
+                // Smooth C2 gullwing profile: V-keel rise near rachis + graceful drooping pinnae tips
+                let rise = 0.28 * ax * (1.0 - 0.30 * u);
+                let droop = -0.48 * ax.powf(1.85) * (0.50 + 0.55 * u);
+                let gull_y = half_w * (0.020 + rise + droop);
+                let fwd_sweep = half_w * 0.14 * ax * (0.30 + 0.70 * u);
+
+                let pos = spine[r] + s_vec * (xn * half_w) + u_vec * gull_y + tang * fwd_sweep;
+
+                // Analytic derivative dgull_y / dx for silky-smooth cross-sectional shading
+                let dgull_dax =
+                    0.28 * (1.0 - 0.30 * u) - 0.48 * 1.85 * ax.powf(0.85) * (0.50 + 0.55 * u);
+                let slope_x = -xn.signum() * dgull_dax;
+                let nrm = (u_vec + s_vec * slope_x - tang * 0.07)
+                    .try_normalize()
+                    .unwrap_or(u_vec);
+                let uv = Vec2::new(xn * 0.5 + 0.5, (1.0 - u).clamp(0.0, 1.0));
+
+                let mut vertex = Vertex::new(pos, nrm, uv);
+                if config.pivot_painter {
+                    encode_leaf_pivot_painter(&mut vertex, leaf, tree);
+                }
+                mesh.vertices.push(vertex);
+            }
+        }
+
+        for r in 0..rows as u32 {
+            for c in 0..(cols as u32 - 1) {
+                let i00 = base_idx + r * (cols as u32) + c;
+                let i10 = i00 + 1;
+                let i01 = i00 + (cols as u32);
+                let i11 = i01 + 1;
+                mesh.indices
+                    .extend_from_slice(&[i00, i10, i11, i00, i11, i01]);
+            }
+        }
     }
 
     if !mesh.indices.is_empty() {

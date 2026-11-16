@@ -610,6 +610,7 @@ fn generate_single_lod(
             polygon_resolution: 0, // Use shape's recommended resolution
             up_influence: species.leaves.up_influence,
             pivot_painter: true,
+            palm_frond_ribbon: crate::leaves::is_pinnate_palm_species(species),
             canopy: species.canopy.clone(),
         };
 

@@ -54,6 +54,7 @@ pub fn bake_impostor(
         polygon_resolution: 10,
         up_influence: species.leaves.up_influence,
         pivot_painter: false,
+        palm_frond_ribbon: crate::leaves::is_pinnate_palm_species(species),
         canopy,
     };
     let leaf_mesh = generate_leaf_mesh(&tree.leaves, &leaf_config, tree);

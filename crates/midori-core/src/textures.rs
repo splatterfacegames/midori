@@ -1581,27 +1581,27 @@ fn needle_cluster_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> Rgba
 }
 
 /// Tropical Pinnate Palm Frond Card (`leaf_shape = "willow", leaf_card = "frond"`):
-/// tapering golden-green palm rachis spine clothed in 28 pairs of arching, V-folded
-/// glossy sword pinnae fanning cleanly across the card.
+/// tapering golden-green palm rachis spine clothed in 42 pairs of broad, glossy, V-pleated
+/// arching sword pinnae fanning cleanly across the full width of the frond ribbon.
 fn palm_pinnae_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTexture {
     let base = color.unwrap_or([0.22, 0.46, 0.16]);
-    let rachis_rgb = [0.38, 0.44, 0.18];
+    let rachis_rgb = [0.42, 0.48, 0.17];
     let mut twigs: Vec<(Vec2, Vec2, f32, f32)> = Vec::new();
     let mut pinnae: Vec<(Vec2, Vec2, f32, f32, f32, f32)> = Vec::new();
 
-    let p0 = Vec2::new(0.50, 0.98);
-    let p1 = Vec2::new(0.50 + rng.range(-0.015, 0.015), 0.50);
-    let p2 = Vec2::new(0.50 + rng.range(-0.02, 0.02), 0.04);
-    for s in 0..10 {
-        let t0 = s as f32 / 10.0;
-        let t1 = (s + 1) as f32 / 10.0;
+    let p0 = Vec2::new(0.50, 0.99);
+    let p1 = Vec2::new(0.50 + rng.range(-0.008, 0.008), 0.50);
+    let p2 = Vec2::new(0.50 + rng.range(-0.010, 0.010), 0.05);
+    for s in 0..12 {
+        let t0 = s as f32 / 12.0;
+        let t1 = (s + 1) as f32 / 12.0;
         let a = quad_bezier(p0, p1, p2, t0);
         let b = quad_bezier(p0, p1, p2, t1);
-        twigs.push((a, b, lerp(0.015, 0.0032, t0), lerp(0.015, 0.0032, t1)));
+        twigs.push((a, b, lerp(0.013, 0.0022, t0), lerp(0.013, 0.0022, t1)));
     }
 
-    // Two passes (under-tier slightly darker + sunlit upper tier) of arching sword pinnae
-    let pairs = 28usize;
+    // 36 pairs of distinct, sky-gapped V-pleated glossy sword pinnae tapering to a plumose spear apex
+    let pairs = 36usize;
     for pass in 0..2 {
         let top = pass == 1;
         for i in 0..pairs {
@@ -1611,58 +1611,72 @@ fn palm_pinnae_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTex
             if !top && i % 2 == 1 {
                 continue;
             }
-            let t = 0.06 + 0.88 * (i as f32 / (pairs - 1) as f32);
+            let t = 0.04 + 0.93 * (i as f32 / (pairs - 1) as f32);
             let origin = quad_bezier(p0, p1, p2, t);
-            // Parabolic palm frond envelope: broad in the middle, tapering toward base & crown tip
-            let env = (1.0 - ((t - 0.44) / 0.58).powi(2)).clamp(0.18, 1.0).sqrt();
-            let pinna_len = lerp(0.16, 0.44, env) * rng.variance_mul(0.07);
+            // Graceful spear-feathered coconut frond silhouette: broad mid-body, pointed plumose apex
+            let base_taper = ((t - 0.01) / 0.16).clamp(0.24, 1.0).sqrt();
+            let tip_taper = ((0.99 - t) / 0.40).clamp(0.05, 1.0).powf(0.74);
+            let env = (base_taper * tip_taper).clamp(0.05, 1.0);
+            let pinna_len = lerp(0.06, 0.475, env) * rng.variance_mul(0.05);
 
             for side in [-1.0f32, 1.0] {
-                // Pinnae angle forward progressively toward the frond apex
+                // Pinnae sweep gracefully forward toward the frond apex with crisp sky separation
                 let launch_ang = -crate::constants::PI * 0.5
-                    + side * lerp(1.18, 0.36, t)
-                    + rng.range(-0.04, 0.04);
-                let droop_ang = launch_ang + side * lerp(0.28, 0.14, t);
+                    + side * lerp(1.18, 0.26, t)
+                    + rng.range(-0.028, 0.028);
+                let droop_ang = launch_ang + side * lerp(0.22, 0.08, t);
                 let mid_pt =
-                    origin + Vec2::new(launch_ang.cos(), launch_ang.sin()) * (pinna_len * 0.54);
+                    origin + Vec2::new(launch_ang.cos(), launch_ang.sin()) * (pinna_len * 0.55);
                 let tip_pt = (mid_pt
-                    + Vec2::new(droop_ang.cos(), droop_ang.sin()) * (pinna_len * 0.48))
-                    .clamp(Vec2::splat(0.025), Vec2::splat(0.975));
+                    + Vec2::new(droop_ang.cos(), droop_ang.sin()) * (pinna_len * 0.47))
+                    .clamp(Vec2::splat(0.012), Vec2::splat(0.988));
 
-                let shade = lerp(0.84, 1.16, t)
+                let shade = lerp(0.86, 1.16, t)
                     * if top {
-                        rng.range(0.98, 1.16)
+                        rng.range(1.00, 1.18)
                     } else {
-                        rng.range(0.74, 0.92)
+                        rng.range(0.76, 0.94)
                     };
-                let hue = lerp(-0.18, 0.34, t) + rng.range(-0.10, 0.10);
-                let w_base = lerp(0.0085, 0.0125, env);
-                let w_mid = w_base * 0.82;
+                let hue = lerp(-0.14, 0.34, t) + rng.range(-0.08, 0.08);
+                // Calibrated sword-leaflet width so clean sky gaps sparkle between every leaflet pair
+                let w_base = lerp(0.0052, 0.0086, env);
+                let w_mid = w_base * 0.88;
 
-                // 3-segment curved sword leaflet tapering to a needle-sharp point
                 for seg in 0..3 {
                     let st0 = seg as f32 / 3.0;
                     let st1 = (seg + 1) as f32 / 3.0;
                     let sa = quad_bezier(origin, mid_pt, tip_pt, st0);
                     let sb = quad_bezier(origin, mid_pt, tip_pt, st1);
                     let sw0 = if seg == 0 {
-                        w_base * 0.65
+                        w_base * 0.72
                     } else if seg == 1 {
                         w_mid
                     } else {
-                        w_mid * 0.52
+                        w_mid * 0.56
                     };
                     let sw1 = if seg == 0 {
                         w_mid
                     } else if seg == 1 {
-                        w_mid * 0.52
+                        w_mid * 0.56
                     } else {
-                        0.0010
+                        0.0014
                     };
-                    pinnae.push((sa, sb, sw0, sw1, shade * lerp(0.94, 1.08, st0), hue));
+                    pinnae.push((sa, sb, sw0, sw1, shade * lerp(0.94, 1.10, st0), hue));
+                    // Crisp golden-green central leaflet midrib highlight along basal 2/3 of each pinna
+                    if top && seg < 2 {
+                        pinnae.push((sa, sb, sw0 * 0.18, sw1 * 0.16, shade * 1.24, hue + 0.32));
+                    }
                 }
             }
         }
+    }
+
+    // Terminal V-pair of apical sword pinnae crowning the tip of the rachis cleanly
+    for side in [-1.0f32, 1.0] {
+        let ang = -crate::constants::PI * 0.5 + side * 0.18;
+        let tip = (p2 + Vec2::new(ang.cos(), ang.sin()) * 0.05)
+            .clamp(Vec2::splat(0.01), Vec2::splat(0.99));
+        pinnae.push((p2 + Vec2::new(0.0, 0.04), tip, 0.011, 0.0012, 1.22, 0.34));
     }
 
     rasterize_twig_and_needle_strokes(&twigs, &pinnae, base, rachis_rgb, res)
