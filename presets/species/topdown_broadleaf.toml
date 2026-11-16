@@ -1,5 +1,5 @@
-# Top-down broadleaf (oak/beech-like) for RTS / top-down cameras.
-# Game scale (1 unit = 1 m-ish tank hull): ~2.8 tall, ~2 across.
+# Top-down broadleaf (oak/beech woodland hero) for isometric ARPG & overhead RTS cameras.
+# Sculpted multi-lobe bough pillows with deep inter-lobe AO clefts, crooked limbs, and nebari roots.
 
 [species]
 name = "Topdown Broadleaf"
@@ -11,83 +11,106 @@ tags = ["broadleaf", "deciduous", "topdown", "rts"]
 family = "weber_penn"
 
 [trunk]
-height = 2.1
+height = 4.6
 height_variance = 0.12
-radius = 0.10
-taper = 0.80
+radius = 0.36
+taper = 0.76
 taper_profile = "exponential"
-curve = 6.0
-curve_variance = 3.0
-segments = 10
+curve = 24.0
+curve_variance = 11.0
+curve_back = 26.0
+segments = 16
 
 [branches.level1]
-count = 6
+count = 7
 count_variance = 1
-length = 0.85
-length_variance = 0.22
+length = 2.95
+length_variance = 0.18
 radius_ratio = 0.58
-taper = 0.80
-angle = 48.0
-angle_variance = 15.0
+radius_model = "ratio"
+pipe_exponent = 2.28
+taper = 0.78
+taper_profile = "exponential"
+angle = 62.0
+angle_variance = 12.0
 rotation = 137.5
-gravity = 0.05
-curve = 20.0
-curve_variance = 10.0
-segments = 7
+gravity = -0.06
+curve = 24.0
+curve_variance = 20.0
+segments = 12
 
 [branches.level2]
 count = 5
 count_variance = 1
-length = 0.44
-length_variance = 0.28
+length = 1.38
+length_variance = 0.22
 radius_ratio = 0.52
-angle = 45.0
-angle_variance = 15.0
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 52.0
+angle_variance = 14.0
 rotation = 137.5
-gravity = 0.0
-curve = 20.0
-segments = 4
+gravity = -0.06
+curve = -18.0
+curve_variance = 18.0
+segments = 8
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 0.72
+length_variance = 0.24
+radius_ratio = 0.46
+taper = 0.80
+angle = 50.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.08
+curve = 18.0
+curve_variance = 14.0
+segments = 5
 
 [crown]
 shape = "spherical"
-offset = 0.38
+offset = 0.28
 density = 1.0
-width_ratio = 1.2
+width_ratio = 1.28
 
 [leaves]
-count = 480
-min_level = 1
-size = 0.46
-size_variance = 0.22
+count = 1350
+min_level = 2
+size = 0.68
+size_variance = 0.20
 distribution = "both"
-geometry = "canopy_card"
-shape = "oval"
-up_influence = 0.5
+geometry = "cross_billboard"
+shape = "oak_lobed"
+up_influence = 0.58
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.94
-up_bias = 0.30
-clump_weight = 0.65
+normal_blend = 0.88
+up_bias = 0.44
+clump_weight = 0.84
 clump_level = 1
-crown_fill = 140
-shell = 0.68
-card_tilt = 9.0
-card_max_angle = 26.0
+crown_fill = 0
+shell = 0.26
+card_tilt = 12.0
+card_max_angle = 32.0
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.20
-hue_variation = 0.14
-ao_strength = 0.54
-roughness = 0.82
+tint_variation = 0.22
+hue_variation = 0.16
+ao_strength = 0.58
+roughness = 0.72
 
 [textures]
 resolution = 1024
 bark_style = "furrowed"
-leaf_shape = "oval"
-leaf_card = "puff"
-bark_color = [0.36, 0.30, 0.24]
-leaf_color = [0.26, 0.45, 0.16]
+leaf_shape = "lobed"
+leaf_card = "cluster"
+bark_color = [0.40, 0.34, 0.27]
+leaf_color = [0.24, 0.46, 0.15]
 
 [lod]
 preset = "custom"
@@ -95,22 +118,36 @@ preset = "custom"
 [[lod.levels]]
 index = 0
 name = "LOD0"
-target_triangles = 4500
-branch_levels = 2
-leaf_geometry = "canopy_card"
+target_triangles = 24000
+max_triangles = 45000
+branch_levels = 3
+leaf_geometry = "cross_billboard"
 leaf_reduction = 1.0
-ring_resolution = [16, 10, 6, 4]
-screen_height = 0.2
+ring_resolution = [24, 16, 10, 6]
+screen_height = 0.22
 
 [[lod.levels]]
 index = 1
 name = "LOD1"
-target_triangles = 1200
-branch_levels = 1
+target_triangles = 4500
+max_triangles = 8000
+branch_levels = 2
 leaf_geometry = "canopy_card"
-leaf_reduction = 0.35
-ring_resolution = [8, 5, 4, 3]
-screen_height = 0.05
+leaf_reduction = 0.45
+ring_resolution = [12, 8, 5, 4]
+screen_height = 0.06
+
+[[lod.levels]]
+index = 2
+name = "LOD2"
+target_triangles = 600
+max_triangles = 1200
+branch_levels = 1
+leaf_geometry = "none"
+leaf_reduction = 0.0
+ring_resolution = [6, 4, 3, 3]
+screen_height = 0.02
+crown_impostor = true
 
 [platform]
 target = "modern_pc"

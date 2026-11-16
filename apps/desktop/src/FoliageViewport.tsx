@@ -365,8 +365,18 @@ export function FoliageViewport({
       const fitDistH = (radius * 1.14) / Math.tan(halfH);
       const baseDist = Math.max(fitDistV, fitDistH);
 
-      if (topdown || preset === 'overview') {
-        const elev = THREE.MathUtils.degToRad(topdown ? 58 : 34);
+      if (topdown) {
+        // Distinct isometric ARPG Hero (46 deg) vs steep tactical RTS Overview (74 deg) on sunlit 3/4 side
+        const elev = THREE.MathUtils.degToRad(preset === 'overview' ? 74 : 46);
+        const dist = baseDist * (preset === 'overview' ? 1.16 : 1.14);
+        camera.position.set(
+          center.x + dist * Math.cos(elev) * 0.60,
+          center.y + dist * Math.sin(elev),
+          center.z + dist * Math.cos(elev) * 0.80,
+        );
+        controls.target.set(center.x, center.y - height * 0.03, center.z);
+      } else if (preset === 'overview') {
+        const elev = THREE.MathUtils.degToRad(34);
         const dist = baseDist * 1.18;
         camera.position.set(
           center.x - dist * Math.cos(elev) * 0.58,
@@ -708,8 +718,9 @@ export function FoliageViewport({
       vista.receiveShadow = true;
       ctx.contentGroup.add(vista);
 
-      // Grounding 5-blade grass tussocks & fallen species leaves around root flare (Ghost of Tsushima touch)
-      if (!isTopdown) {
+      // Grounding 5-blade grass tussocks & fallen species leaves around root flare (scaled for shrubs & trees)
+      {
+        const turfScale = Math.min(1.0, Math.max(0.45, treeHeight / 3.8));
         // 5-blade arched mini-tussock prototype (30 tris per tuft)
         const bPos: number[] = [];
         const bNrm: number[] = [];
@@ -721,8 +732,8 @@ export function FoliageViewport({
           const bYaw = (b / bladesPerTuft) * Math.PI * 2 + 0.37 * b;
           const sinY = Math.sin(bYaw);
           const cosY = Math.cos(bYaw);
-          const bScaleH = 0.78 + 0.11 * (b % 3);
-          const archOut = 0.14 + 0.03 * (b % 2);
+          const bScaleH = (0.78 + 0.11 * (b % 3)) * turfScale;
+          const archOut = (0.14 + 0.03 * (b % 2)) * turfScale;
           const baseV = (bPos.length / 3);
           for (let s = 0; s <= segs; s++) {
             const t = s / segs;
@@ -829,7 +840,7 @@ export function FoliageViewport({
             const lz = Math.sin(ang) * dist;
             dummyG.position.set(lx, moundHeightAt(lx, lz) + 0.012, lz);
             dummyG.rotation.set((h1 - 0.5) * 0.16, h3 * Math.PI * 2, (h2 - 0.5) * 0.16);
-            const sc = 0.75 + 0.65 * h3;
+            const sc = (0.75 + 0.65 * h3) * turfScale;
             dummyG.scale.set(sc, sc, sc);
             dummyG.updateMatrix();
             fallenInst.setMatrixAt(i, dummyG.matrix);

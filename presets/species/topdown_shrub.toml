@@ -1,5 +1,5 @@
-# Top-down shrub / bush clump for RTS / top-down cameras.
-# Game scale: ~0.8 tall, ~1.1 across.
+# Top-down woodland shrub / multi-stem bush clump for isometric ARPG & overhead RTS cameras.
+# Nine crooked basal stems forming scalloped, sun-dappled foliage cushions with serrated leaf sprays.
 
 [species]
 name = "Topdown Shrub"
@@ -11,81 +11,103 @@ tags = ["shrub", "bush", "topdown", "rts"]
 family = "weber_penn"
 
 [trunk]
-height = 0.45
-height_variance = 0.1
-radius = 0.04
-taper = 0.72
-curve = 6.0
-curve_variance = 3.0
-segments = 6
+height = 0.82
+height_variance = 0.12
+radius = 0.10
+taper = 0.76
+taper_profile = "exponential"
+curve = 18.0
+curve_variance = 8.0
+curve_back = 16.0
+segments = 8
 
 [branches.level1]
-count = 7
-count_variance = 1
-length = 0.55
-length_variance = 0.25
+count = 9
+count_variance = 2
+length = 1.12
+length_variance = 0.22
 radius_ratio = 0.62
-angle = 62.0
-angle_variance = 15.0
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 66.0
+angle_variance = 14.0
 rotation = 137.5
-gravity = 0.0
-curve = 15.0
-curve_variance = 8.0
-segments = 5
+gravity = -0.05
+curve = 24.0
+curve_variance = 18.0
+segments = 9
 
 [branches.level2]
-count = 3
+count = 4
 count_variance = 1
-length = 0.25
-length_variance = 0.3
+length = 0.56
+length_variance = 0.24
 radius_ratio = 0.52
-angle = 45.0
+taper = 0.80
+angle = 52.0
 angle_variance = 15.0
 rotation = 137.5
-gravity = 0.0
-curve = 10.0
-segments = 3
+gravity = -0.04
+curve = -16.0
+curve_variance = 16.0
+segments = 6
+
+[branches.level3]
+count = 3
+count_variance = 1
+length = 0.30
+length_variance = 0.26
+radius_ratio = 0.46
+taper = 0.82
+angle = 48.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.05
+curve = 14.0
+curve_variance = 12.0
+segments = 4
 
 [crown]
 shape = "hemispherical"
-offset = 0.1
+offset = 0.06
 density = 1.0
-width_ratio = 1.0
+width_ratio = 1.24
 
 [leaves]
-count = 280
+count = 880
 min_level = 1
-size = 0.32
+size = 0.46
 size_variance = 0.20
 distribution = "both"
-geometry = "canopy_card"
-shape = "oval"
-up_influence = 0.5
+geometry = "cross_billboard"
+shape = "serrated"
+up_influence = 0.56
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.94
-up_bias = 0.32
-clump_weight = 0.65
+normal_blend = 0.88
+up_bias = 0.44
+clump_weight = 0.82
 clump_level = 1
-crown_fill = 80
-shell = 0.66
-card_tilt = 9.0
-card_max_angle = 26.0
+crown_fill = 0
+shell = 0.24
+card_tilt = 11.0
+card_max_angle = 30.0
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.14
-ao_strength = 0.54
-roughness = 0.82
+tint_variation = 0.22
+hue_variation = 0.16
+ao_strength = 0.56
+roughness = 0.70
 
 [textures]
-resolution = 512
+resolution = 1024
 bark_style = "smooth"
-leaf_shape = "oval"
-leaf_card = "puff"
-bark_color = [0.34, 0.28, 0.22]
-leaf_color = [0.27, 0.46, 0.16]
+leaf_shape = "serrated"
+leaf_card = "cluster"
+bark_color = [0.38, 0.32, 0.25]
+leaf_color = [0.26, 0.48, 0.15]
 
 [lod]
 preset = "custom"
@@ -93,22 +115,36 @@ preset = "custom"
 [[lod.levels]]
 index = 0
 name = "LOD0"
-target_triangles = 2200
-branch_levels = 1
-leaf_geometry = "canopy_card"
+target_triangles = 15000
+max_triangles = 28000
+branch_levels = 3
+leaf_geometry = "cross_billboard"
 leaf_reduction = 1.0
-ring_resolution = [12, 8, 5, 4]
-screen_height = 0.1
+ring_resolution = [16, 12, 8, 5]
+screen_height = 0.16
 
 [[lod.levels]]
 index = 1
 name = "LOD1"
-target_triangles = 600
-branch_levels = 0
+target_triangles = 2600
+max_triangles = 5000
+branch_levels = 1
 leaf_geometry = "canopy_card"
-leaf_reduction = 0.32
-ring_resolution = [6, 4, 3, 3]
-screen_height = 0.03
+leaf_reduction = 0.40
+ring_resolution = [8, 5, 4, 3]
+screen_height = 0.04
+
+[[lod.levels]]
+index = 2
+name = "LOD2"
+target_triangles = 400
+max_triangles = 900
+branch_levels = 1
+leaf_geometry = "none"
+leaf_reduction = 0.0
+ring_resolution = [4, 3, 3, 3]
+screen_height = 0.015
+crown_impostor = true
 
 [platform]
 target = "modern_pc"

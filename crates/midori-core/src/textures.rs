@@ -1164,45 +1164,53 @@ fn card_leaves_and_twigs(
             (leaves, twigs)
         }
         LeafCardLayout::Puff => {
-            // Irregular multi-clump broadleaf bouquet: 5 offset sub-clusters with scalloped
-            // perimeter and directional sun-top / cool-shadow-base shading (NO center bullseye!).
+            // Crisp multi-lobe broadleaf canopy bouquet: woody interior fork twigs supporting
+            // 5 scalloped sub-clusters of veined botanical leaves (eliminating mushy blob sponges).
+            let hub = Vec2::new(0.50, 0.62);
+            let mut twigs = Vec::with_capacity(6);
             let sub_clumps: Vec<(Vec2, f32, f32)> = {
                 let mut v = Vec::with_capacity(6);
                 let n = 5;
                 for k in 0..n {
-                    let a = k as f32 / n as f32 * crate::constants::TAU + rng.range(-0.35, 0.35);
-                    let dist = rng.range(0.11, 0.18);
-                    let c = Vec2::new(0.5 + dist * a.cos(), 0.52 + dist * a.sin() * 0.92);
+                    let a = k as f32 / n as f32 * crate::constants::TAU + rng.range(-0.28, 0.28);
+                    let dist = rng.range(0.14, 0.21);
+                    let c = Vec2::new(0.5 + dist * a.cos(), 0.50 + dist * a.sin() * 0.90);
+                    twigs.push(TwigStroke {
+                        a: hub,
+                        b: hub.lerp(c, 0.88),
+                        w_a: 0.0095,
+                        w_b: 0.0040,
+                    });
                     // Sunlit bias toward upper sub-clumps (-y in UV is top)
-                    let sun = lerp(1.06, 0.84, ((c.y - 0.30) / 0.45).clamp(0.0, 1.0));
-                    v.push((c, rng.range(0.22, 0.27), sun));
+                    let sun = lerp(1.10, 0.82, ((c.y - 0.28) / 0.46).clamp(0.0, 1.0));
+                    v.push((c, rng.range(0.20, 0.25), sun));
                 }
-                v.push((Vec2::new(0.5, 0.50), 0.23, 0.96));
+                v.push((Vec2::new(0.5, 0.48), 0.21, 1.02));
                 v
             };
 
-            let count = 150 + rng.index(25);
+            let count = 92 + rng.index(18);
             let mut leaves = Vec::with_capacity(count);
             for i in 0..count {
                 let layer = i as f32 / (count - 1) as f32;
                 let (sc, sr, sun) = sub_clumps[rng.index(sub_clumps.len())];
-                let r = sr * lerp(1.0, 0.55, layer) * rng.next_f32().sqrt();
+                let r = sr * lerp(1.0, 0.48, layer) * rng.next_f32().sqrt();
                 let a = rng.range(-crate::constants::PI, crate::constants::PI);
                 let center = (sc + Vec2::new(r * a.cos(), r * a.sin()))
-                    .clamp(Vec2::splat(0.11), Vec2::splat(0.89));
+                    .clamp(Vec2::splat(0.12), Vec2::splat(0.88));
                 let out = (center - sc)
                     .try_normalize()
                     .unwrap_or(Vec2::new(0.0, -1.0));
-                let tip_angle = out.y.atan2(out.x) + rng.range(-0.75, 0.75);
+                let tip_angle = out.y.atan2(out.x) + rng.range(-0.55, 0.55);
                 leaves.push(CardLeaf {
                     center,
                     rotation: crate::constants::PI / 2.0 - tip_angle,
-                    scale: lerp(0.16, 0.105, layer) * rng.variance_mul(0.22),
-                    jitter: sun * lerp(0.76, 1.06, layer) * rng.range(0.90, 1.08),
-                    hue: lerp(-0.35, 0.35, layer) + rng.range(-0.35, 0.35),
+                    scale: lerp(0.215, 0.140, layer) * rng.variance_mul(0.18),
+                    jitter: sun * lerp(0.74, 1.08, layer) * rng.range(0.92, 1.08),
+                    hue: lerp(-0.32, 0.38, layer) + rng.range(-0.28, 0.28),
                 });
             }
-            (leaves, Vec::new())
+            (leaves, twigs)
         }
         LeafCardLayout::Dense => {
             // Overlapping asymmetric bough lobes with soft sun-angle shading rather than
@@ -1275,7 +1283,10 @@ fn leaf_card(
     let (leaves, twigs) = card_leaves_and_twigs(layout, shape, &mut rng);
     let base = color.unwrap_or([0.27, 0.44, 0.17]);
     let stem_rgb = [0.30, 0.22, 0.14];
-    let detailed_veins = matches!(layout, LeafCardLayout::Single | LeafCardLayout::Cluster);
+    let detailed_veins = matches!(
+        layout,
+        LeafCardLayout::Single | LeafCardLayout::Cluster | LeafCardLayout::Puff
+    );
 
     let px = 1.0 / res as f32;
     const TILES: usize = 16;
@@ -1783,54 +1794,55 @@ fn frond_card(color: Option<[f32; 3]>, rng: &mut Rng, res: u32) -> RgbaTexture {
         }
     }
 
-    // Two-layer dense spruce/fir needles: dark shadowed interior + bright sunlit top needles
+    // Two-layer dense spruce/fir needles: dark shadowed interior + bright sunlit new-growth tips
     for layer in 0..2 {
         let top = layer == 1;
         for &(a, b, branch_t) in &branches {
             let len = (b - a).length();
             let dir = (b - a) / len.max(1e-4);
             let perp = Vec2::new(-dir.y, dir.x);
-            let steps = ((len / 0.015).ceil() as usize).max(3);
+            let steps = ((len / 0.0115).ceil() as usize).max(4);
             for i in 0..=steps {
                 let t = i as f32 / steps as f32;
                 let p = a.lerp(b, t);
-                let needle_len = rng.range(0.058, 0.088) * lerp(1.05, 0.72, t);
+                let needle_len = rng.range(0.062, 0.094) * lerp(1.06, 0.68, t);
                 for side in [-1.0f32, 1.0] {
                     let sweep = if top {
-                        rng.range(0.30, 0.68)
+                        rng.range(0.28, 0.64)
                     } else {
-                        rng.range(0.52, 0.98)
+                        rng.range(0.50, 0.96)
                     };
                     let nd = (dir * sweep.cos() + perp * side * sweep.sin()).normalize();
-                    let end = (p + nd * needle_len).clamp(Vec2::splat(0.03), Vec2::splat(0.97));
-                    let tip_bright = lerp(0.74, 1.25, (t * 0.60 + branch_t * 0.40).clamp(0.0, 1.0));
+                    let end = (p + nd * needle_len).clamp(Vec2::splat(0.025), Vec2::splat(0.975));
+                    let growth_prog = (t * 0.62 + branch_t * 0.38).clamp(0.0, 1.0);
+                    let tip_bright = lerp(0.72, 1.32, growth_prog.powf(0.85));
                     let shade = tip_bright
                         * if top {
-                            rng.range(0.95, 1.15)
+                            rng.range(0.98, 1.18)
                         } else {
-                            rng.range(0.62, 0.85)
+                            rng.range(0.58, 0.82)
                         };
                     let hue = if top {
-                        lerp(-0.10, 0.45, t)
+                        lerp(-0.08, 0.52, growth_prog)
                     } else {
-                        lerp(-0.35, -0.05, t)
+                        lerp(-0.36, -0.04, growth_prog)
                     };
-                    let w0 = if top { 0.0082 } else { 0.0102 };
-                    needles.push((p, end, w0, 0.0028, shade, hue));
+                    let w0 = if top { 0.0054 } else { 0.0070 };
+                    needles.push((p, end, w0, 0.0015, shade, hue));
                 }
             }
-            // Terminal needle fan capping each branchlet tip
-            for fan in [-0.30f32, 0.0, 0.30] {
+            // Sunlit spring-bud needle rosette capping each spruce branchlet tip
+            for fan in [-0.36f32, -0.18, 0.0, 0.18, 0.36] {
                 let ang = dir.y.atan2(dir.x) + fan;
                 let nd = Vec2::new(ang.cos(), ang.sin());
-                let end = (b + nd * 0.055).clamp(Vec2::splat(0.03), Vec2::splat(0.97));
+                let end = (b + nd * 0.060).clamp(Vec2::splat(0.025), Vec2::splat(0.975));
                 needles.push((
-                    b - dir * 0.015,
+                    b - dir * 0.014,
                     end,
-                    0.008,
-                    0.0026,
-                    rng.range(1.05, 1.26),
-                    0.35,
+                    0.0052,
+                    0.0014,
+                    rng.range(1.12, 1.34),
+                    0.46,
                 ));
             }
         }
