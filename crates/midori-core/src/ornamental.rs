@@ -24,15 +24,16 @@ pub(crate) fn estimate_ornamental(species: &Species) -> GenerationEstimate {
         }
         GeneratorFamily::FloralShrub => {
             let p = species.floral.clone().unwrap_or_default();
-            let base_stems = ((p.length * p.width * 36.0).ceil() as u64).clamp(12, 64);
+            let base_stems = ((p.length * p.width * 36.0).ceil() as u64).clamp(16, 64);
+            let peduncle_stems = (species.leaves.count as u64 / 2).max(128);
             let cascade_stems = if p.habit == FloralHabit::Cascade {
-                36
+                64
             } else {
                 0
             };
             GenerationEstimate {
-                max_stems: 4 + base_stems + cascade_stems,
-                max_leaves: (species.leaves.count as u64).saturating_add(64),
+                max_stems: 8 + base_stems + peduncle_stems + cascade_stems,
+                max_leaves: (species.leaves.count as u64).saturating_add(128),
             }
         }
         GeneratorFamily::ClimbingVine => {
@@ -536,6 +537,73 @@ fn generate_topiary(species: &Species, seed: u64) -> Tree {
 // 2. ORNAMENTAL CAFE FLORALS & HANGING CASCADES (`GeneratorFamily::FloralShrub`)
 // ============================================================================
 
+/// Orient a zygomorphic Pansy corolla so local `+Z` faces `face_normal` and local `+Y`
+/// (the 2 upper banner petals) points gravity-upward (`+Y`), never upside-down.
+fn orient_blossom(face_normal: Vec3, roll_jitter: f32) -> Quat {
+    let mut fwd = face_normal.try_normalize().unwrap_or(Vec3::Z);
+    // Real Viola gooseneck peduncles always nod blossoms at least ~28 deg off zenith
+    if fwd.y > 0.88 {
+        let xz = Vec2::new(fwd.x, fwd.z).try_normalize().unwrap_or(Vec2::Y);
+        fwd = Vec3::new(xz.x * 0.48, 0.877, xz.y * 0.48).normalize();
+    }
+    let right = Vec3::Y.cross(fwd).try_normalize().unwrap_or(Vec3::X);
+    let up = fwd.cross(right).normalize_or_zero();
+    let base = Quat::from_mat3(&glam::Mat3::from_cols(right, up, fwd));
+    Quat::from_axis_angle(fwd, roll_jitter) * base
+}
+
+fn floral_mound_point(
+    idx: usize,
+    hx: f32,
+    hz: f32,
+    h_top: f32,
+    is_cascade: bool,
+    habit: FloralHabit,
+    rng: &mut Rng,
+) -> (Vec3, Vec3, f32, f32) {
+    let az = idx as f32 * 2.399_963 + rng.range(-0.20, 0.20);
+    let rad_u = ((idx as f32 * 0.754_877_7).fract() * 0.88 + rng.range(0.0, 0.12)).clamp(0.0, 1.0);
+    // Uniform area-preserving disk sampling (`sqrt`) keeps crown center & outer rim equally dense
+    let u_rad = rad_u.sqrt() * 1.02;
+
+    let (px, pz, edge_r) = match habit {
+        FloralHabit::Trough => {
+            let ux = ((idx as f32 * 0.618_034).fract() * 2.0 - 1.0) * 0.96 + rng.range(-0.06, 0.06);
+            let uz =
+                ((idx as f32 * 0.414_213_6).fract() * 2.0 - 1.0) * 0.96 + rng.range(-0.06, 0.06);
+            let rx = ux.clamp(-1.03, 1.03) * hx;
+            let rz = uz.clamp(-1.03, 1.03) * hz;
+            let er = ((rx / hx).powi(2) * 0.65 + (rz / hz).powi(2))
+                .sqrt()
+                .clamp(0.0, 1.05);
+            (rx, rz, er)
+        }
+        _ => {
+            let rx = az.cos() * u_rad * hx;
+            let rz = az.sin() * u_rad * hz;
+            (rx, rz, u_rad)
+        }
+    };
+
+    // Broad superellipse florist pillow: wide, gently rounded crown shoulders dropping all the
+    // way to `rim_y` (`dome = 0` at `edge_r = 1.0`) — zero pointy cone top and zero rim gap!
+    let dome = (1.0 - edge_r.clamp(0.0, 1.0).powf(2.35))
+        .max(0.0)
+        .powf(0.62);
+    let rim_y = if is_cascade { -0.16 } else { 0.012 };
+    let y = lerp(rim_y, h_top, dome);
+    let pos = Vec3::new(px, y, pz);
+    let out_nrm = Vec3::new(
+        px / (hx * hx).max(0.02),
+        ((y - rim_y).max(0.05)) / (h_top * h_top).max(0.02) + 0.34,
+        pz / (hz * hz).max(0.02),
+    )
+    .try_normalize()
+    .unwrap_or(Vec3::Y);
+
+    (pos, out_nrm, edge_r, az)
+}
+
 fn generate_floral_shrub(species: &Species, seed: u64) -> Tree {
     let params = species.floral.clone().unwrap_or_default();
     let mut rng = Rng::from_seed(seed ^ 0xF102_A155);
@@ -545,194 +613,367 @@ fn generate_floral_shrub(species: &Species, seed: u64) -> Tree {
     let hz = (params.width * 0.5).max(0.12);
     let h_top = params.height.max(0.16);
 
-    // Reserve exact stem IDs 0..=3 so `leaf.stem_id & 3` deterministically selects
-    // Quadrant 0 (violet-white pansies), 1 (orange pansies), 2 (cream-lavender pansies),
-    // and 3 (pure scalloped Viola/Vinca green foliage)!
+    // Reserve exact stem IDs 0..=3 so `leaf.stem_id & 3` deterministically selects:
+    // 0: Royal Violet & Pearl-Ivory Pansy, 1: Marigold & Mahogany Pansy,
+    // 2: Primrose-Butter & Periwinkle Viola, 3: Pointed crenate Viola/Vinca green leaf blade!
     for q in 0..4u32 {
         let ang = q as f32 * (TAU * 0.25) + 0.4;
-        let p0 = Vec3::new(ang.cos() * 0.03, 0.0, ang.sin() * 0.03);
-        let p1 = Vec3::new(ang.cos() * 0.08, h_top * 0.32, ang.sin() * 0.08);
-        let p2 = Vec3::new(ang.cos() * 0.12, h_top * 0.56, ang.sin() * 0.12);
-        let id = push_polyline_stem(&mut tree, 0, None, 0.0, &[p0, p1, p2], 0.012, 0.004);
+        let p0 = Vec3::new(ang.cos() * 0.02, 0.02, ang.sin() * 0.02);
+        let p1 = Vec3::new(ang.cos() * 0.06, h_top * 0.28, ang.sin() * 0.06);
+        let p2 = Vec3::new(ang.cos() * 0.10, h_top * 0.50, ang.sin() * 0.10);
+        let id = push_polyline_stem(&mut tree, 0, None, 0.0, &[p0, p1, p2], 0.008, 0.003);
         debug_assert_eq!(id & 3, q);
     }
 
-    // Cushion herbaceous stems radiating through the mound/trough
-    let mound_stems = ((params.length * params.width * 24.0).round() as usize).clamp(10, 28);
+    // Branching green herbaceous stems supporting the interior of the cushion
+    let mound_stems = ((params.length * params.width * 24.0).round() as usize).clamp(12, 28);
     for s_i in 0..mound_stems {
         let az = s_i as f32 * 2.399_963 + rng.range(-0.2, 0.2);
-        let r_frac = ((s_i as f32 + 0.5) / mound_stems as f32).sqrt() * 0.78;
+        let r_frac = ((s_i as f32 + 0.5) / mound_stems as f32).sqrt() * 0.72;
         let target_xz = match params.habit {
-            FloralHabit::Trough => Vec2::new(rng.range(-0.82, 0.82) * hx, az.sin() * r_frac * hz),
+            FloralHabit::Trough => Vec2::new(rng.range(-0.80, 0.80) * hx, az.sin() * r_frac * hz),
             _ => Vec2::new(az.cos() * r_frac * hx, az.sin() * r_frac * hz),
         };
         let dome_y = h_top
-            * (1.0 - 0.55 * (target_xz.x / hx).powi(2).max((target_xz.y / hz).powi(2)))
-            * 0.72;
-        let base = Vec3::new(target_xz.x * 0.28, 0.0, target_xz.y * 0.28);
-        let mid = Vec3::new(target_xz.x * 0.68, dome_y * 0.65, target_xz.y * 0.68);
-        let tip = Vec3::new(target_xz.x, dome_y.max(0.08), target_xz.y);
-        push_polyline_stem(&mut tree, 1, Some(3), 0.3, &[base, mid, tip], 0.007, 0.0025);
+            * (1.0 - 0.58 * (target_xz.x / hx).powi(2).max((target_xz.y / hz).powi(2)))
+            * 0.66;
+        let base = Vec3::new(target_xz.x * 0.20, 0.02, target_xz.y * 0.20);
+        let mid = Vec3::new(target_xz.x * 0.60, dome_y * 0.62, target_xz.y * 0.60);
+        let tip = Vec3::new(target_xz.x, dome_y.max(0.06), target_xz.y);
+        push_polyline_stem(
+            &mut tree,
+            1,
+            Some(3),
+            0.3,
+            &[base, mid, tip],
+            0.0048,
+            0.0018,
+        );
     }
 
-    let total_leaves = species.leaves.count.max(48) as usize;
-    let base_size = species.leaves.size.max(0.10);
-    let is_cascade = params.habit == FloralHabit::Cascade && params.cascade_drop > 0.08;
-    let mound_share = if is_cascade { 0.42 } else { 1.0 };
-    let mound_leaves = ((total_leaves as f32 * mound_share).round() as usize).max(24);
-    let blossom_thresh = params.blossom_density.clamp(0.15, 0.92);
-
-    for i in 0..mound_leaves {
-        // Use modulo-5 stratification (uncorrelated with golden-angle azimuth `az`) so green
-        // Viola foliage sits evenly underneath blossoms across all 360 degrees of the dome!
-        let is_under_bed = (i % 5 == 0) || (i % 5 == 2 && blossom_thresh < 0.72);
-
-        let az = i as f32 * 2.399_963 + rng.range(-0.20, 0.20);
-        // Scramble radial index with golden-ratio sequence so layers interleave uniformly
-        let rad_u =
-            ((i as f32 * 0.754_877_7).fract() * 0.88 + rng.range(0.0, 0.12)).clamp(0.0, 1.0);
-        let u_rad = rad_u.sqrt();
-
-        let (px, pz, edge_r) = match params.habit {
-            FloralHabit::Trough => {
-                let ux =
-                    ((i as f32 * 0.618_034).fract() * 2.0 - 1.0) * 0.92 + rng.range(-0.06, 0.06);
-                let uz =
-                    ((i as f32 * 0.414_213_6).fract() * 2.0 - 1.0) * 0.92 + rng.range(-0.06, 0.06);
-                let rx = ux.clamp(-0.98, 0.98) * hx;
-                let rz = uz.clamp(-0.98, 0.98) * hz;
-                let er = ((rx / hx).powi(2) * 0.65 + (rz / hz).powi(2))
-                    .sqrt()
-                    .clamp(0.0, 1.05);
-                (rx, rz, er)
-            }
-            _ => {
-                let rx = az.cos() * u_rad * hx * 0.96;
-                let rz = az.sin() * u_rad * hz * 0.96;
-                (rx, rz, u_rad)
-            }
-        };
-
-        // Pillowed cushion profile: tall dome center curving down over the planter rim.
-        // Real Viola flower peduncles hold blossoms 5-8cm proud above the basal leaf rosette!
-        let dome = (1.0 - (edge_r * 0.90).powi(2)).max(0.06).sqrt();
-        let radial_push = if is_under_bed { -0.045 } else { 0.042 };
-        let base_pos = Vec3::new(px, (h_top * dome).max(0.03), pz);
-
-        let out_nrm = Vec3::new(
-            px / (hx * hx),
-            base_pos.y / (h_top * h_top) + 0.42,
-            pz / (hz * hz),
-        )
-        .try_normalize()
-        .unwrap_or(Vec3::Y);
-        let pos = Vec3::new(
-            base_pos.x + out_nrm.x * radial_push,
-            (base_pos.y + out_nrm.y * radial_push).max(0.02),
-            base_pos.z + out_nrm.z * radial_push,
-        );
-        let tip_dir = (out_nrm * 0.72 + Vec3::Y * 0.28).normalize();
-        let rotation = orient_leaf(
-            tip_dir,
-            (out_nrm + Vec3::Y * 0.42).normalize(),
-            rng.range(-0.85, 0.85),
-        );
-
-        let stem_quadrant: u32 = if is_under_bed {
-            3 // Pure green Viola leaf bed tucked underneath blossoms!
+    // 15 intimate multi-variety nursery tufts (3 inner crown + 12 mid/outer ring) cycling
+    // Violet (0), Marigold (1), and Primrose (2) so every 360-deg view shows all 3 varieties
+    // in natural 4-7 bloom plant clusters rather than segregated half-pot blocks!
+    let mut tufts: Vec<(Vec2, u32)> = Vec::with_capacity(15);
+    let base_off = (seed as u32) % 3;
+    for k in 0..3u32 {
+        let a = (k as f32 / 3.0) * TAU + 0.25 + rng.range(-0.18, 0.18);
+        let r = rng.range(0.20, 0.32);
+        tufts.push((
+            Vec2::new(a.cos() * r * hx, a.sin() * r * hz),
+            (base_off + k) % 3,
+        ));
+    }
+    for k in 0..12u32 {
+        let a = (k as f32 / 12.0) * TAU + 0.12 + rng.range(-0.12, 0.12);
+        let r = if k % 2 == 0 {
+            rng.range(0.52, 0.68)
         } else {
-            // Organic multi-clump floral patchwork (clusters of ~25cm across in violet, orange, and cream)
-            let nx = px / hx.max(0.2) * 3.1;
-            let nz = pz / hz.max(0.2) * 3.1;
-            let field = (nx * 1.7 + 0.6).sin() + (nz * 1.9 - 0.4).cos() + rng.range(-0.45, 0.45);
-            if field < -0.42 {
-                0 // Royal violet-purple & snow-white pansies
-            } else if field < 0.46 {
-                1 // Parisian cadmium-orange & marigold pansies
-            } else {
-                2 // Primrose-cream & lavender pansies
-            }
+            rng.range(0.72, 0.88)
         };
+        tufts.push((
+            Vec2::new(a.cos() * r * hx, a.sin() * r * hz),
+            (base_off + k + 1) % 3,
+        ));
+    }
 
-        let scale = base_size
-            * if is_under_bed { 0.88 } else { 1.08 }
-            * rng.variance_mul(species.leaves.size_variance * 0.55);
+    let pick_variety = |px: f32, pz: f32, rng: &mut Rng| -> u32 {
+        if rng.next_f32() < 0.22 {
+            return rng.index(3) as u32;
+        }
+        let p =
+            Vec2::new(px, pz) + Vec2::new(rng.range(-0.07, 0.07) * hx, rng.range(-0.07, 0.07) * hz);
+        tufts
+            .iter()
+            .min_by(|a, b| {
+                (p - a.0)
+                    .length_squared()
+                    .partial_cmp(&(p - b.0).length_squared())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|&(_, q)| q)
+            .unwrap_or(0)
+    };
+
+    let total_organs = species.leaves.count.max(64) as usize;
+    let base_size = species.leaves.size.clamp(0.045, 0.28);
+    let is_cascade = params.habit == FloralHabit::Cascade && params.cascade_drop > 0.08;
+    let mound_share = if is_cascade { 0.34 } else { 1.0 };
+    let mound_organs = ((total_organs as f32 * mound_share).round() as usize).max(36);
+    // Keep ~26% blossoms to ~74% pointed-crenate Viola leaves so lush emerald foliage frames
+    // every bouquet instead of burying the mound under pancake-stacked flower wafers!
+    let blossom_share = (params.blossom_density * 0.38).clamp(0.15, 0.34);
+    let mound_blossoms = ((mound_organs as f32 * blossom_share).round() as usize).max(12);
+    let mound_foliage = mound_organs.saturating_sub(mound_blossoms).max(24);
+
+    // 1. Multi-layer phyllotactic 3D green Viola rosette cushion + emergent framing leaves
+    for i in 0..mound_foliage {
+        let (surf_pos, out_nrm, edge_r, az) =
+            floral_mound_point(i, hx, hz, h_top, is_cascade, params.habit, &mut rng);
+        let layer = i % 4;
+        let depth_offset = if layer == 0 {
+            rng.range(-0.048, -0.024) // Broad deep-core shadow-bed leaf sealing interior gaps
+        } else if layer == 3 {
+            rng.range(-0.004, 0.006) // Outer rosette shingle leaf (kept safely below flower corollas!)
+        } else {
+            rng.range(-0.020, -0.004) // Mid-rosette shingle leaf
+        };
+        let blade_center = surf_pos + out_nrm * depth_offset;
+
+        let horiz_out = {
+            let swirl = az + rng.range(-0.42, 0.42);
+            Vec3::new(swirl.cos(), 0.0, swirl.sin())
+        };
+        let pitch_y = lerp(0.58, -0.26, (edge_r / 1.02).clamp(0.0, 1.0)) + rng.range(-0.12, 0.12);
+        let tip_dir = (horiz_out * 0.80 + out_nrm * 0.36 + Vec3::Y * pitch_y)
+            .try_normalize()
+            .unwrap_or(out_nrm);
+        let face_nrm = (out_nrm * 0.78 + Vec3::Y * 0.40).normalize();
+        let rotation = orient_leaf(tip_dir, face_nrm, rng.range(-0.42, 0.42));
+
+        let size_mul = if layer == 0 {
+            rng.range(1.52, 1.84)
+        } else if layer == 3 {
+            rng.range(1.12, 1.34)
+        } else {
+            rng.range(1.26, 1.54)
+        };
+        let scale = base_size * size_mul * rng.variance_mul(species.leaves.size_variance * 0.45);
+
+        let mut petiole_pos = blade_center - tip_dir * (scale * 0.42);
+        if !is_cascade {
+            petiole_pos.y = petiole_pos.y.max(0.008);
+        }
 
         tree.leaves.push(Leaf {
-            position: pos - tip_dir * (scale * 0.34),
+            position: petiole_pos,
             rotation,
             scale,
-            stem_id: stem_quadrant,
+            stem_id: 3, // Quadrant 3: pointed crenate Viola/Vinca green leaf blade
         });
     }
 
-    // Trailing blossom-studded vine streamers for `FloralHabit::Cascade` (`Paris_flowers_01b/c/d`)
-    if is_cascade {
-        let streamer_count = 26usize;
-        let cascade_leaves = total_leaves.saturating_sub(mound_leaves).max(48);
-        let leaves_per_streamer = (cascade_leaves / streamer_count).max(4);
+    // 2. Blue-noise-spaced 3D Pansy corollas on slender curved green gooseneck peduncles
+    let max_mound_peduncles = 160usize;
+    let peduncle_stride = (mound_blossoms / max_mound_peduncles.max(1)).max(1);
+    let mut placed_blooms: Vec<Vec3> = Vec::with_capacity(mound_blossoms);
+    let mut sample_cursor = 0usize;
 
+    for b_i in 0..mound_blossoms {
+        // Best-of-3 blue-noise candidate selection prevents flowers from pancake-stacking!
+        let mut best_cand = floral_mound_point(
+            b_i * 5 + 2,
+            hx * 0.95,
+            hz * 0.95,
+            h_top,
+            is_cascade,
+            params.habit,
+            &mut rng,
+        );
+        let mut best_d2 = -1.0_f32;
+        for _ in 0..3 {
+            sample_cursor = sample_cursor.wrapping_add(7);
+            let cand = floral_mound_point(
+                b_i * 3 + sample_cursor,
+                hx * 0.95,
+                hz * 0.95,
+                h_top,
+                is_cascade,
+                params.habit,
+                &mut rng,
+            );
+            let min_d2 = placed_blooms
+                .iter()
+                .rev()
+                .take(48)
+                .map(|p| (*p - cand.0).length_squared())
+                .fold(f32::MAX, f32::min);
+            if min_d2 > best_d2 {
+                best_d2 = min_d2;
+                best_cand = cand;
+            }
+        }
+        let (surf_pos, out_nrm, edge_r, az) = best_cand;
+
+        let horiz_dir = {
+            let jitter_az = az + rng.range(-0.75, 0.75);
+            Vec3::new(jitter_az.cos(), 0.0, jitter_az.sin())
+        };
+        let stalk_len = rng.range(0.038, 0.062);
+        let calyx_pos = surf_pos + out_nrm * stalk_len + horiz_dir * 0.010;
+        placed_blooms.push(calyx_pos);
+
+        if b_i % peduncle_stride == 0 {
+            let ped_base = (surf_pos - out_nrm * 0.022).max(Vec3::new(-10.0, -2.0, -10.0));
+            let ped_mid = ped_base.lerp(calyx_pos, 0.62) + Vec3::Y * 0.012;
+            push_polyline_stem(
+                &mut tree,
+                2,
+                Some(3),
+                0.5,
+                &[ped_base, ped_mid, calyx_pos],
+                0.0022,
+                0.0013,
+            );
+        }
+
+        // Natural varied gooseneck nod & roll so adjacent flowers face organic varied angles
+        let nod_y = lerp(0.72, 0.24, (edge_r / 1.02).clamp(0.0, 1.0)) + rng.range(-0.18, 0.18);
+        let nod_y = nod_y.clamp(0.12, 0.85);
+        let face_nrm =
+            (horiz_dir * (1.0 - nod_y * nod_y).max(0.12).sqrt() + out_nrm * 0.38 + Vec3::Y * nod_y)
+                .normalize();
+        let rotation = orient_blossom(face_nrm, rng.range(-0.52, 0.52));
+        let variety_q = pick_variety(surf_pos.x, surf_pos.z, &mut rng);
+        let scale = base_size
+            * rng.range(0.76, 1.02)
+            * rng.variance_mul(species.leaves.size_variance * 0.38);
+
+        tree.leaves.push(Leaf {
+            position: calyx_pos,
+            rotation,
+            scale,
+            stem_id: variety_q,
+        });
+    }
+
+    // 3. Lush herringbone-garland trailing vine cascades (`Paris_flowers_01b/c/d`)
+    if is_cascade {
+        let streamer_count = 32usize;
+        let cascade_budget = total_organs.saturating_sub(tree.leaves.len()).max(160);
+
+        let mut drops = Vec::with_capacity(streamer_count);
+        let mut weight_sum = 0.0_f32;
         for st_i in 0..streamer_count {
-            let ang = (st_i as f32 / streamer_count as f32) * TAU + rng.range(-0.09, 0.09);
-            let start_rad = if st_i % 2 == 0 {
-                rng.range(0.62, 0.84)
+            // Drape into 5 natural multi-vine balcony swags + shorter rim-bridging cascades
+            let swag_wave = ((st_i as f32 / streamer_count as f32) * TAU * 5.0 + 0.4).cos();
+            let base_drop = 0.56 + 0.30 * swag_wave + rng.range(-0.16, 0.16);
+            let drop_frac = if st_i % 5 == 4 {
+                rng.range(0.22, 0.42) // Dedicated upper rim-spillers bridging crown & curtain!
             } else {
-                rng.range(0.80, 0.98)
+                base_drop.clamp(0.32, 1.00)
+            };
+            let w = drop_frac.powf(0.85);
+            weight_sum += w;
+            drops.push((drop_frac, w));
+        }
+
+        for (st_i, &(drop_frac, w)) in drops.iter().enumerate() {
+            let swag_pull = ((st_i as f32 / streamer_count as f32) * TAU * 5.0 + 0.4).sin() * 0.065;
+            let ang =
+                (st_i as f32 / streamer_count as f32) * TAU + swag_pull + rng.range(-0.07, 0.07);
+            let start_rad = if st_i % 2 == 0 {
+                rng.range(0.64, 0.84)
+            } else {
+                rng.range(0.80, 0.97)
             };
             let rim_x = ang.cos() * hx * start_rad;
             let rim_z = ang.sin() * hz * start_rad;
             let out_xz = Vec3::new(ang.cos(), 0.0, ang.sin());
+            let side_xz = Vec3::new(-out_xz.z, 0.0, out_xz.x);
 
-            // Staggered natural streamer lengths (32%..100% of cascade_drop) for organic tapered curtain
-            let drop_frac = match st_i % 4 {
-                0 => rng.range(0.80, 1.00),
-                1 => rng.range(0.56, 0.82),
-                2 => rng.range(0.38, 0.62),
-                _ => rng.range(0.22, 0.44), // Short rim-spillers bridging dome & curtain seamlessly!
-            };
             let drop_len = params.cascade_drop * drop_frac;
-            let variety_q = (st_i % 3) as u32;
+            let primary_q = pick_variety(rim_x, rim_z, &mut rng);
+            let secondary_q = (primary_q + 1 + (st_i as u32 % 2)) % 3;
 
-            let segs = 7usize;
-            let start_y = h_top * lerp(0.62, 0.28, start_rad);
+            // Start vine inside the crown cushion (`y = +0.10..+0.24m`), arch UP-AND-OVER the
+            // planter lip, then drape down in a natural catenary streamer — ZERO bald collar!
+            let segs = 9usize;
+            let start_y = lerp(h_top * 0.56, h_top * 0.18, start_rad);
             let mut v_pts = Vec::with_capacity(segs + 1);
             for s in 0..=segs {
                 let t = s as f32 / segs as f32;
-                let arch_out = (hx.min(hz) * 0.24) * (t * PI * 0.78).sin() + 0.04 * t;
-                let sway = 0.034 * (t * TAU * 1.15 + st_i as f32 * 1.3).sin() * t;
-                let side_xz = Vec3::new(-out_xz.z, 0.0, out_xz.x);
-                let y =
-                    lerp(start_y, -drop_len, t.powf(1.08)) + 0.05 * (1.0 - (2.0 * t - 1.0).powi(2));
-                v_pts.push(Vec3::new(rim_x, y, rim_z) + out_xz * arch_out + side_xz * sway);
+                let lip_arch = (hx.min(hz) * 0.24) * (t * PI * 0.76).sin() + 0.04 * t.sqrt();
+                let sway = 0.038 * (t * TAU * 1.2 + st_i as f32 * 1.61).sin() * t;
+                let crest = 0.06 * (t * PI).sin() * (1.0 - t);
+                let y = lerp(start_y, -drop_len, t.powf(1.08)) + crest;
+                v_pts.push(Vec3::new(rim_x, y, rim_z) + out_xz * lip_arch + side_xz * sway);
             }
-            push_polyline_stem(&mut tree, 2, Some(3), 0.8, &v_pts, 0.0055, 0.0018);
+            push_polyline_stem(&mut tree, 2, Some(3), 0.8, &v_pts, 0.0040, 0.0013);
 
-            for k in 0..leaves_per_streamer {
-                let t = ((k as f32 + rng.range(0.10, 0.85)) / leaves_per_streamer as f32)
-                    .clamp(0.02, 0.98);
+            let vine_budget =
+                ((cascade_budget as f32 * (w / weight_sum.max(1e-4))).round() as usize).max(10);
+            let bloom_share = (params.blossom_density * 0.34).clamp(0.14, 0.26);
+            let n_blooms = ((vine_budget as f32 * bloom_share).round() as usize).max(2);
+            let n_leaves = vine_budget.saturating_sub(n_blooms).max(8);
+            let n_pairs = (n_leaves / 2).max(4);
+
+            // Opposite / sub-opposite herringbone pairs of pointed Vinca/Viola leaves rotating
+            // gently around the vine axis so streamers read as lush 3D leafy garlands, never coins!
+            for p_i in 0..n_pairs {
+                let t_base = (p_i as f32 + 0.35) / n_pairs as f32;
+                let twist_az = p_i as f32 * 0.92 + st_i as f32 * 0.7;
+                let pair_lat = side_xz * twist_az.cos() + out_xz * (twist_az.sin() * 0.45);
+
+                for side_s in [-1.0_f32, 1.0_f32] {
+                    if tree.leaves.len() >= total_organs + 32 {
+                        break;
+                    }
+                    let t = (t_base + side_s * (0.18 / n_pairs as f32) + rng.range(-0.01, 0.01))
+                        .clamp(0.01, 0.995);
+                    let f_idx = t * segs as f32;
+                    let i0 = (f_idx.floor() as usize).min(segs - 1);
+                    let ft = f_idx - i0 as f32;
+                    let p_vine = v_pts[i0].lerp(v_pts[i0 + 1], ft);
+                    let tang = (v_pts[i0 + 1] - v_pts[i0])
+                        .try_normalize()
+                        .unwrap_or(-Vec3::Y);
+
+                    let lat = (pair_lat * side_s)
+                        .try_normalize()
+                        .unwrap_or(side_xz * side_s);
+                    let splay = lerp(0.68, 0.46, t);
+                    let tip_dir = (tang * 0.72 + lat * splay + out_xz * 0.30).normalize();
+                    let face_out = (out_xz * 0.80 + lat * 0.36 + Vec3::Y * 0.32).normalize();
+                    let rotation = orient_leaf(tip_dir, face_out, rng.range(-0.28, 0.28));
+
+                    // Keep leaves large enough relative to node spacing so blades always shingle!
+                    let taper = lerp(1.38, 0.56, t.powf(0.95));
+                    let scale = base_size * taper * rng.variance_mul(0.12);
+
+                    tree.leaves.push(Leaf {
+                        position: p_vine + out_xz * 0.005 - tip_dir * (scale * 0.16),
+                        rotation,
+                        scale,
+                        stem_id: 3,
+                    });
+                }
+            }
+
+            // Nodding 3D Pansy blossoms perched proud of the herringbone leaf garland
+            for b_k in 0..n_blooms {
+                if tree.leaves.len() >= total_organs + 48 {
+                    break;
+                }
+                // Concentrate blooms along upper/mid 88% of vine, tapering size toward tip
+                let u_b = (b_k as f32 + rng.range(0.18, 0.82)) / n_blooms as f32;
+                let t = (u_b.powf(1.12) * 0.88).clamp(0.02, 0.90);
                 let f_idx = t * segs as f32;
                 let i0 = (f_idx.floor() as usize).min(segs - 1);
                 let ft = f_idx - i0 as f32;
                 let p_vine = v_pts[i0].lerp(v_pts[i0 + 1], ft);
-                let tang = (v_pts[i0 + 1] - v_pts[i0])
-                    .try_normalize()
-                    .unwrap_or(-Vec3::Y);
 
-                let side = if k % 2 == 0 { 1.0 } else { -1.0 };
-                let lat = Vec3::new(-out_xz.z * side, 0.0, out_xz.x * side);
-                let face_out = (out_xz * 0.84 + lat * 0.26 + Vec3::Y * 0.22).normalize();
-                let tip_dir = (tang * 0.74 + out_xz * 0.26 + lat * 0.20).normalize();
-                let rotation = orient_leaf(tip_dir, face_out, rng.range(-0.35, 0.35));
+                let side_s = if b_k % 2 == 0 { 1.0 } else { -1.0 };
+                let lat = side_xz * side_s;
+                let calyx = p_vine
+                    + out_xz * rng.range(0.036, 0.052)
+                    + lat * rng.range(0.010, 0.026)
+                    + Vec3::Y * 0.006;
 
-                // Ensure top rim nodes (`k == 0`) also carry blooms so no plain green belt forms
-                let is_blossom =
-                    (k == 0 || k % 2 == 1) && (rng.next_f32() < params.blossom_density + 0.16);
-                let q_id = if is_blossom { variety_q } else { 3 };
-                let taper = lerp(0.96, 0.48, t.powf(1.15));
-                let scale = base_size * taper * rng.variance_mul(0.14);
+                let face_nrm =
+                    (out_xz * 0.84 + lat * rng.range(0.18, 0.38) + Vec3::Y * lerp(0.42, 0.18, t))
+                        .normalize();
+                let rotation = orient_blossom(face_nrm, rng.range(-0.44, 0.44));
+                let q_id = if rng.next_f32() < 0.72 {
+                    primary_q
+                } else {
+                    secondary_q
+                };
+                let taper = lerp(0.92, 0.56, t.powf(1.05));
+                let scale = base_size * taper * rng.variance_mul(0.12);
 
                 tree.leaves.push(Leaf {
-                    position: p_vine + out_xz * 0.018 - tip_dir * (scale * 0.25),
+                    position: calyx,
                     rotation,
                     scale,
                     stem_id: q_id,

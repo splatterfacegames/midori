@@ -21,16 +21,16 @@ segments = 4
 
 [floral]
 habit = "cascade"
-length = 0.92
-width = 0.82
-height = 0.44
-cascade_drop = 1.42
-blossom_density = 0.62
+length = 0.86
+width = 0.78
+height = 0.42
+cascade_drop = 1.40
+blossom_density = 0.64
 
 [leaves]
-count = 680
+count = 1680
 min_level = 0
-size = 0.27
+size = 0.078
 size_variance = 0.16
 distribution = "both"
 geometry = "cross_billboard"
@@ -38,17 +38,17 @@ shape = "heart"
 up_influence = 0.35
 
 [canopy]
-normals = "canopy"
-normal_blend = 0.72
-up_bias = 0.26
-clump_weight = 0.28
+normals = "geometric"
+normal_blend = 0.0
+up_bias = 0.24
+clump_weight = 0.25
 clump_level = 1
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.08
-hue_variation = 0.03
-ao_strength = 0.36
-roughness = 0.64
+tint_variation = 0.07
+hue_variation = 0.02
+ao_strength = 0.40
+roughness = 0.58
 
 [textures]
 bark_prompt = "Slender trailing green herbaceous vine stems"

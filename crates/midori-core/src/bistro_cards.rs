@@ -587,357 +587,410 @@ pub(crate) fn scale_cypress_card(
 }
 
 #[derive(Clone, Copy)]
-struct ViolaLeaf {
-    center: Vec2,
-    sin: f32,
-    cos: f32,
-    scale: f32,
-    shade: f32,
-}
-
-#[derive(Clone, Copy)]
-struct PansyBloom {
-    center: Vec2,
-    sin: f32,
-    cos: f32,
-    radius: f32,
-    banner_rgb: [f32; 3],
-    wing_rgb: [f32; 3],
-    lip_rgb: [f32; 3],
+struct PansyPalette {
+    banner_inner: [f32; 3],
+    banner_outer: [f32; 3],
+    wing_base: [f32; 3],
+    wing_rim: [f32; 3],
+    lip_base: [f32; 3],
+    lip_rim: [f32; 3],
     blotch_rgb: [f32; 3],
+    halo_rgb: [f32; 3],
+    blotch_size: f32,
 }
 
-/// 2x2 sub-card floral bouquet & leaf-bed atlas (`LeafCardLayout::Floral`):
-/// - Quadrant 0 (top-left): Royal Parisian violet-purple & white Pansy (*Viola*) blooms + scalloped foliage
-/// - Quadrant 1 (top-right): Sunny Parisian cadmium-orange & marigold Pansy blooms + scalloped foliage
-/// - Quadrant 2 (bottom-left): Primrose-cream & soft lavender Pansy blooms + scalloped foliage
-/// - Quadrant 3 (bottom-right): Pure lush scalloped *Viola* & *Vinca* green foliage cluster (for cushion base & cascade vines)
+/// Evaluate a single zygomorphic obovate/fan Pansy petal in normalized corolla space `lp`:
+/// returns `(signed_distance, along_0_1, across_signed_norm)`.
+#[inline]
+fn eval_pansy_petal(
+    lp: Vec2,
+    base_pt: Vec2,
+    tip_dir: Vec2,
+    len: f32,
+    max_half_w: f32,
+    notch_depth: f32,
+    phase: f32,
+) -> (f32, f32, f32) {
+    let perp = Vec2::new(-tip_dir.y, tip_dir.x);
+    let c = base_pt + tip_dir * (len * 0.53);
+    let rel_c = lp - c;
+    let u_ax = rel_c.dot(perp);
+    let v_ax = rel_c.dot(tip_dir);
+
+    // Narrower tapered claw near throat (v_ax < 0) swelling into a broad rounded outer lobe
+    let claw_t = ((v_ax / (len * 0.52)) + 1.0).clamp(0.0, 1.35);
+    let taper = lerp(0.42, 1.08, claw_t.powf(0.62));
+    let dx = u_ax / (max_half_w * taper).max(1e-4);
+    let dy = v_ax / (len * 0.50).max(1e-4);
+
+    let ang = dy.atan2(dx);
+    let outer_w = ((dy + 0.25) / 1.15).clamp(0.0, 1.0);
+    let ruffle = outer_w
+        * (0.030 * (ang * 3.0 + phase).sin()
+            + 0.019 * (ang * 5.0 - phase * 1.7).cos()
+            + 0.010 * (ang * 9.0 + phase * 0.8).sin());
+    let notch = if notch_depth > 0.0 && dy > 0.30 {
+        notch_depth * (-(dx * 3.9).powi(2)).exp() * ((dy - 0.30) / 0.70).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+
+    let rad_allow = 1.0 + ruffle - notch;
+    let sdf = (Vec2::new(dx, dy).length() - rad_allow) * (len * 0.46);
+    let along = ((lp - base_pt).dot(tip_dir) / len.max(1e-4)).clamp(0.0, 1.0);
+    let across = (u_ax / max_half_w.max(1e-4)).clamp(-1.2, 1.2);
+    (sdf, along, across)
+}
+
+/// 2x2 single-organ high-resolution botanical floral & foliage atlas (`LeafCardLayout::Floral`):
+/// - Quadrant 0 (top-left): Single crisp 5-petal Royal Parisian Violet & Pearl-Ivory Picotee Pansy
+/// - Quadrant 1 (top-right): Single crisp 5-petal Parisian Marigold-Amber & Mahogany-Sienna Pansy
+/// - Quadrant 2 (bottom-left): Single crisp 5-petal Primrose-Butter & Sky-Periwinkle Whiskered Viola
+/// - Quadrant 3 (bottom-right): Single glossy crenate-ovate *Viola* / *Vinca* emerald green leaf blade
 pub(crate) fn floral_pansy_atlas_card(
     color: Option<[f32; 3]>,
-    rng: &mut Rng,
+    _rng: &mut Rng,
     seed: u64,
     res: u32,
 ) -> RgbaTexture {
-    let foliage_base = color.unwrap_or([0.14, 0.34, 0.12]);
+    let foliage_base = color.unwrap_or([0.14, 0.35, 0.11]);
     let px = 1.0 / res as f32;
 
-    let mut strokes: Vec<Stroke> = Vec::new();
-    let mut leaves: Vec<ViolaLeaf> = Vec::new();
-    let mut blooms: Vec<PansyBloom> = Vec::new();
+    let palettes: [PansyPalette; 3] = [
+        // Quadrant 0: Royal Parisian Velvet Violet & Luminous Pearl-Ivory Picotee
+        PansyPalette {
+            banner_inner: [0.20, 0.04, 0.44],
+            banner_outer: [0.46, 0.17, 0.76],
+            wing_base: [0.97, 0.96, 0.94],
+            wing_rim: [0.56, 0.36, 0.86],
+            lip_base: [0.98, 0.97, 0.95],
+            lip_rim: [0.52, 0.32, 0.84],
+            blotch_rgb: [0.11, 0.02, 0.25],
+            halo_rgb: [0.34, 0.10, 0.64],
+            blotch_size: 0.38,
+        },
+        // Quadrant 1: Sunny Parisian Marigold-Gold & Velvety Burnt Mahogany-Sienna
+        PansyPalette {
+            banner_inner: [0.68, 0.14, 0.02],
+            banner_outer: [0.97, 0.44, 0.04],
+            wing_base: [0.98, 0.58, 0.06],
+            wing_rim: [1.00, 0.72, 0.11],
+            lip_base: [0.99, 0.54, 0.05],
+            lip_rim: [1.00, 0.70, 0.09],
+            blotch_rgb: [0.22, 0.03, 0.01],
+            halo_rgb: [0.74, 0.16, 0.02],
+            blotch_size: 0.40,
+        },
+        // Quadrant 2: Primrose-Cream, Warm Butter-Gold & Sky-Periwinkle Whiskered Viola
+        PansyPalette {
+            banner_inner: [0.40, 0.36, 0.78],
+            banner_outer: [0.68, 0.66, 0.94],
+            wing_base: [0.98, 0.95, 0.76],
+            wing_rim: [0.78, 0.76, 0.94],
+            lip_base: [0.99, 0.90, 0.46],
+            lip_rim: [0.99, 0.96, 0.80],
+            blotch_rgb: [0.16, 0.06, 0.38],
+            halo_rgb: [0.38, 0.30, 0.72],
+            blotch_size: 0.17,
+        },
+    ];
 
-    for q_idx in 0..4usize {
-        let q_origin = Vec2::new(
-            if (q_idx & 1) == 0 { 0.0 } else { 0.50 },
-            if (q_idx & 2) == 0 { 0.0 } else { 0.50 },
-        );
-        let q_min = q_origin + Vec2::splat(0.052);
-        let q_max = q_origin + Vec2::splat(0.448);
-        let hub = q_origin + Vec2::new(0.25, 0.34);
-
-        // Radiating green stems + crenate Viola leaves framing the blooms
-        let leaf_n = if q_idx == 3 { 22usize } else { 18usize };
-        for i in 0..leaf_n {
-            let layer = i as f32 / (leaf_n - 1) as f32;
-            let ang = -PI * 0.5 + (i as f32 * 2.399_963).sin() * 1.45 + rng.range(-0.18, 0.18);
-            let dir = Vec2::new(ang.cos(), ang.sin());
-            let dist = lerp(0.135, 0.055, layer) * rng.range(0.82, 1.18);
-            let l_scale = lerp(0.135, 0.095, layer) * rng.variance_mul(0.10);
-            let center = (q_origin + Vec2::new(0.25, 0.27) + dir * dist).clamp(
-                q_min + Vec2::splat(l_scale * 0.45),
-                q_max - Vec2::splat(l_scale * 0.45),
-            );
-            strokes.push(Stroke {
-                a: hub,
-                b: center,
-                w_a: 0.0036,
-                w_b: 0.0020,
-                rgb: [0.20, 0.36, 0.14],
-            });
-            let out_ang = (center - hub)
-                .try_normalize()
-                .map(|d| d.y.atan2(d.x))
-                .unwrap_or(-PI * 0.5)
-                + rng.range(-0.32, 0.32);
-            let rot = PI * 0.5 - out_ang;
-            let (sin, cos) = rot.sin_cos();
-            leaves.push(ViolaLeaf {
-                center,
-                sin,
-                cos,
-                scale: l_scale,
-                shade: lerp(0.72, 1.12, layer) * rng.range(0.92, 1.08),
-            });
-        }
-
-        if q_idx < 3 {
-            // 4 overlapping velvety 5-petal Pansy blossoms per floral quadrant
-            let offsets = [
-                Vec2::new(-0.068, 0.032),
-                Vec2::new(0.072, 0.026),
-                Vec2::new(-0.024, -0.064),
-                Vec2::new(0.036, -0.020),
-            ];
-            for (b_i, &off) in offsets.iter().enumerate() {
-                let c = (q_origin
-                    + Vec2::new(0.25, 0.245)
-                    + off
-                    + Vec2::new(rng.range(-0.014, 0.014), rng.range(-0.014, 0.014)))
-                .clamp(q_min + Vec2::splat(0.075), q_max - Vec2::splat(0.075));
-                let rad = rng.range(0.068, 0.084);
-                let rot = rng.range(-0.42, 0.42);
-                let (sin, cos) = rot.sin_cos();
-
-                let (banner_rgb, wing_rgb, lip_rgb, blotch_rgb) = match q_idx {
-                    0 => {
-                        // Royal Parisian Violet-Purple & Snow-White Pansies
-                        if b_i % 2 == 0 {
-                            (
-                                [0.30, 0.10, 0.56],
-                                [0.92, 0.90, 0.97],
-                                [0.94, 0.92, 0.98],
-                                [0.16, 0.04, 0.34],
-                            )
-                        } else {
-                            (
-                                [0.42, 0.15, 0.68],
-                                [0.68, 0.46, 0.88],
-                                [0.86, 0.78, 0.96],
-                                [0.18, 0.04, 0.36],
-                            )
-                        }
-                    }
-                    1 => {
-                        // Warm Parisian Cadmium-Orange & Marigold-Amber Pansies
-                        if b_i % 2 == 0 {
-                            (
-                                [0.94, 0.40, 0.05],
-                                [0.97, 0.52, 0.07],
-                                [0.98, 0.60, 0.09],
-                                [0.36, 0.08, 0.03],
-                            )
-                        } else {
-                            (
-                                [0.88, 0.30, 0.04],
-                                [0.96, 0.66, 0.12],
-                                [0.98, 0.74, 0.16],
-                                [0.32, 0.07, 0.02],
-                            )
-                        }
-                    }
-                    _ => {
-                        // Primrose-Cream, Butter-Gold & Sky-Lavender Pansies
-                        if b_i % 2 == 0 {
-                            (
-                                [0.58, 0.52, 0.86],
-                                [0.96, 0.94, 0.76],
-                                [0.98, 0.92, 0.52],
-                                [0.22, 0.10, 0.44],
-                            )
-                        } else {
-                            (
-                                [0.95, 0.93, 0.84],
-                                [0.84, 0.80, 0.96],
-                                [0.96, 0.95, 0.88],
-                                [0.24, 0.12, 0.46],
-                            )
-                        }
-                    }
-                };
-
-                blooms.push(PansyBloom {
-                    center: c,
-                    sin,
-                    cos,
-                    radius: rad,
-                    banner_rgb,
-                    wing_rgb,
-                    lip_rgb,
-                    blotch_rgb,
-                });
-            }
-        }
-    }
+    let dir_ul = Vec2::new(-0.44, -0.90).normalize();
+    let dir_ur = Vec2::new(0.44, -0.90).normalize();
+    let dir_wl = Vec2::new(-0.985, -0.17).normalize();
+    let dir_wr = Vec2::new(0.985, -0.17).normalize();
+    let dir_lip = Vec2::new(0.0, 1.0);
 
     let mut tex = RgbaTexture::new(res, res);
     for y in 0..res {
         let v = (y as f32 + 0.5) * px;
-        // Strict clean cross-gutter at 0.48..0.52 so mipmaps never bleed across the 2x2 quadrants
-        if (0.478..=0.522).contains(&v) {
+        // Strict clean cross-gutter at 0.48..0.52 and outer border so mipmaps never bleed
+        if !(0.016..=0.984).contains(&v) || (0.478..=0.522).contains(&v) {
             continue;
         }
+        let qy = usize::from(v >= 0.5);
+        let v0 = if qy == 0 { 0.02 } else { 0.52 };
+        let sv = (v - v0) / 0.46;
+        if !(-0.02..=1.02).contains(&sv) {
+            continue;
+        }
+
         for x in 0..res {
             let u = (x as f32 + 0.5) * px;
-            if (0.478..=0.522).contains(&u) {
+            if !(0.016..=0.984).contains(&u) || (0.478..=0.522).contains(&u) {
                 continue;
             }
-            let q = Vec2::new(u, v);
+            let qx = usize::from(u >= 0.5);
+            let q_idx = qx | (qy << 1);
+            let u0 = if qx == 0 { 0.02 } else { 0.52 };
+            let su = (u - u0) / 0.46;
+            if !(-0.02..=1.02).contains(&su) {
+                continue;
+            }
+
             let mut acc = [0.0f32; 4];
 
-            for st in &strokes {
-                let ab = st.b - st.a;
-                let t = ((q - st.a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
-                let w = lerp(st.w_a, st.w_b, t);
-                let d = (q - (st.a + ab * t)).length();
-                let a = ((w - d) / px + 0.5).clamp(0.0, 1.0);
-                if a > 0.0 {
-                    over(&mut acc, [st.rgb[0], st.rgb[1], st.rgb[2], a]);
-                }
-            }
-
-            let mottle = noise2(seed ^ 0xF10A, u * 28.0, v * 28.0);
-            for lf in &leaves {
-                let p = q - lf.center;
-                let r_max = lf.scale * 0.65;
-                if p.length_squared() > r_max * r_max {
+            if q_idx < 3 {
+                // Single high-resolution 5-petal zygomorphic Pansy corolla
+                let pal = &palettes[q_idx];
+                let lp = Vec2::new(su - 0.50, sv - 0.49) / 0.44;
+                if lp.length_squared() > 1.32 {
                     continue;
                 }
-                let local = Vec2::new(p.x * lf.cos - p.y * lf.sin, -(p.x * lf.sin + p.y * lf.cos))
-                    / lf.scale;
-                let y_norm = ((local.y + 0.48) / 0.98).clamp(0.0, 1.0);
-                let crenate = 0.028 * (y_norm * 7.0 * TAU).cos().abs();
-                let half_w = 0.34 * (y_norm * PI).sin().max(0.0).powf(0.68) + crenate;
-                let d_side = local.x.abs() - half_w;
-                let d_end = local.y.abs() - 0.49;
-                let sdf = Vec2::new(d_side.max(0.0), d_end.max(0.0)).length()
-                    + d_side.max(d_end).min(0.0);
-                let edge = (0.9 / (res as f32 * lf.scale)).max(0.0018);
-                let alpha = (0.5 - sdf / edge).clamp(0.0, 1.0);
-                if alpha <= 0.0 {
-                    continue;
-                }
-                if acc[3] > 0.15 && alpha > 0.25 {
-                    acc[0] *= 0.80;
-                    acc[1] *= 0.80;
-                    acc[2] *= 0.80;
-                }
-                let vein = if local.x.abs() < 0.016 && local.y < 0.42 {
-                    1.18
-                } else {
-                    1.0 + 0.08 * ((local.y - local.x.abs() * 0.55) * 12.0).sin().abs()
-                };
-                let s = lf.shade * vein * (0.88 + 0.20 * y_norm + 0.10 * mottle);
-                over(
-                    &mut acc,
-                    [
-                        (foliage_base[0] * s).clamp(0.0, 1.0),
-                        (foliage_base[1] * s).clamp(0.0, 1.0),
-                        (foliage_base[2] * s).clamp(0.0, 1.0),
-                        alpha,
-                    ],
-                );
-            }
 
-            // Composite 5-petal velvety Pansy blossoms over foliage with soft drop-shadow AO
-            for bl in &blooms {
-                let p = q - bl.center;
-                if p.length_squared() > (bl.radius * 1.35).powi(2) {
-                    continue;
-                }
-                let lp =
-                    Vec2::new(p.x * bl.cos - p.y * bl.sin, p.x * bl.sin + p.y * bl.cos) / bl.radius;
+                let q_seed = seed ^ ((q_idx as u64 + 1) * 0x517C_C1B7);
+                let tex_noise = noise2(q_seed, su * 18.0, sv * 18.0);
+                let fine_silk = noise2(q_seed ^ 0xA391, su * 54.0, sv * 54.0);
+                let edge_aa = (px / (0.46 * 0.44) * 1.15).max(0.004);
 
-                // Cast soft petal shadow onto underlying green Viola leaves
-                let r_center = lp.length();
-                if r_center < 1.06 && acc[3] > 0.2 {
-                    let shadow = 1.0 - 0.28 * (1.0 - (r_center / 1.06)).clamp(0.0, 1.0);
-                    acc[0] *= shadow;
-                    acc[1] *= shadow;
-                    acc[2] *= shadow;
-                }
-
-                // 5 overlapping petals: 2 upper banners, 2 lateral wings, 1 broad lower lip
-                let petals: [(Vec2, Vec2, [f32; 3], bool); 5] = [
-                    (
-                        Vec2::new(-0.28, -0.34),
-                        Vec2::new(0.56, 0.52),
-                        bl.banner_rgb,
-                        false,
-                    ),
-                    (
-                        Vec2::new(0.28, -0.34),
-                        Vec2::new(0.56, 0.52),
-                        bl.banner_rgb,
-                        false,
-                    ),
-                    (
-                        Vec2::new(-0.42, 0.04),
-                        Vec2::new(0.52, 0.46),
-                        bl.wing_rgb,
-                        true,
-                    ),
-                    (
-                        Vec2::new(0.42, 0.04),
-                        Vec2::new(0.52, 0.46),
-                        bl.wing_rgb,
-                        true,
-                    ),
-                    (
-                        Vec2::new(0.0, 0.38),
-                        Vec2::new(0.64, 0.54),
-                        bl.lip_rgb,
-                        true,
-                    ),
+                // Back-to-front botanical imbrication (claws overlap past center so zero pinhole gap forms):
+                // 0: Left Banner, 1: Right Banner, 2: Left Wing, 3: Right Wing, 4: Anterior Lower Lip
+                let specs: [(Vec2, Vec2, f32, f32, f32, u8); 5] = [
+                    (Vec2::new(-0.01, 0.09), dir_ul, 1.01, 0.56, 0.0, 0),
+                    (Vec2::new(0.01, 0.09), dir_ur, 1.01, 0.56, 0.0, 0),
+                    (Vec2::new(0.03, 0.06), dir_wl, 0.96, 0.49, 0.0, 1),
+                    (Vec2::new(-0.03, 0.06), dir_wr, 0.96, 0.49, 0.0, 1),
+                    (Vec2::new(0.0, -0.01), dir_lip, 0.96, 0.63, 0.085, 2),
                 ];
 
-                for &(pc, pr, p_rgb, has_blotch) in &petals {
-                    let dp = (lp - pc) / pr;
-                    let ang = dp.y.atan2(dp.x);
-                    let ruffle = 1.0 + 0.045 * (ang * 7.0).cos();
-                    let dist = dp.length() - ruffle;
-                    let p_edge = (1.1 / (res as f32 * bl.radius * pr.x)).max(0.015);
-                    let pa = (0.5 - dist / p_edge).clamp(0.0, 1.0);
+                // Deep-velvet throat backstop ensures 100% solid alpha inside central calyx spur
+                let throat_back_d = (lp - Vec2::new(0.0, 0.04)).length() - 0.11;
+                let throat_back_a = (0.5 - throat_back_d / edge_aa).clamp(0.0, 1.0);
+                if throat_back_a > 0.0 {
+                    over(
+                        &mut acc,
+                        [
+                            pal.blotch_rgb[0],
+                            pal.blotch_rgb[1],
+                            pal.blotch_rgb[2],
+                            throat_back_a,
+                        ],
+                    );
+                }
+
+                for (p_i, &(base_pt, t_dir, p_len, half_w, notch, kind)) in specs.iter().enumerate()
+                {
+                    let phase = (q_idx as f32) * 1.9 + (p_i as f32) * 1.15;
+                    let (sdf, along, across) =
+                        eval_pansy_petal(lp, base_pt, t_dir, p_len, half_w, notch, phase);
+
+                    // Soft inter-petal contact drop shadow cast onto underlying petals
+                    if sdf < 0.055 && acc[3] > 0.25 {
+                        let sh_k = ((0.055 - sdf) / 0.055).clamp(0.0, 1.0);
+                        let darken = 1.0 - 0.17 * sh_k * (1.0 - 0.45 * along);
+                        acc[0] *= darken;
+                        acc[1] *= darken;
+                        acc[2] *= darken;
+                    }
+
+                    let pa = (0.5 - sdf / edge_aa).clamp(0.0, 1.0);
                     if pa <= 0.0 {
                         continue;
                     }
-                    if acc[3] > 0.2 && pa > 0.3 {
-                        acc[0] *= 0.90;
-                        acc[1] *= 0.90;
-                        acc[2] *= 0.90;
-                    }
-                    // Velvety radial silk striation + cupped rim highlight
-                    let ray_ang = lp.y.atan2(lp.x);
-                    let silk = 0.94 + 0.08 * (ray_ang * 26.0).sin().abs();
-                    let cup_shade = lerp(0.84, 1.10, (r_center / 0.95).clamp(0.0, 1.0)) * silk;
-                    let mut col = [
-                        (p_rgb[0] * cup_shade).clamp(0.0, 1.0),
-                        (p_rgb[1] * cup_shade).clamp(0.0, 1.0),
-                        (p_rgb[2] * cup_shade).clamp(0.0, 1.0),
-                    ];
 
-                    // Dark velvety pansy face blotch + radiating whisker lines on wings & lower lip
-                    if has_blotch {
-                        let whisker = (1.0 - (ray_ang * 18.0).sin().abs()).powi(3);
-                        let blotch_r = 0.40 + 0.14 * whisker;
-                        let bk = ((blotch_r - r_center) / 0.14).clamp(0.0, 1.0);
-                        col[0] = lerp(col[0], bl.blotch_rgb[0], bk * 0.92);
-                        col[1] = lerp(col[1], bl.blotch_rgb[1], bk * 0.92);
-                        col[2] = lerp(col[2], bl.blotch_rgb[2], bk * 0.92);
-                    }
+                    // Organic radial silk fibers from petal claw
+                    let p_rel = lp - base_pt;
+                    let p_ang = p_rel.y.atan2(p_rel.x);
+                    let fiber_a = noise2(q_seed ^ (p_i as u64 * 7919), p_ang * 12.0, along * 3.5);
+                    let fiber_b = noise2(q_seed ^ (p_i as u64 * 3571), p_ang * 29.0, along * 5.0);
+                    let velvet = 0.94 + 0.07 * fiber_a + 0.04 * fiber_b + 0.02 * fine_silk;
+
+                    let mut col = if kind == 0 {
+                        // Upper banner petals: rich inner velvet grading to luminous outer rim
+                        let g = (along * 0.85 + 0.15 * tex_noise).clamp(0.0, 1.0);
+                        [
+                            lerp(pal.banner_inner[0], pal.banner_outer[0], g) * velvet,
+                            lerp(pal.banner_inner[1], pal.banner_outer[1], g) * velvet,
+                            lerp(pal.banner_inner[2], pal.banner_outer[2], g) * velvet,
+                        ]
+                    } else {
+                        let (c_base, c_rim) = if kind == 1 {
+                            (pal.wing_base, pal.wing_rim)
+                        } else {
+                            (pal.lip_base, pal.lip_rim)
+                        };
+                        // Watercolor picotee / rim blush along outer 28% of petal margin
+                        let rim_dist = (-sdf / 0.18).clamp(0.0, 1.0);
+                        let picotee = ((1.0 - rim_dist)
+                            * (0.68 + 0.52 * fiber_a)
+                            * ((along - 0.38) / 0.62).clamp(0.0, 1.0))
+                        .clamp(0.0, 1.0);
+                        let lobe_sun = 0.93 + 0.09 * along;
+                        let mut c = [
+                            lerp(c_base[0], c_rim[0], picotee * 0.86) * velvet * lobe_sun,
+                            lerp(c_base[1], c_rim[1], picotee * 0.86) * velvet * lobe_sun,
+                            lerp(c_base[2], c_rim[2], picotee * 0.86) * velvet * lobe_sun,
+                        ];
+
+                        // Authentic velvety rounded-spade Pansy face blotch (on q=0,1) vs fine
+                        // botanical pencil-whiskers (on q=2 Primrose Whiskered Viola)
+                        let center_bias = if kind == 1 {
+                            let target = if p_i == 2 { -0.18 } else { 0.18 };
+                            1.0 - ((across - target) * 1.22).powi(2).min(1.0)
+                        } else {
+                            1.0 - (across * 1.32).powi(2).min(1.0)
+                        };
+
+                        if center_bias > 0.0 {
+                            let brush = 0.86 + 0.28 * fiber_a + 0.10 * fiber_b;
+                            let feather = pal.blotch_size * center_bias.powf(0.58) * brush;
+                            let halo_k =
+                                ((feather + 0.12 - along) / 0.15).clamp(0.0, 1.0) * center_bias;
+                            let core_k = ((feather - along) / 0.065).clamp(0.0, 1.0)
+                                * center_bias.powf(0.35);
+
+                            c[0] = lerp(c[0], pal.halo_rgb[0], halo_k * 0.62);
+                            c[1] = lerp(c[1], pal.halo_rgb[1], halo_k * 0.62);
+                            c[2] = lerp(c[2], pal.halo_rgb[2], halo_k * 0.62);
+
+                            c[0] = lerp(c[0], pal.blotch_rgb[0], core_k * 0.96);
+                            c[1] = lerp(c[1], pal.blotch_rgb[1], core_k * 0.96);
+                            c[2] = lerp(c[2], pal.blotch_rgb[2], core_k * 0.96);
+
+                            // Delicate sparse pencil-whiskers (prominent on q=2 Whiskered Viola,
+                            // short subtle margin-tips on q=0,1 blotched Pansies)
+                            let w_freq = if kind == 1 { 7.5 } else { 9.5 };
+                            let w_wave =
+                                (across * w_freq * PI + fiber_a * 0.9).cos().abs().powi(14);
+                            let extra = if q_idx == 2 { 0.28 } else { 0.09 };
+                            let w_reach = (pal.blotch_size + extra) * center_bias.powf(0.50);
+                            let w_env = ((w_reach - along) / 0.14).clamp(0.0, 1.0)
+                                * ((along - 0.04) / 0.06).clamp(0.0, 1.0);
+                            let w_k = (w_wave * w_env * 0.92).clamp(0.0, 1.0);
+                            c[0] = lerp(c[0], pal.blotch_rgb[0], w_k * 0.88);
+                            c[1] = lerp(c[1], pal.blotch_rgb[1], w_k * 0.88);
+                            c[2] = lerp(c[2], pal.blotch_rgb[2], w_k * 0.88);
+                        }
+                        c
+                    };
+
+                    // Recessed claw shadow right around throat attachment
+                    let throat_ao = 0.84 + 0.16 * (along / 0.28).clamp(0.0, 1.0);
+                    col[0] = (col[0] * throat_ao).clamp(0.0, 1.0);
+                    col[1] = (col[1] * throat_ao).clamp(0.0, 1.0);
+                    col[2] = (col[2] * throat_ao).clamp(0.0, 1.0);
 
                     over(&mut acc, [col[0], col[1], col[2], pa]);
                 }
 
-                // Glowing golden-yellow central Pansy eye spot
-                let eye_d = (lp - Vec2::new(0.0, 0.05)).length() - 0.135;
-                let eye_a = (0.5 - eye_d / 0.035).clamp(0.0, 1.0);
+                // Warm golden-saffron keyhole spur throat + subtle olive-chartreuse stigma brow
+                let ep = lp - Vec2::new(0.0, 0.048);
+                let v_w = lerp(0.028, 0.064, ((ep.y + 0.052) / 0.105).clamp(0.0, 1.0));
+                let keyhole_d = Vec2::new(ep.x / v_w, ep.y / 0.064).length() - 1.0;
+                let eye_a = (0.5 - keyhole_d / 0.14).clamp(0.0, 1.0) * acc[3].min(1.0);
                 if eye_a > 0.0 {
-                    over(&mut acc, [0.99, 0.80, 0.08, eye_a]);
+                    let g_t = ((ep.y + 0.048) / 0.096).clamp(0.0, 1.0);
+                    let eye_rgb = [
+                        lerp(0.56, 1.00, (g_t * 2.2).clamp(0.0, 1.0)),
+                        lerp(0.68, 0.78, g_t),
+                        lerp(0.16, 0.02, g_t),
+                    ];
+                    over(&mut acc, [eye_rgb[0], eye_rgb[1], eye_rgb[2], eye_a]);
+                }
+            } else {
+                // Quadrant 3: Pointed ovate-lanceolate crenate Viola / Vinca garden leaf blade
+                let dx = su - 0.50;
+                let ax = dx.abs();
+                let edge_aa = (px / 0.46 * 1.15).max(0.0025);
+
+                // Slender tapered celadon-green petiole at base (sv in 0.87..0.985)
+                if (0.87..=0.985).contains(&sv) {
+                    let pt = ((sv - 0.87) / 0.115).clamp(0.0, 1.0);
+                    let pet_w = lerp(0.020, 0.012, pt);
+                    let p_alpha = (0.5 - (ax - pet_w) / edge_aa).clamp(0.0, 1.0);
+                    if p_alpha > 0.0 {
+                        let cyl = 0.88 + 0.24 * (1.0 - (ax / pet_w.max(1e-4)).powi(2));
+                        over(
+                            &mut acc,
+                            [
+                                (0.22 * cyl).clamp(0.0, 1.0),
+                                (0.42 * cyl).clamp(0.0, 1.0),
+                                (0.13 * cyl).clamp(0.0, 1.0),
+                                p_alpha,
+                            ],
+                        );
+                    }
+                }
+
+                // Pointed ovate-serrate lamina from base (sv = 0.90 -> along = 0) to acute tip (sv = 0.03 -> along = 1)
+                let along = (0.90 - sv) / 0.87;
+                if (-0.02..=1.02).contains(&along) {
+                    let a_clamped = along.clamp(0.0, 1.0);
+                    // Broadest at along ~ 0.34, tapering cleanly to an acute botanical leaf apex
+                    let base_curve = (a_clamped / 0.34).clamp(0.0, 1.0).powf(0.58);
+                    let tip_taper = ((1.0 - a_clamped) / 0.68).clamp(0.0, 1.0).powf(0.78);
+                    let env = if a_clamped < 0.34 {
+                        base_curve
+                    } else {
+                        tip_taper * (1.0 + 0.12 * ((a_clamped - 0.34) * PI).sin())
+                    };
+                    // 7 crisp forward-angled crenate-serrate botanical teeth per side
+                    let tooth_f = (a_clamped * 7.0).fract();
+                    let tooth = (tooth_f.powf(0.55) * (1.0 - tooth_f)).max(0.0) * 3.1;
+                    let crenate =
+                        0.020 * tooth * (a_clamped * PI).sin().max(0.0) * (1.0 - 0.35 * a_clamped);
+                    let half_w = 0.265 * env + crenate;
+
+                    let d_side = ax - half_w;
+                    let d_end = (along - 0.50).abs() - 0.50;
+                    let sdf = Vec2::new(d_side.max(0.0), d_end.max(0.0)).length()
+                        + d_side.max(d_end).min(0.0);
+                    let l_alpha = (0.5 - sdf / edge_aa).clamp(0.0, 1.0);
+
+                    if l_alpha > 0.0 {
+                        let cell = noise2(seed ^ 0x710A, su * 32.0, sv * 32.0);
+                        let micro = noise2(seed ^ 0x3E19, su * 84.0, sv * 84.0);
+                        let w_frac = (ax / half_w.max(1e-3)).clamp(0.0, 1.0);
+
+                        let convex = 1.05 - 0.16 * (w_frac - 0.34).powi(2);
+                        let margin_rim = ((1.0 + sdf / 0.034).clamp(0.0, 1.0)).powi(2);
+                        let midrib_w = lerp(0.014, 0.0028, a_clamped);
+
+                        let rgb = if ax < midrib_w && a_clamped < 0.96 {
+                            let k = 1.0 - (ax / midrib_w.max(1e-4)).powi(2);
+                            [
+                                lerp(foliage_base[0], 0.34, 0.68 * k),
+                                lerp(foliage_base[1], 0.56, 0.68 * k),
+                                lerp(foliage_base[2], 0.19, 0.62 * k),
+                            ]
+                        } else {
+                            let v_coord = a_clamped - 0.36 * w_frac.powf(1.30);
+                            let sec_wave = (v_coord * 6.5 * TAU).cos() * 0.5 + 0.5;
+                            let sec_ridge = sec_wave.powi(11) * (1.0 - w_frac * 0.50);
+                            let shade =
+                                convex * (0.84 + 0.24 * a_clamped + 0.10 * cell + 0.04 * micro);
+                            let mut r = foliage_base[0] * shade;
+                            let mut g = foliage_base[1] * shade;
+                            let mut b = foliage_base[2] * shade;
+                            r = lerp(r, 0.29, sec_ridge * 0.46);
+                            g = lerp(g, 0.51, sec_ridge * 0.46);
+                            b = lerp(b, 0.17, sec_ridge * 0.42);
+                            r = lerp(r, 0.29, margin_rim * 0.45);
+                            g = lerp(g, 0.52, margin_rim * 0.45);
+                            b = lerp(b, 0.15, margin_rim * 0.40);
+                            [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]
+                        };
+
+                        over(&mut acc, [rgb[0], rgb[1], rgb[2], l_alpha]);
+                    }
                 }
             }
 
-            tex.set(
-                x,
-                y,
-                [
-                    (acc[0].clamp(0.0, 1.0) * 255.0) as u8,
-                    (acc[1].clamp(0.0, 1.0) * 255.0) as u8,
-                    (acc[2].clamp(0.0, 1.0) * 255.0) as u8,
-                    (acc[3].clamp(0.0, 1.0) * 255.0) as u8,
-                ],
-            );
+            if acc[3] > 0.0 {
+                tex.set(
+                    x,
+                    y,
+                    [
+                        (acc[0].clamp(0.0, 1.0) * 255.0) as u8,
+                        (acc[1].clamp(0.0, 1.0) * 255.0) as u8,
+                        (acc[2].clamp(0.0, 1.0) * 255.0) as u8,
+                        (acc[3].clamp(0.0, 1.0) * 255.0) as u8,
+                    ],
+                );
+            }
         }
     }
-    tex.dilate_alpha_rgb(8);
+    tex.dilate_alpha_rgb(10);
     tex
 }
 

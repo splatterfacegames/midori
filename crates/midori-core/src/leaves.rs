@@ -436,6 +436,16 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
             generate_paddle_leaf_ribbons(leaves, config, tree, rows),
             (rows + 1) * cols,
         )
+    } else if config.floral_quad_atlas {
+        let grid = if config.geometry == LeafGeometry::Billboard {
+            3usize
+        } else {
+            5usize
+        };
+        (
+            generate_floral_organs(leaves, config, tree, grid),
+            grid * grid,
+        )
     } else {
         let mesh = match config.geometry {
             LeafGeometry::Polygon => generate_polygon_leaves(leaves, config, tree),
@@ -471,6 +481,7 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
         per_leaf,
         config.geometry,
         config.palm_frond_ribbon || config.paddle_leaf_ribbon,
+        config.floral_quad_atlas,
     );
     mesh
 }
@@ -628,6 +639,7 @@ impl CanopyContext {
         per_leaf: usize,
         geometry: LeafGeometry,
         per_vertex_pos: bool,
+        floral_atlas: bool,
     ) {
         let bend = self.params.normals == FoliageNormals::Canopy;
         let tint = self.params.vertex_color == FoliageVertexColor::TintAo;
@@ -641,8 +653,19 @@ impl CanopyContext {
             if start >= end {
                 break;
             }
+            let is_floral_blossom = floral_atlas && (leaf.stem_id & 3) < 3;
             let leaf_out = self.outward(i, leaf.position);
-            let leaf_color = (!per_vertex_pos && tint).then(|| self.tint_ao(i, leaf.position));
+            let leaf_color = (!per_vertex_pos && tint).then(|| {
+                let raw = self.tint_ao(i, leaf.position);
+                if is_floral_blossom {
+                    // Flower petals have high diffuse subsurface translucency: keep blossoms
+                    // luminous and clean rather than darkening ivory/primrose petals grey.
+                    let lit = raw.truncate().lerp(Vec3::ONE, 0.68);
+                    Vec4::new(lit.x, lit.y, lit.z, 1.0)
+                } else {
+                    raw
+                }
+            });
             for v in &mut mesh.vertices[start..end] {
                 if bend {
                     let out = if per_vertex_pos {
@@ -669,7 +692,20 @@ impl CanopyContext {
                 if per_vertex_pos && tint {
                     v.color = self.tint_ao(i, v.position);
                 } else if let Some(c) = leaf_color {
-                    v.color = c;
+                    if is_floral_blossom {
+                        let r_rel = ((v.position - leaf.position).length()
+                            / (leaf.scale * 0.5).max(1e-3))
+                        .clamp(0.0, 1.0);
+                        let cup_ao = 0.86 + 0.14 * r_rel.sqrt();
+                        v.color = Vec4::new(
+                            (c.x * cup_ao).clamp(0.0, 1.0),
+                            (c.y * cup_ao).clamp(0.0, 1.0),
+                            (c.z * cup_ao).clamp(0.0, 1.0),
+                            1.0,
+                        );
+                    } else {
+                        v.color = c;
+                    }
                 }
             }
         }
@@ -1172,6 +1208,122 @@ fn generate_paddle_leaf_ribbons(
                 let i00 = base_idx + r * (cols as u32) + c;
                 let i10 = i00 + 1;
                 let i01 = i00 + (cols as u32);
+                let i11 = i01 + 1;
+                mesh.indices
+                    .extend_from_slice(&[i00, i10, i11, i00, i11, i01]);
+            }
+        }
+    }
+
+    if !mesh.indices.is_empty() {
+        mesh.submeshes.push(Submesh {
+            index_start: 0,
+            index_count: mesh.indices.len() as u32,
+            material: MaterialType::Leaves,
+        });
+    }
+
+    mesh
+}
+
+/// Generate true 3D cupped zygomorphic Pansy corollas (`stem_id & 3 < 3`) and 3D arched &
+/// V-keeled *Viola* / *Vinca* green leaf blades (`stem_id & 3 == 3`) on a uniform `grid x grid`
+/// surface patch, completely eliminating flat-card slivers and X-billboard self-intersections.
+fn generate_floral_organs(leaves: &[Leaf], config: &LeafConfig, tree: &Tree, grid: usize) -> Mesh {
+    let mut mesh = Mesh::new();
+    let g = grid.max(3);
+    let step = 2.0 / (g - 1) as f32;
+
+    for (leaf_idx, leaf) in leaves.iter().enumerate() {
+        let base_idx = mesh.vertices.len() as u32;
+        let is_blossom = (leaf.stem_id & 3) < 3;
+        let phase = (leaf_idx as f32 * 1.618_034).fract() * TAU;
+        let twist_amt = ((leaf_idx as f32 * 0.754_877_7).fract() - 0.5) * 0.16;
+
+        if is_blossom {
+            // Individual 3D cupped 5-petal Pansy corolla centered on its calyx throat (`leaf.position`)
+            let half = leaf.scale * 0.5;
+            let corolla_z = |gx: f32, gy: f32| -> f32 {
+                let r2 = gx * gx + gy * gy;
+                let r = r2.sqrt().min(1.42);
+                let ang = gy.atan2(gx);
+                // Deep sculptural throat bowl cupping forward, then reflexing softly at outer rims
+                let bowl = 0.56 * r.powf(1.20) - 0.18 * r.powi(3);
+                // Zygomorphic posture: upper banners reflex slightly back; lower lip arches forward & droops at tip
+                let lip_t = (-gy).max(0.0);
+                let zygo = -0.14 * gy.max(0.0).powf(1.3)
+                    + (0.20 * lip_t - 0.12 * lip_t * lip_t) * (1.0 - 0.35 * gx * gx).max(0.0);
+                // 5-petal lobe camber & organic margin undulation
+                let wave = 0.068 * r2.min(1.0) * (5.0 * ang + phase).sin();
+                bowl + zygo + wave
+            };
+
+            let eps = 0.025_f32;
+            for ry in 0..g {
+                let gy = -1.0 + ry as f32 * step;
+                for rx in 0..g {
+                    let gx = -1.0 + rx as f32 * step;
+                    let z = corolla_z(gx, gy);
+                    let dz_dx = (corolla_z(gx + eps, gy) - corolla_z(gx - eps, gy)) / (2.0 * eps);
+                    let dz_dy = (corolla_z(gx, gy + eps) - corolla_z(gx, gy - eps)) / (2.0 * eps);
+
+                    let local_pos = Vec3::new(gx, gy, z) * half;
+                    let local_nrm = Vec3::new(-dz_dx, -dz_dy, 1.0).normalize();
+
+                    let world_pos = leaf.position + leaf.rotation * local_pos;
+                    let world_nrm = (leaf.rotation * local_nrm).normalize_or_zero();
+                    let uv = remap_floral_uv(
+                        Vec2::new(gx * 0.5 + 0.5, 0.5 - gy * 0.5),
+                        leaf.stem_id,
+                        true,
+                    );
+
+                    let mut vertex = Vertex::new(world_pos, world_nrm, uv);
+                    if config.pivot_painter {
+                        encode_leaf_pivot_painter(&mut vertex, leaf, tree);
+                    }
+                    mesh.vertices.push(vertex);
+                }
+            }
+        } else {
+            // Individual 3D arched & V-keeled Viola / Vinca leaf blade anchored at petiole (`leaf.position`)
+            let len = leaf.scale;
+            let half_w = len * 0.45;
+            for ry in 0..g {
+                let gy = -1.0 + ry as f32 * step;
+                let yn = gy * 0.5 + 0.5; // 0.0 at petiole base -> 1.0 at crenate tip
+                let z_arch = len * (0.24 * yn - 0.44 * yn * yn);
+                let dz_dy = 0.24 - 0.88 * yn;
+
+                for rx in 0..g {
+                    let xn = -1.0 + rx as f32 * step;
+                    let ax = xn.abs();
+                    let z_keel = half_w * (0.17 * ax - 0.25 * ax * ax);
+                    let z_twist = half_w * twist_amt * yn * xn;
+                    let dz_dx = 0.17 * xn.signum() - 0.50 * xn + twist_amt * yn;
+
+                    let local_pos = Vec3::new(xn * half_w, yn * len, z_arch + z_keel + z_twist);
+                    let local_nrm = Vec3::new(-dz_dx * 0.65, -dz_dy * 0.65, 1.0).normalize();
+
+                    let world_pos = leaf.position + leaf.rotation * local_pos;
+                    let world_nrm = (leaf.rotation * local_nrm).normalize_or_zero();
+                    let uv = remap_floral_uv(Vec2::new(xn * 0.5 + 0.5, 1.0 - yn), 3, true);
+
+                    let mut vertex = Vertex::new(world_pos, world_nrm, uv);
+                    if config.pivot_painter {
+                        encode_leaf_pivot_painter(&mut vertex, leaf, tree);
+                    }
+                    mesh.vertices.push(vertex);
+                }
+            }
+        }
+
+        let cols = g as u32;
+        for ry in 0..(cols - 1) {
+            for rx in 0..(cols - 1) {
+                let i00 = base_idx + ry * cols + rx;
+                let i10 = i00 + 1;
+                let i01 = i00 + cols;
                 let i11 = i01 + 1;
                 mesh.indices
                     .extend_from_slice(&[i00, i10, i11, i00, i11, i01]);

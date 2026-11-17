@@ -21,16 +21,16 @@ segments = 4
 
 [floral]
 habit = "mound"
-length = 0.76
-width = 0.76
-height = 0.48
+length = 0.74
+width = 0.74
+height = 0.44
 cascade_drop = 0.0
-blossom_density = 0.66
+blossom_density = 0.68
 
 [leaves]
-count = 420
+count = 980
 min_level = 0
-size = 0.27
+size = 0.076
 size_variance = 0.16
 distribution = "both"
 geometry = "cross_billboard"
@@ -38,17 +38,17 @@ shape = "heart"
 up_influence = 0.55
 
 [canopy]
-normals = "canopy"
-normal_blend = 0.78
-up_bias = 0.42
-clump_weight = 0.30
+normals = "geometric"
+normal_blend = 0.0
+up_bias = 0.35
+clump_weight = 0.25
 clump_level = 1
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.08
-hue_variation = 0.03
-ao_strength = 0.38
-roughness = 0.64
+tint_variation = 0.07
+hue_variation = 0.02
+ao_strength = 0.42
+roughness = 0.58
 
 [textures]
 bark_prompt = "Slender herbaceous green-brown flower stems"
