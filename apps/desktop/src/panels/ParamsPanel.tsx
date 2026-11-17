@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { CircleMinus, CirclePlus } from 'lucide-react';
 import {
+  FLORAL_SECTION,
   PARAM_SECTIONS,
+  TOPIARY_SECTION,
+  VINE_SECTION,
   getParam,
   type BranchLevelId,
   type ParamField,
@@ -166,8 +169,34 @@ export function ParamsPanel({
       </div>
     );
   }
+  const family = json.generator?.family ?? 'weber_penn';
   const familyLabel =
-    json.generator?.family === 'dichotomous' ? 'DICHOTOMOUS PARAMETERS' : 'WEBER–PENN PARAMETERS';
+    family === 'dichotomous'
+      ? 'DICHOTOMOUS PARAMETERS'
+      : family === 'topiary'
+        ? 'TOPIARY & HEDGE PARAMETERS'
+        : family === 'floral_shrub'
+          ? 'FLORAL PLANTER PARAMETERS'
+          : family === 'climbing_vine'
+            ? 'CLIMBING VINE PARAMETERS'
+            : family === 'tropical_clump'
+              ? 'TROPICAL CLUMP PARAMETERS'
+              : 'WEBER–PENN PARAMETERS';
+  const extraSections: ParamSection[] =
+    family === 'topiary'
+      ? [TOPIARY_SECTION]
+      : family === 'floral_shrub'
+        ? [FLORAL_SECTION]
+        : family === 'climbing_vine'
+          ? [VINE_SECTION]
+          : [];
+  const activeSections =
+    extraSections.length > 0
+      ? [
+          ...extraSections,
+          ...PARAM_SECTIONS.filter((s) => !s.branchLevel && s.id !== 'crown'),
+        ]
+      : PARAM_SECTIONS;
   return (
     <div className="midori-panel-content" aria-label="Species parameters">
       <div className="midori-eyebrow">{familyLabel}</div>
@@ -189,7 +218,7 @@ export function ParamsPanel({
           />
         </label>
       </div>
-      {PARAM_SECTIONS.map((section) => (
+      {activeSections.map((section) => (
         <Section
           key={section.id}
           section={section}

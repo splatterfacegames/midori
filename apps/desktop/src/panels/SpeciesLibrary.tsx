@@ -14,16 +14,34 @@ export function SpeciesLibrary({
   onImport: () => void;
 }) {
   const active = state.label.startsWith('Preset · ') ? state.label.slice(9) : null;
+  const treePresets = PRESETS.filter((p) => p.group !== 'bistro');
+  const bistroPresets = PRESETS.filter((p) => p.group === 'bistro');
   return (
     <div className="midori-panel-content">
       <div className="midori-eyebrow">SPECIES</div>
       <div className="midori-preset-list">
-        {PRESETS.map((preset) => (
+        {treePresets.map((preset) => (
           <button
             key={preset.id}
             type="button"
             className="midori-preset"
-            aria-pressed={active === preset.label}
+            aria-pressed={state.mode === 'species' && active === preset.label}
+            onClick={() => onLoadPreset(preset.id)}
+          >
+            <Leaf size={14} aria-hidden="true" />
+            <span>{preset.label}</span>
+            <small>{preset.id}.toml</small>
+          </button>
+        ))}
+      </div>
+      <div className="midori-eyebrow">BISTRO &amp; ORNAMENTAL</div>
+      <div className="midori-preset-list">
+        {bistroPresets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="midori-preset"
+            aria-pressed={state.mode === 'species' && active === preset.label}
             onClick={() => onLoadPreset(preset.id)}
           >
             <Leaf size={14} aria-hidden="true" />

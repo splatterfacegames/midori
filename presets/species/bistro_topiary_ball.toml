@@ -1,0 +1,68 @@
+# Boxwood Topiary Globe (Buxus sempervirens)
+# Sculpted spherical doorway & urn topiary shrub with crisp hand-sheared foliage density.
+
+[species]
+name = "Boxwood Topiary Globe"
+scientific = "Buxus sempervirens"
+latin = "Buxus sempervirens"
+biome = "urban_temperate"
+tags = ["shrub", "topiary", "sphere", "bistro", "ornamental"]
+
+[generator]
+family = "topiary"
+notes = "Spherical clipped boxwood topiary ball matching Bistro's bux_hedge_ball_small."
+
+[trunk]
+height = 1.24
+radius = 0.038
+taper = 0.72
+segments = 6
+
+[topiary]
+shape = "sphere"
+length = 1.26
+width = 1.26
+height = 1.24
+bevel = 0.10
+bend_angle = 0.0
+trim_tightness = 0.84
+skirt_clearance = 0.08
+
+[leaves]
+count = 1180
+min_level = 0
+size = 0.30
+size_variance = 0.14
+distribution = "both"
+geometry = "cross_billboard"
+shape = "oval"
+up_influence = 0.40
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.85
+up_bias = 0.28
+clump_weight = 0.35
+clump_level = 1
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.12
+ao_strength = 0.60
+roughness = 0.56
+
+[textures]
+bark_prompt = "Pale olive-tan smooth boxwood shrub stems"
+leaf_prompt = "Buxus sempervirens opposite-paired glossy notched oval leaves"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "oval"
+leaf_card = "buxus"
+bark_color = [0.46, 0.42, 0.31]
+leaf_color = [0.17, 0.36, 0.13]
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

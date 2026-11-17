@@ -674,6 +674,10 @@ fn generator_family_name(family: GeneratorFamily) -> &'static str {
     match family {
         GeneratorFamily::WeberPenn => "weber_penn",
         GeneratorFamily::Dichotomous => "dichotomous",
+        GeneratorFamily::Topiary => "topiary",
+        GeneratorFamily::FloralShrub => "floral_shrub",
+        GeneratorFamily::ClimbingVine => "climbing_vine",
+        GeneratorFamily::TropicalClump => "tropical_clump",
         GeneratorFamily::Cactus => "cactus",
         GeneratorFamily::PadChain => "pad_chain",
         GeneratorFamily::Custom => "custom",

@@ -1,0 +1,100 @@
+# Climbing Facade Ivy (Hedera helix)
+# Gnarled woody wall-clinging English ivy climbing masonry facades (+Z wall normal)
+# with pendant aerial tendrils and outward-shingled cream-veined 5-lobed emerald leaves.
+
+[species]
+name = "Climbing Facade Ivy"
+scientific = "Hedera helix"
+latin = "Hedera helix"
+biome = "urban_temperate"
+tags = ["vine", "ivy", "climber", "wall", "bistro"]
+
+[generator]
+family = "climbing_vine"
+notes = "Wall-hugging facade climber (wall plane z = 0, foliage facing +Z) matching Bistro's Exterior_Ivy."
+
+[trunk]
+height = 4.30
+radius = 0.036
+taper = 0.74
+segments = 12
+
+[vine]
+width = 3.20
+height = 4.30
+depth = 0.26
+main_vines = 5
+hanging_runners = 8
+
+[leaves]
+count = 470
+min_level = 0
+size = 0.40
+size_variance = 0.20
+distribution = "along_branch"
+geometry = "billboard"
+shape = "ivy"
+up_influence = 0.22
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.35
+up_bias = 0.24
+clump_weight = 0.56
+clump_level = 2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.26
+roughness = 0.54
+
+[textures]
+bark_prompt = "Woody grey-tan climbing ivy vine stems with rootlet texture"
+leaf_prompt = "Hedera helix 5-lobed dark emerald ivy leaves with bright cream palmate venation"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "ivy"
+leaf_card = "cluster"
+bark_color = [0.48, 0.41, 0.33]
+leaf_color = [0.16, 0.38, 0.13]
+
+[lod]
+preset = "custom"
+
+[[lod.levels]]
+index = 0
+name = "High"
+target_triangles = 12000
+max_triangles = 22000
+branch_levels = 3
+leaf_geometry = "billboard"
+leaf_reduction = 1.0
+ring_resolution = [14, 10, 8, 5]
+screen_height = 0.35
+
+[[lod.levels]]
+index = 1
+name = "Medium"
+target_triangles = 5000
+max_triangles = 9000
+branch_levels = 2
+leaf_geometry = "billboard"
+leaf_reduction = 0.55
+ring_resolution = [10, 7, 5, 4]
+screen_height = 0.12
+
+[[lod.levels]]
+index = 2
+name = "Impostor"
+target_triangles = 500
+max_triangles = 1200
+branch_levels = 1
+leaf_geometry = "none"
+leaf_reduction = 0.0
+ring_resolution = [6, 4, 3, 3]
+screen_height = 0.02
+crown_impostor = true
+
+[platform]
+target = "modern_pc"

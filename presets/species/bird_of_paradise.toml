@@ -1,0 +1,80 @@
+# Potted Bird of Paradise (Strelitzia nicolai)
+# Indoor bistro & café terrace architectural tropical clump: three distichous basal fans
+# of arching celadon petioles bearing 3D V-keeled glossy wind-split paddle blades.
+
+[species]
+name = "Bird of Paradise"
+scientific = "Strelitzia nicolai"
+latin = "Strelitzia nicolai"
+biome = "tropical"
+tags = ["tropical", "potted", "indoor", "bistro", "paddle_leaf"]
+
+[generator]
+family = "tropical_clump"
+notes = "Basal tropical paddle-leaf clump matching BistroInterior's Paris_Flower_Pot_01A/02A."
+
+[trunk]
+height = 1.15
+radius = 0.044
+taper = 0.35
+segments = 4
+
+[branches.level1]
+count = 19
+count_variance = 2
+length = 0.68
+length_variance = 0.14
+radius_ratio = 0.38
+taper = 0.55
+angle = 32.0
+angle_variance = 8.0
+rotation = 137.5
+gravity = -0.12
+curve = 18.0
+curve_variance = 6.0
+segments = 8
+
+[crown]
+shape = "hemispherical"
+offset = 0.10
+density = 1.0
+width_ratio = 1.10
+
+[leaves]
+count = 19
+min_level = 1
+size = 0.78
+size_variance = 0.14
+distribution = "endpoint"
+geometry = "cross_billboard"
+shape = "paddle"
+up_influence = 0.35
+
+[canopy]
+normals = "geometric"
+normal_blend = 0.0
+up_bias = 0.20
+clump_weight = 0.40
+clump_level = 1
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.10
+ao_strength = 0.34
+roughness = 0.46
+
+[textures]
+bark_prompt = "Smooth fibrous celadon-olive tropical plant petiole sheath"
+leaf_prompt = "Strelitzia nicolai glossy oblong paddle leaf with pale midrib, parallel veins, and wind splits"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "paddle"
+leaf_card = "single"
+bark_color = [0.24, 0.37, 0.18]
+leaf_color = [0.16, 0.39, 0.14]
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

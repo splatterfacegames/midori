@@ -65,6 +65,15 @@ pub struct GenerationEstimate {
 
 /// Estimate a species' worst-case generation cost without building geometry.
 pub fn estimate_tree(species: &Species) -> GenerationEstimate {
+    if matches!(
+        species.generator.family,
+        GeneratorFamily::Topiary
+            | GeneratorFamily::FloralShrub
+            | GeneratorFamily::ClimbingVine
+            | GeneratorFamily::TropicalClump
+    ) {
+        return crate::ornamental::estimate_ornamental(species);
+    }
     let level_max = |params: &Option<BranchParams>| {
         params
             .as_ref()
@@ -1482,6 +1491,12 @@ pub fn generate_tree_with_budget(
     match species.generator.family {
         GeneratorFamily::Dichotomous => {
             DichotomousGenerator::new(species, seed, *budget).generate()
+        }
+        GeneratorFamily::Topiary
+        | GeneratorFamily::FloralShrub
+        | GeneratorFamily::ClimbingVine
+        | GeneratorFamily::TropicalClump => {
+            crate::ornamental::generate_ornamental(species, seed, *budget)
         }
         GeneratorFamily::WeberPenn
         | GeneratorFamily::Cactus

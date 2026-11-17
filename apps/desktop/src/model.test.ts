@@ -168,15 +168,29 @@ describe('MidoriModel', () => {
   });
 
   it(
-    'loads dichotomous, top-down, maple, and ginkgo species presets',
+    'loads dichotomous, top-down, maple, ginkgo, and bistro ornamental presets',
     () => {
-      for (const id of ['joshua_prototype', 'topdown_conifer', 'japanese_maple', 'ginkgo']) {
+      for (const id of [
+        'joshua_prototype',
+        'topdown_conifer',
+        'japanese_maple',
+        'ginkgo',
+        'linden',
+        'italian_cypress',
+        'bistro_box_hedge',
+        'bistro_curved_hedge',
+        'bistro_topiary_ball',
+        'paris_flower_mound',
+        'paris_hanging_cascade',
+        'english_ivy',
+        'bird_of_paradise',
+      ]) {
         model.loadPreset(id);
         expect(model.getState().sourceError).toBeNull();
         expect(model.getState().lods?.[0]?.triangle_count).toBeGreaterThan(0);
       }
     },
-    60_000,
+    120_000,
   );
 
   it('previews pampas_meadow and alpine_meadow with card atlas and soil maps', () => {

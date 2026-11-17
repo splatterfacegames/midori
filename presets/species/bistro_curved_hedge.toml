@@ -1,0 +1,68 @@
+# Curved Terrace Hedge (Buxus sempervirens)
+# 90-degree arc-bent clipped boxwood hedge wrapping Parisian sidewalk dining corners.
+
+[species]
+name = "Curved Terrace Hedge"
+scientific = "Buxus sempervirens"
+latin = "Buxus sempervirens"
+biome = "urban_temperate"
+tags = ["shrub", "hedge", "topiary", "curved", "bistro"]
+
+[generator]
+family = "topiary"
+notes = "Curved 90-degree corner café divider hedge matching Bistro's bux_hedge_box_long_low_bend."
+
+[trunk]
+height = 1.05
+radius = 0.036
+taper = 0.72
+segments = 6
+
+[topiary]
+shape = "bent_box"
+length = 2.65
+width = 0.68
+height = 1.05
+bevel = 0.12
+bend_angle = 90.0
+trim_tightness = 0.80
+skirt_clearance = 0.06
+
+[leaves]
+count = 1720
+min_level = 0
+size = 0.34
+size_variance = 0.16
+distribution = "both"
+geometry = "cross_billboard"
+shape = "oval"
+up_influence = 0.45
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.82
+up_bias = 0.30
+clump_weight = 0.48
+clump_level = 1
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.14
+ao_strength = 0.62
+roughness = 0.56
+
+[textures]
+bark_prompt = "Pale olive-tan smooth boxwood shrub stems"
+leaf_prompt = "Buxus sempervirens opposite-paired glossy notched oval leaves with spring tips"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "oval"
+leaf_card = "buxus"
+bark_color = [0.46, 0.42, 0.31]
+leaf_color = [0.16, 0.35, 0.12]
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

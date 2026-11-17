@@ -27,6 +27,7 @@
 //! println!("Generated {} stems", tree.stem_count());
 //! ```
 
+pub mod bistro_cards;
 pub mod constants;
 pub mod error;
 pub mod export;
@@ -39,6 +40,7 @@ pub mod mesh;
 pub mod mesh_builder;
 pub mod nature;
 pub mod nature_cards;
+pub mod ornamental;
 pub mod rng;
 pub mod species;
 pub mod textures;
@@ -75,8 +77,9 @@ pub use nature::{
 };
 pub use rng::Rng;
 pub use species::{
-    BarkStyle, ControlGroup, ControlSpec, GeneratorConfig, GeneratorFamily, LeafCardLayout,
-    LeafShape, MaterialPlaceholders, TextureParams,
+    BarkStyle, ControlGroup, ControlSpec, FloralHabit, FloralParams, GeneratorConfig,
+    GeneratorFamily, LeafCardLayout, LeafShape, MaterialPlaceholders, TextureParams, TopiaryParams,
+    TopiaryShape, VineParams,
 };
 pub use species::{Species, SpeciesError, SpeciesFieldError};
 pub use textures::{RgbaTexture, TextureError, TextureSet, species_texture_seed};

@@ -80,8 +80,18 @@ export type LeafShapeName =
   | 'willow'
   | 'heart'
   | 'palmate'
-  | 'ginkgo';
-export type LeafCardLayout = 'single' | 'cluster' | 'puff' | 'dense' | 'frond';
+  | 'ginkgo'
+  | 'ivy'
+  | 'paddle';
+export type LeafCardLayout =
+  | 'single'
+  | 'cluster'
+  | 'puff'
+  | 'dense'
+  | 'frond'
+  | 'buxus'
+  | 'scale_cypress'
+  | 'floral';
 
 export interface TextureParamsJson {
   bark_prompt: string;
@@ -149,6 +159,31 @@ export interface SpeciesJson {
   textures: TextureParamsJson;
   lod: LodConfigJson;
   platform: PlatformConfigJson;
+  topiary?: {
+    shape?: 'box' | 'bent_box' | 'sphere' | 'cylinder' | 'cone';
+    length?: number;
+    width?: number;
+    height?: number;
+    bevel?: number;
+    bend_angle?: number;
+    trim_tightness?: number;
+    skirt_clearance?: number;
+  };
+  floral?: {
+    habit?: 'mound' | 'trough' | 'cascade';
+    length?: number;
+    width?: number;
+    height?: number;
+    cascade_drop?: number;
+    blossom_density?: number;
+  };
+  vine?: {
+    width?: number;
+    height?: number;
+    depth?: number;
+    main_vines?: number;
+    hanging_runners?: number;
+  };
 }
 
 export const CROWN_SHAPES: { value: CrownShape; label: string }[] = [
@@ -199,18 +234,83 @@ export const LEAF_SHAPES: { value: LeafShapeName; label: string }[] = [
   { value: 'ginkgo', label: 'Ginkgo fan' },
   { value: 'serrated', label: 'Serrated' },
   { value: 'willow', label: 'Willow lance' },
-  { value: 'heart', label: 'Heart' },
+  { value: 'heart', label: 'Heart (Linden)' },
+  { value: 'ivy', label: 'Ivy 5-lobe (Hedera)' },
+  { value: 'paddle', label: 'Tropical paddle (Strelitzia)' },
   { value: 'palmate', label: 'Palmate / frond' },
   { value: 'needle', label: 'Needle / rosette' },
 ];
 
 export const LEAF_CARD_LAYOUTS: { value: LeafCardLayout; label: string }[] = [
   { value: 'cluster', label: 'Cluster spray' },
-  { value: 'single', label: 'Single / frond / rosette' },
+  { value: 'single', label: 'Single / frond / paddle' },
   { value: 'puff', label: 'Canopy puff' },
   { value: 'dense', label: 'Dense spray' },
-  { value: 'frond', label: 'Conifer bough fan' },
+  { value: 'frond', label: 'Conifer / palm frond' },
+  { value: 'buxus', label: 'Boxwood sprig (Buxus)' },
+  { value: 'scale_cypress', label: 'Cypress scale fan' },
+  { value: 'floral', label: 'Pansy floral bouquet (2×2)' },
 ];
+
+export const TOPIARY_SECTION: ParamSection = {
+  id: 'topiary',
+  title: 'Topiary & Hedge Hull',
+  fields: [
+    {
+      kind: 'enum',
+      key: 'shape',
+      label: 'Hull shape',
+      options: [
+        { value: 'box', label: 'Clipped box hedge' },
+        { value: 'bent_box', label: 'Curved corner hedge' },
+        { value: 'sphere', label: 'Topiary globe' },
+        { value: 'cylinder', label: 'Topiary drum' },
+        { value: 'cone', label: 'Topiary cone' },
+      ],
+    },
+    { kind: 'number', key: 'length', label: 'Length', min: 0.3, max: 12, step: 0.05, unit: 'm' },
+    { kind: 'number', key: 'width', label: 'Width', min: 0.25, max: 6, step: 0.05, unit: 'm' },
+    { kind: 'number', key: 'height', label: 'Height', min: 0.3, max: 6, step: 0.05, unit: 'm' },
+    { kind: 'number', key: 'bevel', label: 'Corner bevel', min: 0, max: 0.6, step: 0.02, unit: 'm' },
+    { kind: 'number', key: 'bend_angle', label: 'Arc bend', min: -170, max: 170, step: 5, unit: '°' },
+    { kind: 'number', key: 'trim_tightness', label: 'Shear tightness', min: 0, max: 1, step: 0.05 },
+    { kind: 'number', key: 'skirt_clearance', label: 'Base clearance', min: 0, max: 0.4, step: 0.02, unit: 'm' },
+  ],
+};
+
+export const FLORAL_SECTION: ParamSection = {
+  id: 'floral',
+  title: 'Floral Planter & Cascade',
+  fields: [
+    {
+      kind: 'enum',
+      key: 'habit',
+      label: 'Habit',
+      options: [
+        { value: 'mound', label: 'Cushion mound' },
+        { value: 'trough', label: 'Window-box trough' },
+        { value: 'cascade', label: 'Hanging cascade' },
+      ],
+    },
+    { kind: 'number', key: 'length', label: 'Length', min: 0.25, max: 4, step: 0.05, unit: 'm' },
+    { kind: 'number', key: 'width', label: 'Width', min: 0.25, max: 4, step: 0.05, unit: 'm' },
+    { kind: 'number', key: 'height', label: 'Mound height', min: 0.15, max: 2, step: 0.04, unit: 'm' },
+    { kind: 'number', key: 'cascade_drop', label: 'Cascade drop', min: 0, max: 4, step: 0.05, unit: 'm' },
+    { kind: 'number', key: 'blossom_density', label: 'Blossom share', min: 0, max: 1, step: 0.05 },
+  ],
+};
+
+export const VINE_SECTION: ParamSection = {
+  id: 'vine',
+  title: 'Climbing Wall Vine',
+  fields: [
+    { kind: 'number', key: 'width', label: 'Wall spread', min: 0.4, max: 10, step: 0.1, unit: 'm' },
+    { kind: 'number', key: 'height', label: 'Climb height', min: 0.6, max: 12, step: 0.1, unit: 'm' },
+    { kind: 'number', key: 'depth', label: 'Wall depth', min: 0.15, max: 2, step: 0.04, unit: 'm' },
+    { kind: 'number', key: 'main_vines', label: 'Main climbers', min: 1, max: 16, step: 1, int: true },
+    { kind: 'number', key: 'hanging_runners', label: 'Pendant tendrils', min: 0, max: 24, step: 1, int: true },
+  ],
+};
 
 export const PLATFORM_TARGETS: { value: PlatformTarget; label: string }[] = [
   { value: 'modern_pc', label: 'Modern PC' },

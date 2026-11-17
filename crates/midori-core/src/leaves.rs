@@ -34,6 +34,10 @@ pub struct LeafConfig {
     pub pivot_painter: bool,
     /// Emit continuous 3D gullwing-cambered pinnate frond ribbons along arching palm rachises
     pub palm_frond_ribbon: bool,
+    /// Emit continuous 3D V-keeled & arched tropical paddle blades (Bird-of-Paradise / banana)
+    pub paddle_leaf_ribbon: bool,
+    /// Remap each leaf's UVs into a 2x2 sub-card floral/foliage atlas indexed by `stem_id & 3`
+    pub floral_quad_atlas: bool,
     /// Canopy shaping (normals, card orientation, vertex tint/AO)
     pub canopy: CanopyParams,
 }
@@ -48,6 +52,8 @@ impl Default for LeafConfig {
             up_influence: 0.25,
             pivot_painter: true,
             palm_frond_ribbon: false,
+            paddle_leaf_ribbon: false,
+            floral_quad_atlas: false,
             canopy: CanopyParams::default(),
         }
     }
@@ -61,6 +67,32 @@ pub(crate) fn is_pinnate_palm_species(species: &Species) -> bool {
         && species.leaves.distribution == LeafDistribution::AlongBranch
 }
 
+/// True when `species` emits continuous 3D arched & V-keeled tropical paddle blades.
+pub(crate) fn is_paddle_ribbon_species(species: &Species) -> bool {
+    species.generator.family == crate::species::GeneratorFamily::TropicalClump
+        || (species.leaves.shape == LeafShape::Paddle
+            && species.textures.leaf_card == crate::species::LeafCardLayout::Single)
+}
+
+/// True when `species` uses the 2x2 multi-blossom + foliage sub-card atlas.
+pub(crate) fn is_floral_atlas_species(species: &Species) -> bool {
+    species.textures.leaf_card == crate::species::LeafCardLayout::Floral
+}
+
+#[inline]
+fn remap_floral_uv(uv: Vec2, stem_id: u32, enabled: bool) -> Vec2 {
+    if !enabled {
+        return uv;
+    }
+    let q = stem_id & 3;
+    let u0 = if (q & 1) == 0 { 0.02 } else { 0.52 };
+    let v0 = if (q & 2) == 0 { 0.02 } else { 0.52 };
+    Vec2::new(
+        u0 + uv.x.clamp(0.0, 1.0) * 0.46,
+        v0 + uv.y.clamp(0.0, 1.0) * 0.46,
+    )
+}
+
 impl LeafConfig {
     /// Create a LeafConfig from species parameters
     pub fn from_species(species: &Species) -> Self {
@@ -72,6 +104,8 @@ impl LeafConfig {
             up_influence: species.leaves.up_influence,
             pivot_painter: true,
             palm_frond_ribbon: is_pinnate_palm_species(species),
+            paddle_leaf_ribbon: is_paddle_ribbon_species(species),
+            floral_quad_atlas: is_floral_atlas_species(species),
             canopy: species.canopy.clone(),
         }
     }
@@ -395,6 +429,13 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
             generate_palm_frond_ribbons(leaves, config, tree, rows),
             (rows + 1) * cols,
         )
+    } else if config.paddle_leaf_ribbon {
+        let rows = 16usize;
+        let cols = 7usize;
+        (
+            generate_paddle_leaf_ribbons(leaves, config, tree, rows),
+            (rows + 1) * cols,
+        )
     } else {
         let mesh = match config.geometry {
             LeafGeometry::Polygon => generate_polygon_leaves(leaves, config, tree),
@@ -429,7 +470,7 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
         leaves,
         per_leaf,
         config.geometry,
-        config.palm_frond_ribbon,
+        config.palm_frond_ribbon || config.paddle_leaf_ribbon,
     );
     mesh
 }
@@ -736,7 +777,11 @@ fn generate_canopy_cards(
             // Subtle convex canopy cupping eliminates razor-flat card silhouettes from 3/4 angles
             let cup = -normal * (0.11 * h * (0.45 * cx * cx + 0.55 * (cy + 0.35).max(0.0).powi(2)));
             let pos = center + u * (cx * h) + v * (cy * h) + cup;
-            let uv = Vec2::new(cx * 0.5 + 0.5, 0.5 - cy * 0.5);
+            let uv = remap_floral_uv(
+                Vec2::new(cx * 0.5 + 0.5, 0.5 - cy * 0.5),
+                leaf.stem_id,
+                config.floral_quad_atlas,
+            );
             let mut vertex = Vertex::new(pos, normal, uv);
             if config.pivot_painter {
                 encode_leaf_pivot_painter(&mut vertex, leaf, tree);
@@ -1024,6 +1069,127 @@ fn generate_palm_frond_ribbons(
     mesh
 }
 
+/// Generate continuous 3D V-keeled & arching tropical paddle blades (`Strelitzia` / banana)
+fn generate_paddle_leaf_ribbons(
+    leaves: &[Leaf],
+    config: &LeafConfig,
+    tree: &Tree,
+    rows: usize,
+) -> Mesh {
+    let mut mesh = Mesh::new();
+    let cols = 7usize;
+    let xs = [-1.0_f32, -0.66, -0.32, 0.0, 0.32, 0.66, 1.0];
+
+    for (leaf_idx, leaf) in leaves.iter().enumerate() {
+        let base_idx = mesh.vertices.len() as u32;
+        let len = leaf.scale.max(0.18);
+        let init_dir = (leaf.rotation * Vec3::Y).normalize_or_zero();
+        let init_up = (leaf.rotation * Vec3::Z).normalize_or_zero();
+        let mut side = init_up
+            .cross(init_dir)
+            .try_normalize()
+            .unwrap_or_else(|| create_basis(init_dir).0);
+
+        let hash = ((leaf_idx as f32 * 0.618_034).fract() - 0.5) * 2.0;
+        let max_twist = hash * 0.28;
+        let wave_phase = leaf_idx as f32 * 1.91;
+
+        // Build smooth longitudinal spine arching outward and drooping gently toward the tip
+        let mut spine = Vec::with_capacity(rows + 1);
+        let mut cur = leaf.position;
+        let mut cur_dir = init_dir;
+        let step = len / rows as f32;
+        spine.push(cur);
+        for r in 0..rows {
+            let u = (r as f32 + 0.5) / rows as f32;
+            let droop = 0.72 * (0.28 + 0.95 * u) / rows as f32;
+            cur_dir = (cur_dir - Vec3::Y * droop)
+                .try_normalize()
+                .unwrap_or(cur_dir);
+            cur += cur_dir * step;
+            spine.push(cur);
+        }
+
+        for r in 0..=rows {
+            let tang = if r == 0 {
+                (spine[1] - spine[0]).try_normalize().unwrap_or(init_dir)
+            } else if r == rows {
+                (spine[rows] - spine[rows - 1])
+                    .try_normalize()
+                    .unwrap_or(init_dir)
+            } else {
+                (spine[r + 1] - spine[r - 1])
+                    .try_normalize()
+                    .unwrap_or(init_dir)
+            };
+            if r > 0 {
+                let proj = side - tang * side.dot(tang);
+                if let Some(s) = proj.try_normalize() {
+                    side = s;
+                }
+            }
+            let up = side.cross(tang).try_normalize().unwrap_or(Vec3::Y);
+            let u = r as f32 / rows as f32;
+
+            let twist = max_twist * u.powf(1.2);
+            let s_vec = rotate_around_axis(side, tang, twist);
+            let u_vec = rotate_around_axis(up, tang, twist);
+
+            // Broad oblong-ovate Strelitzia paddle silhouette: short petiole collar -> wide belly -> rounded blunt apex
+            let collar = ((u / 0.13).clamp(0.0, 1.0)).powf(0.65);
+            let apex_round = ((1.0 - u) / 0.18).clamp(0.0, 1.0).powf(0.52);
+            let belly = 0.88 + 0.16 * (u * PI).sin();
+            let half_w = len * 0.22 * (0.10 + 0.90 * collar * apex_round * belly);
+
+            for &xn in &xs {
+                let ax = xn.abs();
+                // Deep V-channel midrib rising to arched lamina halves, rolling gently down at outer margins
+                let rise = 0.24 * ax * (1.0 - 0.22 * u);
+                let roll = -0.32 * ax.powf(2.0) * (0.45 + 0.55 * u);
+                let ruffle = 0.032 * (u * 10.5 + wave_phase + xn * 0.8).sin() * ax.powf(1.3);
+                let keel_y = half_w * (rise + roll + ruffle);
+
+                let pos = spine[r] + s_vec * (xn * half_w) + u_vec * keel_y;
+
+                let dkeel_dax = 0.24 * (1.0 - 0.22 * u) - 0.64 * ax * (0.45 + 0.55 * u);
+                let slope_x = -xn.signum() * dkeel_dax;
+                let nrm = (u_vec + s_vec * slope_x - tang * 0.05)
+                    .try_normalize()
+                    .unwrap_or(u_vec);
+                // Map UV tightly into paddle_leaf_card [0..1]
+                let uv = Vec2::new(xn * 0.44 + 0.5, (0.96 - u * 0.92).clamp(0.02, 0.98));
+
+                let mut vertex = Vertex::new(pos, nrm, uv);
+                if config.pivot_painter {
+                    encode_leaf_pivot_painter(&mut vertex, leaf, tree);
+                }
+                mesh.vertices.push(vertex);
+            }
+        }
+
+        for r in 0..rows as u32 {
+            for c in 0..(cols as u32 - 1) {
+                let i00 = base_idx + r * (cols as u32) + c;
+                let i10 = i00 + 1;
+                let i01 = i00 + (cols as u32);
+                let i11 = i01 + 1;
+                mesh.indices
+                    .extend_from_slice(&[i00, i10, i11, i00, i11, i01]);
+            }
+        }
+    }
+
+    if !mesh.indices.is_empty() {
+        mesh.submeshes.push(Submesh {
+            index_start: 0,
+            index_count: mesh.indices.len() as u32,
+            material: MaterialType::Leaves,
+        });
+    }
+
+    mesh
+}
+
 /// Add a billboard or 3D-arched botanical spray wing for a leaf
 fn add_billboard_quad(
     mesh: &mut Mesh,
@@ -1056,7 +1222,11 @@ fn add_billboard_quad(
 
                 let world_pos = leaf.position + final_rotation * local_pos;
                 let world_nrm = (final_rotation * local_nrm).normalize_or_zero();
-                let uv = Vec2::new(xn * 0.5 + 0.5, 1.0 - yn);
+                let uv = remap_floral_uv(
+                    Vec2::new(xn * 0.5 + 0.5, 1.0 - yn),
+                    leaf.stem_id,
+                    config.floral_quad_atlas,
+                );
 
                 let mut vertex = Vertex::new(world_pos, world_nrm, uv);
                 if config.pivot_painter {
@@ -1105,7 +1275,8 @@ fn add_billboard_quad(
 
     for i in 0..4 {
         let world_pos = leaf.position + final_rotation * corners[i];
-        let mut vertex = Vertex::new(world_pos, normal, uvs[i]);
+        let uv = remap_floral_uv(uvs[i], leaf.stem_id, config.floral_quad_atlas);
+        let mut vertex = Vertex::new(world_pos, normal, uv);
 
         if config.pivot_painter {
             encode_leaf_pivot_painter(&mut vertex, leaf, tree);
@@ -1291,15 +1462,19 @@ pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
             smooth_max_2d(d_side, d_end)
         }
         LeafShape::Heart => {
-            // Cordate leaf: notched basal lobes at -y, broad shoulders, acuminate tip at +y
+            // Tilia cordata (European Linden): deep cordate notched basal lobes at -y,
+            // broad rounded shoulders with crisp marginal teeth, acuminate drip-tip at +y.
             let y_norm = ((py + 0.44) / 0.98).clamp(0.0, 1.0);
-            let shoulder = (y_norm * PI).sin().max(0.0).powf(0.72) * (1.28 - 0.58 * y_norm);
-            let basal_notch = if py < -0.22 && px < 0.16 {
-                0.10 * (1.0 - px / 0.16) * ((-0.22 - py) / 0.22).clamp(0.0, 1.0)
+            let shoulder = (y_norm * PI).sin().max(0.0).powf(0.68) * (1.32 - 0.62 * y_norm);
+            let saw = (y_norm * 16.0).fract();
+            let serration =
+                (1.0 - saw) * saw.max(0.0).powf(0.3) * 0.030 * (y_norm * PI).sin().max(0.0);
+            let basal_notch = if py < -0.20 && px < 0.18 {
+                0.13 * (1.0 - (px / 0.18).powf(1.2)) * ((-0.20 - py) / 0.24).clamp(0.0, 1.0)
             } else {
                 0.0
             };
-            let half_w = 0.34 * shoulder;
+            let half_w = 0.35 * shoulder + serration;
             let d_side = px - half_w;
             let d_top = py - 0.54;
             let d_bot = (-0.44 + basal_notch) - py;
@@ -1322,6 +1497,46 @@ pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
             let d_side = r * da.sin() - w;
             let d_tip = r - len;
             (r - 0.11).min(smooth_max_2d(d_side, d_tip))
+        }
+        LeafShape::Ivy => {
+            // Hedera helix 5-lobed English Ivy blade: prominent pointed apical lobe (+y),
+            // two broad forward-swept lateral lobes, two smaller rounded basal lobes, cordate sinus.
+            let shifted = Vec2::new(p.x, py + 0.14);
+            let r = shifted.length();
+            let angle = shifted.x.abs().atan2(shifted.y); // 0 at +y tip, PI at -y petiole sinus
+            let apical = 0.64 * (-((angle - 0.0) / 0.42).powi(2)).exp();
+            let lateral = 0.54 * (-((angle - 1.10) / 0.40).powi(2)).exp();
+            let basal = 0.36 * (-((angle - 2.08) / 0.42).powi(2)).exp();
+            let sinus_cut = 0.14 * (-((angle - PI) / 0.32).powi(2)).exp();
+            let target_r = (0.14 + apical.max(lateral).max(basal) - sinus_cut).max(0.05);
+            r - target_r
+        }
+        LeafShape::Paddle => {
+            // Strelitzia / banana oblong-ovate tropical paddle leaf with 2 natural marginal wind-splits
+            let y_norm = ((py + 0.50) / 1.02).clamp(0.0, 1.0);
+            let env = (y_norm * PI).sin().max(0.0).powf(0.46) * (0.94 + 0.10 * y_norm);
+            let half_w = 0.29 * env;
+            // Clean natural V-splits along lateral lamina (asymmetric left vs right)
+            let split_a = if p.x < -0.03 {
+                let dy = (py - (0.08 + p.x.abs() * 0.24)).abs();
+                (0.016 - dy).max(0.0) * 8.5
+            } else {
+                0.0
+            };
+            let split_b = if p.x > 0.03 {
+                let dy = (py - (-0.14 + p.x.abs() * 0.22)).abs();
+                (0.015 - dy).max(0.0) * 8.0
+            } else {
+                0.0
+            };
+            let d_side = (px - (half_w - split_a - split_b)).max(px - half_w);
+            let d_notch = if split_a > 0.01 || split_b > 0.01 {
+                (split_a + split_b) * 0.08 - (px - 0.035).max(0.0) * 0.02
+            } else {
+                -1.0
+            };
+            let d_end = py.abs() - 0.51;
+            smooth_max_2d(d_side.max(d_notch), d_end)
         }
     }
 }

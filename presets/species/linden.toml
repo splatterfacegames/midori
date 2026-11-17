@@ -1,0 +1,122 @@
+# Parisian Linden (Tilia cordata)
+# Balanced European boulevard street tree with pruned pedestrian clear-stem trunk,
+# stately ovoid dome crown, and late-summer Parisian emerald + golden-ochre warmth.
+
+[species]
+name = "Parisian Linden"
+scientific = "Tilia cordata"
+latin = "Tilia cordata"
+biome = "urban_temperate"
+tags = ["broadleaf", "deciduous", "street_tree", "bistro", "urban"]
+
+[generator]
+family = "weber_penn"
+notes = "Balanced boulevard linden with clear pedestrian trunk and two-tone late-summer canopy."
+
+[trunk]
+height = 9.8
+height_variance = 0.08
+radius = 0.44
+taper = 0.78
+taper_profile = "exponential"
+curve = 9.0
+curve_variance = 5.0
+curve_back = 10.0
+segments = 20
+
+[branches.level1]
+count = 15
+count_variance = 2
+length = 3.90
+length_variance = 0.12
+radius_ratio = 0.52
+radius_model = "ratio"
+pipe_exponent = 2.25
+taper = 0.78
+taper_profile = "exponential"
+angle = 38.0
+angle_variance = 7.0
+rotation = 137.5
+gravity = 0.05
+curve = 14.0
+curve_variance = 10.0
+segments = 14
+
+[branches.level2]
+count = 6
+count_variance = 1
+length = 1.95
+length_variance = 0.18
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 46.0
+angle_variance = 11.0
+rotation = 137.5
+gravity = -0.04
+curve = -14.0
+curve_variance = 12.0
+segments = 9
+
+[branches.level3]
+count = 5
+count_variance = 1
+length = 0.98
+length_variance = 0.20
+radius_ratio = 0.45
+taper = 0.80
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.06
+curve = 16.0
+curve_variance = 12.0
+segments = 7
+
+[crown]
+shape = "spherical"
+offset = 0.34
+density = 1.0
+width_ratio = 0.96
+
+[leaves]
+count = 2200
+min_level = 2
+size = 0.74
+size_variance = 0.18
+distribution = "both"
+geometry = "cross_billboard"
+shape = "heart"
+up_influence = 0.36
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.86
+up_bias = 0.30
+clump_weight = 0.72
+clump_level = 2
+crown_fill = 0
+shell = 0.24
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.22
+hue_variation = 0.26
+ao_strength = 0.48
+roughness = 0.70
+
+[textures]
+bark_prompt = "European linden street tree bark, grey-brown shallow vertical fissures"
+leaf_prompt = "Tilia cordata heart-shaped serrated leaves with warm late-summer ochre accents"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "heart"
+leaf_card = "cluster"
+bark_color = [0.39, 0.35, 0.30]
+leaf_color = [0.28, 0.45, 0.13]
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

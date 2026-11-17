@@ -50,6 +50,10 @@
           "enum": [
             "weber_penn",
             "dichotomous",
+            "topiary",
+            "floral_shrub",
+            "climbing_vine",
+            "tropical_clump",
             "cactus",
             "pad_chain",
             "custom"
@@ -338,7 +342,10 @@
             "cluster",
             "puff",
             "dense",
-            "frond"
+            "frond",
+            "buxus",
+            "scale_cypress",
+            "floral"
           ],
           "default": "cluster"
         },
@@ -521,6 +528,114 @@
           "default": "modern_pc"
         }
       }
+    },
+    "topiary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": [
+            "box",
+            "bent_box",
+            "sphere",
+            "cylinder",
+            "cone"
+          ],
+          "default": "box"
+        },
+        "length": {
+          "type": "number",
+          "default": 2.4
+        },
+        "width": {
+          "type": "number",
+          "default": 0.68
+        },
+        "height": {
+          "type": "number",
+          "default": 1.05
+        },
+        "bevel": {
+          "type": "number",
+          "default": 0.11
+        },
+        "bend_angle": {
+          "type": "number",
+          "default": 90.0
+        },
+        "trim_tightness": {
+          "type": "number",
+          "default": 0.80
+        },
+        "skirt_clearance": {
+          "type": "number",
+          "default": 0.06
+        }
+      }
+    },
+    "floral": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "habit": {
+          "type": "string",
+          "enum": [
+            "mound",
+            "trough",
+            "cascade"
+          ],
+          "default": "mound"
+        },
+        "length": {
+          "type": "number",
+          "default": 0.72
+        },
+        "width": {
+          "type": "number",
+          "default": 0.72
+        },
+        "height": {
+          "type": "number",
+          "default": 0.46
+        },
+        "cascade_drop": {
+          "type": "number",
+          "default": 1.35
+        },
+        "blossom_density": {
+          "type": "number",
+          "default": 0.68
+        }
+      }
+    },
+    "vine": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "number",
+          "default": 2.8
+        },
+        "height": {
+          "type": "number",
+          "default": 4.2
+        },
+        "depth": {
+          "type": "number",
+          "default": 0.46
+        },
+        "main_vines": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5
+        },
+        "hanging_runners": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 8
+        }
+      }
     }
   },
   "$defs": {
@@ -556,7 +671,9 @@
         "willow",
         "heart",
         "palmate",
-        "ginkgo"
+        "ginkgo",
+        "ivy",
+        "paddle"
       ],
       "description": "lobed is a legacy alias for oak_lobed"
     },

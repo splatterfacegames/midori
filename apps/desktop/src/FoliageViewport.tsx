@@ -356,14 +356,15 @@ export function FoliageViewport({
         controls.target.set(0, center.y + 0.2, 0);
       }
     } else {
-      const height = Math.max(1.2, size.y);
-      const radius = Math.max(0.8, Math.max(size.x, size.z) * 0.5);
+      const height = Math.max(0.45, size.y);
+      const radius = Math.max(0.38, Math.max(size.x, size.z) * 0.5);
       const halfV = THREE.MathUtils.degToRad(camera.fov * 0.5);
       const safeAspect = Math.max(0.38, camera.aspect || 1);
       const halfH = Math.atan(Math.tan(halfV) * safeAspect);
       const fitDistV = (height * 0.56) / Math.tan(halfV);
       const fitDistH = (radius * 1.14) / Math.tan(halfH);
       const baseDist = Math.max(fitDistV, fitDistH);
+      const isCompact = size.y < 2.2;
 
       if (topdown) {
         // Distinct isometric ARPG Hero (46 deg) vs steep tactical RTS Overview (74 deg) on sunlit 3/4 side
@@ -376,14 +377,25 @@ export function FoliageViewport({
         );
         controls.target.set(center.x, center.y - height * 0.03, center.z);
       } else if (preset === 'overview') {
-        const elev = THREE.MathUtils.degToRad(34);
+        const elev = THREE.MathUtils.degToRad(isCompact ? 38 : 34);
         const dist = baseDist * 1.18;
+        const sideSign = isCompact ? 1 : -1;
         camera.position.set(
-          center.x - dist * Math.cos(elev) * 0.58,
+          center.x + sideSign * dist * Math.cos(elev) * 0.58,
           center.y + dist * Math.sin(elev),
           center.z + dist * Math.cos(elev) * 0.82,
         );
         controls.target.set(center.x, center.y - height * 0.04, center.z);
+      } else if (isCompact) {
+        // Sunlit 3/4 terrace / garden-eye framing for hedges, topiary, floral planters, and potted plants
+        const elev = THREE.MathUtils.degToRad(21);
+        const dist = baseDist * 1.14;
+        camera.position.set(
+          center.x + dist * Math.cos(elev) * 0.56,
+          center.y + dist * Math.sin(elev),
+          center.z + dist * Math.cos(elev) * 0.83,
+        );
+        controls.target.set(center.x, center.y - height * 0.02, center.z);
       } else {
         // Hero upward-gazing tree portrait framing root buttresses, turf carpet, and sunlit crown pads
         const elev = THREE.MathUtils.degToRad(11.5);
@@ -631,9 +643,24 @@ export function FoliageViewport({
       }
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
-      const minY = Math.min(0, box.min.y);
-      const treeHeight = Math.max(1.0, box.max.y - minY);
-      const pedRadius = Math.max(2.6, Math.max(size.x, size.z) * 0.72);
+      const groundY = box.min.y < -0.08 ? box.min.y - 0.18 : 0;
+      const minY = Math.min(groundY, box.min.y);
+      const treeHeight = Math.max(0.5, box.max.y - minY);
+      const pedRadius = Math.max(2.0, Math.max(size.x, size.z) * 0.72);
+
+      // Compute ground-contact footprint so turf tufts never poke up inside hedges or planters
+      let footMinX = Infinity;
+      let footMaxX = -Infinity;
+      let footMinZ = Infinity;
+      let footMaxZ = -Infinity;
+      for (let i = 0; i < positions.length; i += 3) {
+        if (positions[i + 1] <= groundY + 0.42) {
+          if (positions[i] < footMinX) footMinX = positions[i];
+          if (positions[i] > footMaxX) footMaxX = positions[i];
+          if (positions[i + 2] < footMinZ) footMinZ = positions[i + 2];
+          if (positions[i + 2] > footMaxZ) footMaxZ = positions[i + 2];
+        }
+      }
 
       // Update shadow frustum tightly around tree + ground shadow throw
       const shadowSpan = Math.max(pedRadius * 1.45, treeHeight * 0.95);
@@ -701,7 +728,7 @@ export function FoliageViewport({
         metalness: 0.0,
       });
       const pedestal = new THREE.Mesh(pedGeo, pedMat);
-      pedestal.position.set(0, 0, 0);
+      pedestal.position.set(0, groundY, 0);
       pedestal.receiveShadow = true;
       ctx.contentGroup.add(pedestal);
 
@@ -714,7 +741,7 @@ export function FoliageViewport({
         metalness: 0.0,
       });
       const vista = new THREE.Mesh(vistaGeo, vistaMat);
-      vista.position.set(0, -0.0685, 0);
+      vista.position.set(0, groundY - 0.0685, 0);
       vista.receiveShadow = true;
       ctx.contentGroup.add(vista);
 
@@ -737,7 +764,7 @@ export function FoliageViewport({
           const baseV = (bPos.length / 3);
           for (let s = 0; s <= segs; s++) {
             const t = s / segs;
-            const hw = 0.017 * (1 - 0.88 * t * t);
+            const hw = 0.015 * turfScale * (1 - 0.88 * t * t);
             const ly = 0.28 * bScaleH * (t - 0.18 * t * t);
             const lz = archOut * t * t + 0.018 * (1 - t);
             const lx0 = -hw * cosY + lz * sinY;
@@ -796,7 +823,8 @@ export function FoliageViewport({
         const tuftCount = 105;
         const grassInst = new THREE.InstancedMesh(bladeGeo, bladeMat, tuftCount);
         const dummyG = new THREE.Object3D();
-        const innerR = Math.max(0.28, Math.min(0.72, Math.max(size.x, size.z) * 0.052));
+        const innerR = Math.max(0.24, Math.min(0.72, Math.max(size.x, size.z) * 0.052));
+        let placedTufts = 0;
         for (let i = 0; i < tuftCount; i++) {
           const h1 = hash2d(i * 7 + 11, 31);
           const h2 = hash2d(i * 13 + 5, 97);
@@ -805,19 +833,28 @@ export function FoliageViewport({
           const dist = innerR + Math.pow(h2, 0.72) * (pedRadius * 0.78 - innerR);
           const gx = Math.cos(ang) * dist;
           const gz = Math.sin(ang) * dist;
-          dummyG.position.set(gx, moundHeightAt(gx, gz) - 0.012, gz);
+          if (
+            gx > footMinX - 0.12 &&
+            gx < footMaxX + 0.12 &&
+            gz > footMinZ - 0.12 &&
+            gz < footMaxZ + 0.12
+          ) {
+            continue;
+          }
+          dummyG.position.set(gx, groundY + moundHeightAt(gx, gz) - 0.012, gz);
           dummyG.rotation.set(0, h3 * Math.PI * 2, 0);
           const sH = (0.72 + 0.68 * h1) * (1 - 0.35 * (dist / pedRadius));
           dummyG.scale.set(0.88 + 0.36 * h2, Math.max(0.38, sH), 0.88 + 0.36 * h2);
           dummyG.updateMatrix();
-          grassInst.setMatrixAt(i, dummyG.matrix);
+          grassInst.setMatrixAt(placedTufts++, dummyG.matrix);
         }
+        grassInst.count = placedTufts;
         grassInst.instanceMatrix.needsUpdate = true;
         grassInst.receiveShadow = true;
         ctx.contentGroup.add(grassInst);
 
-        // Fallen leaf carpet under deciduous / broadleaf / needle crowns
-        if (maps?.leaf_card.rgba && layers.leaves) {
+        // Fallen leaf carpet under full-scale deciduous / broadleaf / needle crowns (skip manicured hedges & planters)
+        if (maps?.leaf_card.rgba && layers.leaves && size.y >= 2.4 && groundY >= -0.02) {
           const flGeo = new THREE.PlaneGeometry(0.28, 0.28);
           flGeo.rotateX(-Math.PI / 2);
           const flMat = new THREE.MeshStandardMaterial({

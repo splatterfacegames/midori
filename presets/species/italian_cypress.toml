@@ -1,0 +1,105 @@
+# Italian Cypress (Cupressus sempervirens)
+# Tall, narrow Mediterranean architectural flame spire clothed in dense overlapping
+# scale-leaf fan plumes from near the soil ankle to a pointed cypress apex.
+
+[species]
+name = "Italian Cypress"
+scientific = "Cupressus sempervirens"
+latin = "Cupressus sempervirens"
+biome = "mediterranean"
+tags = ["conifer", "evergreen", "columnar", "bistro", "ornamental"]
+
+[generator]
+family = "weber_penn"
+notes = "Fastigiate columnar cypress spire with steeply ascending limbs and dense scale-leaf fans."
+
+[trunk]
+height = 6.7
+height_variance = 0.06
+radius = 0.095
+taper = 0.92
+taper_profile = "linear"
+curve = 0.0
+curve_variance = 0.0
+curve_back = 0.0
+segments = 18
+
+[branches.level1]
+count = 56
+count_variance = 4
+length = 1.32
+length_variance = 0.10
+radius_ratio = 0.34
+radius_model = "ratio"
+taper = 0.86
+taper_profile = "linear"
+angle = 20.0
+angle_variance = 3.5
+rotation = 137.5
+gravity = 0.32
+curve = 10.0
+curve_variance = 4.0
+segments = 7
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 0.56
+length_variance = 0.15
+radius_ratio = 0.48
+taper = 0.80
+angle = 26.0
+angle_variance = 6.0
+rotation = 137.5
+gravity = 0.20
+curve = 8.0
+curve_variance = 6.0
+segments = 5
+
+[crown]
+shape = "conical"
+offset = 0.05
+density = 1.0
+width_ratio = 0.25
+
+[leaves]
+count = 2350
+min_level = 1
+size = 0.74
+size_variance = 0.14
+distribution = "both"
+geometry = "cross_billboard"
+shape = "oval"
+up_influence = 0.76
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.86
+up_bias = 0.24
+clump_weight = 0.52
+clump_level = 1
+crown_fill = 0
+shell = 0.14
+card_scale_by_clump = 0.65
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.14
+ao_strength = 0.54
+roughness = 0.74
+
+[textures]
+bark_prompt = "Fibrous grey-brown Mediterranean cypress bark with shallow vertical strips"
+leaf_prompt = "Cupressus sempervirens dense overlapping scale-leaf fan plumes"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "oval"
+leaf_card = "scale_cypress"
+bark_color = [0.40, 0.33, 0.27]
+leaf_color = [0.19, 0.36, 0.14]
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

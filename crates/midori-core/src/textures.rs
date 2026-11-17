@@ -1124,12 +1124,18 @@ fn card_leaves_and_twigs(
                 });
 
                 let tip_angle = dir.y.atan2(dir.x);
+                // Give Parisian Linden (Heart) sprays 2 warm late-summer golden-ochre leaves
+                let hue = if shape == LeafShape::Heart && (i == 1 || i == 3) {
+                    rng.range(2.65, 3.60)
+                } else {
+                    lerp(-0.24, 0.44, t) + rng.range(-0.18, 0.18)
+                };
                 leaves.push(CardLeaf {
                     center,
                     rotation: crate::constants::PI / 2.0 - tip_angle,
                     scale: leaf_scale,
                     jitter: lerp(0.86, 1.14, t) * rng.range(0.94, 1.06),
-                    hue: lerp(-0.24, 0.44, t) + rng.range(-0.18, 0.18),
+                    hue,
                 });
             }
 
@@ -1252,7 +1258,10 @@ fn card_leaves_and_twigs(
             heaped.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
             (heaped.into_iter().map(|(_, l)| l).collect(), Vec::new())
         }
-        LeafCardLayout::Frond => (Vec::new(), Vec::new()),
+        LeafCardLayout::Frond
+        | LeafCardLayout::Buxus
+        | LeafCardLayout::ScaleCypress
+        | LeafCardLayout::Floral => (Vec::new(), Vec::new()),
     }
 }
 
@@ -1267,6 +1276,18 @@ fn leaf_card(
     res: u32,
 ) -> RgbaTexture {
     let mut rng = Rng::from_seed(seed ^ 0x1EAF_CA4D);
+    if layout == LeafCardLayout::Buxus {
+        return crate::bistro_cards::buxus_sprig_card(color, &mut rng, seed, res);
+    }
+    if layout == LeafCardLayout::ScaleCypress {
+        return crate::bistro_cards::scale_cypress_card(color, &mut rng, seed, res);
+    }
+    if layout == LeafCardLayout::Floral {
+        return crate::bistro_cards::floral_pansy_atlas_card(color, &mut rng, seed, res);
+    }
+    if shape == LeafShape::Paddle {
+        return crate::bistro_cards::paddle_leaf_card(color, &mut rng, seed, res);
+    }
     if shape == LeafShape::Willow && layout == LeafCardLayout::Frond {
         return palm_pinnae_card(color, &mut rng, res);
     }
@@ -1408,6 +1429,43 @@ fn leaf_card(
                                 shade *= 1.0 + 0.14 * k;
                                 vein_tint = [1.0 + 0.08 * k, 1.0 + 0.06 * k, 1.0 - 0.08 * k];
                             }
+                            LeafShape::Ivy => {
+                                // Hedera helix: high-contrast cream-chartreuse 5-rib palmate venation
+                                // + bright reticulate network on dark glossy forest-emerald lamina.
+                                let hub = Vec2::new(local.x, local.y + 0.14);
+                                let r = hub.length();
+                                let a = hub.x.abs().atan2(hub.y);
+                                let nearest_rib = [0.0_f32, 1.10, 2.08]
+                                    .into_iter()
+                                    .map(|ra| (a - ra).abs())
+                                    .fold(f32::MAX, f32::min);
+                                let rib_d = r * nearest_rib.sin();
+                                let rib_w = lerp(0.015, 0.0030, (r / 0.62).clamp(0.0, 1.0));
+                                let cell = value_noise(
+                                    seed ^ 0x1711,
+                                    (local.x + 1.0) * 44.0,
+                                    (local.y + 1.0) * 44.0,
+                                    128,
+                                    128,
+                                );
+                                let net = (1.0 - (cell - 0.5).abs() * 11.0).clamp(0.0, 1.0);
+                                if r < 0.64 && rib_d < rib_w {
+                                    let k = (1.0 - rib_d / rib_w.max(1e-4)).powf(0.75);
+                                    shade *= 1.0 + 0.52 * k;
+                                    vein_tint = [1.0 + 0.55 * k, 1.0 + 0.42 * k, 1.0 + 0.18 * k];
+                                } else {
+                                    let sec = ((r - rib_d * 0.55) * 18.0).fract();
+                                    let sec_k = (1.0 - (sec - 0.5).abs() * 9.5).clamp(0.0, 1.0)
+                                        * (1.0 - (rib_d * 4.2).clamp(0.0, 1.0));
+                                    let v_net = (0.65 * sec_k + 0.38 * net).clamp(0.0, 1.0);
+                                    shade *= 1.0 + 0.28 * v_net;
+                                    vein_tint = [
+                                        1.0 + 0.34 * v_net,
+                                        1.0 + 0.26 * v_net,
+                                        1.0 + 0.08 * v_net,
+                                    ];
+                                }
+                            }
                             LeafShape::Maple | LeafShape::Palmate => {
                                 // 7-rib palmate primary venation + lateral secondary ribs
                                 let hub = Vec2::new(local.x, local.y + 0.16);
@@ -1460,15 +1518,31 @@ fn leaf_card(
                         shade *= 1.0 + 0.09 * rim;
                     }
 
+                    let leaf_base_rgb = if shape == LeafShape::Heart && leaf.hue > 1.5 {
+                        // Warm late-summer Parisian Linden golden-amber / ochre accent blade
+                        let amber_t = ((leaf.hue - 1.5) / 2.0).clamp(0.45, 0.92);
+                        [
+                            lerp(base[0], 0.68, amber_t),
+                            lerp(base[1], 0.44, amber_t),
+                            lerp(base[2], 0.10, amber_t),
+                        ]
+                    } else {
+                        base
+                    };
+                    let eff_hue = if shape == LeafShape::Heart && leaf.hue > 1.5 {
+                        0.25
+                    } else {
+                        leaf.hue
+                    };
                     let warm = [
-                        (1.0 + 0.12 * leaf.hue) * vein_tint[0],
-                        (1.0 + 0.04 * leaf.hue) * vein_tint[1],
-                        (1.0 - 0.15 * leaf.hue) * vein_tint[2],
+                        (1.0 + 0.12 * eff_hue) * vein_tint[0],
+                        (1.0 + 0.04 * eff_hue) * vein_tint[1],
+                        (1.0 - 0.15 * eff_hue) * vein_tint[2],
                     ];
                     let c = [
-                        (base[0] * shade * warm[0]).clamp(0.0, 1.0),
-                        (base[1] * shade * warm[1]).clamp(0.0, 1.0),
-                        (base[2] * shade * warm[2]).clamp(0.0, 1.0),
+                        (leaf_base_rgb[0] * shade * warm[0]).clamp(0.0, 1.0),
+                        (leaf_base_rgb[1] * shade * warm[1]).clamp(0.0, 1.0),
+                        (leaf_base_rgb[2] * shade * warm[2]).clamp(0.0, 1.0),
                     ];
                     over(&mut acc, [c[0], c[1], c[2], alpha]);
                 }

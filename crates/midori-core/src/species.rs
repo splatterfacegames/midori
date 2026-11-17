@@ -52,6 +52,211 @@ pub struct Species {
     /// Target platform optimization
     #[serde(default)]
     pub platform: PlatformConfig,
+    /// Optional sheared hedge and topiary hull parameters (`generator.family = "topiary"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub topiary: Option<TopiaryParams>,
+    /// Optional ornamental floral planter/cushion/cascade parameters (`generator.family = "floral_shrub"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub floral: Option<FloralParams>,
+    /// Optional climbing wall vine parameters (`generator.family = "climbing_vine"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vine: Option<VineParams>,
+}
+
+/// Sheared hedge / topiary silhouette hull shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TopiaryShape {
+    /// Straight rectangular clipped hedge (`Buxus` patio divider).
+    #[default]
+    Box,
+    /// Curved arc hedge for café terrace corners (`bend_angle` degrees).
+    BentBox,
+    /// Sculpted globe / ball topiary.
+    Sphere,
+    /// Flat-topped drum / cylinder topiary.
+    Cylinder,
+    /// Tapered conical / pyramidal topiary.
+    Cone,
+}
+
+/// Parametric sheared hedge and topiary controls (`[topiary]`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TopiaryParams {
+    /// Target sheared silhouette shape.
+    #[serde(default)]
+    pub shape: TopiaryShape,
+    /// Length along X (or arc length for `bent_box`) in meters.
+    #[serde(default = "default_topiary_length")]
+    pub length: f32,
+    /// Depth/thickness along Z (or radial thickness) in meters.
+    #[serde(default = "default_topiary_width")]
+    pub width: f32,
+    /// Total sheared height in meters.
+    #[serde(default = "default_topiary_height")]
+    pub height: f32,
+    /// Corner and top-edge shear bevel radius in meters.
+    #[serde(default = "default_topiary_bevel")]
+    pub bevel: f32,
+    /// Horizontal arc angle in degrees when `shape = "bent_box"`.
+    #[serde(default = "default_topiary_bend_angle")]
+    pub bend_angle: f32,
+    /// Shear discipline (`0..=1`): higher keeps edges crisp; lower lets more new-growth sprigs break out.
+    #[serde(default = "default_topiary_trim_tightness")]
+    pub trim_tightness: f32,
+    /// Clear basal woody stem collar height above `y = 0` in meters.
+    #[serde(default = "default_topiary_skirt_clearance")]
+    pub skirt_clearance: f32,
+}
+
+fn default_topiary_length() -> f32 {
+    2.4
+}
+fn default_topiary_width() -> f32 {
+    0.68
+}
+fn default_topiary_height() -> f32 {
+    1.05
+}
+fn default_topiary_bevel() -> f32 {
+    0.11
+}
+fn default_topiary_bend_angle() -> f32 {
+    90.0
+}
+fn default_topiary_trim_tightness() -> f32 {
+    0.80
+}
+fn default_topiary_skirt_clearance() -> f32 {
+    0.06
+}
+
+impl Default for TopiaryParams {
+    fn default() -> Self {
+        Self {
+            shape: TopiaryShape::default(),
+            length: default_topiary_length(),
+            width: default_topiary_width(),
+            height: default_topiary_height(),
+            bevel: default_topiary_bevel(),
+            bend_angle: default_topiary_bend_angle(),
+            trim_tightness: default_topiary_trim_tightness(),
+            skirt_clearance: default_topiary_skirt_clearance(),
+        }
+    }
+}
+
+/// Growth habit for ornamental floral planters and window boxes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FloralHabit {
+    /// Round domed floral cushion for café pots and beds.
+    #[default]
+    Mound,
+    /// Elongated rectangular window-box / trough cushion.
+    Trough,
+    /// Mounded planter crown spilling long flowering vine streamers downward.
+    Cascade,
+}
+
+/// Ornamental floral shrub and cascading window-box parameters (`[floral]`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FloralParams {
+    /// Planter arrangement habit.
+    #[serde(default)]
+    pub habit: FloralHabit,
+    /// Planter length along X in meters.
+    #[serde(default = "default_floral_length")]
+    pub length: f32,
+    /// Planter depth along Z in meters.
+    #[serde(default = "default_floral_width")]
+    pub width: f32,
+    /// Cushion mound height above rim (`y = 0`) in meters.
+    #[serde(default = "default_floral_height")]
+    pub height: f32,
+    /// Vertical drop of trailing vine streamers below `y = 0` when `habit = "cascade"`.
+    #[serde(default = "default_floral_cascade_drop")]
+    pub cascade_drop: f32,
+    /// Share of outer clusters bearing multi-color blossoms vs pure green foliage (`0..=1`).
+    #[serde(default = "default_floral_blossom_density")]
+    pub blossom_density: f32,
+}
+
+fn default_floral_length() -> f32 {
+    0.72
+}
+fn default_floral_width() -> f32 {
+    0.72
+}
+fn default_floral_height() -> f32 {
+    0.46
+}
+fn default_floral_cascade_drop() -> f32 {
+    1.35
+}
+fn default_floral_blossom_density() -> f32 {
+    0.68
+}
+
+impl Default for FloralParams {
+    fn default() -> Self {
+        Self {
+            habit: FloralHabit::default(),
+            length: default_floral_length(),
+            width: default_floral_width(),
+            height: default_floral_height(),
+            cascade_drop: default_floral_cascade_drop(),
+            blossom_density: default_floral_blossom_density(),
+        }
+    }
+}
+
+/// Wall-climbing woody vine parameters (`[vine]`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct VineParams {
+    /// Horizontal wall spread along X in meters.
+    #[serde(default = "default_vine_width")]
+    pub width: f32,
+    /// Vertical climb height along Y in meters.
+    #[serde(default = "default_vine_height")]
+    pub height: f32,
+    /// Outward foliage projection along +Z from wall surface (`z = 0`) in meters.
+    #[serde(default = "default_vine_depth")]
+    pub depth: f32,
+    /// Number of gnarled primary climbing stems rising from base.
+    #[serde(default = "default_vine_main_vines")]
+    pub main_vines: u32,
+    /// Number of delicate pendant aerial tendrils draping off upper branches.
+    #[serde(default = "default_vine_hanging_runners")]
+    pub hanging_runners: u32,
+}
+
+fn default_vine_width() -> f32 {
+    2.8
+}
+fn default_vine_height() -> f32 {
+    4.2
+}
+fn default_vine_depth() -> f32 {
+    0.46
+}
+fn default_vine_main_vines() -> u32 {
+    5
+}
+fn default_vine_hanging_runners() -> u32 {
+    8
+}
+
+impl Default for VineParams {
+    fn default() -> Self {
+        Self {
+            width: default_vine_width(),
+            height: default_vine_height(),
+            depth: default_vine_depth(),
+            main_vines: default_vine_main_vines(),
+            hanging_runners: default_vine_hanging_runners(),
+        }
+    }
 }
 
 /// Basic species identification information.
@@ -81,6 +286,14 @@ pub enum GeneratorFamily {
     WeberPenn,
     /// Planned fork grammar path for rosette plants and other dichotomous forms.
     Dichotomous,
+    /// Sheared hedges and sculpted topiary shrubs (`[topiary]`).
+    Topiary,
+    /// Ornamental floral planter cushions, troughs, and hanging cascades (`[floral]`).
+    FloralShrub,
+    /// Wall-clinging woody vines and trailing facade ivy (`[vine]`).
+    ClimbingVine,
+    /// Basal rosette/fan clumps of arching petioles with 3D paddle blades.
+    TropicalClump,
     /// Reserved for explicit cactus/ribbed-column implementations.
     Cactus,
     /// Reserved for pad/segment chain plants.
@@ -365,6 +578,10 @@ pub enum LeafShape {
     Palmate,
     /// Bilobed fan-shaped leaf (Ginkgo biloba)
     Ginkgo,
+    /// 5-lobed palmate climbing ivy leaf (Hedera helix)
+    Ivy,
+    /// Broad tropical paddle leaf with wind splits (Strelitzia / banana)
+    Paddle,
 }
 
 impl LeafShape {
@@ -373,7 +590,7 @@ impl LeafShape {
         match self {
             LeafShape::Oval | LeafShape::Pointed | LeafShape::Heart => 12,
             LeafShape::Needle | LeafShape::Willow => 8,
-            LeafShape::Serrated | LeafShape::Ginkgo => 24,
+            LeafShape::Serrated | LeafShape::Ginkgo | LeafShape::Ivy | LeafShape::Paddle => 24,
             LeafShape::OakLobed => 20,
             LeafShape::Maple => 30,
             LeafShape::Palmate => 36,
@@ -609,6 +826,12 @@ pub enum LeafCardLayout {
     /// A flat conifer frond: needle tufts along a branchlet, fanned — for
     /// `canopy_card` conifers.
     Frond,
+    /// Opposite-decussate glossy Boxwood (`Buxus`) woody sprig — for sheared hedges & topiary.
+    Buxus,
+    /// Dichotomous scale-leaf Italian Cypress / Arborvitae fan spray.
+    ScaleCypress,
+    /// 2x2 sub-card floral bouquet & leaf-bed atlas (pansy/viola mounds & cascades).
+    Floral,
 }
 
 /// Texture material slots and generation parameters.
@@ -1216,6 +1439,95 @@ impl Species {
                     ring.iter().all(|r| *r > 0),
                 );
             }
+        }
+
+        if let Some(topiary) = &self.topiary {
+            check(
+                "topiary.length",
+                "must be positive and finite",
+                positive(topiary.length),
+            );
+            check(
+                "topiary.width",
+                "must be positive and finite",
+                positive(topiary.width),
+            );
+            check(
+                "topiary.height",
+                "must be positive and finite",
+                positive(topiary.height),
+            );
+            check(
+                "topiary.bevel",
+                "must be non-negative and finite",
+                nonnegative(topiary.bevel),
+            );
+            check(
+                "topiary.bend_angle",
+                "must be finite and within -180..=180",
+                finite(topiary.bend_angle) && (-180.0..=180.0).contains(&topiary.bend_angle),
+            );
+            check(
+                "topiary.trim_tightness",
+                "must be in 0..=1",
+                unit(topiary.trim_tightness),
+            );
+            check(
+                "topiary.skirt_clearance",
+                "must be non-negative and finite",
+                nonnegative(topiary.skirt_clearance),
+            );
+        }
+
+        if let Some(floral) = &self.floral {
+            check(
+                "floral.length",
+                "must be positive and finite",
+                positive(floral.length),
+            );
+            check(
+                "floral.width",
+                "must be positive and finite",
+                positive(floral.width),
+            );
+            check(
+                "floral.height",
+                "must be positive and finite",
+                positive(floral.height),
+            );
+            check(
+                "floral.cascade_drop",
+                "must be non-negative and finite",
+                nonnegative(floral.cascade_drop),
+            );
+            check(
+                "floral.blossom_density",
+                "must be in 0..=1",
+                unit(floral.blossom_density),
+            );
+        }
+
+        if let Some(vine) = &self.vine {
+            check(
+                "vine.width",
+                "must be positive and finite",
+                positive(vine.width),
+            );
+            check(
+                "vine.height",
+                "must be positive and finite",
+                positive(vine.height),
+            );
+            check(
+                "vine.depth",
+                "must be positive and finite",
+                positive(vine.depth),
+            );
+            check(
+                "vine.main_vines",
+                "must be at least 1",
+                vine.main_vines >= 1,
+            );
         }
 
         if errors.is_empty() {

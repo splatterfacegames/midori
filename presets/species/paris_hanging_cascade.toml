@@ -1,0 +1,67 @@
+# Hanging Flower Cascade (Viola & Vinca)
+# Parisian balcony window-box and hanging basket arrangement: pillowed pansy crown
+# spilling long trailing leafy streamers studded with violet, orange, and cream blooms.
+
+[species]
+name = "Hanging Flower Cascade"
+scientific = "Viola x wittrockiana & Vinca major"
+latin = "Viola x wittrockiana"
+biome = "urban_temperate"
+tags = ["flowers", "hanging", "cascade", "window_box", "bistro"]
+
+[generator]
+family = "floral_shrub"
+notes = "Cascading balcony planter matching Bistro's Paris_flowers_01b/01c/01d."
+
+[trunk]
+height = 0.46
+radius = 0.015
+taper = 0.65
+segments = 4
+
+[floral]
+habit = "cascade"
+length = 0.92
+width = 0.82
+height = 0.44
+cascade_drop = 1.42
+blossom_density = 0.62
+
+[leaves]
+count = 680
+min_level = 0
+size = 0.27
+size_variance = 0.16
+distribution = "both"
+geometry = "cross_billboard"
+shape = "heart"
+up_influence = 0.35
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.72
+up_bias = 0.26
+clump_weight = 0.28
+clump_level = 1
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.08
+hue_variation = 0.03
+ao_strength = 0.36
+roughness = 0.64
+
+[textures]
+bark_prompt = "Slender trailing green herbaceous vine stems"
+leaf_prompt = "2x2 floral bouquet atlas of violet, orange, and cream pansies with trailing Vinca leaves"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "heart"
+leaf_card = "floral"
+bark_color = [0.22, 0.36, 0.15]
+leaf_color = [0.14, 0.34, 0.12]
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
