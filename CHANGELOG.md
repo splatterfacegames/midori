@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 See [docs/releasing.md](docs/releasing.md) for the versioning and
 compatibility policy.
 
-## [0.1.0] - unreleased
+## [0.2.0] - 2026-11-18
+
+### Added
+
+- **Bistro & ornamental vegetation suite** (`midori-core::ornamental`, `midori-core::bistro_cards`):
+  - `topiary` generator family with signed-distance sheared box, curved-arc, sphere, cylinder, and cone hulls (`bistro_box_hedge`, `bistro_curved_hedge`, `bistro_topiary_ball`).
+  - `floral_shrub` generator family (`paris_flower_mound`, `paris_hanging_cascade`) with 2x2 high-resolution single-organ Pansy/*Viola* atlases, 3D-cupped zygomorphic corollas on curved gooseneck peduncles, and shingled herringbone *Vinca* cascades.
+  - `climbing_vine` (`english_ivy`) and `tropical_clump` (`bird_of_paradise`) generator families, plus `linden` and `italian_cypress` street/courtyard trees (19 built-in species presets total).
+- **Tiled Nature Patch biome packages** (`midori nature`, `midori validate-nature`):
+  - Seamless 16-bit terrain heightfields, soil/moss/wetness/crack masks, multi-species groundcover LOD prototypes, and chunked `midori.scatter.bin.v1` instances across 5 presets (`pampas_meadow`, `alpine_meadow`, `flowering_meadow`, `temperate_forest_floor`, `arid_scrub`).
+- **Procedural PBR textures & 3D botanical organs**:
+  - Deterministic 1024px bark height/albedo/normal synthesis, RGB alpha-dilated leaf/frond/sprig cards, 3D gullwing palm frond ribbons, 3D tropical paddle ribbons, reaction-wood trunk bow, root buttress flares, and dedicated ARPG/RTS top-down presets (`topdown_broadleaf`, `topdown_conifer`, `topdown_shrub`).
+- **Desktop installers & public site**:
+  - Cross-platform Tauri 2 desktop workbench installers (Windows NSIS `.exe`, macOS `.dmg`, Linux `.deb`) and pre-bundled `presets/` in all `midori` CLI archives on GitHub Releases.
+  - Public product site and live browser workbench at `https://midori.splatterfacegames.com`.
+
+## [0.1.0] - 2026-09-21
 
 First tagged release of the unified `midori-*` engine.
 

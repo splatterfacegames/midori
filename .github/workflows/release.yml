@@ -1,8 +1,9 @@
 name: Release
 
 # Builds release artifacts when a `v*` tag is pushed: `midori` CLI binaries
-# for linux/windows/macos, the wasm npm tarball (wasm-opt'd, size reported),
-# the workbench app bundle, and a crates.io dry-run of the publishable crates.
+# (with bundled presets) for linux/windows/macos, native Tauri 2 desktop
+# installers (.exe, .dmg, .deb), the wasm npm tarball (wasm-opt'd), the
+# workbench app bundle, and a crates.io dry-run of the publishable crates.
 # See docs/releasing.md for the full process.
 
 on:
@@ -17,7 +18,7 @@ env:
   HAS_CRATES_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
 
 jobs:
-  # Tag must match the workspace version before anything builds.
+  # Tag must match the workspace + desktop version before anything builds.
   version-check:
     name: Tag matches workspace version
     runs-on: ubuntu-latest
@@ -49,18 +50,19 @@ jobs:
         run: |
           rustup target add ${{ matrix.target }}
           cargo build --release --locked -p midori-cli --target ${{ matrix.target }}
-      - name: Package binary
+      - name: Package binary + presets
         shell: bash
         run: |
           set -euo pipefail
           name="midori-${{ github.ref_name }}-${{ matrix.name }}"
           mkdir -p "release/$name"
+          cp -r presets "release/$name/"
+          cp README.md LICENSE* "release/$name/" 2>/dev/null || true
           if [ "${{ matrix.ext }}" = "zip" ]; then
             cp "target/${{ matrix.target }}/release/midori.exe" "release/$name/"
             (cd release && 7z a "$name.zip" "$name")
           else
             cp "target/${{ matrix.target }}/release/midori" "release/$name/"
-            cp README.md LICENSE* "release/$name/" 2>/dev/null || true
             tar -C release -czf "release/$name.tar.gz" "$name"
           fi
           ls -la release/
@@ -70,6 +72,74 @@ jobs:
           path: |
             release/*.tar.gz
             release/*.zip
+          if-no-files-found: error
+
+  desktop:
+    name: desktop ${{ matrix.platform }}
+    needs: version-check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: windows-x64, os: windows-latest, bundle: nsis, ext: setup.exe, dir: nsis, pattern: "*.exe" }
+          - { platform: macos-arm64, os: macos-latest, bundle: dmg, ext: dmg, dir: dmg, pattern: "*.dmg" }
+          - { platform: linux-amd64, os: ubuntu-latest, bundle: deb, ext: deb, dir: deb, pattern: "*.deb" }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      - name: Install Linux WebKitGTK dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+      - name: Configure git auth for private jethaforge dep
+        shell: bash
+        run: |
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global credential.helper \
+            '!f() { echo "username=x-access-token"; echo "password=${{ secrets.JETHAFORGE_TOKEN }}"; }; f'
+          git ls-remote https://github.com/splatterfacegames/jethaforge.git HEAD >/dev/null
+      - run: npm ci
+      - name: Build Tauri desktop installer
+        run: node scripts/desktop.mjs build --bundles ${{ matrix.bundle }}
+      - name: Stage installer artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          src=$(find "crates/midori-desktop/target/release/bundle/${{ matrix.dir }}" -maxdepth 1 -type f -name "${{ matrix.pattern }}" | head -n 1)
+          if [ -z "$src" ]; then
+            echo "Installer bundle not found in crates/midori-desktop/target/release/bundle/${{ matrix.dir }}" >&2
+            exit 1
+          fi
+          dst="release/midori-desktop-${{ github.ref_name }}-${{ matrix.platform }}"
+          if [ "${{ matrix.ext }}" = "setup.exe" ]; then
+            dst="${dst}-setup.exe"
+          else
+            dst="${dst}.${{ matrix.ext }}"
+          fi
+          cp "$src" "$dst"
+          ls -lh release/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: release/*
           if-no-files-found: error
 
   wasm-package:
@@ -164,7 +234,7 @@ jobs:
 
   github-release:
     name: GitHub Release
-    needs: [version-check, cli, wasm-package, workbench]
+    needs: [version-check, cli, desktop, wasm-package, workbench]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -178,7 +248,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          files=$(find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.tgz' \) | sort)
+          files=$(find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.tgz' -o -name '*.exe' -o -name '*.dmg' -o -name '*.deb' \) | sort)
           echo "Artifacts:"; echo "$files"
           # Release notes = this version's CHANGELOG section.
           v="${{ github.ref_name }}"; v="${v#v}"

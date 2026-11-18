@@ -6,6 +6,7 @@ const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
   root: 'apps/desktop',
+  base: './',
   plugins: [react()],
   resolve: {
     dedupe: ['react', 'react-dom', 'three', 'lucide-react'],

@@ -1,12 +1,13 @@
 {
   "name": "midori",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Midori — procedural tree generator workbench and engine",
   "scripts": {
     "dev": "vite --config vite.config.ts --host 127.0.0.1",
     "build": "npm run typecheck && vite build --config vite.config.ts",
+    "build:site": "npm run build && node scripts/build-site.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

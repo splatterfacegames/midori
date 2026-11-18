@@ -494,7 +494,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
 name = "midori-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "midori-core",
@@ -506,7 +506,7 @@ dependencies = [
 
 [[package]]
 name = "midori-contracts"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "flatbuffers",
  "serde",
@@ -516,7 +516,7 @@ dependencies = [
 
 [[package]]
 name = "midori-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "glam",
  "gltf",
@@ -530,7 +530,7 @@ dependencies = [
 
 [[package]]
 name = "midori-ffi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "midori-core",
  "tempfile",
@@ -538,7 +538,7 @@ dependencies = [
 
 [[package]]
 name = "midori-ui-domain"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "gltf",
  "midori-core",
@@ -548,7 +548,7 @@ dependencies = [
 
 [[package]]
 name = "midori-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
