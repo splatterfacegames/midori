@@ -76,3 +76,4 @@ node_modules/
 dist/
 dist-site/
 apps/desktop/node_modules/
+crates/midori-desktop/gen/
