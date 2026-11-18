@@ -1,7 +1,7 @@
 name: Deploy demo
 
-# Publishes the browser workbench to https://midori.splatterfacegames.com
-# (Cloudflare Worker `midori-demo`, owner-only behind Cloudflare Access).
+# Publishes the public browser workbench to https://midori.splatterfacegames.com
+# (Cloudflare Worker `midori-demo`).
 on:
   push:
     branches: [master]
@@ -33,8 +33,70 @@ jobs:
       - run: npm ci
       # The committed wasm bundle is the engine; no Rust toolchain needed here.
       - run: npm run build
-      - name: Publish workbench and access-checking Worker
+      - name: Publish public workbench Worker
         run: npx --yes wrangler@4.162.0 deploy --config deploy/demo/wrangler.jsonc
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Ensure Cloudflare Access application is removed for midori.splatterfacegames.com
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node - <<'EOF'
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const targetHost = 'midori.splatterfacegames.com';
+          const headers = {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          };
+
+          async function cfJson(url, init = {}) {
+            const res = await fetch(url, { ...init, headers });
+            const body = await res.json().catch(() => ({}));
+            return { status: res.status, ok: res.ok, body };
+          }
+
+          // 1. Check account-level Zero Trust Access applications
+          const accUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/access/apps?per_page=100`;
+          const acc = await cfJson(accUrl);
+          if (!acc.ok) {
+            console.log(`Account Access API returned HTTP ${acc.status} (token may not include Access:Edit).`);
+          } else if (Array.isArray(acc.body.result)) {
+            const matches = acc.body.result.filter((app) =>
+              app.domain === targetHost ||
+              (Array.isArray(app.self_hosted_domains) && app.self_hosted_domains.includes(targetHost))
+            );
+            console.log(`Found ${matches.length} account-level Access app(s) matching ${targetHost}.`);
+            for (const app of matches) {
+              const del = await cfJson(
+                `https://api.cloudflare.com/client/v4/accounts/${accountId}/access/apps/${app.id}`,
+                { method: 'DELETE' },
+              );
+              console.log(`Delete account Access app ${app.id} (${app.name}): HTTP ${del.status}`);
+            }
+          }
+
+          // 2. Also check zone-level Access applications for splatterfacegames.com
+          const zones = await cfJson('https://api.cloudflare.com/client/v4/zones?name=splatterfacegames.com');
+          if (zones.ok && Array.isArray(zones.body.result)) {
+            for (const z of zones.body.result) {
+              const zApps = await cfJson(`https://api.cloudflare.com/client/v4/zones/${z.id}/access/apps?per_page=100`);
+              if (zApps.ok && Array.isArray(zApps.body.result)) {
+                const zMatches = zApps.body.result.filter((app) =>
+                  app.domain === targetHost ||
+                  (Array.isArray(app.self_hosted_domains) && app.self_hosted_domains.includes(targetHost))
+                );
+                console.log(`Found ${zMatches.length} zone-level Access app(s) matching ${targetHost}.`);
+                for (const app of zMatches) {
+                  const del = await cfJson(
+                    `https://api.cloudflare.com/client/v4/zones/${z.id}/access/apps/${app.id}`,
+                    { method: 'DELETE' },
+                  );
+                  console.log(`Delete zone Access app ${app.id} (${app.name}): HTTP ${del.status}`);
+                }
+              }
+            }
+          }
+          EOF

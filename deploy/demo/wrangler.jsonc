@@ -1,5 +1,5 @@
 {
-  // Owner-only demo of the browser workbench at midori.splatterfacegames.com.
+  // Public demo of the browser workbench at midori.splatterfacegames.com.
   // Deployed by .github/workflows/demo.yml from master; see deploy/demo/README.md.
   "name": "midori-demo",
   "main": "worker.mjs",
@@ -16,9 +16,5 @@
       "pattern": "midori.splatterfacegames.com",
       "custom_domain": true
     }
-  ],
-  "vars": {
-    "ACCESS_ISSUER": "https://jethachan.cloudflareaccess.com",
-    "ACCESS_AUD": "b3ab9aee3471a6a0616f59866924259c3c951919bb06d7837ef64e944468f0df"
-  }
+  ]
 }
