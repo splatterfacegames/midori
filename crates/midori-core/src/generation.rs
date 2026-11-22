@@ -324,9 +324,10 @@ impl<'a> TreeGenerator<'a> {
         let segment_count = trunk.segments.max(2);
         let segment_length = height / segment_count as f32;
 
-        let az = (self.seed as f32 * 0.618_034) * TAU
-            + (idx as f32 / total as f32) * TAU
-            + s_rng.range(-0.32, 0.32);
+        let seed_phase = ((self.seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 40) as f32
+            / (1u32 << 24) as f32)
+            * TAU;
+        let az = seed_phase + (idx as f32 / total as f32) * TAU + s_rng.range(-0.32, 0.32);
         let out_xz = Vec3::new(az.cos(), 0.0, az.sin());
         let spread_rad = radians(
             trunk.stem_spread
@@ -1193,12 +1194,15 @@ impl<'a> TreeGenerator<'a> {
                 let cut_h = pruning.cut_height;
                 let mut stub_tips: Vec<(u32, Vec3, Vec3, f32)> = Vec::new();
                 let mut dead_roots: Vec<u32> = Vec::new();
+                let mut retained_fracs: std::collections::HashMap<u32, f32> =
+                    std::collections::HashMap::new();
 
                 // First pass: truncate stems crossing the cut plane (or shorten L1/L2 for pollard)
                 for stem in &mut self.tree.stems {
                     if stem.segments.is_empty() {
                         continue;
                     }
+                    let orig_len = stem.length().max(1e-5);
                     // Organic slight undulation on the wire-clearance cut plane
                     let base = stem.base();
                     let local_cut = cut_h
@@ -1249,22 +1253,25 @@ impl<'a> TreeGenerator<'a> {
 
                     if let Some(last_idx) = clipped_at {
                         stem.segments.truncate(last_idx + 1);
+                        let kept_len = stem.length();
+                        retained_fracs.insert(stem.id, (kept_len / orig_len).clamp(1e-4, 1.0));
                         if let Some(last) = stem.segments.last() {
                             stub_tips.push((stem.id, last.end, last.direction, last.end_radius));
                         }
                     }
                 }
 
-                // Prune any child stems whose parent was truncated below their attachment point
+                // Prune any child stems attached past a parent's clipped length and renormalize
+                // surviving children's parent_offset onto the shortened parent.
                 let mut extra_dead: HashSet<u32> = dead_roots.into_iter().collect();
-                for stem in &self.tree.stems {
+                for stem in &mut self.tree.stems {
                     if let Some(pid) = stem.parent_id
-                        && let Some(parent) = self.tree.get_stem(pid)
-                        && !parent.segments.is_empty()
+                        && let Some(&retained) = retained_fracs.get(&pid)
                     {
-                        let p_tip_y = parent.tip().y;
-                        if stem.base().y > p_tip_y + 0.15 {
+                        if stem.parent_offset > retained + 1e-4 {
                             extra_dead.insert(stem.id);
+                        } else {
+                            stem.parent_offset = (stem.parent_offset / retained).clamp(0.0, 1.0);
                         }
                     }
                 }

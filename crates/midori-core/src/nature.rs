@@ -1550,12 +1550,7 @@ pub fn validate_nature_package(
     )?;
     let preview_mesh_path = optional_existing_package_file(directory, "preview_tile.glb")?;
     if let Some(ref rel) = manifest.ground_albedo {
-        let albedo_path = directory.join(rel);
-        if !albedo_path.is_file() {
-            return Err(NaturePatchError::Validation(format!(
-                "manifest.ground_albedo missing on disk: {rel}"
-            )));
-        }
+        let albedo_path = require_package_file(directory, rel, "manifest.ground_albedo")?;
         let img = image::open(&albedo_path).map_err(|e| {
             NaturePatchError::Validation(format!("manifest.ground_albedo unreadable ({rel}): {e}"))
         })?;

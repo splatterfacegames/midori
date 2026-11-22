@@ -326,8 +326,10 @@ export class MidoriModel {
       this.generator?.free();
       this.generator = generator;
       const toml = generator.toToml();
+      const baseToml = this.state.selectedState === null ? toml : this.state.baseToml;
       this.emit({
         toml,
+        baseToml,
         json,
         sourceDraft: this.state.sourceDirty ? this.state.sourceDraft : toml,
         paramError: null,
@@ -357,8 +359,12 @@ export class MidoriModel {
       this.generator = generator;
       const json = generator.toJson() as SpeciesJson;
       const toml = generator.toToml();
+      const availableStates = generator.stateNames();
+      const baseToml = this.state.selectedState === null ? draft : this.state.baseToml;
       this.emit({
         toml,
+        baseToml,
+        availableStates: this.state.selectedState === null ? availableStates : this.state.availableStates,
         json,
         sourceDraft: toml,
         sourceDirty: false,
