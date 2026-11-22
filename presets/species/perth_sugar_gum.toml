@@ -1,0 +1,174 @@
+# Sugar gum (Eucalyptus cladocalyx)
+# Classic avenue and park eucalypt of Perth's Kings Park (May Drive), South Perth and Subiaco:
+# tall smooth mottled warm ochre-yellow, cream and blue-grey trunk supporting distinctive storied
+# umbrella-clumped terminal crowns of glossy strongly discolorous dark green leaves.
+# PLANTED EXOTIC in Perth (native to South Australia), not part of the local Swan Coastal Plain flora.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Sugar Gum"
+scientific = "Eucalyptus cladocalyx"
+latin = "Eucalyptus cladocalyx"
+biome = "mediterranean"
+tags = ["perth_planted", "non_native", "eucalypt", "street_tree", "park_tree", "evergreen"]
+
+[generator]
+family = "weber_penn"
+notes = "25 m avenue gum with smooth warm ochre/cream/grey mottled bark and characteristic terminal umbrella foliage pads."
+
+[trunk]
+height = 22.0
+height_variance = 0.12
+radius = 0.62
+taper = 0.70
+taper_profile = "exponential"
+curve = 10.0
+curve_variance = 6.0
+curve_back = 10.0
+segments = 24
+buttress = 1.1
+
+[branches.level1]
+count = 8
+count_variance = 2
+length = 8.4
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "exponential"
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.02
+curve = 20.0
+curve_variance = 18.0
+segments = 14
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 4.0
+length_variance = 0.22
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 46.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.02
+curve = -14.0
+curve_variance = 16.0
+segments = 10
+
+[branches.level3]
+count = 3
+count_variance = 1
+length = 1.85
+length_variance = 0.20
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 42.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.04
+curve = 12.0
+curve_variance = 14.0
+segments = 6
+
+[branches.level4]
+count = 2
+count_variance = 1
+length = 0.90
+length_variance = 0.20
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 38.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.04
+curve = 8.0
+curve_variance = 12.0
+segments = 4
+
+[crown]
+shape = "hemispherical"
+offset = 0.48
+density = 0.84
+width_ratio = 1.14
+
+[leaves]
+count = 2500
+min_level = 3
+size = 1.12
+size_variance = 0.20
+distribution = "whorl"
+geometry = "cross_billboard"
+shape = "broad_eucalypt"
+up_influence = 0.10
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.68
+up_bias = 0.30
+clump_weight = 0.72
+clump_level = 2
+crown_fill = 0
+shell = 0.12
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.52
+
+[textures]
+bark_prompt = "Eucalyptus cladocalyx smooth mottled bark of warm golden-ochre, cream, tan and blue-grey patches"
+leaf_prompt = "Eucalyptus cladocalyx strongly discolorous broad glossy dark-green leaves with pale undersides"
+resolution = 1024
+bark_style = "patchy"
+leaf_shape = "broad_eucalypt"
+leaf_card = "cluster"
+bark_color = [0.78, 0.72, 0.58]
+bark_patch_colors = [[0.90, 0.76, 0.46], [0.62, 0.64, 0.66], [0.88, 0.85, 0.78]]
+leaf_color = [0.24, 0.40, 0.20]
+leaf_underside_color = [0.50, 0.58, 0.42]
+leaf_new_growth_color = [0.58, 0.34, 0.22]
+leaf_new_growth_fraction = 0.10
+
+[materials]
+bark = "sugar_gum_bark"
+foliage = "sugar_gum_foliage"
+notes = "1024px warm ochre/cream/grey mottled bark + glossy discolorous broad_eucalypt leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 8.0
+max = 38.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.6
+max = 1.8
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

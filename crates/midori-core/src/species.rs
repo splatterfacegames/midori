@@ -61,6 +61,26 @@ pub struct Species {
     /// Optional climbing wall vine parameters (`generator.family = "climbing_vine"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vine: Option<VineParams>,
+    /// Optional rosette parameters (`generator.family = "rosette"`): crowns of
+    /// long blades on an optional trunk, dead-leaf skirt and flower spike.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rosette: Option<RosetteParams>,
+    /// Optional inflorescence / fruit organs carried by a branching tree:
+    /// flower spikes, nuts, crown-colouring flower clusters, berries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inflorescence: Option<InflorescenceParams>,
+    /// Optional second inflorescence / fruit layer (e.g. blossom + woody nuts
+    /// together on marri). Enables the dedicated organ atlas/material.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secondary_inflorescence: Option<InflorescenceParams>,
+    /// Optional pruning & epicormic regrowth operator (`[pruning]`):
+    /// power-line lopping, pollard knuckles, crown lifting, post-fire shoots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pruning: Option<PruningParams>,
+    /// Named seasonal / condition overlays (`[states.<name>]`), deep-merged
+    /// onto the document by [`Species::from_toml_with_state`].
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub states: std::collections::BTreeMap<String, toml::Value>,
 }
 
 /// Sheared hedge / topiary silhouette hull shape.
@@ -259,6 +279,480 @@ impl Default for VineParams {
     }
 }
 
+/// What is painted on a rosette blade ribbon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BladeCard {
+    /// One strap leaf with a midrib (kangaroo paw, sedge straps).
+    Single,
+    /// Several fine needle leaves side by side, so a few hundred ribbons
+    /// read as thousands of leaves (grass tree, rushes, spinifex).
+    #[default]
+    Tuft,
+    /// A rachis with paired leaflets (cycad and feather-palm fronds).
+    Pinnate,
+    /// Palmate fan-palm blade: slender petiole opening into a pleated radiating fan
+    /// (Mexican/cotton fan palm *Washingtonia robusta*).
+    Fan,
+}
+
+/// Flower spike carried at the centre of a rosette crown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpikeStyle {
+    /// Bare scape topped by a long cylindrical flower spike (grass tree).
+    #[default]
+    Cylinder,
+    /// Scape topped by a one-sided fan of tubular flowers (kangaroo paw).
+    Raceme,
+    /// Stout ovoid cone sitting in the crown (cycads).
+    Cone,
+    /// Loose airy branched plume/seed head on a slender arching stem (rushes, sedges, spinifex).
+    Plume,
+    /// Drooping branched fruit/flower panicle hanging below a palm crown.
+    Panicle,
+}
+
+/// Flower spike parameters (`[rosette.spike]`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RosetteSpikeParams {
+    /// Probability (`0..=1`) that a crown carries a spike; decided by the seed.
+    #[serde(default = "default_spike_chance")]
+    pub chance: f32,
+    /// Spikes attempted per crown (each subject to `chance`).
+    #[serde(default = "default_spike_count")]
+    pub count: u32,
+    /// Spike form.
+    #[serde(default)]
+    pub style: SpikeStyle,
+    /// Bare stalk length below the flowering part, metres.
+    #[serde(default = "default_spike_scape_length")]
+    pub scape_length: f32,
+    /// Bare stalk radius, metres.
+    #[serde(default = "default_spike_scape_radius")]
+    pub scape_radius: f32,
+    /// Length of the flowering part (or of the cone), metres.
+    #[serde(default = "default_spike_length")]
+    pub length: f32,
+    /// Radius of the flowering part (or of the cone), metres.
+    #[serde(default = "default_spike_radius")]
+    pub radius: f32,
+    /// Maximum lean from the crown axis, degrees.
+    #[serde(default = "default_spike_lean")]
+    pub lean: f32,
+    /// Flower / spike colour (sRGB 0-1).
+    #[serde(default = "default_spike_color")]
+    pub color: [f32; 3],
+    /// Colour toward the spike tip or flower mouth (sRGB 0-1).
+    #[serde(default = "default_spike_tip_color")]
+    pub tip_color: [f32; 3],
+    /// Scape colour (sRGB 0-1).
+    #[serde(default = "default_spike_scape_color")]
+    pub scape_color: [f32; 3],
+    /// `raceme` only: number of tubular flowers at the top of the scape.
+    #[serde(default)]
+    pub flowers: u32,
+    /// `raceme` only: flower length, metres.
+    #[serde(default = "default_spike_flower_length")]
+    pub flower_length: f32,
+}
+
+fn default_spike_chance() -> f32 {
+    1.0
+}
+fn default_spike_count() -> u32 {
+    1
+}
+fn default_spike_scape_length() -> f32 {
+    0.9
+}
+fn default_spike_scape_radius() -> f32 {
+    0.012
+}
+fn default_spike_length() -> f32 {
+    1.2
+}
+fn default_spike_radius() -> f32 {
+    0.025
+}
+fn default_spike_lean() -> f32 {
+    8.0
+}
+fn default_spike_color() -> [f32; 3] {
+    [0.36, 0.26, 0.16]
+}
+fn default_spike_tip_color() -> [f32; 3] {
+    [0.80, 0.76, 0.58]
+}
+fn default_spike_scape_color() -> [f32; 3] {
+    [0.30, 0.24, 0.16]
+}
+fn default_spike_flower_length() -> f32 {
+    0.08
+}
+
+/// Rosette plant parameters (`[rosette]`, `generator.family = "rosette"`).
+///
+/// See `docs/botanical-generators.md`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RosetteParams {
+    /// Number of crowns; more than one forks the trunk into that many arms.
+    #[serde(default = "default_rosette_crowns")]
+    pub crowns: u32,
+    /// Fraction of trunk height where the arms leave (`crowns > 1`).
+    #[serde(default = "default_rosette_fork_height")]
+    pub fork_height: f32,
+    /// Angle between an arm and the trunk axis, degrees.
+    #[serde(default = "default_rosette_fork_angle")]
+    pub fork_angle: f32,
+    /// Live blades per crown.
+    #[serde(default = "default_rosette_blades")]
+    pub blades: u32,
+    /// Blade length in metres.
+    #[serde(default = "default_rosette_blade_length")]
+    pub blade_length: f32,
+    /// Random variance in blade length (`0..=1`).
+    #[serde(default = "default_rosette_blade_length_variance")]
+    pub blade_length_variance: f32,
+    /// Ribbon width in metres.
+    #[serde(default = "default_rosette_blade_width")]
+    pub blade_width: f32,
+    /// What is painted on each ribbon.
+    #[serde(default)]
+    pub blade_card: BladeCard,
+    /// Angle from the crown axis of the youngest, central blades, degrees.
+    #[serde(default = "default_rosette_spread_min")]
+    pub spread_min: f32,
+    /// Angle from the crown axis of the oldest, outer blades, degrees
+    /// (above 90 they hang below the horizontal).
+    #[serde(default = "default_rosette_spread_max")]
+    pub spread_max: f32,
+    /// Arching under gravity (`0` straight .. `1` strongly arching).
+    #[serde(default = "default_rosette_droop")]
+    pub droop: f32,
+    /// Blade rigidity (`0` limp .. `1` rigid): less waver, and the value
+    /// written as Pivot Painter stiffness.
+    #[serde(default = "default_rosette_stiffness")]
+    pub stiffness: f32,
+    /// V fold along the midrib (`0` flat .. `1` deep).
+    #[serde(default = "default_rosette_keel")]
+    pub keel: f32,
+    /// Blade colour at the base (sRGB 0-1); default derives from `textures.leaf_color`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_base: Option<[f32; 3]>,
+    /// Blade colour at the tip (sRGB 0-1); default derives from `textures.leaf_color`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_tip: Option<[f32; 3]>,
+    /// Fraction (`0..=1`) of the stem below each crown clothed in dead blades.
+    #[serde(default)]
+    pub skirt: f32,
+    /// Dead skirt blades per crown.
+    #[serde(default)]
+    pub skirt_blades: u32,
+    /// Dead blade colour (sRGB 0-1).
+    #[serde(default = "default_rosette_skirt_color")]
+    pub skirt_color: [f32; 3],
+    /// Swollen trimmed leaf-base "pineapple" boss just below the crown (`0..=1.5`,
+    /// 0 = off; ~0.45 for trimmed Canary Island date palms).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub crown_boss: f32,
+    /// Number of low creeping stolon/runner shoots radiating across the ground
+    /// with secondary sub-tufts (0 = none; coastal spinifex).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub runners: u32,
+    /// Reach of each creeping runner in metres (`runners > 0`).
+    #[serde(
+        default = "default_runner_length",
+        skip_serializing_if = "is_default_runner_length"
+    )]
+    pub runner_length: f32,
+    /// Optional flower spike.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spike: Option<RosetteSpikeParams>,
+}
+
+fn is_zero_u32(v: &u32) -> bool {
+    *v == 0
+}
+fn default_runner_length() -> f32 {
+    1.2
+}
+fn is_default_runner_length(v: &f32) -> bool {
+    *v == default_runner_length()
+}
+
+fn default_rosette_crowns() -> u32 {
+    1
+}
+fn default_rosette_fork_height() -> f32 {
+    0.55
+}
+fn default_rosette_fork_angle() -> f32 {
+    32.0
+}
+fn default_rosette_blades() -> u32 {
+    240
+}
+fn default_rosette_blade_length() -> f32 {
+    1.0
+}
+fn default_rosette_blade_length_variance() -> f32 {
+    0.15
+}
+fn default_rosette_blade_width() -> f32 {
+    0.03
+}
+fn default_rosette_spread_min() -> f32 {
+    5.0
+}
+fn default_rosette_spread_max() -> f32 {
+    120.0
+}
+fn default_rosette_droop() -> f32 {
+    0.35
+}
+fn default_rosette_stiffness() -> f32 {
+    0.7
+}
+fn default_rosette_keel() -> f32 {
+    0.2
+}
+fn default_rosette_skirt_color() -> [f32; 3] {
+    [0.40, 0.31, 0.20]
+}
+
+impl Default for RosetteParams {
+    fn default() -> Self {
+        Self {
+            crowns: default_rosette_crowns(),
+            fork_height: default_rosette_fork_height(),
+            fork_angle: default_rosette_fork_angle(),
+            blades: default_rosette_blades(),
+            blade_length: default_rosette_blade_length(),
+            blade_length_variance: default_rosette_blade_length_variance(),
+            blade_width: default_rosette_blade_width(),
+            blade_card: BladeCard::default(),
+            spread_min: default_rosette_spread_min(),
+            spread_max: default_rosette_spread_max(),
+            droop: default_rosette_droop(),
+            stiffness: default_rosette_stiffness(),
+            keel: default_rosette_keel(),
+            color_base: None,
+            color_tip: None,
+            skirt: 0.0,
+            skirt_blades: 0,
+            skirt_color: default_rosette_skirt_color(),
+            crown_boss: 0.0,
+            runners: 0,
+            runner_length: default_runner_length(),
+            spike: None,
+        }
+    }
+}
+
+/// Kind of inflorescence / fruit organ.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InflorescenceKind {
+    /// Capped cylinder painted with spiralled florets (banksia spikes and cones).
+    #[default]
+    Spike,
+    /// Urn-shaped woody fruit (marri "honky nuts", large gumnuts).
+    Nut,
+    /// Crossed cards painted with a panicle of small flowers; used in the
+    /// hundreds to colour a crown.
+    Cluster,
+    /// Crossed cards painted with hanging round fruit on fine stalks.
+    Berries,
+}
+
+/// Where organs sit on a stem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrganPlacement {
+    /// At the tip of terminal stems.
+    #[default]
+    Endpoint,
+    /// Spread along stems.
+    AlongBranch,
+}
+
+/// Which way an organ's axis points.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrganOrientation {
+    /// Erect, a little off vertical.
+    #[default]
+    Up,
+    /// Continuing the direction of the stem it sits on.
+    Branch,
+    /// Hanging, a little off straight down.
+    Hang,
+}
+
+/// Inflorescence / fruit parameters (`[inflorescence]`).
+///
+/// See `docs/botanical-generators.md`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct InflorescenceParams {
+    /// Organ kind.
+    #[serde(default)]
+    pub kind: InflorescenceKind,
+    /// Organs on the whole tree.
+    #[serde(default = "default_inflorescence_count")]
+    pub count: u32,
+    /// Only stems at or beyond this branch level carry organs.
+    #[serde(default = "default_min_level")]
+    pub min_level: u32,
+    /// Where organs sit on a stem.
+    #[serde(default)]
+    pub placement: OrganPlacement,
+    /// Which way the organ axis points.
+    #[serde(default)]
+    pub orientation: OrganOrientation,
+    /// Length in metres (spike/nut length; card size for clusters and berries).
+    #[serde(default = "default_inflorescence_length")]
+    pub length: f32,
+    /// Diameter in metres (spike/nut); ignored by cards.
+    #[serde(default = "default_inflorescence_width")]
+    pub width: f32,
+    /// Random variance in size (`0..=1`).
+    #[serde(default)]
+    pub size_variance: f32,
+    /// Distance in metres from the attachment point to the organ's base,
+    /// along the organ axis. Lifts terminal spikes clear of the leaf spray
+    /// that surrounds the shoot tip.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub offset: f32,
+    /// Fresh colour (sRGB 0-1).
+    #[serde(default = "default_inflorescence_color")]
+    pub color: [f32; 3],
+    /// Colour toward the tip / centre (sRGB 0-1); defaults to `color`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_tip: Option<[f32; 3]>,
+    /// Share (`0..=1`) of organs drawn as aged.
+    #[serde(default)]
+    pub aged_fraction: f32,
+    /// Aged colour (sRGB 0-1): old cones, spent flowers, pods.
+    #[serde(default = "default_inflorescence_aged_color")]
+    pub aged_color: [f32; 3],
+    /// When true, organs use their own dedicated `Organ` material & 2x2 organ
+    /// atlas so leaf cards stay at full 100% texture resolution and organs get
+    /// independent PBR roughness (e.g. glossy fruit/berries vs matte leaves).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub separate_material: bool,
+    /// Material roughness when `separate_material = true` (0..=1, default 0.7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roughness: Option<f32>,
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+/// Pruning / urban-shaping operator mode (`[pruning]`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PruningMode {
+    /// No geometric cutting (only optional `epicormic_count` trunk sprouts).
+    #[default]
+    None,
+    /// Flat-topped power-line lopping: truncates stems above `cut_height` into
+    /// stubbed limb ends and bursts dense upright epicormic regrowth tufts.
+    Lopped,
+    /// Pollard pruning: shortens primary limbs back to `cut_height` with
+    /// swollen clubbed pollard knuckles and radiating whippy annual shoots.
+    Pollard,
+    /// Crown lifting: raises/prunes lower limbs below `lift_height` so trunks,
+    /// street sightlines, or fig buttresses stay cleanly exposed.
+    CrownLift,
+}
+
+/// Pruning and epicormic regrowth parameters (`[pruning]`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PruningParams {
+    /// Pruning mode.
+    #[serde(default)]
+    pub mode: PruningMode,
+    /// Horizontal cut plane height in metres (`lopped` / `pollard`).
+    #[serde(default = "default_pruning_cut_height")]
+    pub cut_height: f32,
+    /// Lower clearance height in metres (`crown_lift`).
+    #[serde(default)]
+    pub lift_height: f32,
+    /// Number of regrowth shoots sprouting from each lopped/pollarded stub tip.
+    #[serde(default = "default_regrowth_per_stub")]
+    pub regrowth_per_stub: u32,
+    /// Length of regrowth shoots in metres.
+    #[serde(default = "default_regrowth_length")]
+    pub regrowth_length: f32,
+    /// Extra epicormic shoots sprouting directly along the trunk & major limbs
+    /// (post-fire resprouting sleeves or heavy urban regrowth).
+    #[serde(default)]
+    pub epicormic_count: u32,
+}
+
+fn default_pruning_cut_height() -> f32 {
+    5.5
+}
+fn default_regrowth_per_stub() -> u32 {
+    4
+}
+fn default_regrowth_length() -> f32 {
+    1.1
+}
+
+impl Default for PruningParams {
+    fn default() -> Self {
+        Self {
+            mode: PruningMode::None,
+            cut_height: default_pruning_cut_height(),
+            lift_height: 0.0,
+            regrowth_per_stub: default_regrowth_per_stub(),
+            regrowth_length: default_regrowth_length(),
+            epicormic_count: 0,
+        }
+    }
+}
+
+fn default_inflorescence_count() -> u32 {
+    40
+}
+fn default_inflorescence_length() -> f32 {
+    0.2
+}
+fn default_inflorescence_width() -> f32 {
+    0.08
+}
+fn default_inflorescence_color() -> [f32; 3] {
+    [0.86, 0.72, 0.20]
+}
+fn default_inflorescence_aged_color() -> [f32; 3] {
+    [0.36, 0.31, 0.27]
+}
+
+impl Default for InflorescenceParams {
+    fn default() -> Self {
+        Self {
+            kind: InflorescenceKind::default(),
+            count: default_inflorescence_count(),
+            min_level: default_min_level(),
+            placement: OrganPlacement::default(),
+            orientation: OrganOrientation::default(),
+            length: default_inflorescence_length(),
+            width: default_inflorescence_width(),
+            size_variance: 0.0,
+            offset: 0.0,
+            color: default_inflorescence_color(),
+            color_tip: None,
+            aged_fraction: 0.0,
+            aged_color: default_inflorescence_aged_color(),
+            separate_material: false,
+            roughness: None,
+        }
+    }
+}
+
 /// Basic species identification information.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SpeciesInfo {
@@ -294,6 +788,9 @@ pub enum GeneratorFamily {
     ClimbingVine,
     /// Basal rosette/fan clumps of arching petioles with 3D paddle blades.
     TropicalClump,
+    /// Crowns of long blades on an optional trunk, with dead-leaf skirt and
+    /// flower spike: grass trees, cycads, strap-leaf clumps, feather palms (`[rosette]`).
+    Rosette,
     /// Reserved for explicit cactus/ribbed-column implementations.
     Cactus,
     /// Reserved for pad/segment chain plants.
@@ -394,6 +891,114 @@ pub struct TrunkParams {
     /// Number of segments along trunk height
     #[serde(default = "default_segments")]
     pub segments: u32,
+    /// Height in metres of fire-blackened bark from the ground (0 = none).
+    /// A vertex-colour layer: needs `canopy.vertex_color = "tint_ao"`.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub char_height: f32,
+    /// Strength of the root-buttress flare and flutes at the trunk base and of
+    /// exposed surface roots: 1 = the built-in look, 0 = a plain column
+    /// (palms, grass trees), up to 3 = heavy buttresses (figs, tingle).
+    #[serde(
+        default = "default_trunk_buttress",
+        skip_serializing_if = "is_default_trunk_buttress"
+    )]
+    pub buttress: f32,
+    /// How black the charred base is (`0..=1`).
+    #[serde(
+        default = "default_char_strength",
+        skip_serializing_if = "is_default_char_strength"
+    )]
+    pub char_strength: f32,
+    /// Number of trunks rising from a shared basal lignotuber / rootstock
+    /// (`1` = default single trunk; `2..=12` = multi-stem / mallee habit).
+    #[serde(
+        default = "default_trunk_stems",
+        skip_serializing_if = "is_default_trunk_stems"
+    )]
+    pub stems: u32,
+    /// Basal outward splay angle in degrees for multi-stem trunks (`stems > 1`).
+    #[serde(
+        default = "default_stem_spread",
+        skip_serializing_if = "is_default_stem_spread"
+    )]
+    pub stem_spread: f32,
+    /// Radial lignotuber offset in metres for multi-stem bases (`stems > 1`).
+    #[serde(
+        default = "default_stem_offset",
+        skip_serializing_if = "is_default_stem_offset"
+    )]
+    pub stem_offset: f32,
+    /// Height variation (`0..=0.7`) across co-dominant stems (`stems > 1`).
+    #[serde(
+        default = "default_stem_height_variation",
+        skip_serializing_if = "is_default_stem_height_variation"
+    )]
+    pub stem_height_variation: f32,
+    /// Explicit height in metres of trunk root-buttress flutes (`0` = default 18% of trunk height).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub buttress_height: f32,
+    /// Extended radial reach in metres of sinuous exposed surface roots (`0` = built-in reach).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub surface_root_reach: f32,
+    /// Number of hanging aerial curtain roots descending from spreading primary limbs (`0` = none).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub aerial_roots: u32,
+    /// Height in metres of a basal fire-hollow cavern carved into the trunk (`0` = none; red tingle).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub hollow_height: f32,
+    /// Angular opening width in radians of the basal fire-hollow (`0.3..=2.2`, default `1.15`).
+    #[serde(
+        default = "default_hollow_width",
+        skip_serializing_if = "is_default_hollow_width"
+    )]
+    pub hollow_width: f32,
+}
+
+fn default_trunk_stems() -> u32 {
+    1
+}
+fn is_default_trunk_stems(v: &u32) -> bool {
+    *v == default_trunk_stems()
+}
+fn default_stem_spread() -> f32 {
+    20.0
+}
+fn is_default_stem_spread(v: &f32) -> bool {
+    *v == default_stem_spread()
+}
+fn default_stem_offset() -> f32 {
+    0.16
+}
+fn is_default_stem_offset(v: &f32) -> bool {
+    *v == default_stem_offset()
+}
+fn default_stem_height_variation() -> f32 {
+    0.25
+}
+fn is_default_stem_height_variation(v: &f32) -> bool {
+    *v == default_stem_height_variation()
+}
+fn default_hollow_width() -> f32 {
+    1.15
+}
+fn is_default_hollow_width(v: &f32) -> bool {
+    *v == default_hollow_width()
+}
+
+fn is_zero_f32(v: &f32) -> bool {
+    *v == 0.0
+}
+fn default_trunk_buttress() -> f32 {
+    1.0
+}
+fn is_default_trunk_buttress(v: &f32) -> bool {
+    *v == default_trunk_buttress()
+}
+fn default_char_strength() -> f32 {
+    0.85
+}
+fn is_default_char_strength(v: &f32) -> bool {
+    *v == default_char_strength()
 }
 
 /// Container for branch parameters at different levels.
@@ -408,6 +1013,9 @@ pub struct BranchLevels {
     /// Tertiary branches (twigs)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub level3: Option<BranchParams>,
+    /// Quaternary fine twigs for tall trees (>25 m; opt-in)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level4: Option<BranchParams>,
 }
 
 /// Branch geometry and distribution parameters.
@@ -461,6 +1069,14 @@ pub struct BranchParams {
     /// Number of segments along branch length
     #[serde(default = "default_branch_segments")]
     pub segments: u32,
+    /// Upward tip sweep in degrees over the outer 40% of the branch (0 = off;
+    /// Norfolk Island pine upturned cord-like tips).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub tip_upturn: f32,
+    /// Vertical spacing jitter (`0..=0.5`) between successive whorled tiers
+    /// when `rotation` produces N-fold whorls (0 = built-in spacing).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub whorl_spacing_variance: f32,
 }
 
 /// Child branch radius calculation model.
@@ -532,6 +1148,9 @@ pub enum LeafDistribution {
     AlongBranch,
     /// Both endpoint and along branches
     Both,
+    /// Radial shoot-tip whorl collar placed just behind the stem apex, leaving
+    /// terminal flower spikes cleanly exposed above the leaf rosette (banksias, Queensland box).
+    Whorl,
 }
 
 /// Leaf rendering geometry type.
@@ -582,14 +1201,36 @@ pub enum LeafShape {
     Ivy,
     /// Broad tropical paddle leaf with wind splits (Strelitzia / banana)
     Paddle,
+    /// Long falcate (sickle-curved) lanceolate blade of adult eucalypt leaves
+    Sickle,
+    /// Long narrow strap with saw-toothed margins and a blunt tip (Banksia)
+    Banksia,
+    /// Twice-divided fern-like leaf of tiny leaflets (Jacaranda, wattles)
+    Bipinnate,
+    /// Drooping tuft of jointed wire-like branchlets (sheoaks)
+    Branchlet,
+    /// Giant deeply pinnatifid saw-toothed triangular-lobed strap leaf (Bull banksia *B. grandis*)
+    BullBanksia,
+    /// Fine soft airy narrow-elliptic / terete leaf spray on slender pale twigs (paperbarks / melaleucas)
+    Paperbark,
+    /// Broad ovate-lanceolate glossy adult eucalypt leaf (marri, tuart, sugar gum)
+    BroadEucalypt,
+    /// Three-leaflet compound leaf (coral tree *Erythrina x sykesii*)
+    Trifoliate,
 }
 
 impl LeafShape {
     /// Get the recommended polygon resolution for this shape
     pub fn recommended_resolution(&self) -> u32 {
         match self {
-            LeafShape::Oval | LeafShape::Pointed | LeafShape::Heart => 12,
-            LeafShape::Needle | LeafShape::Willow => 8,
+            LeafShape::Oval | LeafShape::Pointed | LeafShape::Heart | LeafShape::BroadEucalypt => {
+                12
+            }
+            LeafShape::Needle | LeafShape::Willow | LeafShape::Branchlet | LeafShape::Paperbark => {
+                8
+            }
+            LeafShape::Sickle | LeafShape::Bipinnate | LeafShape::Trifoliate => 12,
+            LeafShape::Banksia | LeafShape::BullBanksia => 28,
             LeafShape::Serrated | LeafShape::Ginkgo | LeafShape::Ivy | LeafShape::Paddle => 24,
             LeafShape::OakLobed => 20,
             LeafShape::Maple => 30,
@@ -726,6 +1367,10 @@ pub struct CanopyParams {
     /// Scale reduced-leaf LOD cards up so crown coverage is preserved
     #[serde(default = "default_true")]
     pub lod_scale_compensation: bool,
+    /// Opt-in: also scale surviving `billboard`/`cross_billboard` cards on reduced LODs
+    /// so medium-distance LOD1 retains LOD0's optical foliage density.
+    #[serde(default)]
+    pub billboard_lod_compensation: bool,
     /// Scale each `canopy_card` by its clump's size relative to the mean
     /// clump (0 = off, 1 = fully proportional). Keeps short upper conifer
     /// limbs from wearing full-size cards, so cones stay conical.
@@ -787,6 +1432,7 @@ impl Default for CanopyParams {
             hue_variation: default_canopy_hue_variation(),
             ao_strength: default_canopy_ao_strength(),
             lod_scale_compensation: true,
+            billboard_lod_compensation: false,
             card_scale_by_clump: 0.0,
             roughness: None,
         }
@@ -804,6 +1450,18 @@ pub enum BarkStyle {
     Plated,
     /// Smooth bark with lenticel dashes (beech, birch, palm)
     Smooth,
+    /// Long vertical fibrous strands with shallow interlaced furrows (jarrah)
+    Stringy,
+    /// Small squarish plates separated by cracks (marri, tuart "box" bark)
+    Tessellated,
+    /// Smooth bark shed in large flakes exposing differently coloured patches
+    /// (karri, wandoo, plane, lemon-scented gum); see `bark_patch_colors`
+    Patchy,
+    /// Thin overlapping torn sheets (paperbarks)
+    Papery,
+    /// Persistent diamond leaf-base scar relief on stout palm trunks
+    /// (Canary Island date palm, cotton fan palm)
+    PalmDiamond,
 }
 
 /// Leaf card layout — how leaf silhouettes are arranged on the card texture.
@@ -869,6 +1527,13 @@ pub struct TextureParams {
     /// Base leaf color as sRGB 0-1 triple; default is a mid green
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub leaf_color: Option<[f32; 3]>,
+    /// Up to four extra bark colours (sRGB 0-1): exposed patches for
+    /// `patchy` bark, sheet-edge underlayers for `papery`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bark_patch_colors: Vec<[f32; 3]>,
+    /// Amount (`0..=1`) of dark red gum (kino) bleeding down from bark cracks
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub bark_kino: f32,
     /// Optional bark albedo+alpha override, resolved relative to the species
     /// document by native hosts (empty = generate procedurally)
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -879,6 +1544,61 @@ pub struct TextureParams {
     /// Optional leaf albedo+alpha card override
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub leaf_albedo_alpha: String,
+    /// Optional upper-trunk / limb bark style for half-barked species (flooded
+    /// gum, river red gum, Queensland box, karri, lemon-scented gum).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upper_bark_style: Option<BarkStyle>,
+    /// Base sRGB 0-1 colour for upper bark when `upper_bark_style` or
+    /// `upper_bark_color` is set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upper_bark_color: Option<[f32; 3]>,
+    /// Up to four extra patch colours for upper bark (`patchy` / `papery`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub upper_bark_patch_colors: Vec<[f32; 3]>,
+    /// World height in metres where lower rough bark transitions to upper
+    /// smooth bark (default `2.5` when upper bark is enabled).
+    #[serde(
+        default = "default_bark_transition_height",
+        skip_serializing_if = "is_default_bark_transition_height"
+    )]
+    pub bark_transition_height: f32,
+    /// Vertical jaggedness / blend span in metres across the bark transition.
+    #[serde(
+        default = "default_bark_transition_span",
+        skip_serializing_if = "is_default_bark_transition_span"
+    )]
+    pub bark_transition_span: f32,
+    /// Optional discolorous leaf underside colour (sRGB 0-1): paler glaucous
+    /// underside on eucalypts, silvery-white underside on banksias, rusty
+    /// underside on Port Jackson fig.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leaf_underside_color: Option<[f32; 3]>,
+    /// Optional new-growth flushing tip colour (sRGB 0-1, e.g. bronze/crimson
+    /// new shoots on WA eucalypts and banksias).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leaf_new_growth_color: Option<[f32; 3]>,
+    /// Fraction (`0..=0.5`) of spray tip leaves painted as new growth.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub leaf_new_growth_fraction: f32,
+    /// Fraction (`0..=0.35`) of spray leaves painted as held yellowing/brown dead leaves.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub leaf_dead_fraction: f32,
+    /// Optional colour (sRGB 0-1) for held dead leaves in the crown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leaf_dead_color: Option<[f32; 3]>,
+}
+
+fn default_bark_transition_height() -> f32 {
+    2.5
+}
+fn is_default_bark_transition_height(v: &f32) -> bool {
+    *v == default_bark_transition_height()
+}
+fn default_bark_transition_span() -> f32 {
+    0.8
+}
+fn is_default_bark_transition_span(v: &f32) -> bool {
+    *v == default_bark_transition_span()
 }
 
 /// LOD preset enumeration.
@@ -1074,9 +1794,21 @@ impl Default for TextureParams {
             leaf_card: LeafCardLayout::default(),
             bark_color: None,
             leaf_color: None,
+            bark_patch_colors: Vec::new(),
+            bark_kino: 0.0,
             bark_albedo: String::new(),
             bark_normal: String::new(),
             leaf_albedo_alpha: String::new(),
+            upper_bark_style: None,
+            upper_bark_color: None,
+            upper_bark_patch_colors: Vec::new(),
+            bark_transition_height: default_bark_transition_height(),
+            bark_transition_span: default_bark_transition_span(),
+            leaf_underside_color: None,
+            leaf_new_growth_color: None,
+            leaf_new_growth_fraction: 0.0,
+            leaf_dead_fraction: 0.0,
+            leaf_dead_color: None,
         }
     }
 }
@@ -1296,6 +2028,7 @@ impl Species {
             (1u32, self.branches.level1.as_ref()),
             (2, self.branches.level2.as_ref()),
             (3, self.branches.level3.as_ref()),
+            (4, self.branches.level4.as_ref()),
         ] {
             let Some(p) = params else { continue };
             let prefix = format!("branches.level{level}");
@@ -1530,11 +2263,494 @@ impl Species {
             );
         }
 
+        check(
+            "trunk.char_height",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.char_height),
+        );
+        check(
+            "trunk.buttress",
+            "must be in 0..=3",
+            finite(self.trunk.buttress) && (0.0..=3.0).contains(&self.trunk.buttress),
+        );
+        check(
+            "trunk.char_strength",
+            "must be in 0..=1",
+            unit(self.trunk.char_strength),
+        );
+        check(
+            "textures.bark_kino",
+            "must be in 0..=1",
+            unit(self.textures.bark_kino),
+        );
+        check(
+            "textures.bark_patch_colors",
+            "at most 4 colours",
+            self.textures.bark_patch_colors.len() <= 4,
+        );
+        for (i, c) in self.textures.bark_patch_colors.iter().enumerate() {
+            for (j, v) in c.iter().enumerate() {
+                check(
+                    &format!("textures.bark_patch_colors[{i}][{j}]"),
+                    "must be in 0..=1",
+                    unit(*v),
+                );
+            }
+        }
+
+        let mut check_color = |field: &str, c: &[f32; 3]| {
+            for (i, v) in c.iter().enumerate() {
+                check(&format!("{field}[{i}]"), "must be in 0..=1", unit(*v));
+            }
+        };
+
+        if self.generator.family == GeneratorFamily::Rosette || self.rosette.is_some() {
+            let r = self.rosette.clone().unwrap_or_default();
+            check_color("rosette.skirt_color", &r.skirt_color);
+            if let Some(c) = &r.color_base {
+                check_color("rosette.color_base", c);
+            }
+            if let Some(c) = &r.color_tip {
+                check_color("rosette.color_tip", c);
+            }
+            if let Some(spike) = &r.spike {
+                check_color("rosette.spike.color", &spike.color);
+                check_color("rosette.spike.tip_color", &spike.tip_color);
+                check_color("rosette.spike.scape_color", &spike.scape_color);
+            }
+        }
+        if let Some(inf) = &self.inflorescence {
+            check_color("inflorescence.color", &inf.color);
+            check_color("inflorescence.aged_color", &inf.aged_color);
+            if let Some(c) = &inf.color_tip {
+                check_color("inflorescence.color_tip", c);
+            }
+        }
+
+        if let Some(r) = &self.rosette {
+            check(
+                "rosette.crowns",
+                "must be in 1..=12",
+                (1..=12).contains(&r.crowns),
+            );
+            check(
+                "rosette.fork_height",
+                "must be in 0..=1",
+                unit(r.fork_height),
+            );
+            check(
+                "rosette.fork_angle",
+                "must be finite and within 0..=90",
+                finite(r.fork_angle) && (0.0..=90.0).contains(&r.fork_angle),
+            );
+            check("rosette.blades", "must be at least 1", r.blades >= 1);
+            check(
+                "rosette.blade_length",
+                "must be positive and finite",
+                positive(r.blade_length),
+            );
+            check(
+                "rosette.blade_length_variance",
+                "must be in 0..=1",
+                unit(r.blade_length_variance),
+            );
+            check(
+                "rosette.blade_width",
+                "must be positive and finite",
+                positive(r.blade_width),
+            );
+            check(
+                "rosette.spread_min",
+                "must be finite and within 0..=180",
+                finite(r.spread_min) && (0.0..=180.0).contains(&r.spread_min),
+            );
+            check(
+                "rosette.spread_max",
+                "must be finite, within 0..=180 and not below spread_min",
+                finite(r.spread_max)
+                    && (0.0..=180.0).contains(&r.spread_max)
+                    && r.spread_max >= r.spread_min,
+            );
+            check("rosette.droop", "must be in 0..=1", unit(r.droop));
+            check("rosette.stiffness", "must be in 0..=1", unit(r.stiffness));
+            check("rosette.keel", "must be in 0..=1", unit(r.keel));
+            check("rosette.skirt", "must be in 0..=1", unit(r.skirt));
+            if let Some(spike) = &r.spike {
+                check(
+                    "rosette.spike.chance",
+                    "must be in 0..=1",
+                    unit(spike.chance),
+                );
+                check(
+                    "rosette.spike.count",
+                    "must be in 1..=64",
+                    (1..=64).contains(&spike.count),
+                );
+                check(
+                    "rosette.spike.scape_length",
+                    "must be non-negative and finite",
+                    nonnegative(spike.scape_length),
+                );
+                check(
+                    "rosette.spike.scape_radius",
+                    "must be positive and finite",
+                    positive(spike.scape_radius),
+                );
+                check(
+                    "rosette.spike.length",
+                    "must be positive and finite",
+                    positive(spike.length),
+                );
+                check(
+                    "rosette.spike.radius",
+                    "must be positive and finite",
+                    positive(spike.radius),
+                );
+                check(
+                    "rosette.spike.lean",
+                    "must be finite and within 0..=90",
+                    finite(spike.lean) && (0.0..=90.0).contains(&spike.lean),
+                );
+                check(
+                    "rosette.spike.flower_length",
+                    "must be positive and finite",
+                    positive(spike.flower_length),
+                );
+            }
+        }
+
+        if let Some(inf) = &self.inflorescence {
+            check(
+                "inflorescence.offset",
+                "must be non-negative and finite",
+                nonnegative(inf.offset),
+            );
+            check(
+                "inflorescence.length",
+                "must be positive and finite",
+                positive(inf.length),
+            );
+            check(
+                "inflorescence.width",
+                "must be positive and finite",
+                positive(inf.width),
+            );
+            check(
+                "inflorescence.size_variance",
+                "must be in 0..=1",
+                unit(inf.size_variance),
+            );
+            check(
+                "inflorescence.aged_fraction",
+                "must be in 0..=1",
+                unit(inf.aged_fraction),
+            );
+            check(
+                "inflorescence.min_level",
+                "out of supported range",
+                inf.min_level <= crate::constants::MAX_BRANCH_LEVELS,
+            );
+            if let Some(r) = inf.roughness {
+                check("inflorescence.roughness", "must be in 0..=1", unit(r));
+            }
+        }
+        if let Some(inf) = &self.secondary_inflorescence {
+            check(
+                "secondary_inflorescence.offset",
+                "must be non-negative and finite",
+                nonnegative(inf.offset),
+            );
+            check(
+                "secondary_inflorescence.length",
+                "must be positive and finite",
+                positive(inf.length),
+            );
+            check(
+                "secondary_inflorescence.width",
+                "must be positive and finite",
+                positive(inf.width),
+            );
+            check(
+                "secondary_inflorescence.size_variance",
+                "must be in 0..=1",
+                unit(inf.size_variance),
+            );
+            check(
+                "secondary_inflorescence.aged_fraction",
+                "must be in 0..=1",
+                unit(inf.aged_fraction),
+            );
+            check(
+                "secondary_inflorescence.min_level",
+                "out of supported range",
+                inf.min_level <= crate::constants::MAX_BRANCH_LEVELS,
+            );
+            if let Some(r) = inf.roughness {
+                check(
+                    "secondary_inflorescence.roughness",
+                    "must be in 0..=1",
+                    unit(r),
+                );
+            }
+            for (i, v) in inf.color.iter().enumerate() {
+                check(
+                    &format!("secondary_inflorescence.color[{i}]"),
+                    "must be in 0..=1",
+                    unit(*v),
+                );
+            }
+            for (i, v) in inf.aged_color.iter().enumerate() {
+                check(
+                    &format!("secondary_inflorescence.aged_color[{i}]"),
+                    "must be in 0..=1",
+                    unit(*v),
+                );
+            }
+            if let Some(c) = &inf.color_tip {
+                for (i, v) in c.iter().enumerate() {
+                    check(
+                        &format!("secondary_inflorescence.color_tip[{i}]"),
+                        "must be in 0..=1",
+                        unit(*v),
+                    );
+                }
+            }
+        }
+        check(
+            "trunk.stems",
+            "must be in 1..=12",
+            (1..=12).contains(&self.trunk.stems),
+        );
+        check(
+            "trunk.stem_spread",
+            "must be finite and within 0..=75",
+            finite(self.trunk.stem_spread) && (0.0..=75.0).contains(&self.trunk.stem_spread),
+        );
+        check(
+            "trunk.stem_offset",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.stem_offset),
+        );
+        check(
+            "trunk.stem_height_variation",
+            "must be in 0..=0.7",
+            finite(self.trunk.stem_height_variation)
+                && (0.0..=0.7).contains(&self.trunk.stem_height_variation),
+        );
+        check(
+            "trunk.buttress_height",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.buttress_height),
+        );
+        check(
+            "trunk.surface_root_reach",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.surface_root_reach),
+        );
+        check(
+            "trunk.hollow_height",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.hollow_height),
+        );
+        check(
+            "trunk.hollow_width",
+            "must be finite and within 0.2..=2.4",
+            finite(self.trunk.hollow_width) && (0.2..=2.4).contains(&self.trunk.hollow_width),
+        );
+        if let Some(p) = &self.pruning {
+            check(
+                "pruning.cut_height",
+                "must be positive and finite",
+                positive(p.cut_height),
+            );
+            check(
+                "pruning.lift_height",
+                "must be non-negative and finite",
+                nonnegative(p.lift_height),
+            );
+            check(
+                "pruning.regrowth_length",
+                "must be positive and finite",
+                positive(p.regrowth_length),
+            );
+        }
+        if let Some(r) = &self.rosette {
+            check(
+                "rosette.crown_boss",
+                "must be in 0..=1.5",
+                finite(r.crown_boss) && (0.0..=1.5).contains(&r.crown_boss),
+            );
+            check(
+                "rosette.runner_length",
+                "must be positive and finite",
+                positive(r.runner_length),
+            );
+        }
+        check(
+            "textures.bark_transition_height",
+            "must be non-negative and finite",
+            nonnegative(self.textures.bark_transition_height),
+        );
+        check(
+            "textures.bark_transition_span",
+            "must be non-negative and finite",
+            nonnegative(self.textures.bark_transition_span),
+        );
+        check(
+            "textures.upper_bark_patch_colors",
+            "at most 4 colours",
+            self.textures.upper_bark_patch_colors.len() <= 4,
+        );
+        for (field, color) in [
+            ("textures.upper_bark_color", self.textures.upper_bark_color),
+            (
+                "textures.leaf_underside_color",
+                self.textures.leaf_underside_color,
+            ),
+            (
+                "textures.leaf_new_growth_color",
+                self.textures.leaf_new_growth_color,
+            ),
+            ("textures.leaf_dead_color", self.textures.leaf_dead_color),
+        ] {
+            if let Some(c) = color {
+                for (i, v) in c.iter().enumerate() {
+                    check(&format!("{field}[{i}]"), "must be in 0..=1", unit(*v));
+                }
+            }
+        }
+        for (i, c) in self.textures.upper_bark_patch_colors.iter().enumerate() {
+            for (j, v) in c.iter().enumerate() {
+                check(
+                    &format!("textures.upper_bark_patch_colors[{i}][{j}]"),
+                    "must be in 0..=1",
+                    unit(*v),
+                );
+            }
+        }
+        check(
+            "textures.leaf_new_growth_fraction",
+            "must be in 0..=0.5",
+            finite(self.textures.leaf_new_growth_fraction)
+                && (0.0..=0.5).contains(&self.textures.leaf_new_growth_fraction),
+        );
+        check(
+            "textures.leaf_dead_fraction",
+            "must be in 0..=0.35",
+            finite(self.textures.leaf_dead_fraction)
+                && (0.0..=0.35).contains(&self.textures.leaf_dead_fraction),
+        );
+
         if errors.is_empty() {
             Ok(())
         } else {
             Err(SpeciesError::Validation(errors))
         }
+    }
+
+    /// Load species from TOML with an optional named state applied.
+    ///
+    /// A document may carry `[states.<name>]` overlays (seasonal or condition
+    /// variants: in flower, bare, burnt). The overlay is deep-merged onto the
+    /// document — tables merge key by key, any other value replaces — and the
+    /// result is validated like any species. `None` is [`Species::from_toml`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use midori_core::species::Species;
+    ///
+    /// let toml = r#"
+    /// [species]
+    /// name = "Seasonal"
+    ///
+    /// [trunk]
+    /// height = 5.0
+    ///
+    /// [leaves]
+    /// count = 2000
+    ///
+    /// [states.bare]
+    /// leaves.count = 0
+    /// "#;
+    ///
+    /// assert_eq!(Species::from_toml(toml).unwrap().leaves.count, 2000);
+    /// let bare = Species::from_toml_with_state(toml, Some("bare")).unwrap();
+    /// assert_eq!(bare.leaves.count, 0);
+    /// assert!(Species::from_toml_with_state(toml, Some("nope")).is_err());
+    /// ```
+    pub fn from_toml_with_state(toml_str: &str, state: Option<&str>) -> Result<Self, SpeciesError> {
+        let Some(state) = state else {
+            return Self::from_toml(toml_str);
+        };
+        let mut root: toml::Table = toml::from_str(toml_str)?;
+        let overlay = root
+            .get("states")
+            .and_then(toml::Value::as_table)
+            .and_then(|states| states.get(state))
+            .and_then(toml::Value::as_table)
+            .cloned();
+        let Some(overlay) = overlay else {
+            let mut names: Vec<String> = root
+                .get("states")
+                .and_then(toml::Value::as_table)
+                .map(|t| t.keys().cloned().collect())
+                .unwrap_or_default();
+            names.sort();
+            let available = if names.is_empty() {
+                "the document defines no states".to_string()
+            } else {
+                format!("available: {}", names.join(", "))
+            };
+            return Err(SpeciesError::Validation(vec![SpeciesFieldError {
+                field: format!("states.{state}"),
+                message: format!("unknown state ({available})"),
+            }]));
+        };
+        merge_toml_tables(&mut root, &overlay);
+        let species: Self = toml::Value::Table(root).try_into()?;
+        species.validate()?;
+        Ok(species)
+    }
+
+    /// Load species from a file with an optional named state applied.
+    pub fn from_file_with_state(
+        path: &std::path::Path,
+        state: Option<&str>,
+    ) -> Result<Self, SpeciesError> {
+        let content = std::fs::read_to_string(path)?;
+        Self::from_toml_with_state(&content, state)
+    }
+
+    /// Names of the `[states.<name>]` overlays this document defines, sorted.
+    pub fn state_names(&self) -> Vec<&str> {
+        self.states.keys().map(String::as_str).collect()
+    }
+
+    /// True when the foliage texture is the 2x2 atlas (leaf card plus organ
+    /// cells): rosettes and species carrying an `[inflorescence]` without a
+    /// separate organ material.
+    pub fn uses_foliage_atlas(&self) -> bool {
+        if self.generator.family == GeneratorFamily::Rosette {
+            return true;
+        }
+        self.inflorescence
+            .as_ref()
+            .is_some_and(|inf| !inf.separate_material)
+            && self.secondary_inflorescence.is_none()
+    }
+
+    /// True when organs use their own dedicated `Organ` material and 2x2 organ atlas.
+    pub fn uses_separate_organ_material(&self) -> bool {
+        self.inflorescence
+            .as_ref()
+            .is_some_and(|inf| inf.separate_material)
+            || self.secondary_inflorescence.is_some()
+    }
+
+    /// True when the species defines a height-varying upper bark transition.
+    pub fn uses_upper_bark(&self) -> bool {
+        self.textures.upper_bark_style.is_some() || self.textures.upper_bark_color.is_some()
     }
 
     /// Load species from file path.
@@ -1552,7 +2768,7 @@ impl Species {
         Self::from_toml(&content)
     }
 
-    /// Get branch params for a level (0 = trunk, 1-3 = branches).
+    /// Get branch params for a level (0 = trunk, 1-4 = branches).
     ///
     /// Returns `None` for level 0 (trunk) or if the level is not defined.
     pub fn get_branch_level(&self, level: u32) -> Option<&BranchParams> {
@@ -1560,6 +2776,7 @@ impl Species {
             1 => self.branches.level1.as_ref(),
             2 => self.branches.level2.as_ref(),
             3 => self.branches.level3.as_ref(),
+            4 => self.branches.level4.as_ref(),
             _ => None,
         }
     }
@@ -1594,6 +2811,20 @@ impl Species {
             &self.species.scientific
         } else {
             &self.species.latin
+        }
+    }
+}
+
+/// Deep-merge `overlay` into `base`: tables merge key by key, anything else replaces.
+fn merge_toml_tables(base: &mut toml::Table, overlay: &toml::Table) {
+    for (key, value) in overlay {
+        match (base.get_mut(key), value) {
+            (Some(toml::Value::Table(dst)), toml::Value::Table(src)) => {
+                merge_toml_tables(dst, src);
+            }
+            _ => {
+                base.insert(key.clone(), value.clone());
+            }
         }
     }
 }
@@ -2572,6 +3803,190 @@ leaf_reduction = 1.5
             "lod.levels[0].leaf_reduction",
         ] {
             assert!(paths.contains(&expected), "missing {expected} in {paths:?}");
+        }
+    }
+
+    const STATEFUL_TOML: &str = r#"
+[species]
+name = "Seasonal"
+
+[trunk]
+height = 5.0
+
+[branches.level1]
+count = 6
+length = 2.0
+
+[leaves]
+count = 2000
+size = 0.5
+
+[inflorescence]
+kind = "cluster"
+count = 0
+color = [0.6, 0.5, 0.9]
+
+[states.flowering]
+"species.name" = "ignored literal key"
+leaves.count = 200
+inflorescence.count = 900
+
+[states.bare]
+species.name = "Seasonal (bare)"
+leaves.count = 0
+"#;
+
+    #[test]
+    fn test_states_overlay_merges_tables_and_replaces_values() {
+        let base = Species::from_toml(STATEFUL_TOML).unwrap();
+        assert_eq!(base.leaves.count, 2000);
+        assert_eq!(base.state_names(), vec!["bare", "flowering"]);
+        assert_eq!(base.inflorescence.as_ref().unwrap().count, 0);
+
+        let flowering = Species::from_toml_with_state(STATEFUL_TOML, Some("flowering")).unwrap();
+        assert_eq!(flowering.leaves.count, 200);
+        // Untouched keys of a merged table survive.
+        assert_eq!(flowering.leaves.size, 0.5);
+        let inf = flowering.inflorescence.as_ref().unwrap();
+        assert_eq!(inf.count, 900);
+        assert_eq!(inf.kind, InflorescenceKind::Cluster);
+        assert_eq!(inf.color, [0.6, 0.5, 0.9]);
+        assert_eq!(flowering.species.name, "Seasonal");
+
+        let bare = Species::from_toml_with_state(STATEFUL_TOML, Some("bare")).unwrap();
+        assert_eq!(bare.leaves.count, 0);
+        assert_eq!(bare.species.name, "Seasonal (bare)");
+
+        assert_eq!(
+            Species::from_toml_with_state(STATEFUL_TOML, None)
+                .unwrap()
+                .leaves
+                .count,
+            2000
+        );
+    }
+
+    #[test]
+    fn test_unknown_state_lists_the_available_ones() {
+        let err = Species::from_toml_with_state(STATEFUL_TOML, Some("autumn")).unwrap_err();
+        let SpeciesError::Validation(fields) = err else {
+            panic!("expected validation error, got {err:?}");
+        };
+        assert_eq!(fields[0].field, "states.autumn");
+        assert!(fields[0].message.contains("bare, flowering"));
+
+        let err = Species::from_toml_with_state(MINIMAL_TOML, Some("any")).unwrap_err();
+        assert!(err.to_string().contains("defines no states"));
+    }
+
+    #[test]
+    fn test_state_overlay_is_validated() {
+        let toml = r#"
+[species]
+name = "Bad State"
+[trunk]
+height = 5.0
+[states.broken]
+trunk.height = -1.0
+"#;
+        assert!(Species::from_toml(toml).is_ok());
+        let err = Species::from_toml_with_state(toml, Some("broken")).unwrap_err();
+        assert!(err.to_string().contains("trunk.height"));
+    }
+
+    #[test]
+    fn test_new_enum_values_parse() {
+        for shape in ["sickle", "banksia", "bipinnate", "branchlet"] {
+            let toml = format!(
+                "[species]\nname = \"T\"\n[trunk]\n[leaves]\nshape = \"{shape}\"\n[textures]\nleaf_shape = \"{shape}\"\n"
+            );
+            let species = Species::from_toml(&toml).unwrap();
+            assert_eq!(species.leaves.shape, species.textures.leaf_shape);
+            assert!(species.leaves.shape.recommended_resolution() >= 8);
+        }
+        for (style, expected) in [
+            ("stringy", BarkStyle::Stringy),
+            ("tessellated", BarkStyle::Tessellated),
+            ("patchy", BarkStyle::Patchy),
+            ("papery", BarkStyle::Papery),
+        ] {
+            let toml =
+                format!("[species]\nname = \"T\"\n[trunk]\n[textures]\nbark_style = \"{style}\"\n");
+            assert_eq!(
+                Species::from_toml(&toml).unwrap().textures.bark_style,
+                expected
+            );
+        }
+        let rosette = Species::from_toml(
+            "[species]\nname = \"R\"\n[generator]\nfamily = \"rosette\"\n[trunk]\n",
+        )
+        .unwrap();
+        assert_eq!(rosette.generator.family, GeneratorFamily::Rosette);
+        assert!(rosette.uses_foliage_atlas());
+    }
+
+    #[test]
+    fn test_validate_rejects_bad_layer_and_inflorescence_values() {
+        let toml = r#"
+[species]
+name = "Bad Layers"
+
+[trunk]
+height = 5.0
+buttress = 9.0
+char_height = -1.0
+char_strength = 2.0
+
+[textures]
+bark_kino = 1.5
+bark_patch_colors = [[0.5, 0.5, 2.0], [0.1, 0.1, 0.1], [0.1, 0.1, 0.1], [0.1, 0.1, 0.1], [0.1, 0.1, 0.1]]
+
+[inflorescence]
+length = 0.0
+aged_fraction = 1.5
+offset = -0.1
+color = [1.5, 0.0, 0.0]
+"#;
+        let err = Species::from_toml(toml).unwrap_err();
+        let SpeciesError::Validation(fields) = err else {
+            panic!("expected validation error, got {err:?}");
+        };
+        let paths: Vec<&str> = fields.iter().map(|f| f.field.as_str()).collect();
+        for expected in [
+            "trunk.buttress",
+            "trunk.char_height",
+            "trunk.char_strength",
+            "textures.bark_kino",
+            "textures.bark_patch_colors",
+            "textures.bark_patch_colors[0][2]",
+            "inflorescence.length",
+            "inflorescence.aged_fraction",
+            "inflorescence.offset",
+            "inflorescence.color[0]",
+        ] {
+            assert!(paths.contains(&expected), "missing {expected} in {paths:?}");
+        }
+    }
+
+    #[test]
+    fn test_new_fields_are_not_serialized_at_their_defaults() {
+        // Existing documents must serialize exactly as before the new fields existed.
+        let species = Species::from_toml(FULL_OAK_TOML).unwrap();
+        let value = serde_json::to_value(&species).unwrap();
+        for key in ["rosette", "inflorescence", "states"] {
+            assert!(
+                value.get(key).is_none(),
+                "{key} serialized for a plain species"
+            );
+        }
+        for key in ["buttress", "char_height", "char_strength"] {
+            assert!(value["trunk"].get(key).is_none(), "trunk.{key} serialized");
+        }
+        for key in ["bark_patch_colors", "bark_kino"] {
+            assert!(
+                value["textures"].get(key).is_none(),
+                "textures.{key} serialized"
+            );
         }
     }
 }

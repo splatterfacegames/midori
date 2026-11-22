@@ -17,29 +17,44 @@ documented section is closed: a typo inside `[species]`, `[trunk]`,
 |---------|----------|---------|
 | `[species]` | yes | identity: `name` (required), `scientific`, `latin`, `biome`, `tags` |
 | `[trunk]` | yes | trunk geometry |
-| `[branches]` | no | per-level branch params (`level1`/`level2`/`level3`) |
+| `[branches]` | no | per-level branch params (`level1`/`level2`/`level3`/`level4`) |
+| `[pruning]` | no | pruning / fire-recovery operator (`lopped`, `pollard`, `crown_lift`, epicormic shoots) |
 | `[generator]` | no | `family` + `notes`; default `weber_penn` |
 | `[crown]` | no | crown shape, offset, density, width ratio |
 | `[leaves]` | no | leaf count, size, distribution, geometry, shape |
-| `[textures]` | no | procedural-map parameters + host file overrides |
+| `[textures]` | no | procedural-map parameters, half-bark transition (`upper_bark_*`), discolorous/new-growth/dead palettes + host file overrides |
 | `[materials]` | no | metadata-only material placeholders (see below) |
 | `[[control_groups]]` | no | editor control → parameter-path mapping |
-| `[canopy]` | no | top-down/distant canopy shaping (see below) |
+| `[canopy]` | no | top-down/distant canopy shaping & `billboard_lod_compensation` (see below) |
 | `[lod]` | no | LOD preset or explicit `levels` list |
 | `[platform]` | no | target platform (`modern_pc`, `mobile`, `switch`, `quest`, `web`, `universal`) |
+| `[rosette]` | no | rosette plants (`generator.family = "rosette"`): blades, skirt, `crown_boss`, `runners`, `[rosette.spike]` |
+| `[inflorescence]` | no | primary flower spikes, nuts, flower clusters or berries on a branching tree (with optional `separate_material`) |
+| `[secondary_inflorescence]` | no | optional second simultaneous organ layer (e.g. flowers + persistent fruit together) |
+| `[states.<name>]` | no | named overlays (seasonal / condition / site variants), applied with `--state` and live workbench switcher |
+
+`[rosette]`, `[inflorescence]`, `[states]`, the newer leaf shapes and bark styles, `trunk.buttress` and
+`trunk.char_height` are described in full, with every parameter, in
+[`botanical-generators.md`](botanical-generators.md).
 
 ## Enums
 
 | Field | Values |
 |-------|--------|
-| `generator.family` | `weber_penn`, `dichotomous`, `cactus`, `pad_chain`, `custom` |
+| `generator.family` | `weber_penn`, `dichotomous`, `topiary`, `floral_shrub`, `climbing_vine`, `tropical_clump`, `rosette`, `cactus`, `pad_chain`, `custom` |
 | `branches.*.radius_model` | `ratio` (default), `pipe` |
 | `*.taper_profile` | `linear`, `smooth`, `exponential`, `compound` |
 | `crown.shape` | `spherical` (default), `conical`, `hemispherical`, `flame`, `columnar` |
-| `leaves.distribution` | `endpoint`, `along_branch`, `both` (default) |
+| `leaves.distribution` | `endpoint`, `along_branch`, `both` (default), `whorl` |
 | `leaves.geometry`, `lod.levels.*.leaf_geometry` | `polygon`, `cross_billboard` (default), `billboard`, `canopy_card`, `none` |
-| `leaves.shape`, `textures.leaf_shape` | `oval`, `pointed` (default), `needle`, `oak_lobed` (legacy alias `lobed`), `maple`, `serrated`, `willow`, `heart`, `palmate` |
-| `textures.bark_style` | `furrowed` (default), `plated`, `smooth` |
+| `leaves.shape`, `textures.leaf_shape` | `oval`, `pointed` (default), `needle`, `oak_lobed` (legacy alias `lobed`), `maple`, `serrated`, `willow`, `heart`, `palmate`, `ginkgo`, `ivy`, `paddle`, `sickle`, `banksia`, `bull_banksia`, `bipinnate`, `branchlet`, `paperbark`, `broad_eucalypt`, `trifoliate` |
+| `textures.bark_style`, `textures.upper_bark_style` | `furrowed` (default), `plated`, `smooth`, `stringy`, `tessellated`, `patchy`, `papery`, `palm_diamond` |
+| `pruning.mode` | `none` (default), `lopped`, `pollard`, `crown_lift` |
+| `rosette.blade_card` | `single`, `tuft` (default), `pinnate`, `fan` |
+| `rosette.spike.style` | `cylinder` (default), `raceme`, `cone`, `plume`, `panicle` |
+| `inflorescence.kind` | `spike` (default), `nut`, `cluster`, `berries` |
+| `inflorescence.placement` | `endpoint` (default), `along_branch` |
+| `inflorescence.orientation` | `up` (default), `branch`, `hang` |
 | `textures.leaf_card` | `single`, `cluster` (default), `puff`, `frond` |
 | `canopy.normals` | `geometric` (default), `canopy` |
 | `canopy.card_roll` | `random` (default), `radial` |

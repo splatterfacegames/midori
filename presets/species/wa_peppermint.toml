@@ -1,0 +1,161 @@
+# WA peppermint (Agonis flexuosa)
+# Weeping small tree of coastal sands and Perth suburbs: fibrous brown furrowed bark on a short
+# twisted trunk, dense dome of pendulous willow-like branchlets, and bronze-copper new-growth tips.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "WA Peppermint"
+scientific = "Agonis flexuosa"
+latin = "Agonis flexuosa"
+biome = "mediterranean"
+tags = ["wa_native", "myrtle_family", "coastal", "swan_coastal_plain", "evergreen", "weeping", "street_tree"]
+
+[generator]
+family = "weber_penn"
+notes = "Typical 8.5-9 m coastal weeping dome; [states.street] lifts the canopy skirt to 2.6 m."
+
+[trunk]
+height = 8.2
+height_variance = 0.14
+radius = 0.42
+taper = 0.74
+taper_profile = "exponential"
+curve = 28.0
+curve_variance = 12.0
+curve_back = 24.0
+segments = 18
+buttress = 1.0
+
+[branches.level1]
+count = 9
+count_variance = 2
+length = 3.9
+length_variance = 0.22
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.08
+curve = 38.0
+curve_variance = 22.0
+segments = 15
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 2.7
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 44.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.52
+curve = 42.0
+curve_variance = 18.0
+segments = 12
+
+[branches.level3]
+count = 6
+count_variance = 2
+length = 2.4
+length_variance = 0.22
+radius_ratio = 0.26
+radius_model = "ratio"
+taper = 0.84
+taper_profile = "compound"
+angle = 26.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.92
+curve = 22.0
+curve_variance = 18.0
+segments = 12
+
+[crown]
+shape = "hemispherical"
+offset = 0.28
+density = 0.96
+width_ratio = 1.18
+
+[leaves]
+count = 3000
+min_level = 2
+size = 0.50
+size_variance = 0.22
+distribution = "along_branch"
+geometry = "cross_billboard"
+shape = "willow"
+up_influence = -0.74
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.74
+up_bias = 0.20
+clump_weight = 0.62
+clump_level = 1
+crown_fill = 0
+shell = 0.12
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.11
+ao_strength = 0.36
+billboard_lod_compensation = true
+roughness = 0.76
+
+[textures]
+bark_prompt = "Agonis flexuosa bark, dark warm brown, fibrous and stringy"
+leaf_prompt = "WA peppermint leaves, narrow lanceolate hanging olive-grey with copper-bronze flushing tips"
+resolution = 1024
+bark_style = "stringy"
+leaf_shape = "willow"
+leaf_card = "cluster"
+bark_color = [0.38, 0.30, 0.23]
+leaf_color = [0.39, 0.48, 0.31]
+leaf_underside_color = [0.50, 0.56, 0.41]
+leaf_new_growth_color = [0.62, 0.33, 0.22]
+leaf_new_growth_fraction = 0.16
+leaf_dead_fraction = 0.05
+leaf_dead_color = [0.56, 0.46, 0.26]
+
+[materials]
+bark = "peppermint_bark"
+foliage = "peppermint_foliage"
+notes = "1024px fibrous brown bark and pendulous olive/bronze leaf card."
+
+# Perth suburban street-tree form with council crown lift for traffic & footpath clearance.
+[states.street.pruning]
+mode = "crown_lift"
+lift_height = 2.6
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.5
+max = 14.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.6
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

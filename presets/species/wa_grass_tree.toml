@@ -1,0 +1,129 @@
+# Grass tree / balga (Xanthorrhoea preissii)
+# Fire-blackened trunk, weathered straw skirt, dense fountain of blue-grey-green wiry blades,
+# and tall cylindrical flower spear (sourced dimensions: Flora of Australia / Florabase).
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Grass Tree"
+scientific = "Xanthorrhoea preissii"
+latin = "Xanthorrhoea preissii"
+biome = "mediterranean"
+tags = ["wa_native", "rosette", "understorey", "banksia_woodland", "jarrah_forest", "fire_adapted"]
+
+[generator]
+family = "rosette"
+notes = "Rosette generator: charcoal diamond-packed caudex, dead skirt, dense wiry needle sphere, tall spear."
+
+[trunk]
+height = 1.6
+height_variance = 0.30
+radius = 0.19
+taper = 0.08
+curve = 10.0
+curve_variance = 8.0
+segments = 10
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 540
+blade_length = 1.05
+blade_length_variance = 0.14
+blade_width = 0.065
+blade_card = "tuft"
+spread_min = 4.0
+spread_max = 154.0
+droop = 0.22
+stiffness = 0.80
+keel = 0.0
+color_base = [0.33, 0.40, 0.31]
+color_tip = [0.47, 0.52, 0.39]
+skirt = 0.56
+skirt_blades = 260
+skirt_color = [0.48, 0.39, 0.26]
+
+[rosette.spike]
+chance = 1.0
+count = 1
+style = "cylinder"
+scape_length = 0.85
+scape_radius = 0.018
+length = 1.85
+radius = 0.036
+lean = 6.0
+color = [0.35, 0.25, 0.16]
+tip_color = [0.85, 0.81, 0.64]
+scape_color = [0.38, 0.33, 0.21]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.55
+up_bias = 0.30
+clump_weight = 0.30
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.10
+hue_variation = 0.07
+ao_strength = 0.38
+roughness = 0.78
+
+[textures]
+bark_prompt = "Grass tree caudex, charcoal-black packed diamond leaf bases, fire blackened"
+leaf_prompt = "Xanthorrhoea preissii stiff quadrate-rhombic wiry needles, muted blue-grey-green"
+resolution = 1024
+bark_style = "palm_diamond"
+bark_color = [0.10, 0.095, 0.09]
+leaf_color = [0.40, 0.46, 0.35]
+
+[materials]
+bark = "grass_tree_bark"
+foliage = "grass_tree_foliage"
+notes = "1024px charcoal diamond caudex + 2x2 rosette atlas: live needle tuft, spike wrap, dead skirt."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "trunk_height"
+label = "Trunk Height"
+parameter = "trunk.height"
+min = 0.2
+max = 4.0
+step = 0.05
+
+[[control_groups.controls]]
+key = "blade_length"
+label = "Leaf Length"
+parameter = "rosette.blade_length"
+min = 0.5
+max = 1.5
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: ancient plant with tall forked caudex bearing three crowns
+[states.forked]
+species.name = "Grass Tree (forked)"
+trunk.height = 2.9
+rosette.crowns = 3
+rosette.fork_height = 0.54
+rosette.fork_angle = 34.0
+rosette.blades = 360
+rosette.skirt_blades = 160
+
+# State: post-bushfire flush: skirt burnt away, fresh olive-lime regrowth, guaranteed flower spear
+[states.burnt]
+species.name = "Grass Tree (burnt)"
+rosette.skirt_blades = 0
+rosette.blade_length = 0.78
+rosette.color_base = [0.34, 0.46, 0.24]
+rosette.color_tip = [0.48, 0.58, 0.32]
+rosette.spike.chance = 1.0

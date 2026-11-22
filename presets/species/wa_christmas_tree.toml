@@ -1,0 +1,177 @@
+# WA Christmas tree / moodjar (Nuytsia floribunda)
+# Root-parasitic tree of the Swan Coastal Plain: stout rough gnarled trunk, brittle irregular
+# spreading limbs, dull yellow-olive narrow leaves, smothered in blazing golden-orange flowers in December.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "WA Christmas Tree"
+scientific = "Nuytsia floribunda"
+latin = "Nuytsia floribunda"
+biome = "mediterranean"
+tags = ["wa_native", "mistletoe_family", "banksia_woodland", "swan_coastal_plain", "flowering", "summer"]
+
+[generator]
+family = "weber_penn"
+notes = "Default is December peak orange blossom on a dedicated organ material; out_of_flower is its brittle sparse form."
+
+[trunk]
+height = 5.2
+height_variance = 0.16
+radius = 0.38
+taper = 0.68
+taper_profile = "exponential"
+curve = 22.0
+curve_variance = 12.0
+curve_back = 24.0
+segments = 18
+buttress = 0.85
+
+[branches.level1]
+count = 7
+count_variance = 2
+length = 3.5
+length_variance = 0.24
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "exponential"
+angle = 54.0
+angle_variance = 18.0
+rotation = 137.5
+gravity = 0.04
+curve = 26.0
+curve_variance = 24.0
+segments = 12
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 1.8
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 48.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = 0.06
+curve = -18.0
+curve_variance = 20.0
+segments = 9
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 0.85
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 42.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.12
+curve = 14.0
+curve_variance = 16.0
+segments = 6
+
+[crown]
+shape = "hemispherical"
+offset = 0.34
+density = 0.88
+width_ratio = 1.24
+
+[leaves]
+count = 1400
+min_level = 2
+size = 0.54
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "willow"
+up_influence = 0.18
+
+[inflorescence]
+kind = "cluster"
+count = 1850
+min_level = 2
+placement = "along_branch"
+orientation = "up"
+length = 0.78
+width = 0.78
+offset = 0.18
+size_variance = 0.24
+color = [1.0, 0.58, 0.04]
+color_tip = [1.0, 0.80, 0.14]
+aged_fraction = 0.06
+aged_color = [0.54, 0.36, 0.18]
+separate_material = true
+roughness = 0.60
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.68
+up_bias = 0.26
+clump_weight = 0.60
+clump_level = 1
+crown_fill = 0
+shell = 0.10
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.76
+
+[textures]
+bark_prompt = "Nuytsia floribunda bark, rough, dark grey-brown, coarsely fissured"
+leaf_prompt = "Nuytsia leaves, narrow thick dull yellow-olive lanceolate"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "willow"
+leaf_card = "cluster"
+seed = 1903
+bark_color = [0.40, 0.36, 0.31]
+leaf_color = [0.45, 0.50, 0.32]
+leaf_dead_fraction = 0.08
+leaf_dead_color = [0.58, 0.46, 0.24]
+
+[materials]
+bark = "christmas_tree_bark"
+foliage = "christmas_tree_foliage"
+notes = "1024px leaf card + dedicated glowing golden-orange flower cluster organ atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.5
+max = 10.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "flowers"
+label = "Flower Clusters"
+parameter = "inflorescence.count"
+min = 0.0
+max = 2000.0
+step = 10.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: February to September: brittle sparse olive-grey crown without flowers
+[states.out_of_flower]
+species.name = "WA Christmas Tree (out of flower)"
+inflorescence.count = 0
+leaves.count = 1900

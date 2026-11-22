@@ -54,6 +54,7 @@
             "floral_shrub",
             "climbing_vine",
             "tropical_clump",
+            "rosette",
             "cactus",
             "pad_chain",
             "custom"
@@ -110,6 +111,84 @@
           "type": "integer",
           "minimum": 0,
           "default": 8
+        },
+        "buttress": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Root-buttress flare, flutes and surface roots: 0 = plain column, 1 = built-in look, up to 3 = heavy buttresses",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "char_height": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Height in meters of fire-blackened bark from the ground (needs canopy.vertex_color = tint_ao)",
+          "minimum": 0
+        },
+        "char_strength": {
+          "type": "number",
+          "default": 0.85,
+          "description": "How black the charred base is",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "stems": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "default": 1,
+          "description": "Number of co-dominant trunks from a shared lignotuber (multi-stem / mallee habit)"
+        },
+        "stem_spread": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 75,
+          "default": 20.0,
+          "description": "Basal outward splay angle in degrees for multi-stem trunks"
+        },
+        "stem_offset": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.16,
+          "description": "Radial lignotuber offset in meters for multi-stem trunks"
+        },
+        "stem_height_variation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.7,
+          "default": 0.25,
+          "description": "Height variation across multi-stem trunks"
+        },
+        "buttress_height": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.0,
+          "description": "Explicit height in meters of trunk root-buttress flutes (0 = default 18% of trunk height)"
+        },
+        "surface_root_reach": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.0,
+          "description": "Extended radial reach in meters of sinuous exposed surface roots (0 = built-in)"
+        },
+        "aerial_roots": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Number of hanging aerial curtain roots descending from spreading limbs"
+        },
+        "hollow_height": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.0,
+          "description": "Height in meters of a basal fire-hollow cavern carved into the trunk"
+        },
+        "hollow_width": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 2.4,
+          "default": 1.15,
+          "description": "Angular opening width in radians of the basal fire-hollow"
         }
       }
     },
@@ -124,6 +203,9 @@
           "$ref": "#/$defs/branch_params"
         },
         "level3": {
+          "$ref": "#/$defs/branch_params"
+        },
+        "level4": {
           "$ref": "#/$defs/branch_params"
         }
       }
@@ -185,7 +267,8 @@
           "enum": [
             "endpoint",
             "along_branch",
-            "both"
+            "both",
+            "whorl"
           ],
           "default": "both"
         },
@@ -290,6 +373,10 @@
           "type": "boolean",
           "default": true
         },
+        "billboard_lod_compensation": {
+          "type": "boolean",
+          "default": false
+        },
         "card_scale_by_clump": {
           "type": "number",
           "default": 0.0
@@ -323,12 +410,7 @@
           "description": "Map seed; derived from species name when unset"
         },
         "bark_style": {
-          "type": "string",
-          "enum": [
-            "furrowed",
-            "plated",
-            "smooth"
-          ],
+          "$ref": "#/$defs/bark_style",
           "default": "furrowed"
         },
         "leaf_shape": {
@@ -355,6 +437,21 @@
         "leaf_color": {
           "$ref": "#/$defs/rgb"
         },
+        "bark_patch_colors": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/rgb"
+          },
+          "description": "Extra bark colours: exposed patches (patchy), sheet-edge underlayers (papery)"
+        },
+        "bark_kino": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Amount of dark red gum (kino) bleeding down from bark cracks",
+          "minimum": 0,
+          "maximum": 1
+        },
         "bark_albedo": {
           "type": "string",
           "description": "Host-provided bark albedo+alpha image path, relative to the species file"
@@ -366,6 +463,55 @@
         "leaf_albedo_alpha": {
           "type": "string",
           "description": "Host-provided leaf albedo+alpha card path"
+        },
+        "upper_bark_style": {
+          "$ref": "#/$defs/bark_style",
+          "description": "Upper-trunk/limb bark style for half-barked species"
+        },
+        "upper_bark_color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Upper bark base colour"
+        },
+        "upper_bark_patch_colors": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/rgb"
+          }
+        },
+        "bark_transition_height": {
+          "type": "number",
+          "minimum": 0,
+          "default": 2.5
+        },
+        "bark_transition_span": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.8
+        },
+        "leaf_underside_color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Discolorous leaf underside colour"
+        },
+        "leaf_new_growth_color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Red/bronze new-growth flushing tip colour"
+        },
+        "leaf_new_growth_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "default": 0.0
+        },
+        "leaf_dead_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.35,
+          "default": 0.0
+        },
+        "leaf_dead_color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Held dead leaf colour"
         }
       }
     },
@@ -636,9 +782,384 @@
           "default": 8
         }
       }
+    },
+    "rosette": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Rosette plants (generator.family = rosette): crowns of long blades on an optional trunk. See docs/botanical-generators.md",
+      "properties": {
+        "crowns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Number of crowns; more than one forks the trunk"
+        },
+        "fork_height": {
+          "type": "number",
+          "default": 0.55,
+          "description": "Fraction of trunk height where the arms leave",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fork_angle": {
+          "type": "number",
+          "default": 32.0,
+          "description": "Degrees between an arm and the trunk axis",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "blades": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 240,
+          "description": "Live blades per crown"
+        },
+        "blade_length": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Blade length in meters"
+        },
+        "blade_length_variance": {
+          "type": "number",
+          "default": 0.15,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "blade_width": {
+          "type": "number",
+          "default": 0.03,
+          "description": "Ribbon width in meters"
+        },
+        "blade_card": {
+          "type": "string",
+          "enum": [
+            "single",
+            "tuft",
+            "pinnate",
+            "fan"
+          ],
+          "default": "tuft"
+        },
+        "spread_min": {
+          "type": "number",
+          "default": 5.0,
+          "description": "Degrees from the crown axis for the youngest blades",
+          "minimum": 0,
+          "maximum": 180
+        },
+        "spread_max": {
+          "type": "number",
+          "default": 120.0,
+          "description": "Degrees from the crown axis for the oldest blades",
+          "minimum": 0,
+          "maximum": 180
+        },
+        "droop": {
+          "type": "number",
+          "default": 0.35,
+          "description": "Arching under gravity",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "stiffness": {
+          "type": "number",
+          "default": 0.7,
+          "description": "Blade rigidity; also the Pivot Painter stiffness",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "keel": {
+          "type": "number",
+          "default": 0.2,
+          "description": "V fold along the midrib",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "color_base": {
+          "$ref": "#/$defs/rgb",
+          "description": "Blade colour at the base"
+        },
+        "color_tip": {
+          "$ref": "#/$defs/rgb",
+          "description": "Blade colour at the tip"
+        },
+        "skirt": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Fraction of the stem below each crown clothed in dead blades",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "skirt_blades": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Dead blades per crown"
+        },
+        "skirt_color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Dead blade colour"
+        },
+        "crown_boss": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1.5,
+          "default": 0.0,
+          "description": "Swollen trimmed leaf-base pineapple boss below the crown"
+        },
+        "runners": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Creeping ground stolon runners with secondary tufts"
+        },
+        "runner_length": {
+          "type": "number",
+          "default": 1.2,
+          "description": "Reach of each runner in meters"
+        },
+        "spike": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "chance": {
+              "type": "number",
+              "default": 1.0,
+              "description": "Probability that a spike appears",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "description": "Spikes attempted per crown"
+            },
+            "style": {
+              "type": "string",
+              "enum": [
+                "cylinder",
+                "raceme",
+                "cone",
+                "plume",
+                "panicle"
+              ],
+              "default": "cylinder"
+            },
+            "scape_length": {
+              "type": "number",
+              "default": 0.9,
+              "description": "Bare stalk length in meters",
+              "minimum": 0
+            },
+            "scape_radius": {
+              "type": "number",
+              "default": 0.012
+            },
+            "length": {
+              "type": "number",
+              "default": 1.2,
+              "description": "Length of the flowering part or cone in meters"
+            },
+            "radius": {
+              "type": "number",
+              "default": 0.025
+            },
+            "lean": {
+              "type": "number",
+              "default": 8.0,
+              "description": "Maximum lean from the crown axis in degrees",
+              "minimum": 0,
+              "maximum": 90
+            },
+            "color": {
+              "$ref": "#/$defs/rgb"
+            },
+            "tip_color": {
+              "$ref": "#/$defs/rgb"
+            },
+            "scape_color": {
+              "$ref": "#/$defs/rgb"
+            },
+            "flowers": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "raceme: tubular flowers at the top of the scape"
+            },
+            "flower_length": {
+              "type": "number",
+              "default": 0.08
+            }
+          }
+        }
+      }
+    },
+    "inflorescence": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Inflorescence / fruit organs on a branching tree. See docs/botanical-generators.md",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "spike",
+            "nut",
+            "cluster",
+            "berries"
+          ],
+          "default": "spike"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 40,
+          "description": "Organs on the whole tree"
+        },
+        "min_level": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2,
+          "description": "Only stems at or beyond this branch level carry organs"
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "endpoint",
+            "along_branch"
+          ],
+          "default": "endpoint"
+        },
+        "orientation": {
+          "type": "string",
+          "enum": [
+            "up",
+            "branch",
+            "hang"
+          ],
+          "default": "up"
+        },
+        "length": {
+          "type": "number",
+          "default": 0.2,
+          "description": "Length in meters (card size for clusters and berries)"
+        },
+        "width": {
+          "type": "number",
+          "default": 0.08,
+          "description": "Diameter in meters (spike, nut)"
+        },
+        "size_variance": {
+          "type": "number",
+          "default": 0.0,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "offset": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Meters between the attachment point and the organ base, along its axis",
+          "minimum": 0
+        },
+        "color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Fresh colour"
+        },
+        "color_tip": {
+          "$ref": "#/$defs/rgb",
+          "description": "Colour toward the tip or centre"
+        },
+        "aged_fraction": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Share of organs drawn as aged",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "aged_color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Aged colour: old cones, spent flowers, pods"
+        },
+        "separate_material": {
+          "type": "boolean",
+          "default": false,
+          "description": "Give organs a dedicated Organ material & 2x2 organ atlas"
+        },
+        "roughness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Material roughness when separate_material = true"
+        }
+      }
+    },
+    "secondary_inflorescence": {
+      "$ref": "#/properties/inflorescence",
+      "description": "Optional second inflorescence/fruit organ set (e.g. blossom + woody nuts together)"
+    },
+    "pruning": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Urban pruning and epicormic regrowth operator",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "none",
+            "lopped",
+            "pollard",
+            "crown_lift"
+          ],
+          "default": "none"
+        },
+        "cut_height": {
+          "type": "number",
+          "default": 5.5
+        },
+        "lift_height": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.0
+        },
+        "regrowth_per_stub": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 4
+        },
+        "regrowth_length": {
+          "type": "number",
+          "default": 1.1
+        },
+        "epicormic_count": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+    "states": {
+      "type": "object",
+      "description": "Named overlays ([states.<name>]) deep-merged onto the document by --state / Species::from_toml_with_state. Each value may set any species parameter.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
     }
   },
   "$defs": {
+    "bark_style": {
+      "type": "string",
+      "enum": [
+        "furrowed",
+        "plated",
+        "smooth",
+        "stringy",
+        "tessellated",
+        "patchy",
+        "papery",
+        "palm_diamond"
+      ]
+    },
     "taper_profile": {
       "type": "string",
       "enum": [
@@ -673,7 +1194,15 @@
         "palmate",
         "ginkgo",
         "ivy",
-        "paddle"
+        "paddle",
+        "sickle",
+        "banksia",
+        "bipinnate",
+        "branchlet",
+        "bull_banksia",
+        "paperbark",
+        "broad_eucalypt",
+        "trifoliate"
       ],
       "description": "lobed is a legacy alias for oak_lobed"
     },
@@ -751,6 +1280,14 @@
           "type": "integer",
           "minimum": 0,
           "default": 4
+        },
+        "tip_upturn": {
+          "type": "number",
+          "default": 0.0
+        },
+        "whorl_spacing_variance": {
+          "type": "number",
+          "default": 0.0
         }
       }
     },

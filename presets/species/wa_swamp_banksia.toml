@@ -1,0 +1,171 @@
+# Swamp banksia (Banksia littoralis)
+# Banksia of damp sand and swamp margins: taller and straighter than the sandplain banksias,
+# with crumbly grey bark, fine whorled wetland-sage leaves and golden-yellow spikes.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Swamp Banksia"
+scientific = "Banksia littoralis"
+latin = "Banksia littoralis"
+biome = "mediterranean"
+tags = ["wa_native", "banksia", "evergreen", "wetland", "swan_coastal_plain"]
+
+[generator]
+family = "weber_penn"
+notes = "Taller, straighter 8.5-10 m wetland tree distinct from crooked sandplain banksias."
+
+[trunk]
+height = 8.6
+height_variance = 0.15
+radius = 0.34
+taper = 0.72
+taper_profile = "exponential"
+curve = 10.0
+curve_variance = 8.0
+curve_back = 12.0
+segments = 20
+buttress = 0.9
+
+[branches.level1]
+count = 8
+count_variance = 2
+length = 4.2
+length_variance = 0.22
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 54.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.02
+curve = 24.0
+curve_variance = 22.0
+segments = 12
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 1.8
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.02
+curve = -18.0
+curve_variance = 20.0
+segments = 9
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 0.85
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 42.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.06
+curve = 12.0
+curve_variance = 16.0
+segments = 6
+
+[crown]
+shape = "hemispherical"
+offset = 0.38
+density = 0.94
+width_ratio = 1.05
+
+[leaves]
+count = 1850
+min_level = 2
+size = 0.44
+size_variance = 0.20
+distribution = "whorl"
+geometry = "cross_billboard"
+shape = "banksia"
+up_influence = 0.18
+
+[inflorescence]
+kind = "spike"
+count = 115
+min_level = 3
+placement = "endpoint"
+orientation = "up"
+length = 0.24
+width = 0.09
+size_variance = 0.20
+offset = 0.15
+color = [0.92, 0.78, 0.22]
+color_tip = [0.80, 0.60, 0.18]
+aged_fraction = 0.42
+aged_color = [0.42, 0.37, 0.32]
+separate_material = true
+roughness = 0.66
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.70
+up_bias = 0.24
+clump_weight = 0.62
+clump_level = 1
+crown_fill = 0
+shell = 0.12
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.74
+
+[textures]
+bark_prompt = "Swamp banksia bark, grey, rough and crumbly"
+leaf_prompt = "Banksia littoralis leaves, slender linear whorled, muted wetland sage-olive"
+resolution = 1024
+bark_style = "tessellated"
+leaf_shape = "banksia"
+leaf_card = "cluster"
+bark_color = [0.43, 0.41, 0.38]
+leaf_color = [0.36, 0.45, 0.31]
+leaf_underside_color = [0.56, 0.60, 0.50]
+leaf_dead_fraction = 0.06
+leaf_dead_color = [0.54, 0.45, 0.26]
+
+[materials]
+bark = "swamp_banksia_bark"
+foliage = "swamp_banksia_foliage"
+notes = "1024px leaf card + dedicated 2x2 organ atlas for golden spikes."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.5
+max = 15.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "spikes"
+label = "Flower Spikes"
+parameter = "inflorescence.count"
+min = 0.0
+max = 150.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

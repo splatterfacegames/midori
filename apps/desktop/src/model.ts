@@ -34,8 +34,14 @@ export interface WorkbenchState {
   naturePreview: NaturePreview | null;
   /** Display label for the loaded species document. */
   label: string;
-  /** Committed species TOML source. */
+  /** Committed species TOML source (resolved for active state). */
   toml: string;
+  /** Original multi-state TOML source so `[states.<name>]` can be switched live. */
+  baseToml: string;
+  /** Available named states declared in `[states.<name>]` on the loaded species. */
+  availableStates: string[];
+  /** Currently active state overlay (`null` = default). */
+  selectedState: string | null;
   /** Parsed species projection (null while no valid document is loaded). */
   json: SpeciesJson | null;
   seed: number;
@@ -83,6 +89,9 @@ export class MidoriModel {
       naturePreview: null,
       label: 'Untitled',
       toml: '',
+      baseToml: '',
+      availableStates: [],
+      selectedState: null,
       json: null,
       seed: 1,
       variants: [1],
@@ -147,6 +156,9 @@ export class MidoriModel {
         natureToml: toml,
         naturePreview: preview,
         toml,
+        baseToml: toml,
+        availableStates: [],
+        selectedState: null,
         json: null,
         sourceDraft: toml,
         sourceDirty: false,
@@ -168,26 +180,43 @@ export class MidoriModel {
     }
   }
 
+  /** Switch the active `[states.<name>]` overlay (`null` = default) on the loaded species. */
+  selectState(stateName: string | null): void {
+    if (this.state.mode !== 'species' || !this.state.baseToml) return;
+    if (stateName === this.state.selectedState) return;
+    this.commitToml(this.state.baseToml, this.state.label, stateName);
+  }
+
   /** Parse + commit TOML; returns false and records the error on failure. */
-  private commitToml(toml: string, label: string): boolean {
+  private commitToml(toml: string, label: string, stateName: string | null = null): boolean {
     try {
-      const generator = Generator.fromToml(toml);
+      const generator = stateName
+        ? Generator.fromTomlWithState(toml, stateName)
+        : Generator.fromToml(toml);
+      const availableStates = generator.stateNames();
+      const activeState = stateName && availableStates.includes(stateName) ? stateName : null;
       this.generator?.free();
       this.generator = generator;
       const json = generator.toJson() as SpeciesJson;
+      const resolvedToml = activeState ? generator.toToml() : toml;
       this.emit({
         mode: 'species',
         natureToml: null,
         naturePreview: null,
         label,
-        toml,
+        toml: resolvedToml,
+        baseToml: toml,
+        availableStates,
+        selectedState: activeState,
         json,
-        sourceDraft: toml,
+        sourceDraft: resolvedToml,
         sourceDirty: false,
         sourceError: null,
         paramError: null,
       });
-      this.pushLog(`Loaded ${generator.name}`);
+      this.pushLog(
+        activeState ? `Loaded ${generator.name} [${activeState}]` : `Loaded ${generator.name}`,
+      );
       this.refreshMaps();
       this.regenerate();
       return true;
@@ -204,7 +233,14 @@ export class MidoriModel {
    *  section is skipped. */
   private refreshMaps(): void {
     if (!this.generator || !this.state.json) return;
-    const key = JSON.stringify([this.state.json.species.name, this.state.json.textures]);
+    const key = JSON.stringify([
+      this.state.json.species.name,
+      this.state.selectedState,
+      this.state.json.textures,
+      (this.state.json as unknown as Record<string, unknown>).inflorescence,
+      (this.state.json as unknown as Record<string, unknown>).secondary_inflorescence,
+      (this.state.json as unknown as Record<string, unknown>).rosette,
+    ]);
     if (key === this.mapsKey && this.state.maps) return;
     this.mapsKey = key;
     try {
@@ -290,8 +326,10 @@ export class MidoriModel {
       this.generator?.free();
       this.generator = generator;
       const toml = generator.toToml();
+      const baseToml = this.state.selectedState === null ? toml : this.state.baseToml;
       this.emit({
         toml,
+        baseToml,
         json,
         sourceDraft: this.state.sourceDirty ? this.state.sourceDraft : toml,
         paramError: null,
@@ -321,8 +359,12 @@ export class MidoriModel {
       this.generator = generator;
       const json = generator.toJson() as SpeciesJson;
       const toml = generator.toToml();
+      const availableStates = generator.stateNames();
+      const baseToml = this.state.selectedState === null ? draft : this.state.baseToml;
       this.emit({
         toml,
+        baseToml,
+        availableStates: this.state.selectedState === null ? availableStates : this.state.availableStates,
         json,
         sourceDraft: toml,
         sourceDirty: false,

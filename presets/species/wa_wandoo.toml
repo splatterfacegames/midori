@@ -1,0 +1,172 @@
+# Wandoo (Eucalyptus wandoo)
+# White gum of the Darling Scarp's eastern valleys and wheatbelt margin: smooth powdery white bark
+# mottled with cream and grey flakes, clear bole, and an open crooked crown of cool blue-grey leaves.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Wandoo"
+scientific = "Eucalyptus wandoo"
+latin = "Eucalyptus wandoo"
+biome = "mediterranean"
+tags = ["wa_native", "eucalypt", "wandoo_woodland", "darling_scarp", "evergreen"]
+
+[generator]
+family = "weber_penn"
+notes = "Woodland white gum (~20 m) with open crooked branches, powdery white bark, and cool glaucous blue-grey foliage."
+
+[trunk]
+height = 20.5
+height_variance = 0.14
+radius = 0.56
+taper = 0.72
+taper_profile = "exponential"
+curve = 15.0
+curve_variance = 9.0
+curve_back = 15.0
+segments = 22
+buttress = 1.0
+
+[branches.level1]
+count = 7
+count_variance = 2
+length = 6.6
+length_variance = 0.24
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "exponential"
+angle = 48.0
+angle_variance = 15.0
+rotation = 137.5
+gravity = 0.0
+curve = 22.0
+curve_variance = 22.0
+segments = 13
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 3.3
+length_variance = 0.24
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 46.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.04
+curve = -16.0
+curve_variance = 18.0
+segments = 9
+
+[branches.level3]
+count = 3
+count_variance = 1
+length = 1.55
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 44.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.08
+curve = 12.0
+curve_variance = 16.0
+segments = 6
+
+[branches.level4]
+count = 2
+count_variance = 1
+length = 0.78
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 40.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.14
+curve = 10.0
+curve_variance = 12.0
+segments = 4
+
+[crown]
+shape = "hemispherical"
+offset = 0.52
+density = 0.84
+width_ratio = 1.08
+
+[leaves]
+count = 2100
+min_level = 3
+size = 0.98
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "sickle"
+up_influence = -0.36
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.64
+up_bias = 0.22
+clump_weight = 0.58
+clump_level = 1
+crown_fill = 0
+shell = 0.10
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.76
+
+[textures]
+bark_prompt = "Wandoo bark, smooth powdery white mottled with warm cream, yellow-ochre and pale grey flakes"
+leaf_prompt = "Eucalyptus wandoo adult leaves, cool glaucous blue-grey lanceolate"
+resolution = 1024
+bark_style = "patchy"
+leaf_shape = "sickle"
+leaf_card = "cluster"
+bark_color = [0.87, 0.85, 0.80]
+leaf_color = [0.43, 0.51, 0.46]
+leaf_underside_color = [0.56, 0.62, 0.58]
+leaf_dead_fraction = 0.09
+leaf_dead_color = [0.60, 0.50, 0.30]
+bark_patch_colors = [[0.79, 0.72, 0.58], [0.68, 0.66, 0.63], [0.94, 0.92, 0.88]]
+
+[materials]
+bark = "wandoo_bark"
+foliage = "wandoo_foliage"
+notes = "1024px powdery white patchy bark and glaucous blue-grey sickle leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 6.0
+max = 35.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.6
+max = 1.8
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

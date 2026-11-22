@@ -16,6 +16,9 @@ pub struct Tree {
     pub stems: Vec<Stem>,
     /// All leaves in the tree
     pub leaves: Vec<Leaf>,
+    /// Inflorescences, fruit, dead skirt blades and flower spikes (empty for
+    /// species that define none)
+    pub organs: Vec<crate::organs::Organ>,
     /// Axis-aligned bounding box containing the entire tree
     pub bounds: BoundingBox,
 }
@@ -249,6 +252,7 @@ impl Tree {
             seed,
             stems: Vec::new(),
             leaves: Vec::new(),
+            organs: Vec::new(),
             bounds: BoundingBox::new(),
         }
     }
@@ -292,6 +296,16 @@ impl Tree {
             // Leaves have some size, estimate as scale
             self.bounds.expand(leaf.position - Vec3::splat(leaf.scale));
             self.bounds.expand(leaf.position + Vec3::splat(leaf.scale));
+        }
+
+        // Include organs (attachment and far end)
+        for organ in &self.organs {
+            let half = Vec3::splat(organ.width * 0.5);
+            let end = organ.position + organ.rotation * Vec3::Y * organ.length;
+            self.bounds.expand(organ.position - half);
+            self.bounds.expand(organ.position + half);
+            self.bounds.expand(end - half);
+            self.bounds.expand(end + half);
         }
     }
 

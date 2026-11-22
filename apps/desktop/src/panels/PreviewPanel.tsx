@@ -5,11 +5,13 @@ import type { WorkbenchState } from '../model';
 export function PreviewPanel({
   state,
   grid,
+  onSelectState,
   onReady,
   onError,
 }: {
   state: WorkbenchState;
   grid: boolean;
+  onSelectState: (stateName: string | null) => void;
   onReady: (controller: Viewport3DController) => void;
   onError: (error: Error) => void;
 }) {
@@ -34,6 +36,33 @@ export function PreviewPanel({
       <div className="midori-view-badge">
         {lod ? `${lod.name.toUpperCase()} · ${lod.triangle_count.toLocaleString()} TRIS` : 'NO MESH'}
       </div>
+      {state.availableStates.length > 0 && (
+        <div className="midori-state-hud" role="group" aria-label="Species state">
+          <div className="midori-hud-group">
+            <button
+              type="button"
+              className={state.selectedState === null ? 'active' : undefined}
+              aria-pressed={state.selectedState === null}
+              onClick={() => onSelectState(null)}
+              title="Default species state"
+            >
+              default
+            </button>
+            {state.availableStates.map((st) => (
+              <button
+                key={st}
+                type="button"
+                className={state.selectedState === st ? 'active' : undefined}
+                aria-pressed={state.selectedState === st}
+                onClick={() => onSelectState(st)}
+                title={`[states.${st}]`}
+              >
+                {st.replace(/_/g, ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {!lod && (
         <div className="midori-viewport-empty">
           <span>3D</span>

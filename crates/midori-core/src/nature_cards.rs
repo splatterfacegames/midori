@@ -437,7 +437,7 @@ fn default_atlas_tips() -> Vec<String> {
     ]
 }
 
-fn parse_hex(s: &str) -> Option<[f32; 3]> {
+pub(crate) fn parse_hex(s: &str) -> Option<[f32; 3]> {
     let s = s.trim().trim_start_matches('#');
     if s.len() != 6 {
         return None;

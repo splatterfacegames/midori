@@ -40,12 +40,6 @@ export class MidoriGenerator {
      */
     static fromJson(value: any): MidoriGenerator;
     /**
-     * Generate a tree and return mesh data as a JavaScript object.
-     *
-     * Returns an object containing all LOD levels with their mesh data.
-     */
-    generate(seed: bigint): any;
-    /**
      * Generate the species' material maps.
      *
      * Returns `{ bark_albedo, bark_normal, leaf_card }`, each a
@@ -58,7 +52,15 @@ export class MidoriGenerator {
      * Deterministic for the species' `[textures]` parameters. The browser
      * has no filesystem, so file-slot overrides are ignored here (procedural
      * maps are used); native hosts resolve slots via `TextureSet::resolve`.
+     * Create a generator with an optional `[states.<name>]` overlay applied.
      */
+    static fromTomlWithState(toml: string, state?: string | null): MidoriGenerator;
+    /**
+     * Generate a tree and return mesh data as a JavaScript object.
+     *
+     * Returns an object containing all LOD levels with their mesh data.
+     */
+    generate(seed: bigint): any;
     generateMaps(): any;
     /**
      * Generate only a specific LOD level.
@@ -78,6 +80,10 @@ export class MidoriGenerator {
      * Create a new generator from a TOML species definition string.
      */
     constructor(toml: string);
+    /**
+     * Sorted list of `[states.<name>]` names declared on this species document.
+     */
+    stateNames(): any;
     /**
      * Return the species definition as a plain JS object.
      *
@@ -144,6 +150,7 @@ export interface InitOutput {
     readonly midorigenerator_exportGltf: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
     readonly midorigenerator_export_glb: (a: number, b: bigint, c: number) => [number, number, number];
     readonly midorigenerator_fromJson: (a: any) => [number, number, number];
+    readonly midorigenerator_fromTomlWithState: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly midorigenerator_generate: (a: number, b: bigint) => [number, number, number];
     readonly midorigenerator_generateMaps: (a: number) => [number, number, number];
     readonly midorigenerator_generate_lod: (a: number, b: bigint, c: number) => [number, number, number];
@@ -151,6 +158,7 @@ export interface InitOutput {
     readonly midorigenerator_metadata: (a: number) => [number, number, number];
     readonly midorigenerator_name: (a: number) => [number, number];
     readonly midorigenerator_new: (a: number, b: number) => [number, number, number];
+    readonly midorigenerator_stateNames: (a: number) => [number, number, number];
     readonly midorigenerator_toJson: (a: number) => [number, number, number];
     readonly midorigenerator_toToml: (a: number) => [number, number, number, number];
     readonly midorinaturegenerator_name: (a: number) => [number, number];

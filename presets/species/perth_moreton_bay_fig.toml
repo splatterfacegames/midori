@@ -1,0 +1,169 @@
+# Moreton Bay fig (Ficus macrophylla)
+# Colossal heritage park fig of Perth's Supreme Court Gardens, Kings Park and Hyde Park:
+# massive flanged elephant-grey buttresses, 6 m snaking surface roots, hanging aerial curtain roots,
+# lifted broad spreading limbs, and dense glossy dark leaves with rusty-brown undersides.
+# PLANTED EXOTIC (eastern Australia), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Moreton Bay Fig"
+scientific = "Ficus macrophylla"
+latin = "Ficus macrophylla"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "park_tree", "fig", "evergreen", "buttressed"]
+
+[generator]
+family = "weber_penn"
+notes = "20 m tall x 30 m wide titan with deep fluted buttresses, 6 m sinuous surface roots, aerial curtains, and lifted skirt."
+
+[trunk]
+height = 8.4
+height_variance = 0.12
+radius = 1.48
+taper = 0.76
+taper_profile = "exponential"
+curve = 10.0
+curve_variance = 6.0
+curve_back = 10.0
+segments = 24
+buttress = 2.8
+buttress_height = 3.6
+surface_root_reach = 6.2
+aerial_roots = 18
+
+[branches.level1]
+count = 12
+count_variance = 2
+length = 14.2
+length_variance = 0.16
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "exponential"
+angle = 68.0
+angle_variance = 10.0
+rotation = 137.5
+gravity = 0.02
+curve = 20.0
+curve_variance = 14.0
+segments = 16
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 6.0
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.04
+curve = -16.0
+curve_variance = 16.0
+segments = 10
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 2.6
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 46.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = 14.0
+curve_variance = 16.0
+segments = 7
+
+[pruning]
+mode = "crown_lift"
+lift_height = 3.2
+
+[crown]
+shape = "hemispherical"
+offset = 0.24
+density = 1.0
+width_ratio = 1.44
+
+[leaves]
+count = 4000
+min_level = 2
+size = 1.55
+size_variance = 0.20
+distribution = "both"
+geometry = "cross_billboard"
+shape = "oval"
+up_influence = 0.12
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.80
+up_bias = 0.28
+clump_weight = 0.72
+clump_level = 1
+crown_fill = 0
+shell = 0.18
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.34
+billboard_lod_compensation = true
+roughness = 0.54
+
+[textures]
+bark_prompt = "Moreton Bay fig elephant-grey smooth bark with lenticels, flanged buttress walls and aerial roots"
+leaf_prompt = "Ficus macrophylla large leathery dark glossy green leaves with warm rusty-brown undersides"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "oval"
+leaf_card = "cluster"
+bark_color = [0.52, 0.49, 0.46]
+leaf_color = [0.27, 0.44, 0.21]
+leaf_underside_color = [0.50, 0.35, 0.21]
+
+[materials]
+bark = "moreton_bay_fig_bark"
+foliage = "moreton_bay_fig_foliage"
+notes = "1024px elephant-grey bark + glossy dark-green/rusty-underside fig leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 4.0
+max = 16.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.8
+max = 2.0
+step = 0.05
+
+[[control_groups.controls]]
+key = "buttress"
+label = "Buttress"
+parameter = "trunk.buttress"
+min = 0.0
+max = 3.0
+step = 0.1
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

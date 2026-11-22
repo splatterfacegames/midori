@@ -1,0 +1,110 @@
+# Jointed rush (Machaerina articulata)
+# Tall wetland rush of paperbark swamp margins and lakes: dense erect clumps of olive-bronze
+# jointed cylindrical stems to 2.2 m, topped by drooping rusty-brown plume panicles.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Jointed Rush"
+scientific = "Machaerina articulata"
+latin = "Machaerina articulata"
+biome = "mediterranean"
+tags = ["wa_native", "rosette", "groundcover", "wetland", "river_edge", "rush"]
+
+[generator]
+family = "rosette"
+notes = "Dense 2.1 m wetland reed clump with drooping rusty-brown plume panicle inflorescences."
+
+[trunk]
+height = 0.04
+height_variance = 0.0
+radius = 0.05
+taper = 0.0
+curve = 0.0
+curve_variance = 0.0
+segments = 2
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 185
+blade_length = 2.00
+blade_length_variance = 0.20
+blade_width = 0.048
+blade_card = "tuft"
+spread_min = 1.0
+spread_max = 22.0
+droop = 0.12
+stiffness = 0.86
+keel = 0.0
+color_base = [0.34, 0.41, 0.28]
+color_tip = [0.49, 0.48, 0.31]
+skirt = 1.0
+skirt_blades = 36
+skirt_color = [0.54, 0.44, 0.27]
+
+[rosette.spike]
+chance = 0.95
+count = 12
+style = "plume"
+scape_length = 1.75
+scape_radius = 0.006
+length = 0.38
+radius = 0.075
+lean = 18.0
+color = [0.46, 0.24, 0.14]
+tip_color = [0.62, 0.38, 0.20]
+scape_color = [0.36, 0.42, 0.27]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.30
+up_bias = 0.28
+clump_weight = 0.20
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.08
+ao_strength = 0.30
+roughness = 0.78
+
+[textures]
+bark_prompt = "Wetland reed tussock base, dark peat-brown"
+leaf_prompt = "Machaerina articulata erect jointed cylindrical olive-bronze rush stems"
+resolution = 1024
+bark_style = "smooth"
+bark_color = [0.32, 0.26, 0.18]
+leaf_color = [0.41, 0.45, 0.29]
+
+[materials]
+bark = "jointed_rush_bark"
+foliage = "jointed_rush_foliage"
+notes = "1024px 2x2 rosette atlas: olive-bronze culm tuft, rusty plume panicle, straw base."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "stem_length"
+label = "Stem Length"
+parameter = "rosette.blade_length"
+min = 0.8
+max = 2.6
+step = 0.05
+
+[[control_groups.controls]]
+key = "stems"
+label = "Stems"
+parameter = "rosette.blades"
+min = 40.0
+max = 300.0
+step = 5.0
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"

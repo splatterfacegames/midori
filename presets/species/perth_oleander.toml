@@ -1,0 +1,164 @@
+# Oleander (Nerium oleander)
+# Ubiquitous 1980s-90s Perth freeway median, driveway and suburban fence-line shrub:
+# upright multi-stemmed evergreen dome of whorled leathery lance-shaped dark green leaves
+# topped with abundant rose-pink (or white) summer flower clusters.
+# PLANTED EXOTIC (Mediterranean), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Oleander"
+scientific = "Nerium oleander"
+latin = "Nerium oleander"
+biome = "mediterranean"
+tags = ["perth_planted", "non_native", "shrub", "hedge", "evergreen", "flowering"]
+
+[generator]
+family = "weber_penn"
+notes = "3.4 m multi-stem upright suburban hedge shrub with whorled willow leaves and rose-pink flower clusters."
+
+[trunk]
+height = 1.0
+height_variance = 0.15
+radius = 0.06
+taper = 0.68
+taper_profile = "exponential"
+curve = 14.0
+curve_variance = 10.0
+curve_back = 12.0
+segments = 10
+stems = 6
+stem_spread = 34.0
+stem_offset = 0.18
+stem_height_variation = 0.20
+buttress = 0.0
+
+[branches.level1]
+count = 5
+count_variance = 1
+length = 2.0
+length_variance = 0.20
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 36.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.06
+curve = 18.0
+curve_variance = 16.0
+segments = 8
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 0.95
+length_variance = 0.20
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 38.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.06
+curve = -12.0
+curve_variance = 14.0
+segments = 6
+
+[crown]
+shape = "hemispherical"
+offset = 0.16
+density = 0.96
+width_ratio = 1.18
+
+[leaves]
+count = 1600
+min_level = 1
+size = 0.42
+size_variance = 0.18
+distribution = "whorl"
+geometry = "cross_billboard"
+shape = "willow"
+up_influence = 0.24
+
+[inflorescence]
+kind = "cluster"
+count = 580
+min_level = 2
+placement = "endpoint"
+orientation = "up"
+length = 0.34
+width = 0.34
+offset = 0.12
+size_variance = 0.22
+color = [0.92, 0.32, 0.54]
+color_tip = [0.98, 0.62, 0.76]
+aged_fraction = 0.06
+aged_color = [0.62, 0.42, 0.44]
+separate_material = true
+roughness = 0.58
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.74
+up_bias = 0.28
+clump_weight = 0.64
+clump_level = 1
+crown_fill = 0
+shell = 0.12
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.08
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.56
+
+[textures]
+bark_prompt = "Nerium oleander smooth pale grey-brown slender multi-stems"
+leaf_prompt = "Nerium oleander leathery narrow lance-shaped dark olive-green leaves in whorls"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "willow"
+leaf_card = "cluster"
+bark_color = [0.46, 0.44, 0.39]
+leaf_color = [0.24, 0.39, 0.20]
+leaf_underside_color = [0.42, 0.50, 0.34]
+
+[materials]
+bark = "oleander_bark"
+foliage = "oleander_foliage"
+notes = "1024px leathery lance leaf card + dedicated rose-pink (or white) flower cluster organ atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 0.5
+max = 2.5
+step = 0.05
+
+[[control_groups.controls]]
+key = "flowers"
+label = "Flower Clusters"
+parameter = "inflorescence.count"
+min = 0.0
+max = 900.0
+step = 10.0
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"
+
+# State: white-flowering oleander cultivar common along Perth fences and medians
+[states.white]
+species.name = "Oleander (white)"
+inflorescence.color = [0.96, 0.95, 0.92]
+inflorescence.color_tip = [0.98, 0.94, 0.80]

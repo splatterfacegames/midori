@@ -1,0 +1,170 @@
+# Common sheoak (Allocasuarina fraseriana)
+# Sheoak of the jarrah forest and banksia woodland: erect trunk in reddish-brown deeply furrowed
+# fibrous bark, airy see-through crown of drooping khaki-olive jointed branchlets, and woody cones.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Common Sheoak"
+scientific = "Allocasuarina fraseriana"
+latin = "Allocasuarina fraseriana"
+biome = "mediterranean"
+tags = ["wa_native", "sheoak", "jarrah_forest", "banksia_woodland", "evergreen"]
+
+[generator]
+family = "weber_penn"
+notes = "Typical 10-12 m tree with wispy see-through drooping branchlet curtains and woody cones."
+
+[trunk]
+height = 10.5
+height_variance = 0.14
+radius = 0.38
+taper = 0.74
+taper_profile = "exponential"
+curve = 14.0
+curve_variance = 9.0
+curve_back = 14.0
+segments = 20
+buttress = 0.9
+
+[branches.level1]
+count = 11
+count_variance = 2
+length = 4.4
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 56.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.10
+curve = 28.0
+curve_variance = 18.0
+segments = 13
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 2.4
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 44.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.42
+curve = 26.0
+curve_variance = 16.0
+segments = 10
+
+[branches.level3]
+count = 5
+count_variance = 1
+length = 1.65
+length_variance = 0.22
+radius_ratio = 0.34
+radius_model = "ratio"
+taper = 0.80
+taper_profile = "compound"
+angle = 28.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.85
+curve = 22.0
+curve_variance = 14.0
+segments = 8
+
+[crown]
+shape = "flame"
+offset = 0.28
+density = 0.90
+width_ratio = 1.15
+
+[leaves]
+count = 2200
+min_level = 2
+size = 1.05
+size_variance = 0.22
+distribution = "along_branch"
+geometry = "cross_billboard"
+shape = "branchlet"
+up_influence = -0.88
+
+[inflorescence]
+kind = "nut"
+count = 110
+min_level = 2
+placement = "along_branch"
+orientation = "branch"
+length = 0.09
+width = 0.06
+size_variance = 0.20
+offset = 0.02
+color = [0.46, 0.36, 0.26]
+color_tip = [0.34, 0.26, 0.19]
+aged_fraction = 0.40
+aged_color = [0.36, 0.32, 0.29]
+separate_material = true
+roughness = 0.82
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.56
+up_bias = 0.14
+clump_weight = 0.52
+clump_level = 1
+crown_fill = 0
+shell = 0.06
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.11
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.82
+
+[textures]
+bark_prompt = "Sheoak bark, warm reddish-brown, fibrous, deeply furrowed"
+leaf_prompt = "Allocasuarina fraseriana branchlets, long wispy drooping khaki-olive jointed wires"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "branchlet"
+leaf_card = "cluster"
+bark_color = [0.44, 0.31, 0.23]
+leaf_color = [0.47, 0.52, 0.38]
+leaf_dead_fraction = 0.10
+leaf_dead_color = [0.58, 0.44, 0.26]
+
+[materials]
+bark = "sheoak_bark"
+foliage = "sheoak_foliage"
+notes = "1024px wispy drooping branchlet card + woody cone organ atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.5
+max = 15.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 1.8
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

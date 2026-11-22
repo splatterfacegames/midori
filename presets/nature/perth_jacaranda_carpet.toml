@@ -1,0 +1,163 @@
+# Suburban verge under a flowering jacaranda in November (planted, not native).
+# Couch lawn on grey sand carpeted with fallen lilac flowers, with capeweed, leaf litter and old seed
+# pods. Pair with presets/species/perth_jacaranda.toml --state flowering.
+# Notes and sources: docs/wa-flora.md
+
+[asset]
+kind = "nature_patch"
+name = "Perth Jacaranda Carpet"
+units = "meters"
+
+[patch]
+size = 12.0
+seed = 6005
+biome = "suburban_verge"
+tags = ["perth_planted", "verge", "lawn", "fallen_flowers", "jacaranda"]
+
+[soil]
+profile = "turf_sand"
+color = "#54633a"
+mound_scale = 0.05
+mound_height = 0.06
+mound_coverage = 0.5
+relief_scale = 0.6
+relief_strength = 0.2
+wetness_coverage = 0.05
+
+[soil.cracks]
+enabled = false
+amount = 0.5
+plate_density = 0.9
+channel_width = 0.05
+warp = 0.2
+depth = 0.5
+
+[groundcover.card_atlas]
+cell = 256
+base = "#31551f"
+tips = ["#7fae42", "#8cb84a", "#6c9c3a"]
+
+[[groundcover.layers]]
+kind = "grass"
+name = "couch lawn"
+density = 0.92
+coverage = 0.94
+patch_scale = 0.16
+patch_softness = 0.3
+height = 0.06
+width = 0.028
+curl = 0.65
+color_base = "#345622"
+color_tip = "#7da644"
+
+[groundcover.layers.cards]
+species = ["grass"]
+count = 4
+card_width = 0.26
+height_range = [0.65, 1.05]
+lean_degrees = [16.0, 36.0]
+loose = 0.12
+normal_up = 0.78
+
+[[groundcover.layers]]
+kind = "litter"
+name = "fallen jacaranda flowers"
+density = 0.88
+coverage = 0.74
+patch_scale = 0.14
+patch_softness = 0.22
+height = 0.018
+width = 0.034
+color_base = "#6d52c4"
+color_tip = "#b49be8"
+
+[[groundcover.layers]]
+kind = "flower"
+name = "capeweed"
+density = 0.25
+coverage = 0.5
+patch_scale = 0.14
+patch_softness = 0.22
+height = 0.1
+width = 0.05
+curl = 0.1
+color_base = "#3d5a26"
+color_tip = "#e6c838"
+
+[groundcover.layers.cards]
+species = ["buttercup"]
+count = 3
+card_width = 0.22
+height_range = [0.7, 1.1]
+lean_degrees = [4.0, 16.0]
+loose = 0.14
+normal_up = 0.70
+
+[[groundcover.layers]]
+kind = "litter"
+name = "jacaranda leaf litter"
+density = 0.2
+coverage = 0.5
+patch_scale = 0.12
+patch_softness = 0.22
+height = 0.03
+width = 0.08
+color_base = "#6a5a34"
+color_tip = "#a8944c"
+
+[[groundcover.layers]]
+kind = "litter"
+name = "woody seed pods"
+density = 0.09
+coverage = 0.34
+patch_scale = 0.1
+patch_softness = 0.2
+height = 0.03
+width = 0.07
+color_base = "#3c2c1e"
+color_tip = "#6c5238"
+
+[wind]
+strength = 0.25
+speed = 0.9
+direction_degrees = 225
+gust_scale = 0.3
+flutter = 0.5
+
+[profiles.mobile]
+tile_size = 16.0
+terrain_resolution = 64
+lod0_max_triangles = 120
+lod1_max_triangles = 40
+lod2_max_triangles = 8
+lod0_max_distance = 6.0
+lod1_max_distance = 18.0
+lod2_max_distance = 38.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 0.6
+cull_start = 18.0
+cull_end = 38.0
+shadows = false
+grass_collision = false
+moss_collision = false
+
+[profiles.console]
+tile_size = 32.0
+terrain_resolution = 128
+lod0_max_triangles = 300
+lod1_max_triangles = 100
+lod2_max_triangles = 16
+lod0_max_distance = 12.0
+lod1_max_distance = 38.0
+lod2_max_distance = 82.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 1.0
+cull_start = 38.0
+cull_end = 82.0
+shadows = false
+grass_collision = false
+moss_collision = false

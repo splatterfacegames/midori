@@ -544,16 +544,44 @@ fn generate_single_lod(
 
     // Build branch mesh with LOD-appropriate ring resolution
     let default_mesh_config = MeshConfig::default();
+    let flare_height = if species.trunk.buttress_height > 0.0 {
+        (species.trunk.buttress_height / species.trunk.height.max(0.5)).clamp(0.05, 0.65)
+    } else {
+        default_mesh_config.trunk_base_flare_height
+    };
     let mesh_config = MeshConfig {
         ring_resolution: level.ring_resolution,
         texture_v_scale: 1.0,
         pivot_painter: true,
         branch_collar_swell: 1.35,
         collar_falloff: 0.15,
-        trunk_base_flare: default_mesh_config.trunk_base_flare,
-        trunk_base_flare_height: default_mesh_config.trunk_base_flare_height,
+        // `trunk.buttress` scales the base flare and flutes; 1.0 is the built-in look.
+        trunk_base_flare: if species.trunk.buttress == 1.0 {
+            default_mesh_config.trunk_base_flare
+        } else {
+            1.0 + (default_mesh_config.trunk_base_flare - 1.0) * species.trunk.buttress
+        },
+        trunk_base_flare_height: flare_height,
         branch_base_swell: default_mesh_config.branch_base_swell,
         branch_base_falloff: default_mesh_config.branch_base_falloff,
+        trunk_buttress: species.trunk.buttress,
+        surface_root_reach: species.trunk.surface_root_reach,
+        aerial_roots: if level.branch_levels >= 2 {
+            species.trunk.aerial_roots
+        } else {
+            0
+        },
+        hollow_height: species.trunk.hollow_height,
+        hollow_width: species.trunk.hollow_width,
+        crown_boss: species
+            .rosette
+            .as_ref()
+            .map(|r| r.crown_boss)
+            .unwrap_or(0.0),
+        upper_bark_transition: species.uses_upper_bark().then_some((
+            species.textures.bark_transition_height,
+            species.textures.bark_transition_span,
+        )),
     };
 
     // Generate branch mesh with level filtering
@@ -563,7 +591,7 @@ fn generate_single_lod(
     // Generate leaf mesh based on LOD settings
     let leaf_count;
     let mut impostor_atlas = None;
-    let leaf_mesh = if level.crown_impostor {
+    let (leaf_mesh, separate_organ_mesh) = if level.crown_impostor {
         // Bake the crown (leaves + cut branches) into a two-view atlas when the
         // species ships a [textures] section; otherwise fall back to the
         // geometric two-quad crown impostor.
@@ -575,7 +603,7 @@ fn generate_single_lod(
             })
             .unwrap_or_else(|| generate_crown_impostor_mesh(tree, species));
         leaf_count = if mesh.is_empty() { 0 } else { 1 };
-        mesh
+        (mesh, None)
     } else if level.leaf_geometry != LeafGeometry::None && level.leaf_reduction > 0.0 {
         // Filter leaves based on reduction factor. Leaves are stored stem by
         // stem, so subsample evenly across the whole list rather than taking
@@ -589,13 +617,21 @@ fn generate_single_lod(
                 .map(|i| tree.leaves[i * total / max_leaves.max(1)])
                 .collect()
         };
-        // Canopy cards: grow the surviving cards so crown coverage holds.
-        if species.canopy.lod_scale_compensation
-            && level.leaf_geometry == LeafGeometry::CanopyCard
-            && max_leaves > 0
-            && max_leaves < total
-        {
-            let grow = (total as f32 / max_leaves as f32).sqrt().min(3.0);
+        // Canopy cards (or opt-in billboard LOD compensation): grow surviving cards so crown coverage holds.
+        let compensate = (species.canopy.lod_scale_compensation
+            && level.leaf_geometry == LeafGeometry::CanopyCard)
+            || (species.canopy.billboard_lod_compensation
+                && matches!(
+                    level.leaf_geometry,
+                    LeafGeometry::Billboard | LeafGeometry::CrossBillboard
+                ));
+        if compensate && max_leaves > 0 && max_leaves < total {
+            let max_grow = if level.leaf_geometry == LeafGeometry::CanopyCard {
+                3.0
+            } else {
+                1.75
+            };
+            let grow = (total as f32 / max_leaves as f32).sqrt().min(max_grow);
             for leaf in &mut filtered_leaves {
                 leaf.scale *= grow;
             }
@@ -613,13 +649,51 @@ fn generate_single_lod(
             palm_frond_ribbon: crate::leaves::is_pinnate_palm_species(species),
             paddle_leaf_ribbon: crate::leaves::is_paddle_ribbon_species(species),
             floral_quad_atlas: crate::leaves::is_floral_atlas_species(species),
+            blade_ribbon: crate::rosette::BladeRibbon::from_species(species).map(|mut ribbon| {
+                // Far LODs: fewer rows, and wider ribbons to hold the crown's coverage.
+                if matches!(
+                    level.leaf_geometry,
+                    LeafGeometry::Billboard | LeafGeometry::CanopyCard
+                ) {
+                    ribbon.rows = 3;
+                }
+                if max_leaves > 0 && max_leaves < total {
+                    ribbon.widen = (total as f32 / max_leaves as f32).sqrt().min(2.5);
+                }
+                ribbon
+            }),
+            foliage_atlas: species.uses_foliage_atlas(),
             canopy: species.canopy.clone(),
         };
 
-        generate_leaf_mesh(&filtered_leaves, &leaf_config, tree)
+        let mut mesh = generate_leaf_mesh(&filtered_leaves, &leaf_config, tree);
+        // Inflorescences, fruit, skirt blades and spikes thin with the foliage.
+        let mut separate_organ_mesh: Option<Mesh> = None;
+        if !tree.organs.is_empty() {
+            let organs = crate::organs::reduce_organs(&tree.organs, level.leaf_reduction);
+            let detail = match level.leaf_geometry {
+                LeafGeometry::Polygon | LeafGeometry::CrossBillboard => {
+                    if level.leaf_reduction >= 0.75 { 0 } else { 1 }
+                }
+                _ => 2,
+            };
+            let organ_mesh = crate::organs::generate_organ_mesh(
+                &organs,
+                tree,
+                species.canopy.vertex_color,
+                true,
+                detail,
+            );
+            if species.uses_separate_organ_material() {
+                separate_organ_mesh = Some(organ_mesh);
+            } else {
+                crate::organs::append_foliage(&mut mesh, &organ_mesh);
+            }
+        }
+        (mesh, separate_organ_mesh)
     } else {
         leaf_count = 0;
-        Mesh::new()
+        (Mesh::new(), None)
     };
 
     // Add bark submesh entry for existing branch geometry
@@ -710,7 +784,28 @@ fn generate_single_lod(
             // 4. Subtle living young-shoot bark tint on outer branches & twigs
             let young_t = smooth01(0.32, 0.78, depth);
             let tint = Vec3::ONE.lerp(Vec3::new(1.04, 0.99, 0.91), young_t);
-            let rgb = (tint * ao).clamp(Vec3::ZERO, Vec3::ONE);
+            let mut rgb = (tint * ao).clamp(Vec3::ZERO, Vec3::ONE);
+
+            // 5. Fire-blackened base (`trunk.char_height`) + fire-hollow interior soot:
+            // a ragged scorch line that reaches higher on some sides of the trunk than others.
+            if species.trunk.char_height > 0.0 {
+                let az = v.position.z.atan2(v.position.x);
+                let ragged = 0.80
+                    + 0.20 * (az * 3.0 + tree.seed as f32 * 0.37).sin()
+                    + 0.10 * (az * 7.0 - tree.seed as f32 * 0.11).sin();
+                let top = species.trunk.char_height * ragged;
+                let scorch = 1.0 - smooth01(top * 0.55, top, h_ground);
+                let k = (scorch * species.trunk.char_strength).clamp(0.0, 1.0);
+                rgb = rgb.lerp(rgb * Vec3::new(0.10, 0.095, 0.09), k);
+            }
+            if species.trunk.hollow_height > 0.0 && h_ground < species.trunk.hollow_height {
+                // Darken recessed inward-facing fire-hollow cavern walls deeply
+                let horiz = Vec2::new(v.position.x, v.position.z);
+                let n_horiz = Vec2::new(v.normal.x, v.normal.z);
+                if horiz.length_squared() > 1e-4 && n_horiz.dot(horiz) < 0.0 {
+                    rgb *= Vec3::new(0.06, 0.055, 0.05);
+                }
+            }
             v.color = Vec4::new(rgb.x, rgb.y, rgb.z, 1.0);
         }
     }
@@ -723,6 +818,11 @@ fn generate_single_lod(
     };
     if !leaf_mesh.vertices.is_empty() {
         branch_mesh.merge(&leaf_mesh, merge_material);
+    }
+    if let Some(organ_mesh) = separate_organ_mesh
+        && !organ_mesh.vertices.is_empty()
+    {
+        branch_mesh.merge(&organ_mesh, MaterialType::Organ);
     }
 
     let stats = LodStats {
@@ -1295,5 +1395,104 @@ preset = "balanced"
 
         assert_eq!(total.vertex_count, expected_verts);
         assert_eq!(total.triangle_count, expected_tris);
+    }
+
+    use crate::generation::generate_tree;
+
+    fn layered_trunk_species(trunk_extra: &str) -> Species {
+        Species::from_toml(&format!(
+            r#"
+[species]
+name = "Trunk Layers"
+
+[trunk]
+height = 8.0
+radius = 0.5
+taper = 0.7
+segments = 12
+{trunk_extra}
+
+[branches.level1]
+count = 5
+length = 2.5
+
+[leaves]
+count = 200
+
+[canopy]
+vertex_color = "tint_ao"
+"#
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn char_height_blackens_only_the_base_of_the_trunk() {
+        let mean_low_and_high = |species: &Species| {
+            let tree = generate_tree(species, 5).unwrap();
+            let lods = generate_lod_meshes(&tree, species);
+            let mesh = &lods.meshes[0].mesh;
+            let bark_end = mesh
+                .submeshes
+                .iter()
+                .find(|s| s.material == MaterialType::Bark)
+                .map(|s| (s.index_start + s.index_count) as usize)
+                .unwrap();
+            let (mut low, mut low_n, mut high, mut high_n) = (0.0f32, 0u32, 0.0f32, 0u32);
+            for &i in &mesh.indices[..bark_end] {
+                let v = &mesh.vertices[i as usize];
+                if v.uv2.x > 0.05 {
+                    continue; // trunk only
+                }
+                if v.position.y > 0.2 && v.position.y < 1.0 {
+                    low += v.color.x;
+                    low_n += 1;
+                } else if v.position.y > 4.0 {
+                    high += v.color.x;
+                    high_n += 1;
+                }
+            }
+            (low / low_n.max(1) as f32, high / high_n.max(1) as f32)
+        };
+        let plain = mean_low_and_high(&layered_trunk_species(""));
+        let charred = mean_low_and_high(&layered_trunk_species(
+            "char_height = 2.0\nchar_strength = 0.9",
+        ));
+        assert!(
+            charred.0 < plain.0 * 0.7,
+            "base should be scorched: {} vs {}",
+            charred.0,
+            plain.0
+        );
+        assert!(
+            (charred.1 - plain.1).abs() < 1e-4,
+            "bark above the scorch line must be untouched"
+        );
+    }
+
+    #[test]
+    fn buttress_scales_the_trunk_base() {
+        let base_radius = |species: &Species| {
+            let tree = generate_tree(species, 5).unwrap();
+            let lods = generate_lod_meshes(&tree, species);
+            lods.meshes[0]
+                .mesh
+                .vertices
+                .iter()
+                .filter(|v| v.uv2.x < 0.05 && v.position.y < 0.15)
+                .map(|v| (v.position.x.powi(2) + v.position.z.powi(2)).sqrt())
+                .fold(0.0f32, f32::max)
+        };
+        let column = base_radius(&layered_trunk_species("buttress = 0.0"));
+        let normal = base_radius(&layered_trunk_species(""));
+        let heavy = base_radius(&layered_trunk_species("buttress = 2.5"));
+        assert!(
+            column < normal && normal < heavy,
+            "{column} < {normal} < {heavy}"
+        );
+        assert!(
+            column < 0.5 * 1.08,
+            "buttress = 0 should leave a plain column: {column}"
+        );
     }
 }

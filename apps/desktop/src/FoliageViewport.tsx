@@ -899,7 +899,8 @@ export function FoliageViewport({
 
       for (const sub of ranges) {
         if (sub.index_count === 0) continue;
-        const isBark = sub.material === 'bark';
+        const isBark = sub.material === 'bark' || sub.material === 'upper_bark';
+        const isUpperBark = sub.material === 'upper_bark';
         if (isBark && !layers.bark) continue;
         if (!isBark && !layers.leaves) continue;
 
@@ -935,18 +936,20 @@ export function FoliageViewport({
               : new Float32Array(vCount * 2);
           geo.setAttribute('aBarkUv2', new THREE.BufferAttribute(barkUv2, 2));
 
+          const barkAlbedoMap = isUpperBark ? maps?.upper_bark_albedo ?? maps?.bark_albedo : maps?.bark_albedo;
+          const barkNormalMap = isUpperBark ? maps?.upper_bark_normal ?? maps?.bark_normal : maps?.bark_normal;
           const barkMat = new THREE.MeshStandardMaterial({
-            color: maps?.bark_albedo ? '#ffffff' : '#6c5138',
+            color: barkAlbedoMap ? '#ffffff' : isUpperBark ? '#b8b0a2' : '#6c5138',
             vertexColors: hasBarkTintAo,
-            roughness: 0.88,
+            roughness: isUpperBark ? 0.78 : 0.88,
             metalness: 0.0,
           });
-          if (maps?.bark_albedo) {
-            barkMat.map = createDataTexture(maps.bark_albedo.rgba, true, true, maxAniso);
+          if (barkAlbedoMap) {
+            barkMat.map = createDataTexture(barkAlbedoMap.rgba, true, true, maxAniso);
           }
-          if (maps?.bark_normal) {
-            barkMat.normalMap = createDataTexture(maps.bark_normal.rgba, false, true, maxAniso);
-            barkMat.normalScale = new THREE.Vector2(1.55, 1.55);
+          if (barkNormalMap) {
+            barkMat.normalMap = createDataTexture(barkNormalMap.rgba, false, true, maxAniso);
+            barkMat.normalScale = new THREE.Vector2(isUpperBark ? 1.1 : 1.55, isUpperBark ? 1.1 : 1.55);
           }
           barkMat.onBeforeCompile = (shader) => {
             shader.uniforms.uTime = shared.uTime;
@@ -1040,7 +1043,7 @@ export function FoliageViewport({
         } else {
           const sampleIdx = subIndices[0] ?? 0;
           const hasTintAo =
-            sub.material === 'leaves' &&
+            (sub.material === 'leaves' || sub.material === 'organ') &&
             rawColors.length === vCount * 4 &&
             rawColors[sampleIdx * 4 + 3] > 0.5;
 
@@ -1055,14 +1058,19 @@ export function FoliageViewport({
           }
 
           const isImpostor = sub.material === 'impostor';
-          const mapSource = isImpostor ? lod.impostor_atlas?.rgba : maps?.leaf_card.rgba;
+          const isOrgan = sub.material === 'organ';
+          const mapSource = isImpostor
+            ? lod.impostor_atlas?.rgba
+            : isOrgan
+              ? maps?.organ_albedo?.rgba ?? maps?.leaf_card.rgba
+              : maps?.leaf_card.rgba;
           const leafMat = new THREE.MeshStandardMaterial({
-            color: mapSource ? '#ffffff' : '#4c8a3d',
+            color: mapSource ? '#ffffff' : isOrgan ? '#d48b3b' : '#4c8a3d',
             vertexColors: hasTintAo,
             alphaTest: mapSource ? 0.28 : 0.0,
             alphaToCoverage: Boolean(mapSource),
             side: THREE.DoubleSide,
-            roughness: 0.84,
+            roughness: isOrgan ? 0.66 : 0.84,
             metalness: 0.0,
           });
           if (mapSource) {
@@ -1196,11 +1204,21 @@ export function FoliageViewport({
 
     // Distant horizon skirt matching biome palette so patch blends into vast rolling hills
     const biome = (naturePreview.biome ?? '').toLowerCase();
-    const vistaColor = biome.includes('arid')
-      ? '#7c6242'
-      : biome.includes('forest')
-        ? '#313820'
-        : '#48562b';
+    const vistaColor = biome.includes('dune')
+      ? '#c8be9f'
+      : biome.includes('banksia')
+        ? '#a7a194'
+        : biome.includes('jarrah')
+          ? '#6f4531'
+          : biome.includes('wetland')
+            ? '#38332b'
+            : biome.includes('verge')
+              ? '#5d6b3b'
+              : biome.includes('arid')
+                ? '#7c6242'
+                : biome.includes('forest')
+                  ? '#313820'
+                  : '#48562b';
     const skirtGeo = new THREE.CircleGeometry(700, 56);
     skirtGeo.rotateX(-Math.PI / 2);
     const skirtMat = new THREE.MeshStandardMaterial({

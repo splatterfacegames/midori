@@ -1,0 +1,178 @@
+# Firewood banksia (Banksia menziesii)
+# Gnarled small lignotuber tree of the Bassendean sand banksia woodland: crooked, often multi-stemmed
+# trunk in thick grey pebbly bark, open irregular branch architecture, whorled stiff saw-toothed
+# dull olive-grey leaves with pale undersides, and crimson-and-gold acorn flower spikes.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Firewood Banksia"
+scientific = "Banksia menziesii"
+latin = "Banksia menziesii"
+biome = "mediterranean"
+tags = ["wa_native", "banksia", "banksia_woodland", "swan_coastal_plain", "evergreen", "lignotuber"]
+
+[generator]
+family = "weber_penn"
+notes = "Multi-stem gnarled woodland habit with whorled leaf collars and dedicated-material acorn spikes."
+
+[trunk]
+height = 4.6
+height_variance = 0.18
+radius = 0.25
+taper = 0.70
+taper_profile = "exponential"
+curve = 46.0
+curve_variance = 18.0
+curve_back = 42.0
+segments = 18
+stems = 2
+stem_spread = 24.0
+stem_offset = 0.22
+stem_height_variation = 0.22
+buttress = 0.7
+
+[branches.level1]
+count = 5
+count_variance = 1
+length = 2.8
+length_variance = 0.24
+radius_ratio = 0.62
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "exponential"
+angle = 58.0
+angle_variance = 20.0
+rotation = 137.5
+gravity = 0.04
+curve = 34.0
+curve_variance = 30.0
+segments = 12
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 1.45
+length_variance = 0.24
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "smooth"
+angle = 52.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = 0.06
+curve = -24.0
+curve_variance = 26.0
+segments = 9
+
+[branches.level3]
+count = 3
+count_variance = 1
+length = 0.72
+length_variance = 0.22
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "compound"
+angle = 44.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.12
+curve = 16.0
+curve_variance = 18.0
+segments = 6
+
+[crown]
+shape = "hemispherical"
+offset = 0.34
+density = 0.85
+width_ratio = 1.24
+
+[leaves]
+count = 1350
+min_level = 2
+size = 0.50
+size_variance = 0.20
+distribution = "whorl"
+geometry = "cross_billboard"
+shape = "banksia"
+up_influence = 0.24
+
+[inflorescence]
+kind = "spike"
+count = 135
+min_level = 3
+placement = "endpoint"
+orientation = "up"
+length = 0.25
+width = 0.15
+size_variance = 0.18
+offset = 0.16
+color = [0.94, 0.68, 0.14]
+color_tip = [0.84, 0.16, 0.18]
+aged_fraction = 0.42
+aged_color = [0.42, 0.37, 0.33]
+separate_material = true
+roughness = 0.62
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.64
+up_bias = 0.22
+clump_weight = 0.58
+clump_level = 1
+crown_fill = 0
+shell = 0.08
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.78
+
+[textures]
+bark_prompt = "Firewood banksia bark, grey, thick, rough, warty and pebbly"
+leaf_prompt = "Banksia menziesii leaves, stiff narrow saw-toothed strap, dull olive-grey with pale underside"
+resolution = 1024
+bark_style = "tessellated"
+leaf_shape = "banksia"
+leaf_card = "cluster"
+bark_color = [0.44, 0.41, 0.37]
+leaf_color = [0.38, 0.44, 0.30]
+leaf_underside_color = [0.58, 0.59, 0.49]
+leaf_new_growth_color = [0.52, 0.41, 0.27]
+leaf_new_growth_fraction = 0.10
+leaf_dead_fraction = 0.08
+leaf_dead_color = [0.55, 0.46, 0.26]
+
+[materials]
+bark = "firewood_banksia_bark"
+foliage = "firewood_banksia_foliage"
+notes = "1024px leaf card + dedicated 2x2 organ atlas for red-and-gold acorn spikes and old grey cones."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.0
+max = 9.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "spikes"
+label = "Flower Spikes"
+parameter = "inflorescence.count"
+min = 0.0
+max = 140.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

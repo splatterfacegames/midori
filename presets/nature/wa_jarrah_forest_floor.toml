@@ -1,0 +1,180 @@
+# Jarrah forest floor on the Darling Scarp and plateau.
+# Red-brown lateritic soil strewn with ironstone gravel (pisolite) and laterite boulders, deep leaf and bark
+# litter, charred logs, sparse bracken and sedges. Stand zamia, grass trees and bull banksia on it from
+# presets/species/wa_*. Notes and sources: docs/wa-flora.md
+
+[asset]
+kind = "nature_patch"
+name = "WA Jarrah Forest Floor"
+units = "meters"
+
+[patch]
+size = 16.0
+seed = 6076
+biome = "jarrah_forest"
+tags = ["wa_native", "darling_scarp", "laterite", "gravel", "litter", "log", "bracken"]
+
+[soil]
+profile = "lateritic_gravel"
+color = "#7c4a33"
+mound_scale = 0.1
+mound_height = 0.32
+mound_coverage = 0.8
+relief_scale = 0.9
+relief_strength = 0.6
+wetness_coverage = 0.05
+
+[soil.cracks]
+enabled = false
+amount = 0.5
+plate_density = 0.9
+channel_width = 0.05
+warp = 0.2
+depth = 0.5
+
+[groundcover.card_atlas]
+cell = 256
+base = "#2c401c"
+tips = ["#6f8a40", "#84904a", "#5c7a38"]
+
+[[groundcover.layers]]
+kind = "rock"
+name = "ironstone gravel"
+density = 0.5
+coverage = 0.78
+patch_scale = 0.16
+patch_softness = 0.2
+height = 0.045
+width = 0.07
+color_base = "#5e3626"
+color_tip = "#96583a"
+
+[[groundcover.layers]]
+kind = "rock"
+name = "laterite boulders"
+density = 0.09
+coverage = 0.34
+patch_scale = 0.07
+patch_softness = 0.2
+height = 0.34
+width = 0.5
+color_base = "#6a3f2c"
+color_tip = "#a06848"
+
+[[groundcover.layers]]
+kind = "litter"
+name = "eucalypt leaf and bark litter"
+density = 0.5
+coverage = 0.8
+patch_scale = 0.1
+patch_softness = 0.2
+height = 0.12
+width = 0.12
+color_base = "#5c3f28"
+color_tip = "#a67c4c"
+
+[[groundcover.layers]]
+kind = "log"
+name = "charred jarrah log"
+density = 0.12
+coverage = 0.5
+patch_scale = 0.07
+patch_softness = 0.2
+height = 1.4
+width = 0.16
+curl = 0.0
+color_base = "#221c18"
+color_tip = "#5a4436"
+
+[[groundcover.layers]]
+kind = "weed"
+name = "bracken"
+density = 0.12
+coverage = 0.34
+patch_scale = 0.11
+patch_softness = 0.24
+height = 0.7
+width = 0.07
+curl = 0.5
+color_base = "#2a4420"
+color_tip = "#74984c"
+
+[groundcover.layers.cards]
+species = ["fern", "fern"]
+count = 4
+card_width = 0.6
+height_range = [0.75, 1.3]
+lean_degrees = [8.0, 26.0]
+loose = 0.14
+normal_up = 0.70
+
+[[groundcover.layers]]
+kind = "grass"
+name = "forest sedges"
+density = 0.1
+coverage = 0.34
+patch_scale = 0.1
+patch_softness = 0.24
+height = 0.4
+width = 0.045
+curl = 0.6
+color_base = "#2c3f1c"
+color_tip = "#70864a"
+
+[[groundcover.layers]]
+kind = "shrub"
+name = "understorey shrub"
+density = 0.09
+coverage = 0.34
+patch_scale = 0.08
+patch_softness = 0.22
+height = 0.9
+width = 0.14
+curl = 0.4
+color_base = "#2b3d22"
+color_tip = "#6e8a4c"
+
+[wind]
+strength = 0.3
+speed = 1.1
+direction_degrees = 235
+gust_scale = 0.3
+flutter = 0.5
+
+[profiles.mobile]
+tile_size = 16.0
+terrain_resolution = 64
+lod0_max_triangles = 120
+lod1_max_triangles = 40
+lod2_max_triangles = 8
+lod0_max_distance = 6.0
+lod1_max_distance = 18.0
+lod2_max_distance = 38.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 0.6
+cull_start = 18.0
+cull_end = 38.0
+shadows = false
+grass_collision = false
+moss_collision = false
+
+[profiles.console]
+tile_size = 32.0
+terrain_resolution = 128
+lod0_max_triangles = 300
+lod1_max_triangles = 100
+lod2_max_triangles = 16
+lod0_max_distance = 12.0
+lod1_max_distance = 38.0
+lod2_max_distance = 82.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 1.0
+cull_start = 38.0
+cull_end = 82.0
+shadows = false
+grass_collision = false
+moss_collision = false

@@ -1,0 +1,130 @@
+# Canary Island date palm (Phoenix canariensis)
+# Formal palm of Perth's older foreshores, Hyde Park, Claremont and Nedlands: stout trunk
+# patterned with criss-crossing diamond leaf-base scars, sculpted pineapple crown boss, dense
+# lush crown of 104 arching feather fronds, and hanging golden-orange date panicles.
+# PLANTED EXOTIC (Canary Islands), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Canary Island Date Palm"
+scientific = "Phoenix canariensis"
+latin = "Phoenix canariensis"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "palm", "rosette", "park_tree", "evergreen"]
+
+[generator]
+family = "rosette"
+notes = "Stout palm_diamond trunk + pineapple crown_boss + lush 104-frond pinnate crown + hanging golden date panicles."
+
+[trunk]
+height = 7.8
+height_variance = 0.18
+radius = 0.45
+taper = 0.03
+curve = 2.0
+curve_variance = 2.0
+segments = 14
+buttress = 0.25
+
+[rosette]
+crowns = 1
+blades = 104
+blade_length = 4.8
+blade_length_variance = 0.12
+blade_width = 1.25
+blade_card = "pinnate"
+spread_min = 6.0
+spread_max = 122.0
+droop = 0.42
+stiffness = 0.80
+keel = 0.48
+crown_boss = 0.52
+color_base = [0.22, 0.38, 0.16]
+color_tip = [0.34, 0.49, 0.22]
+skirt = 0.0
+skirt_blades = 0
+skirt_color = [0.54, 0.44, 0.27]
+
+[rosette.spike]
+chance = 0.95
+count = 6
+style = "panicle"
+scape_length = 0.55
+scape_radius = 0.022
+length = 1.45
+radius = 0.24
+lean = 58.0
+color = [0.88, 0.62, 0.14]
+tip_color = [0.94, 0.72, 0.22]
+scape_color = [0.78, 0.56, 0.18]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.40
+up_bias = 0.28
+clump_weight = 0.20
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.08
+ao_strength = 0.38
+roughness = 0.56
+
+[textures]
+bark_prompt = "Phoenix canariensis stout trunk covered in bold criss-crossing diamond leaf-base scars"
+leaf_prompt = "Phoenix canariensis dense lush arching feather frond with 40 pairs of stiff leaflets"
+resolution = 2048
+bark_style = "palm_diamond"
+bark_color = [0.40, 0.33, 0.25]
+leaf_color = [0.27, 0.43, 0.19]
+
+[materials]
+bark = "canary_island_date_palm_bark"
+foliage = "canary_island_date_palm_foliage"
+notes = "2048px diamond-scar trunk + 2x2 rosette atlas: lush pinnate frond, golden date panicle, dead skirt."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "trunk_height"
+label = "Trunk Height"
+parameter = "trunk.height"
+min = 0.5
+max = 15.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "fronds"
+label = "Fronds"
+parameter = "rosette.blades"
+min = 40.0
+max = 130.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: unpruned: thick dead-frond petticoat hanging under the crown
+[states.untrimmed]
+species.name = "Canary Island Date Palm (untrimmed)"
+rosette.skirt = 0.22
+rosette.skirt_blades = 54
+
+# State: young 'pineapple' stage: crown near ground level on a thick swollen trunk
+[states.young]
+species.name = "Canary Island Date Palm (young)"
+trunk.height = 1.4
+trunk.radius = 0.58
+rosette.crown_boss = 0.35
+rosette.blades = 76
+rosette.blade_length = 3.8
+rosette.spread_max = 92.0
+rosette.spike.chance = 0.0

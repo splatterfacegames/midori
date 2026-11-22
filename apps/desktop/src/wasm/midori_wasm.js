@@ -89,6 +89,35 @@ export class MidoriGenerator {
         return MidoriGenerator.__wrap(ret[0]);
     }
     /**
+     * Generate the species' material maps.
+     *
+     * Returns `{ bark_albedo, bark_normal, leaf_card }`, each a
+     * `GeneratedMap`: `png` carries PNG bytes for blob URLs and file
+     * inspection; `rgba` carries the same image as `{ data, width, height }`
+     * raw RGBA8 (top row first — the glTF/`TextureSource` V convention) for
+     * hosts that upload textures directly to the GPU. One `TextureSet` bake
+     * serves both encodings; `data`/`png` cross as Uint8Arrays.
+     *
+     * Deterministic for the species' `[textures]` parameters. The browser
+     * has no filesystem, so file-slot overrides are ignored here (procedural
+     * maps are used); native hosts resolve slots via `TextureSet::resolve`.
+     * Create a generator with an optional `[states.<name>]` overlay applied.
+     * @param {string} toml
+     * @param {string | null} [state]
+     * @returns {MidoriGenerator}
+     */
+    static fromTomlWithState(toml, state) {
+        const ptr0 = passStringToWasm0(toml, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(state) ? 0 : passStringToWasm0(state, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        const ret = wasm.midorigenerator_fromTomlWithState(ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return MidoriGenerator.__wrap(ret[0]);
+    }
+    /**
      * Generate a tree and return mesh data as a JavaScript object.
      *
      * Returns an object containing all LOD levels with their mesh data.
@@ -103,18 +132,6 @@ export class MidoriGenerator {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
-     * Generate the species' material maps.
-     *
-     * Returns `{ bark_albedo, bark_normal, leaf_card }`, each a
-     * `GeneratedMap`: `png` carries PNG bytes for blob URLs and file
-     * inspection; `rgba` carries the same image as `{ data, width, height }`
-     * raw RGBA8 (top row first — the glTF/`TextureSource` V convention) for
-     * hosts that upload textures directly to the GPU. One `TextureSet` bake
-     * serves both encodings; `data`/`png` cross as Uint8Arrays.
-     *
-     * Deterministic for the species' `[textures]` parameters. The browser
-     * has no filesystem, so file-slot overrides are ignored here (procedural
-     * maps are used); native hosts resolve slots via `TextureSet::resolve`.
      * @returns {any}
      */
     generateMaps() {
@@ -192,6 +209,17 @@ export class MidoriGenerator {
         this.__wbg_ptr = ret[0];
         MidoriGeneratorFinalization.register(this, this.__wbg_ptr, this);
         return this;
+    }
+    /**
+     * Sorted list of `[states.<name>]` names declared on this species document.
+     * @returns {any}
+     */
+    stateNames() {
+        const ret = wasm.midorigenerator_stateNames(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
     }
     /**
      * Return the species definition as a plain JS object.
@@ -473,6 +501,16 @@ function __wbg_get_imports() {
             const ret = result;
             return ret;
         },
+        __wbg_instanceof_Map_16f217b9a2a08d8c: function(arg0) {
+            let result;
+            try {
+                result = arg0 instanceof Map;
+            } catch (_) {
+                result = false;
+            }
+            const ret = result;
+            return ret;
+        },
         __wbg_instanceof_Uint8Array_abd07d4bd221d50b: function(arg0) {
             let result;
             try {
@@ -505,6 +543,10 @@ function __wbg_get_imports() {
         },
         __wbg_new_02d162bc6cf02f60: function() {
             const ret = new Object();
+            return ret;
+        },
+        __wbg_new_070df68d66325372: function() {
+            const ret = new Map();
             return ret;
         },
         __wbg_new_1f236d63ba0c4784: function(arg0, arg1) {
@@ -551,6 +593,10 @@ function __wbg_get_imports() {
             const ret = Reflect.set(arg0, arg1, arg2);
             return ret;
         }, arguments); },
+        __wbg_set_facb7a5914e0fa39: function(arg0, arg1, arg2) {
+            const ret = arg0.set(arg1, arg2);
+            return ret;
+        },
         __wbg_stack_3b0d974bbf31e44f: function(arg0, arg1) {
             const ret = arg1.stack;
             const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -567,17 +613,22 @@ function __wbg_get_imports() {
             const ret = arg0;
             return ret;
         },
-        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000002: function(arg0) {
+            // Cast intrinsic for `I64 -> Externref`.
+            const ret = arg0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
             // Cast intrinsic for `Ref(Slice(U8)) -> NamedExternref("Uint8Array")`.
             const ret = getArrayU8FromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000004: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000004: function(arg0) {
+        __wbindgen_cast_0000000000000005: function(arg0) {
             // Cast intrinsic for `U64 -> Externref`.
             const ret = BigInt.asUintN(64, arg0);
             return ret;

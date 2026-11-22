@@ -1,0 +1,171 @@
+# Lemon-scented gum (Corymbia citriodora)
+# Iconic Fraser Avenue tree of Kings Park: tall, slender, dead-straight trunk in smooth powdery
+# white-to-blush-pink dimpled bark, clean for two-thirds of its height under a lofty airy crown.
+# PLANTED in Perth (native to Queensland), not part of the local Swan Coastal Plain flora.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Lemon-scented Gum"
+scientific = "Corymbia citriodora"
+latin = "Corymbia citriodora"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "bloodwood", "street_tree", "park_tree", "evergreen"]
+
+[generator]
+family = "weber_penn"
+notes = "28 m Fraser Avenue specimen with luminous powdery white-pink bole and lofty airy level-4 crown."
+
+[trunk]
+height = 27.0
+height_variance = 0.10
+radius = 0.45
+taper = 0.68
+taper_profile = "exponential"
+curve = 4.5
+curve_variance = 3.0
+curve_back = 4.5
+segments = 24
+buttress = 0.6
+
+[branches.level1]
+count = 7
+count_variance = 1
+length = 6.8
+length_variance = 0.22
+radius_ratio = 0.42
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "exponential"
+angle = 44.0
+angle_variance = 12.0
+rotation = 137.5
+gravity = 0.0
+curve = 18.0
+curve_variance = 18.0
+segments = 13
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 3.4
+length_variance = 0.22
+radius_ratio = 0.50
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 44.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = -12.0
+curve_variance = 16.0
+segments = 9
+
+[branches.level3]
+count = 3
+count_variance = 1
+length = 1.7
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 40.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.14
+curve = 12.0
+curve_variance = 16.0
+segments = 6
+
+[branches.level4]
+count = 2
+count_variance = 1
+length = 0.85
+length_variance = 0.20
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 38.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.22
+curve = 10.0
+curve_variance = 12.0
+segments = 4
+
+[crown]
+shape = "hemispherical"
+offset = 0.62
+density = 0.82
+width_ratio = 1.00
+
+[leaves]
+count = 1650
+min_level = 3
+size = 1.05
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "sickle"
+up_influence = -0.52
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.62
+up_bias = 0.20
+clump_weight = 0.58
+clump_level = 1
+crown_fill = 0
+shell = 0.08
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.34
+billboard_lod_compensation = true
+roughness = 0.70
+
+[textures]
+bark_prompt = "Lemon-scented gum smooth powdery luminous white to blush-pink and dove-grey bark"
+leaf_prompt = "Corymbia citriodora narrow pendulous fresh grey-olive sickle leaves"
+resolution = 1024
+bark_style = "patchy"
+leaf_shape = "sickle"
+leaf_card = "cluster"
+bark_color = [0.92, 0.89, 0.86]
+leaf_color = [0.37, 0.49, 0.30]
+leaf_underside_color = [0.49, 0.58, 0.40]
+bark_patch_colors = [[0.93, 0.82, 0.78], [0.83, 0.81, 0.80], [0.96, 0.94, 0.91]]
+
+[materials]
+bark = "lemon_scented_gum_bark"
+foliage = "lemon_scented_gum_foliage"
+notes = "1024px powdery white-pink patchy bark and airy pendulous leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 8.0
+max = 45.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 1.8
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

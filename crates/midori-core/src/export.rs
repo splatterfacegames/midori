@@ -27,6 +27,9 @@ pub struct ExportConfig {
     /// Foliage material roughness override (default 0.6). Matte canopies
     /// (~0.9) avoid a grey specular sheen on card foliage under a low sun.
     pub leaf_roughness: Option<f32>,
+    /// Dedicated organ material roughness override when `MaterialType::Organ`
+    /// is used (default 0.72).
+    pub organ_roughness: Option<f32>,
     /// Optional asset metadata for node naming and glTF extras.
     pub metadata: Option<ExportMetadata>,
 }
@@ -61,6 +64,7 @@ impl Default for ExportConfig {
             textures: None,
             pivot_painter_extras: true,
             leaf_roughness: None,
+            organ_roughness: None,
             metadata: None,
         }
     }
@@ -411,6 +415,30 @@ fn append_material_images(
         binary.extend_from_slice(&png);
         pad_binary(binary);
     }
+    if let (Some(u_alb), Some(u_nrm)) = (&textures.upper_bark_albedo, &textures.upper_bark_normal) {
+        for (name, tex) in [("upper_bark_albedo", u_alb), ("upper_bark_normal", u_nrm)] {
+            let png = tex.to_png()?;
+            images.push(ImageInfo {
+                name: name.to_string(),
+                offset: binary.len(),
+                len: png.len(),
+                sampler: SamplerKind::Repeat,
+            });
+            binary.extend_from_slice(&png);
+            pad_binary(binary);
+        }
+    }
+    if let Some(organ_alb) = &textures.organ_albedo {
+        let png = organ_alb.to_png()?;
+        images.push(ImageInfo {
+            name: "organ_albedo".to_string(),
+            offset: binary.len(),
+            len: png.len(),
+            sampler: SamplerKind::Clamp,
+        });
+        binary.extend_from_slice(&png);
+        pad_binary(binary);
+    }
     Ok(())
 }
 
@@ -616,11 +644,11 @@ fn build_gltf_json(
     let mut buffer_views = Vec::new();
     let mut gltf_meshes = Vec::new();
 
-    // Material table: 0 = bark, 1 = leaves, then impostor materials — one
-    // textured material per embedded atlas, or a single shared untextured
-    // material for impostor submeshes whose LOD has no atlas.
+    // Material table: 0 = bark, 1 = leaves, then impostor materials (keeping exact
+    // 0.2.0 slot numbering), then optional opt-in upper_bark and organ materials.
     let textured = config.textures.is_some();
     let leaf_roughness = config.leaf_roughness.unwrap_or(0.6);
+    let organ_roughness = config.organ_roughness.unwrap_or(0.72);
     let mut impostor_material: Vec<Option<usize>> = Vec::with_capacity(meshes.len());
     let mut next_material = 2;
     let mut shared_untextured: Option<usize> = None;
@@ -646,6 +674,32 @@ fn build_gltf_json(
         };
         impostor_material.push(Some(index));
     }
+    let impostor_slot_count = next_material - 2;
+    let has_upper_bark = meshes.iter().any(|m| {
+        m.submeshes
+            .iter()
+            .any(|s| s.material == MaterialType::UpperBark)
+    });
+    let upper_bark_material = if has_upper_bark {
+        let idx = next_material;
+        next_material += 1;
+        Some(idx)
+    } else {
+        None
+    };
+    let has_organ = meshes.iter().any(|m| {
+        m.submeshes
+            .iter()
+            .any(|s| s.material == MaterialType::Organ)
+    });
+    let organ_material = if has_organ {
+        let idx = next_material;
+        next_material += 1;
+        Some(idx)
+    } else {
+        None
+    };
+    let _ = next_material;
 
     for (mesh_i, mesh_info) in meshes.iter().enumerate() {
         let vertex_count = mesh_info.vertex_count;
@@ -775,6 +829,8 @@ fn build_gltf_json(
                     MaterialType::Bark => 0,
                     MaterialType::Leaves => 1,
                     MaterialType::Impostor => impostor_material[mesh_i].unwrap_or(1),
+                    MaterialType::UpperBark => upper_bark_material.unwrap_or(0),
+                    MaterialType::Organ => organ_material.unwrap_or(1),
                 };
                 prims.push(json!({
                     "attributes": attributes,
@@ -855,7 +911,7 @@ fn build_gltf_json(
 
     // Impostor materials fill their pre-assigned slots so shared untextured
     // materials never misalign the table.
-    let mut impostor_slots: Vec<Option<serde_json::Value>> = vec![None; next_material - 2];
+    let mut impostor_slots: Vec<Option<serde_json::Value>> = vec![None; impostor_slot_count];
     for (mesh_i, info) in meshes.iter().enumerate() {
         let Some(index) = impostor_material[mesh_i] else {
             continue;
@@ -889,6 +945,65 @@ fn build_gltf_json(
         });
     }
     materials.extend(impostor_slots.into_iter().flatten());
+
+    // Optional opt-in upper_bark and organ materials (absent on legacy 0.2.0 presets)
+    if upper_bark_material.is_some() {
+        let u_alb_idx = images
+            .iter()
+            .position(|img| img.name == "upper_bark_albedo");
+        let u_nrm_idx = images
+            .iter()
+            .position(|img| img.name == "upper_bark_normal");
+        materials.push(match (u_alb_idx, u_nrm_idx) {
+            (Some(alb), Some(nrm)) => json!({
+                "name": "upper_bark",
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": { "index": alb },
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.72
+                },
+                "normalTexture": { "index": nrm },
+                "doubleSided": false
+            }),
+            _ => json!({
+                "name": "upper_bark",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.75, 0.73, 0.68, 1.0],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.72
+                },
+                "doubleSided": false
+            }),
+        });
+    }
+    if organ_material.is_some() {
+        let organ_idx = images.iter().position(|img| img.name == "organ_albedo");
+        materials.push(if let Some(idx) = organ_idx {
+            json!({
+                "name": "organ",
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": { "index": idx },
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": organ_roughness
+                },
+                "doubleSided": true,
+                "alphaMode": "MASK",
+                "alphaCutoff": 0.5
+            })
+        } else {
+            json!({
+                "name": "organ",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.85, 0.72, 0.25, 1.0],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": organ_roughness
+                },
+                "doubleSided": true,
+                "alphaMode": "MASK",
+                "alphaCutoff": 0.5
+            })
+        });
+    }
 
     // Build nodes (one per mesh). The first (highest-detail) LOD node carries
     // MSFT_lod: ids = the lower-detail LOD nodes in coarsening order, so

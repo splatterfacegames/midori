@@ -193,8 +193,59 @@ describe('MidoriModel', () => {
     120_000,
   );
 
-  it('previews pampas_meadow and alpine_meadow with card atlas and soil maps', () => {
-    for (const id of ['pampas_meadow', 'alpine_meadow']) {
+  it(
+    'loads rosette, inflorescence, layered-bark and planted Western Australian presets',
+    () => {
+      for (const id of [
+        'wa_grass_tree',
+        'wa_zamia',
+        'wa_kangaroo_paw',
+        'wa_firewood_banksia',
+        'wa_marri',
+        'wa_karri',
+        'wa_swamp_paperbark',
+        'wa_sheoak',
+        'perth_jacaranda',
+        'perth_canary_island_date_palm',
+      ]) {
+        model.loadPreset(id);
+        expect(model.getState().sourceError).toBeNull();
+        expect(model.getState().lods?.[0]?.triangle_count).toBeGreaterThan(0);
+      }
+    },
+    120_000,
+  );
+
+  it('keeps native and planted presets in separate library groups', () => {
+    const wa = PRESETS.filter((p) => p.group === 'wa_native');
+    const planted = PRESETS.filter((p) => p.group === 'perth_planted');
+    expect(wa.length).toBe(29);
+    expect(planted.length).toBe(20);
+    expect(wa.every((p) => p.id.startsWith('wa_'))).toBe(true);
+    expect(planted.every((p) => p.id.startsWith('perth_'))).toBe(true);
+  });
+
+  it('switches named seasonal/condition states live and exposes extra maps', () => {
+    model.loadPreset('perth_jacaranda');
+    expect(model.getState().availableStates).toEqual(['bare', 'flowering']);
+    expect(model.getState().selectedState).toBeNull();
+    model.selectState('flowering');
+    expect(model.getState().selectedState).toBe('flowering');
+    expect(model.getState().maps?.organ_albedo).toBeDefined();
+    expect(model.getState().lods?.[0]?.submeshes.some((s) => s.material === 'organ')).toBe(true);
+
+    model.loadPreset('wa_flooded_gum');
+    expect(model.getState().maps?.upper_bark_albedo).toBeDefined();
+    expect(model.getState().lods?.[0]?.submeshes.some((s) => s.material === 'upper_bark')).toBe(true);
+
+    model.loadPreset('perth_cotton_palm');
+    expect(model.getState().availableStates).toEqual(['untrimmed']);
+    model.selectState('untrimmed');
+    expect(model.getState().lods?.[0]?.triangle_count).toBeGreaterThan(200);
+  });
+
+  it('previews pampas_meadow, alpine_meadow, and perth_verge_lawn with card atlas and soil maps', () => {
+    for (const id of ['pampas_meadow', 'alpine_meadow', 'perth_verge_lawn']) {
       const preset = NATURE_PRESETS.find((p) => p.id === id);
       expect(preset).toBeDefined();
       expect(model.loadNatureToml(preset!.toml, preset!.label)).toBe(true);

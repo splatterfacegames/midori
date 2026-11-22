@@ -43,12 +43,17 @@ pub struct Submesh {
 /// Material types for tree rendering
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MaterialType {
-    /// Bark material for trunk and branches
+    /// Bark material for trunk and branches (lower/primary bark)
     Bark,
     /// Leaf material for foliage
     Leaves,
     /// Baked crown impostor (two crossed quads sampling a baked atlas)
     Impostor,
+    /// Upper smooth/transition bark for half-barked species (opt-in)
+    UpperBark,
+    /// Dedicated organ material (flowers, spikes, fruit, cones) with its own
+    /// atlas and roughness (opt-in via `inflorescence.separate_material`)
+    Organ,
 }
 
 impl Mesh {

@@ -1,0 +1,151 @@
+# Stinkwood / green stinkwood (Jacksonia sternbergiana)
+# Tall weeping leafless broom-like shrub/small tree of Perth's sandplain: airy curtains of fine
+# hanging olive-sage angular branchlets dotted with bright orange-yellow pea flowers.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Stinkwood"
+scientific = "Jacksonia sternbergiana"
+latin = "Jacksonia sternbergiana"
+biome = "mediterranean"
+tags = ["wa_native", "shrub", "pea_family", "banksia_woodland", "swan_coastal_plain", "weeping"]
+
+[generator]
+family = "weber_penn"
+notes = "Tall 3.6 m airy weeping leafless broom with wispy branchlet curtains and separate-material orange pea flowers."
+
+[trunk]
+height = 3.2
+height_variance = 0.16
+radius = 0.11
+taper = 0.70
+taper_profile = "exponential"
+curve = 16.0
+curve_variance = 12.0
+curve_back = 16.0
+segments = 12
+stems = 1
+buttress = 0.0
+
+[branches.level1]
+count = 7
+count_variance = 2
+length = 2.25
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 46.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.14
+curve = 28.0
+curve_variance = 22.0
+segments = 10
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 1.65
+length_variance = 0.22
+radius_ratio = 0.50
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 44.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.62
+curve = 30.0
+curve_variance = 18.0
+segments = 8
+
+[crown]
+shape = "flame"
+offset = 0.28
+density = 0.78
+width_ratio = 0.96
+
+[leaves]
+count = 880
+min_level = 2
+size = 0.72
+size_variance = 0.22
+distribution = "along_branch"
+geometry = "cross_billboard"
+shape = "branchlet"
+up_influence = -0.84
+
+[inflorescence]
+kind = "cluster"
+count = 360
+min_level = 2
+placement = "along_branch"
+orientation = "hang"
+length = 0.18
+width = 0.18
+size_variance = 0.28
+color = [0.98, 0.64, 0.12]
+color_tip = [0.90, 0.28, 0.08]
+aged_fraction = 0.08
+aged_color = [0.54, 0.42, 0.24]
+separate_material = true
+roughness = 0.62
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.54
+up_bias = 0.16
+clump_weight = 0.48
+clump_level = 1
+crown_fill = 0
+shell = 0.05
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.09
+ao_strength = 0.26
+billboard_lod_compensation = true
+roughness = 0.80
+
+[textures]
+bark_prompt = "Jacksonia sternbergiana bark, grey-brown, finely furrowed"
+leaf_prompt = "Jacksonia branchlets, wispy drooping grey-olive leafless broom wires"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "branchlet"
+leaf_card = "cluster"
+bark_color = [0.40, 0.36, 0.32]
+leaf_color = [0.48, 0.55, 0.42]
+
+[materials]
+bark = "stinkwood_bark"
+foliage = "stinkwood_foliage"
+notes = "1024px wispy drooping branchlet card + dedicated orange-yellow pea flower atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 0.6
+max = 4.5
+step = 0.05
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"

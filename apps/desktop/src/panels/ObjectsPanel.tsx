@@ -15,8 +15,14 @@ function useMapUrls(
   useEffect(() => {
     const out: Record<string, string> = {};
     if (maps) {
-      for (const key of ['bark_albedo', 'bark_normal', 'leaf_card'] as const) {
-        const png = maps[key].png;
+      for (const key of [
+        'bark_albedo',
+        'bark_normal',
+        'leaf_card',
+        'upper_bark_albedo',
+        'organ_albedo',
+      ] as const) {
+        const png = maps[key]?.png;
         if (png) out[key] = URL.createObjectURL(new Blob([png as BlobPart], { type: 'image/png' }));
       }
     }
@@ -141,13 +147,17 @@ export function ObjectsPanel({
               ['bark_albedo', 'Bark'],
               ['bark_normal', 'Normal'],
               ['leaf_card', 'Leaf card'],
+              ['upper_bark_albedo', 'Upper bark'],
+              ['organ_albedo', 'Organs'],
             ] as const
-          ).map(([key, label]) => (
-            <figure key={key} className="midori-material-thumb">
-              <img src={mapUrls[key]} alt={label} />
-              <figcaption>{label}</figcaption>
-            </figure>
-          ))}
+          )
+            .filter(([key]) => Boolean(mapUrls[key]))
+            .map(([key, label]) => (
+              <figure key={key} className="midori-material-thumb">
+                <img src={mapUrls[key]} alt={label} />
+                <figcaption>{label}</figcaption>
+              </figure>
+            ))}
           {mapUrls.impostor ? (
             <figure className="midori-material-thumb midori-material-thumb-wide">
               <img src={mapUrls.impostor} alt="Impostor atlas" />

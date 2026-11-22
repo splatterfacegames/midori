@@ -1,0 +1,210 @@
+# Jarrah (Eucalyptus marginata)
+# Tall forest eucalypt of the Darling Scarp and plateau: straight bole to half height,
+# fibrous grey-brown stringy bark charred at the base, airy level-4 crown of muted olive-grey sickle leaves.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Jarrah"
+scientific = "Eucalyptus marginata"
+latin = "Eucalyptus marginata"
+biome = "mediterranean"
+tags = ["wa_native", "eucalypt", "jarrah_forest", "darling_scarp", "evergreen", "lignotuber"]
+
+[generator]
+family = "weber_penn"
+notes = "Forest form (~29 m) with level-4 outer twigs; coastal (stunted multi-stem) and post_fire (epicormic) states."
+
+[trunk]
+height = 27.0
+height_variance = 0.14
+radius = 0.65
+taper = 0.72
+taper_profile = "exponential"
+curve = 9.0
+curve_variance = 5.0
+curve_back = 8.0
+segments = 22
+buttress = 1.25
+char_height = 2.8
+char_strength = 0.78
+
+[branches.level1]
+count = 8
+count_variance = 2
+length = 8.2
+length_variance = 0.24
+radius_ratio = 0.44
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "exponential"
+angle = 52.0
+angle_variance = 15.0
+rotation = 137.5
+gravity = -0.04
+curve = 24.0
+curve_variance = 22.0
+segments = 14
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 3.8
+length_variance = 0.24
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 15.0
+rotation = 137.5
+gravity = -0.05
+curve = -16.0
+curve_variance = 18.0
+segments = 10
+
+[branches.level3]
+count = 3
+count_variance = 1
+length = 1.75
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 46.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.10
+curve = 14.0
+curve_variance = 16.0
+segments = 6
+
+[branches.level4]
+count = 2
+count_variance = 1
+length = 0.90
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 42.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.18
+curve = 10.0
+curve_variance = 14.0
+segments = 4
+
+[crown]
+shape = "hemispherical"
+offset = 0.50
+density = 0.88
+width_ratio = 1.04
+
+[leaves]
+count = 2800
+min_level = 3
+size = 1.15
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "sickle"
+up_influence = -0.46
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.68
+up_bias = 0.22
+clump_weight = 0.62
+clump_level = 1
+crown_fill = 0
+shell = 0.12
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.74
+
+[textures]
+bark_prompt = "Jarrah bark, grey-brown, deeply fibrous and stringy in long flat strips"
+leaf_prompt = "Eucalyptus marginata adult leaves, muted forest olive-grey above, paler grey-green below, hanging sickle"
+resolution = 1024
+bark_style = "stringy"
+leaf_shape = "sickle"
+leaf_card = "cluster"
+bark_color = [0.37, 0.31, 0.25]
+leaf_color = [0.36, 0.43, 0.29]
+leaf_underside_color = [0.50, 0.54, 0.42]
+leaf_new_growth_color = [0.56, 0.34, 0.24]
+leaf_new_growth_fraction = 0.08
+leaf_dead_fraction = 0.08
+leaf_dead_color = [0.58, 0.46, 0.26]
+
+[materials]
+bark = "jarrah_bark"
+foliage = "jarrah_foliage"
+notes = "1024px fibrous stringy bark and dry forest olive-grey sickle leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 4.0
+max = 45.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.6
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: stunted, spreading coastal plain jarrah (8-10 m)
+[states.coastal]
+species.name = "Jarrah (coastal)"
+trunk.height = 6.8
+trunk.radius = 0.38
+trunk.stems = 2
+trunk.stem_spread = 20.0
+trunk.stem_offset = 0.25
+trunk.curve = 32.0
+trunk.curve_variance = 14.0
+trunk.char_height = 1.2
+crown.offset = 0.32
+crown.width_ratio = 1.32
+branches.level1.length = 4.4
+branches.level1.angle = 60.0
+branches.level2.length = 2.2
+branches.level3.length = 1.1
+branches.level4.length = 0.55
+leaves.size = 0.78
+leaves.count = 2000
+
+# State: post-bushfire jarrah with charred bole and epicormic trunk regrowth
+[states.post_fire]
+species.name = "Jarrah (post-fire epicormic)"
+trunk.char_height = 14.0
+trunk.char_strength = 0.92
+leaves.count = 1400
+leaves.min_level = 2
+leaves.size = 0.95
+textures.leaf_new_growth_color = [0.64, 0.30, 0.20]
+textures.leaf_new_growth_fraction = 0.32
+pruning.mode = "none"
+pruning.epicormic_count = 34
+pruning.regrowth_length = 1.3

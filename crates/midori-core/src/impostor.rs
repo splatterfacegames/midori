@@ -57,9 +57,29 @@ pub fn bake_impostor(
         palm_frond_ribbon: crate::leaves::is_pinnate_palm_species(species),
         paddle_leaf_ribbon: crate::leaves::is_paddle_ribbon_species(species),
         floral_quad_atlas: crate::leaves::is_floral_atlas_species(species),
+        blade_ribbon: crate::rosette::BladeRibbon::from_species(species).map(|mut ribbon| {
+            ribbon.rows = 3;
+            ribbon
+        }),
+        foliage_atlas: species.uses_foliage_atlas(),
         canopy,
     };
-    let leaf_mesh = generate_leaf_mesh(&tree.leaves, &leaf_config, tree);
+    let mut leaf_mesh = generate_leaf_mesh(&tree.leaves, &leaf_config, tree);
+    let mut separate_organ_mesh: Option<Mesh> = None;
+    if !tree.organs.is_empty() {
+        let organ_mesh = crate::organs::generate_organ_mesh(
+            &tree.organs,
+            tree,
+            crate::species::FoliageVertexColor::TintAo,
+            false,
+            2,
+        );
+        if species.uses_separate_organ_material() {
+            separate_organ_mesh = Some(organ_mesh);
+        } else {
+            crate::organs::append_foliage(&mut leaf_mesh, &organ_mesh);
+        }
+    }
 
     let stem_config = MeshConfig {
         ring_resolution: [6, 5, 4, 3],
@@ -79,6 +99,11 @@ pub fn bake_impostor(
     }
     if !leaf_mesh.is_empty() {
         content.merge(&leaf_mesh, MaterialType::Leaves);
+    }
+    if let Some(organ_mesh) = separate_organ_mesh
+        && !organ_mesh.is_empty()
+    {
+        content.merge(&organ_mesh, MaterialType::Organ);
     }
     if content.is_empty() {
         return None;
@@ -229,7 +254,17 @@ fn bake_view(
                     MaterialType::Leaves | MaterialType::Impostor => {
                         textures.leaf_card.sample_clamp(u, v)
                     }
+                    MaterialType::Organ => textures
+                        .organ_albedo
+                        .as_ref()
+                        .unwrap_or(&textures.leaf_card)
+                        .sample_clamp(u, v),
                     MaterialType::Bark => textures.bark_albedo.sample_wrap(u, v),
+                    MaterialType::UpperBark => textures
+                        .upper_bark_albedo
+                        .as_ref()
+                        .unwrap_or(&textures.bark_albedo)
+                        .sample_wrap(u, v),
                 };
                 texel[0] = (texel[0] * vc.x).clamp(0.0, 1.0);
                 texel[1] = (texel[1] * vc.y).clamp(0.0, 1.0);

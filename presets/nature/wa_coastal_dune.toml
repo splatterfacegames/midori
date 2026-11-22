@@ -1,0 +1,168 @@
+# Coastal foredune of the Perth beaches (Quindalup dunes).
+# White-cream calcareous sand heaped into hummocks by spinifex, with dune scrub, limestone outcrop
+# and driftwood. Stand beach spinifex, fanflower and daisybush on it from presets/species/wa_*.
+# Notes and sources: docs/wa-flora.md
+
+[asset]
+kind = "nature_patch"
+name = "WA Coastal Dune"
+units = "meters"
+
+[patch]
+size = 24.0
+seed = 6011
+biome = "coastal_dune"
+tags = ["wa_native", "coastal", "quindalup", "calcareous_sand", "spinifex", "limestone"]
+
+[soil]
+profile = "calcareous_sand"
+color = "#e4dcc6"
+mound_scale = 0.07
+mound_height = 1.1
+mound_coverage = 0.85
+relief_scale = 1.1
+relief_strength = 0.3
+wetness_coverage = 0.0
+
+[soil.cracks]
+enabled = false
+amount = 0.5
+plate_density = 0.9
+channel_width = 0.05
+warp = 0.2
+depth = 0.5
+
+[groundcover.card_atlas]
+cell = 256
+base = "#6b7352"
+tips = ["#b9ba8c", "#cfc99a", "#a5ac7e"]
+
+[[groundcover.layers]]
+kind = "grass"
+name = "spinifex hummock grass"
+density = 0.26
+coverage = 0.5
+patch_scale = 0.08
+patch_softness = 0.26
+height = 0.8
+width = 0.06
+curl = 0.9
+color_base = "#76805a"
+color_tip = "#c2c394"
+
+[groundcover.layers.cards]
+species = ["golden_grass", "pampas", "grass"]
+count = 4
+card_width = 0.6
+height_range = [0.7, 1.2]
+lean_degrees = [8.0, 30.0]
+loose = 0.14
+normal_up = 0.70
+
+[[groundcover.layers]]
+kind = "weed"
+name = "dune creepers and pigface"
+density = 0.14
+coverage = 0.36
+patch_scale = 0.1
+patch_softness = 0.24
+height = 0.14
+width = 0.12
+curl = 0.2
+color_base = "#4a5c3a"
+color_tip = "#8fa070"
+
+[[groundcover.layers]]
+kind = "shrub"
+name = "grey dune scrub"
+density = 0.09
+coverage = 0.34
+patch_scale = 0.07
+patch_softness = 0.24
+height = 0.9
+width = 0.16
+curl = 0.4
+color_base = "#6c7868"
+color_tip = "#aab4a2"
+
+[[groundcover.layers]]
+kind = "rock"
+name = "limestone outcrop"
+density = 0.09
+coverage = 0.34
+patch_scale = 0.06
+patch_softness = 0.2
+height = 0.3
+width = 0.5
+color_base = "#b8ae92"
+color_tip = "#e2d9bc"
+
+[[groundcover.layers]]
+kind = "litter"
+name = "seagrass wrack and shell grit"
+density = 0.16
+coverage = 0.36
+patch_scale = 0.12
+patch_softness = 0.2
+height = 0.05
+width = 0.09
+color_base = "#5c5548"
+color_tip = "#a39a84"
+
+[[groundcover.layers]]
+kind = "log"
+name = "bleached driftwood"
+density = 0.12
+coverage = 0.5
+patch_scale = 0.07
+patch_softness = 0.2
+height = 1.0
+width = 0.1
+curl = 0.0
+color_base = "#8a8272"
+color_tip = "#cfc8b6"
+
+[wind]
+strength = 0.75
+speed = 2.2
+direction_degrees = 240
+gust_scale = 0.3
+flutter = 0.5
+
+[profiles.mobile]
+tile_size = 16.0
+terrain_resolution = 64
+lod0_max_triangles = 120
+lod1_max_triangles = 40
+lod2_max_triangles = 8
+lod0_max_distance = 6.0
+lod1_max_distance = 18.0
+lod2_max_distance = 38.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 0.6
+cull_start = 18.0
+cull_end = 38.0
+shadows = false
+grass_collision = false
+moss_collision = false
+
+[profiles.console]
+tile_size = 32.0
+terrain_resolution = 128
+lod0_max_triangles = 300
+lod1_max_triangles = 100
+lod2_max_triangles = 16
+lod0_max_distance = 12.0
+lod1_max_distance = 38.0
+lod2_max_distance = 82.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 1.0
+cull_start = 38.0
+cull_end = 82.0
+shadows = false
+grass_collision = false
+moss_collision = false

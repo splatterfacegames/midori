@@ -1,0 +1,156 @@
+# Thick-leaved fanflower (Scaevola crassifolia)
+# Low wind-pruned cushion shrub of Perth's foredunes and limestone coast: spreading multi-stem
+# mound of thick glossy dusty-olive leaves dotted with legible mauve-blue fan flowers.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Thick-leaved Fanflower"
+scientific = "Scaevola crassifolia"
+latin = "Scaevola crassifolia"
+biome = "mediterranean"
+tags = ["wa_native", "shrub", "coastal_dune", "coastal_limestone", "quindalup"]
+
+[generator]
+family = "weber_penn"
+notes = "Low coastal foredune cushion (~1.1 m high x 2.8 m wide) with separate-material mauve-blue fan flowers."
+
+[trunk]
+height = 0.26
+height_variance = 0.16
+radius = 0.045
+taper = 0.68
+taper_profile = "exponential"
+curve = 24.0
+curve_variance = 16.0
+curve_back = 22.0
+segments = 10
+stems = 4
+stem_spread = 52.0
+stem_offset = 0.16
+stem_height_variation = 0.18
+buttress = 0.0
+
+[branches.level1]
+count = 6
+count_variance = 1
+length = 1.15
+length_variance = 0.22
+radius_ratio = 0.60
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 74.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = 0.02
+curve = 18.0
+curve_variance = 20.0
+segments = 8
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 0.55
+length_variance = 0.22
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 54.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = 0.12
+curve = -14.0
+curve_variance = 16.0
+segments = 5
+
+[crown]
+shape = "hemispherical"
+offset = 0.06
+density = 0.96
+width_ratio = 1.42
+
+[leaves]
+count = 1150
+min_level = 1
+size = 0.28
+size_variance = 0.20
+distribution = "both"
+geometry = "cross_billboard"
+shape = "oval"
+up_influence = 0.42
+
+[inflorescence]
+kind = "cluster"
+count = 380
+min_level = 2
+placement = "endpoint"
+orientation = "up"
+length = 0.24
+width = 0.24
+offset = 0.10
+size_variance = 0.24
+color = [0.56, 0.52, 0.92]
+color_tip = [0.96, 0.92, 0.68]
+aged_fraction = 0.08
+aged_color = [0.54, 0.48, 0.36]
+separate_material = true
+roughness = 0.58
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.74
+up_bias = 0.36
+clump_weight = 0.66
+clump_level = 1
+crown_fill = 0
+shell = 0.12
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.56
+
+[textures]
+bark_prompt = "Coastal dune shrub stems, pale weathered grey-brown"
+leaf_prompt = "Scaevola crassifolia thick fleshy glossy dusty-olive coastal leaves"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "oval"
+leaf_card = "cluster"
+bark_color = [0.44, 0.39, 0.33]
+leaf_color = [0.42, 0.50, 0.34]
+leaf_underside_color = [0.54, 0.60, 0.44]
+
+[materials]
+bark = "scaevola_bark"
+foliage = "scaevola_foliage"
+notes = "1024px glossy coastal leaf card + dedicated mauve-blue fanflower organ atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 0.15
+max = 1.2
+step = 0.05
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.8
+max = 2.5
+step = 0.05
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"

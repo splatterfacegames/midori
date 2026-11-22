@@ -1,0 +1,116 @@
+# Red and green kangaroo paw (Anigozanthos manglesii)
+# Western Australia's floral emblem: bold fan of grey-green strap leaves and tall velvety scarlet
+# stems topped by vivid red-and-emerald tubular paw racemes (sourced dimensions: Florabase).
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Kangaroo Paw"
+scientific = "Anigozanthos manglesii"
+latin = "Anigozanthos manglesii"
+biome = "mediterranean"
+tags = ["wa_native", "rosette", "understorey", "banksia_woodland", "floral_emblem", "flowering", "spring"]
+
+[generator]
+family = "rosette"
+notes = "Bold strap-leaf fan with 6 tall velvety scarlet-red racemes of emerald-green tubular paw flowers."
+
+[trunk]
+height = 0.05
+height_variance = 0.0
+radius = 0.04
+taper = 0.0
+curve = 0.0
+curve_variance = 0.0
+segments = 2
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 46
+blade_length = 0.54
+blade_length_variance = 0.20
+blade_width = 0.036
+blade_card = "single"
+spread_min = 6.0
+spread_max = 60.0
+droop = 0.28
+stiffness = 0.65
+keel = 0.30
+color_base = [0.35, 0.44, 0.32]
+color_tip = [0.48, 0.54, 0.40]
+skirt = 0.0
+skirt_blades = 0
+
+[rosette.spike]
+chance = 1.0
+count = 6
+style = "raceme"
+scape_length = 0.78
+scape_radius = 0.009
+length = 0.14
+radius = 0.014
+lean = 14.0
+color = [0.84, 0.10, 0.11]
+tip_color = [0.28, 0.60, 0.22]
+scape_color = [0.78, 0.10, 0.11]
+flowers = 12
+flower_length = 0.088
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.30
+up_bias = 0.28
+clump_weight = 0.20
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.08
+ao_strength = 0.25
+roughness = 0.68
+
+[textures]
+bark_prompt = "Kangaroo paw rhizome base, warm brown"
+leaf_prompt = "Anigozanthos manglesii grey-green flat strap leaves"
+resolution = 1024
+bark_style = "smooth"
+bark_color = [0.32, 0.24, 0.16]
+leaf_color = [0.41, 0.49, 0.36]
+
+[materials]
+bark = "kangaroo_paw_bark"
+foliage = "kangaroo_paw_foliage"
+notes = "1024px 2x2 rosette atlas: grey-green strap leaf, velvety scarlet scape, red-and-green paw flowers."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "leaf_length"
+label = "Leaf Length"
+parameter = "rosette.blade_length"
+min = 0.25
+max = 0.75
+step = 0.01
+
+[[control_groups.controls]]
+key = "stems"
+label = "Flower Stems"
+parameter = "rosette.spike.count"
+min = 1.0
+max = 12.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: December to July: strap leaves only
+[states.out_of_flower]
+species.name = "Kangaroo Paw (out of flower)"
+rosette.spike.chance = 0.0
