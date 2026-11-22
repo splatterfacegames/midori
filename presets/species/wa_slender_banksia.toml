@@ -1,6 +1,6 @@
 # Slender / candlestick banksia (Banksia attenuata)
-# The commonest banksia of Perth's sandplain: a bent or wavy trunk in crumbly orange-grey bark, long narrow
-# toothed leaves, and tall bright yellow 'candles' standing above the foliage in spring and summer.
+# The commonest banksia of Perth's sandplain: a taller wavy trunk in crumbly orange-grey bark,
+# ascending narrow crown of fine toothed olive-yellow leaves, and tall bright yellow candles.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,130 +12,139 @@ tags = ["wa_native", "banksia", "evergreen", "banksia_woodland", "swan_coastal_p
 
 [generator]
 family = "weber_penn"
-notes = "Spikes at about life size (to 25 cm); aged spikes are brown-grey cones."
+notes = "Taller upright wavy trunk with tall bright yellow cylindrical flower candles."
 
 [trunk]
-height = 5.2
+height = 6.2
 height_variance = 0.18
 radius = 0.27
 taper = 0.72
 taper_profile = "exponential"
-curve = 34.0
-curve_variance = 16.0
-curve_back = 32.0
+curve = 18.0
+curve_variance = 12.0
+curve_back = 24.0
 segments = 18
+buttress = 0.6
 
 [branches.level1]
 count = 7
 count_variance = 2
-length = 2.9
+length = 3.4
 length_variance = 0.22
-radius_ratio = 0.6
+radius_ratio = 0.56
 radius_model = "ratio"
-taper = 0.78
+taper = 0.76
 taper_profile = "exponential"
-angle = 56.0
-angle_variance = 18.0
+angle = 44.0
+angle_variance = 16.0
 rotation = 137.5
-gravity = 0.02
-curve = 30.0
-curve_variance = 28.0
+gravity = 0.06
+curve = 28.0
+curve_variance = 24.0
 segments = 12
 
 [branches.level2]
 count = 5
 count_variance = 1
-length = 1.5
+length = 1.45
 length_variance = 0.22
-radius_ratio = 0.56
+radius_ratio = 0.54
 radius_model = "ratio"
-taper = 0.78
+taper = 0.76
 taper_profile = "smooth"
-angle = 50.0
+angle = 42.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = 0.04
-curve = -22.0
-curve_variance = 24.0
+gravity = 0.08
+curve = -20.0
+curve_variance = 22.0
 segments = 9
 
 [branches.level3]
 count = 4
 count_variance = 1
-length = 0.7
+length = 0.70
 length_variance = 0.22
-radius_ratio = 0.5
+radius_ratio = 0.50
 radius_model = "ratio"
-taper = 0.78
+taper = 0.76
 taper_profile = "compound"
-angle = 44.0
+angle = 38.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = 0.1
+gravity = 0.14
 curve = 14.0
-curve_variance = 18.0
+curve_variance = 16.0
 segments = 6
 
 [crown]
-shape = "spherical"
-offset = 0.28
-density = 1.0
-width_ratio = 1.1
+shape = "flame"
+offset = 0.34
+density = 0.90
+width_ratio = 0.92
 
 [leaves]
-count = 1900
+count = 1550
 min_level = 2
-size = 0.46
-size_variance = 0.22
-distribution = "endpoint"
+size = 0.44
+size_variance = 0.20
+distribution = "whorl"
 geometry = "cross_billboard"
 shape = "banksia"
-up_influence = 0.22
+up_influence = 0.26
 
 [inflorescence]
 kind = "spike"
-count = 110
+count = 155
 min_level = 3
 placement = "endpoint"
 orientation = "up"
-length = 0.28
-width = 0.08
-size_variance = 0.2
-offset = 0.2
-color = [0.95, 0.83, 0.2]
-color_tip = [0.72, 0.76, 0.26]
-aged_fraction = 0.4
-aged_color = [0.42, 0.37, 0.31]
+length = 0.38
+width = 0.105
+size_variance = 0.18
+offset = 0.18
+color = [0.97, 0.84, 0.16]
+color_tip = [0.88, 0.84, 0.24]
+aged_fraction = 0.35
+aged_color = [0.44, 0.38, 0.31]
+separate_material = true
+roughness = 0.62
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.66
+up_bias = 0.26
+clump_weight = 0.60
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.10
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.76
 
 [textures]
-bark_prompt = "Slender banksia bark, orange-grey, crumbly"
-leaf_prompt = "Banksia attenuata leaves, long, narrow, evenly toothed"
+bark_prompt = "Slender banksia bark, orange-grey, crumbly and fissured"
+leaf_prompt = "Banksia attenuata leaves, narrow linear, evenly saw-toothed, warm olive-green"
 resolution = 1024
 bark_style = "tessellated"
 leaf_shape = "banksia"
 leaf_card = "cluster"
-bark_color = [0.5, 0.42, 0.35]
-leaf_color = [0.24, 0.37, 0.18]
+bark_color = [0.52, 0.42, 0.34]
+leaf_color = [0.42, 0.48, 0.30]
+leaf_underside_color = [0.60, 0.62, 0.48]
+leaf_new_growth_color = [0.56, 0.44, 0.26]
+leaf_new_growth_fraction = 0.08
+leaf_dead_fraction = 0.07
+leaf_dead_color = [0.58, 0.49, 0.28]
 
 [materials]
 bark = "slender_banksia_bark"
 foliage = "slender_banksia_foliage"
-notes = "2x2 foliage atlas: leaf spray, flowering spike, old cone."
+notes = "1024px leaf card + dedicated 2x2 organ atlas for yellow candlestick spikes and cones."
 
 [[control_groups]]
 key = "shape"
@@ -154,7 +163,7 @@ key = "spikes"
 label = "Flower Spikes"
 parameter = "inflorescence.count"
 min = 0.0
-max = 120.0
+max = 160.0
 step = 1.0
 
 [lod]

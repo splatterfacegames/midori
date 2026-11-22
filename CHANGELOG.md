@@ -12,28 +12,50 @@ compatibility policy.
 ### Added
 
 - **Rosette generator** (`generator.family = "rosette"`, `[rosette]`, `midori-core::rosette`): crowns of
-  curved blade ribbons on an optional trunk that may fork into arms, a skirt of dead blades, and
-  `cylinder` / `raceme` / `cone` flower spikes; blade cards `single`, `tuft` and `pinnate`. Covers grass
-  trees, cycads, kangaroo paw, sedge and rush clumps, spinifex and feather palms.
-- **Inflorescence and fruit organs** (`[inflorescence]`, `midori-core::organs`): `spike` (banksia flower
-  spikes and old cones), `nut` (marri "honky nuts"), `cluster` (crown-colouring flower panicles) and
-  `berries`, placed at shoot tips or along branches, thinned per LOD and baked into crown impostors.
-  They draw from a 2x2 **foliage atlas** in the existing foliage material, so exports keep one bark and
-  one foliage slot.
-- **Leaf shapes** `sickle` (adult eucalypt), `banksia` (saw-toothed strap), `bipinnate` (fern-like,
-  jacaranda and wattles) and `branchlet` (sheoak).
-- **Bark styles** `stringy`, `tessellated`, `patchy` and `papery`, with optional `bark_patch_colors`
-  (exposed patches, sheet-edge underlayers) and `bark_kino` (red gum streaks).
-- **Trunk layers**: `trunk.buttress` (0 = plain column, 1 = unchanged, up to 3 = heavy fig/tingle
-  buttresses) and `trunk.char_height` / `char_strength` (fire-blackened base, a `tint_ao` vertex-colour
-  layer).
-- **States**: `[states.<name>]` overlays in a species file, applied with `--state` on `generate`, `maps`
-  and `info` (`Species::from_toml_with_state`), for seasonal, burnt and site-form variants of one species.
-- **South-west Western Australian flora**: 29 native species presets (`presets/species/wa_*.toml`) and 12
-  planted Perth street and park trees (`presets/species/perth_*.toml`), 11 of the 41 with states, plus five
-  nature patches (`presets/nature/wa_*.toml`, `perth_jacaranda_carpet.toml`). Botany, sources and per-preset
-  verdicts in `docs/wa-flora.md`; generator design in `docs/botanical-generators.md`.
-- Nature patches: optional `soil.color` (`#rrggbb`) for the preview surface albedo.
+  curved blade ribbons on an optional trunk that may fork into arms, a skirt of dead blades, optional
+  `crown_boss` ("pineapple" palm crownshaft), creeping `runners` with daughter tufts, and
+  `cylinder` / `raceme` / `cone` / `plume` / `panicle` flower spikes; blade cards `single`, `tuft`,
+  `pinnate` (cleanly sky-gapped leaflets), and `fan` (palmate fan palm). Covers grass trees, cycads,
+  kangaroo paw, sedge and rush clumps, spinifex, and feather & fan palms.
+- **Inflorescences, dual organs & dedicated organ material** (`[inflorescence]`, `[secondary_inflorescence]`,
+  `midori-core::organs`): `spike`, `nut`, `cluster`, and `berries` placed at shoot tips or along branches,
+  thinned per LOD (retaining tall structural flower spears at LOD1) and baked into crown impostors.
+  Optional `separate_material = true` routes organs onto `MaterialType::Organ` with dedicated roughness,
+  and `[secondary_inflorescence]` supports simultaneous flowers + fruit (e.g. `wa_marri:flowering`).
+- **Branching, multi-stem, half-bark & pruning extensions**:
+  - Multi-stem / mallee trunks (`stems`, `stem_spread`, `stem_offset`, `stem_height_variation`), 4th branch
+    level (`[branches.level4]`), araucaria whorl spacing variance & upturned tips (`tip_upturn`,
+    `whorl_spacing_variance`), and true whorled leaf placement (`leaves.distribution = "whorl"`).
+  - Half-barked trunks (`upper_bark_style`, `upper_bark_color`, `upper_bark_patch_colors`,
+    `bark_transition_height`, `bark_transition_span`) routed to `MaterialType::UpperBark`.
+  - Pruning & fire-recovery operators (`[pruning]`: `lopped`, `pollard`, `crown_lift`, `epicormic_count`).
+  - Hero trunk geometry: `trunk.buttress`, `buttress_height`, `surface_root_reach`, organic curved
+    `aerial_roots`, arched basal fire-hollow (`hollow_height`, `hollow_width`), and `char_height` / `char_strength`.
+  - Opt-in LOD1 billboard area compensation (`canopy.billboard_lod_compensation`).
+- **Leaf shapes & palettes**: `sickle`, `banksia`, `bull_banksia`, `bipinnate`, `branchlet`, `paperbark`,
+  `broad_eucalypt`, and `trifoliate`, plus discolorous undersides (`leaf_underside_color`), new-growth
+  flushes (`leaf_new_growth_color` / `leaf_new_growth_fraction`), and dead leaf accents (`leaf_dead_color` /
+  `leaf_dead_fraction`).
+- **Bark styles**: `stringy`, `tessellated`, `patchy`, `papery`, and `palm_diamond`, with optional
+  `bark_patch_colors` and `bark_kino`.
+- **States & interactive web workbench**: `[states.<name>]` overlays applied via `--state` in CLI and
+  selectable live via the state switcher HUD in `apps/desktop` and the public `/demo/` web workbench;
+  Three.js viewport updated for `UpperBark` and `Organ` materials; public site (`site/`) updated with
+  golden-hour WA/Perth showcase (`site/wa-flora.jpg`) and full 68-species / 11-patch counts.
+- **South-west Western Australian & 1980s–90s Perth flora (68 species · 11 nature patches)**:
+  - All 29 native WA species (`presets/species/wa_*.toml`) tuned to authentic muted WA sclerophyll colours
+    (guarded by automated HSV test `wa_palette.rs`), including `:street`, `:post_fire`, `:flowering`,
+    `:out_of_flower`, `:coastal`, `:forest`, `:forked`, and `:burnt` states.
+  - All 20 planted 1980s–90s Perth street, park and garden species (`presets/species/perth_*.toml`),
+    including 8 new presets (`perth_cotton_palm`, `perth_queen_palm`, `perth_bottlebrush`,
+    `perth_coral_tree`, `perth_illawarra_flame_tree`, `perth_sugar_gum`, `perth_oleander`,
+    `perth_bougainvillea`) and `:pollarded` London plane / `:lopped` Queensland box states.
+  - All 6 WA/Perth nature patches (`wa_banksia_woodland_floor`, `wa_jarrah_forest_floor`,
+    `wa_coastal_dune`, `wa_paperbark_wetland_edge`, `perth_jacaranda_carpet`, and new
+    `perth_verge_lawn`), exporting procedural `maps/ground_albedo.png` and validated by Unity + Unreal
+    importer tests (`--from-manifest`).
+  - Botany, sources, independent blind visual verification, and per-preset verdicts in `docs/wa-flora.md`;
+    generator reference in `docs/botanical-generators.md`.
 
 ### Compatibility
 

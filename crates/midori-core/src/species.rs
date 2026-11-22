@@ -69,6 +69,14 @@ pub struct Species {
     /// flower spikes, nuts, crown-colouring flower clusters, berries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inflorescence: Option<InflorescenceParams>,
+    /// Optional second inflorescence / fruit layer (e.g. blossom + woody nuts
+    /// together on marri). Enables the dedicated organ atlas/material.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secondary_inflorescence: Option<InflorescenceParams>,
+    /// Optional pruning & epicormic regrowth operator (`[pruning]`):
+    /// power-line lopping, pollard knuckles, crown lifting, post-fire shoots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pruning: Option<PruningParams>,
     /// Named seasonal / condition overlays (`[states.<name>]`), deep-merged
     /// onto the document by [`Species::from_toml_with_state`].
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
@@ -283,6 +291,9 @@ pub enum BladeCard {
     Tuft,
     /// A rachis with paired leaflets (cycad and feather-palm fronds).
     Pinnate,
+    /// Palmate fan-palm blade: slender petiole opening into a pleated radiating fan
+    /// (Mexican/cotton fan palm *Washingtonia robusta*).
+    Fan,
 }
 
 /// Flower spike carried at the centre of a rosette crown.
@@ -296,6 +307,10 @@ pub enum SpikeStyle {
     Raceme,
     /// Stout ovoid cone sitting in the crown (cycads).
     Cone,
+    /// Loose airy branched plume/seed head on a slender arching stem (rushes, sedges, spinifex).
+    Plume,
+    /// Drooping branched fruit/flower panicle hanging below a palm crown.
+    Panicle,
 }
 
 /// Flower spike parameters (`[rosette.spike]`).
@@ -437,9 +452,33 @@ pub struct RosetteParams {
     /// Dead blade colour (sRGB 0-1).
     #[serde(default = "default_rosette_skirt_color")]
     pub skirt_color: [f32; 3],
+    /// Swollen trimmed leaf-base "pineapple" boss just below the crown (`0..=1.5`,
+    /// 0 = off; ~0.45 for trimmed Canary Island date palms).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub crown_boss: f32,
+    /// Number of low creeping stolon/runner shoots radiating across the ground
+    /// with secondary sub-tufts (0 = none; coastal spinifex).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub runners: u32,
+    /// Reach of each creeping runner in metres (`runners > 0`).
+    #[serde(
+        default = "default_runner_length",
+        skip_serializing_if = "is_default_runner_length"
+    )]
+    pub runner_length: f32,
     /// Optional flower spike.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spike: Option<RosetteSpikeParams>,
+}
+
+fn is_zero_u32(v: &u32) -> bool {
+    *v == 0
+}
+fn default_runner_length() -> f32 {
+    1.2
+}
+fn is_default_runner_length(v: &f32) -> bool {
+    *v == default_runner_length()
 }
 
 fn default_rosette_crowns() -> u32 {
@@ -503,6 +542,9 @@ impl Default for RosetteParams {
             skirt: 0.0,
             skirt_blades: 0,
             skirt_color: default_rosette_skirt_color(),
+            crown_boss: 0.0,
+            runners: 0,
+            runner_length: default_runner_length(),
             spike: None,
         }
     }
@@ -594,6 +636,83 @@ pub struct InflorescenceParams {
     /// Aged colour (sRGB 0-1): old cones, spent flowers, pods.
     #[serde(default = "default_inflorescence_aged_color")]
     pub aged_color: [f32; 3],
+    /// When true, organs use their own dedicated `Organ` material & 2x2 organ
+    /// atlas so leaf cards stay at full 100% texture resolution and organs get
+    /// independent PBR roughness (e.g. glossy fruit/berries vs matte leaves).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub separate_material: bool,
+    /// Material roughness when `separate_material = true` (0..=1, default 0.7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roughness: Option<f32>,
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+/// Pruning / urban-shaping operator mode (`[pruning]`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PruningMode {
+    /// No geometric cutting (only optional `epicormic_count` trunk sprouts).
+    #[default]
+    None,
+    /// Flat-topped power-line lopping: truncates stems above `cut_height` into
+    /// stubbed limb ends and bursts dense upright epicormic regrowth tufts.
+    Lopped,
+    /// Pollard pruning: shortens primary limbs back to `cut_height` with
+    /// swollen clubbed pollard knuckles and radiating whippy annual shoots.
+    Pollard,
+    /// Crown lifting: raises/prunes lower limbs below `lift_height` so trunks,
+    /// street sightlines, or fig buttresses stay cleanly exposed.
+    CrownLift,
+}
+
+/// Pruning and epicormic regrowth parameters (`[pruning]`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PruningParams {
+    /// Pruning mode.
+    #[serde(default)]
+    pub mode: PruningMode,
+    /// Horizontal cut plane height in metres (`lopped` / `pollard`).
+    #[serde(default = "default_pruning_cut_height")]
+    pub cut_height: f32,
+    /// Lower clearance height in metres (`crown_lift`).
+    #[serde(default)]
+    pub lift_height: f32,
+    /// Number of regrowth shoots sprouting from each lopped/pollarded stub tip.
+    #[serde(default = "default_regrowth_per_stub")]
+    pub regrowth_per_stub: u32,
+    /// Length of regrowth shoots in metres.
+    #[serde(default = "default_regrowth_length")]
+    pub regrowth_length: f32,
+    /// Extra epicormic shoots sprouting directly along the trunk & major limbs
+    /// (post-fire resprouting sleeves or heavy urban regrowth).
+    #[serde(default)]
+    pub epicormic_count: u32,
+}
+
+fn default_pruning_cut_height() -> f32 {
+    5.5
+}
+fn default_regrowth_per_stub() -> u32 {
+    4
+}
+fn default_regrowth_length() -> f32 {
+    1.1
+}
+
+impl Default for PruningParams {
+    fn default() -> Self {
+        Self {
+            mode: PruningMode::None,
+            cut_height: default_pruning_cut_height(),
+            lift_height: 0.0,
+            regrowth_per_stub: default_regrowth_per_stub(),
+            regrowth_length: default_regrowth_length(),
+            epicormic_count: 0,
+        }
+    }
 }
 
 fn default_inflorescence_count() -> u32 {
@@ -628,6 +747,8 @@ impl Default for InflorescenceParams {
             color_tip: None,
             aged_fraction: 0.0,
             aged_color: default_inflorescence_aged_color(),
+            separate_material: false,
+            roughness: None,
         }
     }
 }
@@ -788,6 +909,80 @@ pub struct TrunkParams {
         skip_serializing_if = "is_default_char_strength"
     )]
     pub char_strength: f32,
+    /// Number of trunks rising from a shared basal lignotuber / rootstock
+    /// (`1` = default single trunk; `2..=12` = multi-stem / mallee habit).
+    #[serde(
+        default = "default_trunk_stems",
+        skip_serializing_if = "is_default_trunk_stems"
+    )]
+    pub stems: u32,
+    /// Basal outward splay angle in degrees for multi-stem trunks (`stems > 1`).
+    #[serde(
+        default = "default_stem_spread",
+        skip_serializing_if = "is_default_stem_spread"
+    )]
+    pub stem_spread: f32,
+    /// Radial lignotuber offset in metres for multi-stem bases (`stems > 1`).
+    #[serde(
+        default = "default_stem_offset",
+        skip_serializing_if = "is_default_stem_offset"
+    )]
+    pub stem_offset: f32,
+    /// Height variation (`0..=0.7`) across co-dominant stems (`stems > 1`).
+    #[serde(
+        default = "default_stem_height_variation",
+        skip_serializing_if = "is_default_stem_height_variation"
+    )]
+    pub stem_height_variation: f32,
+    /// Explicit height in metres of trunk root-buttress flutes (`0` = default 18% of trunk height).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub buttress_height: f32,
+    /// Extended radial reach in metres of sinuous exposed surface roots (`0` = built-in reach).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub surface_root_reach: f32,
+    /// Number of hanging aerial curtain roots descending from spreading primary limbs (`0` = none).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub aerial_roots: u32,
+    /// Height in metres of a basal fire-hollow cavern carved into the trunk (`0` = none; red tingle).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub hollow_height: f32,
+    /// Angular opening width in radians of the basal fire-hollow (`0.3..=2.2`, default `1.15`).
+    #[serde(
+        default = "default_hollow_width",
+        skip_serializing_if = "is_default_hollow_width"
+    )]
+    pub hollow_width: f32,
+}
+
+fn default_trunk_stems() -> u32 {
+    1
+}
+fn is_default_trunk_stems(v: &u32) -> bool {
+    *v == default_trunk_stems()
+}
+fn default_stem_spread() -> f32 {
+    20.0
+}
+fn is_default_stem_spread(v: &f32) -> bool {
+    *v == default_stem_spread()
+}
+fn default_stem_offset() -> f32 {
+    0.16
+}
+fn is_default_stem_offset(v: &f32) -> bool {
+    *v == default_stem_offset()
+}
+fn default_stem_height_variation() -> f32 {
+    0.25
+}
+fn is_default_stem_height_variation(v: &f32) -> bool {
+    *v == default_stem_height_variation()
+}
+fn default_hollow_width() -> f32 {
+    1.15
+}
+fn is_default_hollow_width(v: &f32) -> bool {
+    *v == default_hollow_width()
 }
 
 fn is_zero_f32(v: &f32) -> bool {
@@ -818,6 +1013,9 @@ pub struct BranchLevels {
     /// Tertiary branches (twigs)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub level3: Option<BranchParams>,
+    /// Quaternary fine twigs for tall trees (>25 m; opt-in)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level4: Option<BranchParams>,
 }
 
 /// Branch geometry and distribution parameters.
@@ -871,6 +1069,14 @@ pub struct BranchParams {
     /// Number of segments along branch length
     #[serde(default = "default_branch_segments")]
     pub segments: u32,
+    /// Upward tip sweep in degrees over the outer 40% of the branch (0 = off;
+    /// Norfolk Island pine upturned cord-like tips).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub tip_upturn: f32,
+    /// Vertical spacing jitter (`0..=0.5`) between successive whorled tiers
+    /// when `rotation` produces N-fold whorls (0 = built-in spacing).
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub whorl_spacing_variance: f32,
 }
 
 /// Child branch radius calculation model.
@@ -942,6 +1148,9 @@ pub enum LeafDistribution {
     AlongBranch,
     /// Both endpoint and along branches
     Both,
+    /// Radial shoot-tip whorl collar placed just behind the stem apex, leaving
+    /// terminal flower spikes cleanly exposed above the leaf rosette (banksias, Queensland box).
+    Whorl,
 }
 
 /// Leaf rendering geometry type.
@@ -1000,16 +1209,28 @@ pub enum LeafShape {
     Bipinnate,
     /// Drooping tuft of jointed wire-like branchlets (sheoaks)
     Branchlet,
+    /// Giant deeply pinnatifid saw-toothed triangular-lobed strap leaf (Bull banksia *B. grandis*)
+    BullBanksia,
+    /// Fine soft airy narrow-elliptic / terete leaf spray on slender pale twigs (paperbarks / melaleucas)
+    Paperbark,
+    /// Broad ovate-lanceolate glossy adult eucalypt leaf (marri, tuart, sugar gum)
+    BroadEucalypt,
+    /// Three-leaflet compound leaf (coral tree *Erythrina x sykesii*)
+    Trifoliate,
 }
 
 impl LeafShape {
     /// Get the recommended polygon resolution for this shape
     pub fn recommended_resolution(&self) -> u32 {
         match self {
-            LeafShape::Oval | LeafShape::Pointed | LeafShape::Heart => 12,
-            LeafShape::Needle | LeafShape::Willow | LeafShape::Branchlet => 8,
-            LeafShape::Sickle | LeafShape::Bipinnate => 12,
-            LeafShape::Banksia => 28,
+            LeafShape::Oval | LeafShape::Pointed | LeafShape::Heart | LeafShape::BroadEucalypt => {
+                12
+            }
+            LeafShape::Needle | LeafShape::Willow | LeafShape::Branchlet | LeafShape::Paperbark => {
+                8
+            }
+            LeafShape::Sickle | LeafShape::Bipinnate | LeafShape::Trifoliate => 12,
+            LeafShape::Banksia | LeafShape::BullBanksia => 28,
             LeafShape::Serrated | LeafShape::Ginkgo | LeafShape::Ivy | LeafShape::Paddle => 24,
             LeafShape::OakLobed => 20,
             LeafShape::Maple => 30,
@@ -1146,6 +1367,10 @@ pub struct CanopyParams {
     /// Scale reduced-leaf LOD cards up so crown coverage is preserved
     #[serde(default = "default_true")]
     pub lod_scale_compensation: bool,
+    /// Opt-in: also scale surviving `billboard`/`cross_billboard` cards on reduced LODs
+    /// so medium-distance LOD1 retains LOD0's optical foliage density.
+    #[serde(default)]
+    pub billboard_lod_compensation: bool,
     /// Scale each `canopy_card` by its clump's size relative to the mean
     /// clump (0 = off, 1 = fully proportional). Keeps short upper conifer
     /// limbs from wearing full-size cards, so cones stay conical.
@@ -1207,6 +1432,7 @@ impl Default for CanopyParams {
             hue_variation: default_canopy_hue_variation(),
             ao_strength: default_canopy_ao_strength(),
             lod_scale_compensation: true,
+            billboard_lod_compensation: false,
             card_scale_by_clump: 0.0,
             roughness: None,
         }
@@ -1233,6 +1459,9 @@ pub enum BarkStyle {
     Patchy,
     /// Thin overlapping torn sheets (paperbarks)
     Papery,
+    /// Persistent diamond leaf-base scar relief on stout palm trunks
+    /// (Canary Island date palm, cotton fan palm)
+    PalmDiamond,
 }
 
 /// Leaf card layout — how leaf silhouettes are arranged on the card texture.
@@ -1315,6 +1544,61 @@ pub struct TextureParams {
     /// Optional leaf albedo+alpha card override
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub leaf_albedo_alpha: String,
+    /// Optional upper-trunk / limb bark style for half-barked species (flooded
+    /// gum, river red gum, Queensland box, karri, lemon-scented gum).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upper_bark_style: Option<BarkStyle>,
+    /// Base sRGB 0-1 colour for upper bark when `upper_bark_style` or
+    /// `upper_bark_color` is set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upper_bark_color: Option<[f32; 3]>,
+    /// Up to four extra patch colours for upper bark (`patchy` / `papery`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub upper_bark_patch_colors: Vec<[f32; 3]>,
+    /// World height in metres where lower rough bark transitions to upper
+    /// smooth bark (default `2.5` when upper bark is enabled).
+    #[serde(
+        default = "default_bark_transition_height",
+        skip_serializing_if = "is_default_bark_transition_height"
+    )]
+    pub bark_transition_height: f32,
+    /// Vertical jaggedness / blend span in metres across the bark transition.
+    #[serde(
+        default = "default_bark_transition_span",
+        skip_serializing_if = "is_default_bark_transition_span"
+    )]
+    pub bark_transition_span: f32,
+    /// Optional discolorous leaf underside colour (sRGB 0-1): paler glaucous
+    /// underside on eucalypts, silvery-white underside on banksias, rusty
+    /// underside on Port Jackson fig.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leaf_underside_color: Option<[f32; 3]>,
+    /// Optional new-growth flushing tip colour (sRGB 0-1, e.g. bronze/crimson
+    /// new shoots on WA eucalypts and banksias).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leaf_new_growth_color: Option<[f32; 3]>,
+    /// Fraction (`0..=0.5`) of spray tip leaves painted as new growth.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub leaf_new_growth_fraction: f32,
+    /// Fraction (`0..=0.35`) of spray leaves painted as held yellowing/brown dead leaves.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub leaf_dead_fraction: f32,
+    /// Optional colour (sRGB 0-1) for held dead leaves in the crown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leaf_dead_color: Option<[f32; 3]>,
+}
+
+fn default_bark_transition_height() -> f32 {
+    2.5
+}
+fn is_default_bark_transition_height(v: &f32) -> bool {
+    *v == default_bark_transition_height()
+}
+fn default_bark_transition_span() -> f32 {
+    0.8
+}
+fn is_default_bark_transition_span(v: &f32) -> bool {
+    *v == default_bark_transition_span()
 }
 
 /// LOD preset enumeration.
@@ -1515,6 +1799,16 @@ impl Default for TextureParams {
             bark_albedo: String::new(),
             bark_normal: String::new(),
             leaf_albedo_alpha: String::new(),
+            upper_bark_style: None,
+            upper_bark_color: None,
+            upper_bark_patch_colors: Vec::new(),
+            bark_transition_height: default_bark_transition_height(),
+            bark_transition_span: default_bark_transition_span(),
+            leaf_underside_color: None,
+            leaf_new_growth_color: None,
+            leaf_new_growth_fraction: 0.0,
+            leaf_dead_fraction: 0.0,
+            leaf_dead_color: None,
         }
     }
 }
@@ -1734,6 +2028,7 @@ impl Species {
             (1u32, self.branches.level1.as_ref()),
             (2, self.branches.level2.as_ref()),
             (3, self.branches.level3.as_ref()),
+            (4, self.branches.level4.as_ref()),
         ] {
             let Some(p) = params else { continue };
             let prefix = format!("branches.level{level}");
@@ -2155,7 +2450,196 @@ impl Species {
                 "out of supported range",
                 inf.min_level <= crate::constants::MAX_BRANCH_LEVELS,
             );
+            if let Some(r) = inf.roughness {
+                check("inflorescence.roughness", "must be in 0..=1", unit(r));
+            }
         }
+        if let Some(inf) = &self.secondary_inflorescence {
+            check(
+                "secondary_inflorescence.offset",
+                "must be non-negative and finite",
+                nonnegative(inf.offset),
+            );
+            check(
+                "secondary_inflorescence.length",
+                "must be positive and finite",
+                positive(inf.length),
+            );
+            check(
+                "secondary_inflorescence.width",
+                "must be positive and finite",
+                positive(inf.width),
+            );
+            check(
+                "secondary_inflorescence.size_variance",
+                "must be in 0..=1",
+                unit(inf.size_variance),
+            );
+            check(
+                "secondary_inflorescence.aged_fraction",
+                "must be in 0..=1",
+                unit(inf.aged_fraction),
+            );
+            check(
+                "secondary_inflorescence.min_level",
+                "out of supported range",
+                inf.min_level <= crate::constants::MAX_BRANCH_LEVELS,
+            );
+            if let Some(r) = inf.roughness {
+                check(
+                    "secondary_inflorescence.roughness",
+                    "must be in 0..=1",
+                    unit(r),
+                );
+            }
+            for (i, v) in inf.color.iter().enumerate() {
+                check(
+                    &format!("secondary_inflorescence.color[{i}]"),
+                    "must be in 0..=1",
+                    unit(*v),
+                );
+            }
+            for (i, v) in inf.aged_color.iter().enumerate() {
+                check(
+                    &format!("secondary_inflorescence.aged_color[{i}]"),
+                    "must be in 0..=1",
+                    unit(*v),
+                );
+            }
+            if let Some(c) = &inf.color_tip {
+                for (i, v) in c.iter().enumerate() {
+                    check(
+                        &format!("secondary_inflorescence.color_tip[{i}]"),
+                        "must be in 0..=1",
+                        unit(*v),
+                    );
+                }
+            }
+        }
+        check(
+            "trunk.stems",
+            "must be in 1..=12",
+            (1..=12).contains(&self.trunk.stems),
+        );
+        check(
+            "trunk.stem_spread",
+            "must be finite and within 0..=75",
+            finite(self.trunk.stem_spread) && (0.0..=75.0).contains(&self.trunk.stem_spread),
+        );
+        check(
+            "trunk.stem_offset",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.stem_offset),
+        );
+        check(
+            "trunk.stem_height_variation",
+            "must be in 0..=0.7",
+            finite(self.trunk.stem_height_variation)
+                && (0.0..=0.7).contains(&self.trunk.stem_height_variation),
+        );
+        check(
+            "trunk.buttress_height",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.buttress_height),
+        );
+        check(
+            "trunk.surface_root_reach",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.surface_root_reach),
+        );
+        check(
+            "trunk.hollow_height",
+            "must be non-negative and finite",
+            nonnegative(self.trunk.hollow_height),
+        );
+        check(
+            "trunk.hollow_width",
+            "must be finite and within 0.2..=2.4",
+            finite(self.trunk.hollow_width) && (0.2..=2.4).contains(&self.trunk.hollow_width),
+        );
+        if let Some(p) = &self.pruning {
+            check(
+                "pruning.cut_height",
+                "must be positive and finite",
+                positive(p.cut_height),
+            );
+            check(
+                "pruning.lift_height",
+                "must be non-negative and finite",
+                nonnegative(p.lift_height),
+            );
+            check(
+                "pruning.regrowth_length",
+                "must be positive and finite",
+                positive(p.regrowth_length),
+            );
+        }
+        if let Some(r) = &self.rosette {
+            check(
+                "rosette.crown_boss",
+                "must be in 0..=1.5",
+                finite(r.crown_boss) && (0.0..=1.5).contains(&r.crown_boss),
+            );
+            check(
+                "rosette.runner_length",
+                "must be positive and finite",
+                positive(r.runner_length),
+            );
+        }
+        check(
+            "textures.bark_transition_height",
+            "must be non-negative and finite",
+            nonnegative(self.textures.bark_transition_height),
+        );
+        check(
+            "textures.bark_transition_span",
+            "must be non-negative and finite",
+            nonnegative(self.textures.bark_transition_span),
+        );
+        check(
+            "textures.upper_bark_patch_colors",
+            "at most 4 colours",
+            self.textures.upper_bark_patch_colors.len() <= 4,
+        );
+        for (field, color) in [
+            ("textures.upper_bark_color", self.textures.upper_bark_color),
+            (
+                "textures.leaf_underside_color",
+                self.textures.leaf_underside_color,
+            ),
+            (
+                "textures.leaf_new_growth_color",
+                self.textures.leaf_new_growth_color,
+            ),
+            ("textures.leaf_dead_color", self.textures.leaf_dead_color),
+        ] {
+            if let Some(c) = color {
+                for (i, v) in c.iter().enumerate() {
+                    check(&format!("{field}[{i}]"), "must be in 0..=1", unit(*v));
+                }
+            }
+        }
+        for (i, c) in self.textures.upper_bark_patch_colors.iter().enumerate() {
+            for (j, v) in c.iter().enumerate() {
+                check(
+                    &format!("textures.upper_bark_patch_colors[{i}][{j}]"),
+                    "must be in 0..=1",
+                    unit(*v),
+                );
+            }
+        }
+        check(
+            "textures.leaf_new_growth_fraction",
+            "must be in 0..=0.5",
+            finite(self.textures.leaf_new_growth_fraction)
+                && (0.0..=0.5).contains(&self.textures.leaf_new_growth_fraction),
+        );
+        check(
+            "textures.leaf_dead_fraction",
+            "must be in 0..=0.35",
+            finite(self.textures.leaf_dead_fraction)
+                && (0.0..=0.35).contains(&self.textures.leaf_dead_fraction),
+        );
 
         if errors.is_empty() {
             Ok(())
@@ -2244,9 +2728,29 @@ impl Species {
     }
 
     /// True when the foliage texture is the 2x2 atlas (leaf card plus organ
-    /// cells): rosettes and species carrying an `[inflorescence]`.
+    /// cells): rosettes and species carrying an `[inflorescence]` without a
+    /// separate organ material.
     pub fn uses_foliage_atlas(&self) -> bool {
-        self.generator.family == GeneratorFamily::Rosette || self.inflorescence.is_some()
+        if self.generator.family == GeneratorFamily::Rosette {
+            return true;
+        }
+        self.inflorescence
+            .as_ref()
+            .is_some_and(|inf| !inf.separate_material)
+            && self.secondary_inflorescence.is_none()
+    }
+
+    /// True when organs use their own dedicated `Organ` material and 2x2 organ atlas.
+    pub fn uses_separate_organ_material(&self) -> bool {
+        self.inflorescence
+            .as_ref()
+            .is_some_and(|inf| inf.separate_material)
+            || self.secondary_inflorescence.is_some()
+    }
+
+    /// True when the species defines a height-varying upper bark transition.
+    pub fn uses_upper_bark(&self) -> bool {
+        self.textures.upper_bark_style.is_some() || self.textures.upper_bark_color.is_some()
     }
 
     /// Load species from file path.
@@ -2264,7 +2768,7 @@ impl Species {
         Self::from_toml(&content)
     }
 
-    /// Get branch params for a level (0 = trunk, 1-3 = branches).
+    /// Get branch params for a level (0 = trunk, 1-4 = branches).
     ///
     /// Returns `None` for level 0 (trunk) or if the level is not defined.
     pub fn get_branch_level(&self, level: u32) -> Option<&BranchParams> {
@@ -2272,6 +2776,7 @@ impl Species {
             1 => self.branches.level1.as_ref(),
             2 => self.branches.level2.as_ref(),
             3 => self.branches.level3.as_ref(),
+            4 => self.branches.level4.as_ref(),
             _ => None,
         }
     }

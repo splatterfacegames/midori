@@ -20,7 +20,7 @@ export interface VertexData {
   colors: number[];
 }
 
-export type MaterialKind = 'bark' | 'leaves' | 'impostor';
+export type MaterialKind = 'bark' | 'upper_bark' | 'leaves' | 'organ' | 'impostor';
 
 /** Raw RGBA8 pixels, row-major with the top row first (v = 0 at the top —
  *  the glTF/`TextureSource` UV origin). */
@@ -63,6 +63,9 @@ export interface MaterialMaps {
   bark_albedo: GeneratedMap;
   bark_normal: GeneratedMap;
   leaf_card: GeneratedMap;
+  upper_bark_albedo?: GeneratedMap;
+  upper_bark_normal?: GeneratedMap;
+  organ_albedo?: GeneratedMap;
 }
 
 export interface TreeStats {
@@ -115,8 +118,17 @@ export class Generator {
     return new Generator(new MidoriGenerator(toml));
   }
 
+  static fromTomlWithState(toml: string, state: string | null): Generator {
+    return new Generator(MidoriGenerator.fromTomlWithState(toml, state ?? undefined));
+  }
+
   static fromJson(json: unknown): Generator {
     return new Generator(MidoriGenerator.fromJson(json));
+  }
+
+  stateNames(): string[] {
+    const names = this.inner.stateNames();
+    return Array.isArray(names) ? (names as string[]) : [];
   }
 
   get name(): string {
@@ -177,6 +189,9 @@ export class Generator {
     normalizeMap(maps.bark_albedo);
     normalizeMap(maps.bark_normal);
     normalizeMap(maps.leaf_card);
+    if (maps.upper_bark_albedo) normalizeMap(maps.upper_bark_albedo);
+    if (maps.upper_bark_normal) normalizeMap(maps.upper_bark_normal);
+    if (maps.organ_albedo) normalizeMap(maps.organ_albedo);
     return maps;
   }
 

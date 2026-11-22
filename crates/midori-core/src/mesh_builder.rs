@@ -37,6 +37,19 @@ pub struct MeshConfig {
     /// (1.0 = the built-in look, 0.0 = a plain column with no surface roots,
     /// above 1.0 = heavier buttresses). Set from `trunk.buttress`.
     pub trunk_buttress: f32,
+    /// Extended radial reach in metres of sinuous surface roots (`0.0` = built-in).
+    pub surface_root_reach: f32,
+    /// Number of hanging aerial roots descending from wide limbs (`0` = none).
+    pub aerial_roots: u32,
+    /// Basal fire-hollow cavern height in metres (`0.0` = none; red tingle).
+    pub hollow_height: f32,
+    /// Basal fire-hollow angular opening width in radians.
+    pub hollow_width: f32,
+    /// Swollen trimmed pineapple crownshaft boss at top of rosette trunk (`0.0` = off).
+    pub crown_boss: f32,
+    /// Optional `(transition_height_m, jagged_span_m)` splitting bark triangles into
+    /// `MaterialType::Bark` (lower) and `MaterialType::UpperBark` (upper).
+    pub upper_bark_transition: Option<(f32, f32)>,
 }
 
 impl Default for MeshConfig {
@@ -54,6 +67,12 @@ impl Default for MeshConfig {
             branch_base_swell: 1.32,
             branch_base_falloff: 0.13,
             trunk_buttress: 1.0,
+            surface_root_reach: 0.0,
+            aerial_roots: 0,
+            hollow_height: 0.0,
+            hollow_width: 1.15,
+            crown_boss: 0.0,
+            upper_bark_transition: None,
         }
     }
 }
@@ -130,18 +149,12 @@ impl<'a> MeshBuilder<'a> {
         for stem in &self.tree.stems {
             self.build_stem(stem);
         }
-
-        self.smooth_coincident_normals();
-
-        // Add bark submesh for all branch geometry
-        if !self.mesh.indices.is_empty() {
-            self.mesh.submeshes.push(Submesh {
-                index_start: 0,
-                index_count: self.mesh.indices.len() as u32,
-                material: MaterialType::Bark,
-            });
+        if self.config.aerial_roots > 0 {
+            self.build_aerial_roots();
         }
 
+        self.smooth_coincident_normals();
+        self.finalize_bark_submeshes();
         self.mesh
     }
 
@@ -161,19 +174,68 @@ impl<'a> MeshBuilder<'a> {
                 self.build_stem(stem);
             }
         }
+        if self.config.aerial_roots > 0 && max_level >= 1 {
+            self.build_aerial_roots();
+        }
 
         self.smooth_coincident_normals();
+        self.finalize_bark_submeshes();
+        self.mesh
+    }
 
-        // Add bark submesh for all branch geometry
-        if !self.mesh.indices.is_empty() {
+    fn finalize_bark_submeshes(&mut self) {
+        if self.mesh.indices.is_empty() {
+            return;
+        }
+        let Some((trans_h, trans_span)) = self.config.upper_bark_transition else {
             self.mesh.submeshes.push(Submesh {
                 index_start: 0,
                 index_count: self.mesh.indices.len() as u32,
                 material: MaterialType::Bark,
             });
-        }
+            return;
+        };
 
-        self.mesh
+        let seed_f = self.tree.seed as f32;
+        let mut lower = Vec::with_capacity(self.mesh.indices.len());
+        let mut upper = Vec::with_capacity(self.mesh.indices.len());
+        for tri in self.mesh.indices.as_chunks::<3>().0 {
+            let p0 = self.mesh.vertices[tri[0] as usize].position;
+            let p1 = self.mesh.vertices[tri[1] as usize].position;
+            let p2 = self.mesh.vertices[tri[2] as usize].position;
+            let c = (p0 + p1 + p2) * (1.0 / 3.0);
+            let az = c.z.atan2(c.x);
+            let jag = trans_span
+                * (0.55 * (az * 3.0 + seed_f * 0.41).sin()
+                    + 0.30 * (az * 7.0 - seed_f * 0.19).cos()
+                    + 0.15 * (az * 13.0 + seed_f * 0.73).sin());
+            if c.y >= trans_h + jag {
+                upper.extend_from_slice(tri);
+            } else {
+                lower.extend_from_slice(tri);
+            }
+        }
+        self.mesh.indices.clear();
+        if !lower.is_empty() {
+            let start = 0u32;
+            let count = lower.len() as u32;
+            self.mesh.indices.extend_from_slice(&lower);
+            self.mesh.submeshes.push(Submesh {
+                index_start: start,
+                index_count: count,
+                material: MaterialType::Bark,
+            });
+        }
+        if !upper.is_empty() {
+            let start = self.mesh.indices.len() as u32;
+            let count = upper.len() as u32;
+            self.mesh.indices.extend_from_slice(&upper);
+            self.mesh.submeshes.push(Submesh {
+                index_start: start,
+                index_count: count,
+                material: MaterialType::UpperBark,
+            });
+        }
     }
 
     /// Build stems at or below min_level depth — the branches a LOD cut
@@ -278,12 +340,14 @@ impl<'a> MeshBuilder<'a> {
         // Sculptural 3D exposed surface roots (nebari) flowing out of trunk buttress flutes
         let base_r = stem.segments[0].start_radius;
         let tip_r = stem.segments.last().unwrap().end_radius;
+        let explicit_roots = self.config.surface_root_reach > 0.0 && ring_res >= 10;
         if stem.level == 0
-            && ring_res >= 16
-            && stem.segments.len() >= 10
-            && base_r >= 0.25
-            && tip_r < base_r * 0.44
             && self.config.trunk_buttress > 0.0
+            && (explicit_roots
+                || (ring_res >= 16
+                    && stem.segments.len() >= 10
+                    && base_r >= 0.25
+                    && tip_r < base_r * 0.44))
         {
             self.build_trunk_roots(stem, ring_res);
         }
@@ -926,10 +990,49 @@ impl<'a> MeshBuilder<'a> {
             };
 
             let clamped_twist = normal_twist.clamp(-0.38, 0.38);
-            let total_r =
-                radius * shoulder_mul * crotch_bracket * buttress_mul * ellip_mul * burl_mul;
-            let position = center + offset * total_r;
+            let boss_mul = if stem.level == 0 && self.config.crown_boss > 0.0 && t_norm > 0.78 {
+                // Trimmed pineapple crownshaft swelling just below the palm crown
+                let u = ((t_norm - 0.78) / 0.22).clamp(0.0, 1.0);
+                let dome = (u * std::f32::consts::PI).sin().max(0.0).powf(0.75);
+                1.0 + self.config.crown_boss * 0.52 * dome
+            } else {
+                1.0
+            };
+            let mut total_r = radius
+                * shoulder_mul
+                * crotch_bracket
+                * buttress_mul
+                * ellip_mul
+                * burl_mul
+                * boss_mul;
             let mut normal = (offset + tangent_dir * clamped_twist).normalize_or_zero();
+
+            // Opt-in basal fire-hollow cavern (Giant Red Tingle): carves a deep arched
+            // cavity smoothly into the lower buttressed bole while keeping geometry watertight.
+            if stem.level == 0 && self.config.hollow_height > 0.0 {
+                let h_ground = (center.y - stem.base().y).max(0.0);
+                if h_ground < self.config.hollow_height {
+                    let h_u = (h_ground / self.config.hollow_height).clamp(0.0, 1.0);
+                    let arch_half_w =
+                        (self.config.hollow_width * 0.5) * (1.0 - h_u * h_u).max(0.0).sqrt();
+                    let hollow_az = seed_phase * 0.35 + 0.4;
+                    let mut d_ang = (angle - hollow_az + std::f32::consts::PI).rem_euclid(TAU)
+                        - std::f32::consts::PI;
+                    d_ang = d_ang.abs();
+                    if arch_half_w > 0.05 && d_ang < arch_half_w {
+                        let edge = 1.0 - (d_ang / arch_half_w).clamp(0.0, 1.0);
+                        let smooth_e = edge * edge * (3.0 - 2.0 * edge);
+                        let depth_k = (1.0 - h_u * 0.60) * smooth_e;
+                        // Push cavern wall smoothly inward toward the core without self-intersecting
+                        total_r *= (1.0 - 0.86 * depth_k).max(0.12);
+                        if depth_k > 0.40 {
+                            normal = (-offset * 0.65 + Vec3::Y * 0.35).normalize_or_zero();
+                        }
+                    }
+                }
+            }
+
+            let position = center + offset * total_r;
 
             // Smoothly weld child collar normals into parent bark surface right at the visible exit seam
             if let Some((p_out, t_exit, _, is_term)) = parent_weld_info {
@@ -1104,7 +1207,9 @@ impl<'a> MeshBuilder<'a> {
         let fork_res = (root_res * 3 / 4).clamp(8, 12);
 
         // Five primary 3D snaking buttress roots aligned directly with the 5 trunk buttress flute peaks
-        let root_count = 5usize;
+        // (or 7 long sinuous surface roots when `surface_root_reach > 0.0`, e.g., Moreton Bay Fig).
+        let explicit_reach = self.config.surface_root_reach > 0.0;
+        let root_count = if explicit_reach { 7usize } else { 5usize };
         for r_idx in 0..root_count {
             let h1 = ((seed_f * 0.317 + r_idx as f32 * 0.754_877).fract()).abs();
             let h2 = ((seed_f * 0.519 + r_idx as f32 * 0.414_213).fract()).abs();
@@ -1112,16 +1217,32 @@ impl<'a> MeshBuilder<'a> {
 
             let az =
                 root_base_az + (r_idx as f32 / root_count as f32) * TAU + 0.05 + (h1 - 0.5) * 0.14;
+            if self.config.hollow_height > 0.0 {
+                let hollow_az = seed_phase * 0.35 + 0.4;
+                let d_ang =
+                    (az - hollow_az + std::f32::consts::PI).rem_euclid(TAU) - std::f32::consts::PI;
+                if d_ang.abs() < self.config.hollow_width * 0.68 {
+                    continue;
+                }
+            }
             let rad_dir = Vec3::new(az.cos(), 0.0, az.sin());
             let side_dir = Vec3::new(-az.sin(), 0.0, az.cos());
 
-            let reach = base_r * (2.15 + 0.95 * h2);
-            let start_h = base_r * (1.28 + 0.18 * h3);
-            let r_peak = base_r * (0.29 + 0.06 * h1);
+            let reach = if explicit_reach {
+                self.config.surface_root_reach * (0.78 + 0.44 * h2)
+            } else {
+                base_r * (2.15 + 0.95 * h2)
+            };
+            let start_h = if explicit_reach {
+                base_r * (1.55 + 0.35 * h3) * self.config.trunk_buttress.clamp(1.0, 2.2)
+            } else {
+                base_r * (1.28 + 0.18 * h3)
+            };
+            let r_peak = base_r * (0.29 + 0.06 * h1) * if explicit_reach { 1.18 } else { 1.0 };
             let s_sign = if r_idx % 2 == 0 { 1.0 } else { -1.0 };
             let wave_phase = h2 * TAU;
 
-            let steps = 13usize;
+            let steps = if explicit_reach { 18usize } else { 13usize };
             let mut spine = Vec::with_capacity(steps + 1);
             let mut radii = Vec::with_capacity(steps + 1);
 
@@ -1221,6 +1342,83 @@ impl<'a> MeshBuilder<'a> {
                     (root_phase + 0.37).fract(),
                 );
             }
+        }
+    }
+
+    /// Emit hanging aerial curtain roots descending from spreading primary & secondary limbs
+    /// down toward/into the ground (Moreton Bay Fig, Port Jackson Fig).
+    fn build_aerial_roots(&mut self) {
+        let count = self.config.aerial_roots as usize;
+        if count == 0 {
+            return;
+        }
+        let candidates: Vec<&Stem> = self
+            .tree
+            .stems
+            .iter()
+            .filter(|s| (s.level == 1 || s.level == 2) && !s.segments.is_empty())
+            .collect();
+        if candidates.is_empty() {
+            return;
+        }
+        let trunk_base_r = self
+            .tree
+            .stems
+            .first()
+            .map(|s| s.base_radius())
+            .unwrap_or(0.5);
+        let seed_f = self.tree.seed as f32;
+        let root_res = self.ring_resolution_for_level(2).clamp(6, 10);
+
+        for i in 0..count {
+            let h1 = ((seed_f * 0.618_034 + i as f32 * 0.754_877).fract()).abs();
+            let h2 = ((seed_f * 0.381_966 + i as f32 * 0.414_213).fract()).abs();
+            let h3 = ((seed_f * 0.271_828 + i as f32 * 0.577_215).fract()).abs();
+            let stem = candidates[i % candidates.len()];
+            let t = 0.22 + 0.66 * h1;
+            let anchor = stem.point_at(t);
+            let limb_r = stem.radius_at(t);
+            if anchor.y < 1.2 {
+                continue;
+            }
+            // Roughly 65% of aerial roots reach all the way to the ground and thicken slightly
+            // at the anchor/base; 35% hang partway as slender swaying rootlets.
+            let reaches_ground = h2 < 0.65;
+            let bottom_y = if reaches_ground {
+                -0.06
+            } else {
+                anchor.y * (0.22 + 0.45 * h3)
+            };
+            let drop = (anchor.y - bottom_y).max(0.6);
+            let r_base = if reaches_ground {
+                (limb_r * 0.42).clamp(0.055, 0.20)
+            } else {
+                (limb_r * 0.22).clamp(0.022, 0.065)
+            };
+            let steps = 12usize;
+            let mut spine = Vec::with_capacity(steps + 1);
+            let mut radii = Vec::with_capacity(steps + 1);
+            let sway_az = h3 * TAU;
+            let sway_dir = Vec3::new(sway_az.cos(), 0.0, sway_az.sin());
+            let sway_perp = Vec3::new(-sway_az.sin(), 0.0, sway_az.cos());
+            let drift = (0.30 + 0.55 * h1) * if reaches_ground { 1.35 } else { 0.85 };
+
+            for k in 0..=steps {
+                let u = k as f32 / steps as f32;
+                let y = anchor.y - drop * u;
+                let w1 = (u * std::f32::consts::PI * 1.8 + sway_az).sin() * drift * u;
+                let w2 = (u * std::f32::consts::PI * 3.1 - sway_az).cos() * drift * 0.35 * u;
+                let p = Vec3::new(anchor.x, y, anchor.z) + sway_dir * w1 + sway_perp * w2;
+                let r = if reaches_ground {
+                    // Slight flare at both limb junction and ground entry
+                    r_base * (0.80 + 0.25 * (1.0 - u).powi(2) + 0.35 * u.powi(3))
+                } else {
+                    (r_base * (1.0 - 0.72 * u)).max(0.008)
+                };
+                spine.push(p);
+                radii.push(r);
+            }
+            self.emit_root_tube(&spine, &radii, root_res, trunk_base_r, (h1 + h2).fract());
         }
     }
 

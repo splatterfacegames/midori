@@ -15,7 +15,7 @@ use crate::{
         BladeCard, GeneratorFamily, InflorescenceKind, InflorescenceParams, LeafCardLayout,
         LeafShape, RosetteParams, Species, SpikeStyle,
     },
-    textures::{RgbaTexture, fbm, leaf_card, value_noise, voronoi_f1_f2},
+    textures::{RgbaTexture, fbm, value_noise, voronoi_f1_f2},
 };
 use glam::Vec2;
 
@@ -231,40 +231,103 @@ fn blade_strokes(card: BladeCard, base: Rgb, tip: Rgb, rng: &mut Rng) -> Vec<Str
             }
         }
         BladeCard::Pinnate => {
-            // Rachis with paired, forward-swept leaflets, longest mid-frond.
+            // Crisp V-pleated pinnate feather frond (Canary Island date palm, queen palm, zamia):
+            // sturdy golden-green rachis with 28 pairs of cleanly sky-gapped, tapered sword leaflets
+            // so individual leaflets separate cleanly even at close-up range.
             let p0 = Vec2::new(0.5, 0.985);
-            let p1 = Vec2::new(0.5, 0.03);
+            let p1 = Vec2::new(0.5, 0.025);
             out.push(Stroke {
                 a: p0,
                 b: p1,
-                wa: 0.016,
-                wb: 0.004,
-                ca: scale(base, 1.25),
-                cb: scale(tip, 1.15),
+                wa: 0.018,
+                wb: 0.0045,
+                ca: scale(base, 1.32),
+                cb: scale(tip, 1.18),
             });
-            let pairs = 30;
+            let pairs = 28;
             for i in 0..pairs {
-                let t = 0.10 + 0.88 * (i as f32 / (pairs - 1) as f32);
+                let t = 0.08 + 0.90 * (i as f32 / (pairs - 1) as f32);
                 let origin = p0.lerp(p1, t);
-                let env = ((t - 0.04) / 0.22).clamp(0.2, 1.0).sqrt()
-                    * ((1.02 - t) / 0.45).clamp(0.12, 1.0).powf(0.7);
-                let len = 0.46 * env * rng.range(0.92, 1.06);
-                let shade = rng.range(0.84, 1.12);
-                let c0 = scale(mix(base, tip, t * 0.6), shade);
-                let c1 = scale(mix(base, tip, 0.35 + t * 0.6), shade);
+                let env = ((t - 0.02) / 0.16).clamp(0.30, 1.0).powf(0.62)
+                    * ((1.03 - t) / 0.36).clamp(0.20, 1.0).powf(0.60);
+                let len = 0.48 * env * rng.range(0.94, 1.05);
+                let shade = rng.range(0.84, 1.14);
+                let c0 = scale(mix(base, tip, t * 0.50), shade);
+                let c1 = scale(mix(base, tip, 0.35 + t * 0.65), shade * 1.08);
                 for side in [-1.0f32, 1.0] {
-                    let ang = -PI * 0.5 + side * lerp(1.12, 0.42, t) + rng.range(-0.04, 0.04);
-                    let tip_pt = (origin + Vec2::new(ang.cos(), ang.sin()) * len)
+                    let ang = -PI * 0.5 + side * lerp(1.16, 0.42, t) + rng.range(-0.028, 0.028);
+                    let bend = ang + side * 0.07;
+                    let mid_pt = (origin + Vec2::new(ang.cos(), ang.sin()) * (len * 0.55))
+                        .clamp(Vec2::splat(0.01), Vec2::splat(0.99));
+                    let tip_pt = (mid_pt + Vec2::new(bend.cos(), bend.sin()) * (len * 0.45))
                         .clamp(Vec2::splat(0.01), Vec2::splat(0.99));
                     out.push(Stroke {
                         a: origin,
-                        b: tip_pt,
-                        wa: 0.0125,
-                        wb: 0.003,
+                        b: mid_pt,
+                        wa: 0.0092,
+                        wb: 0.0068,
                         ca: c0,
+                        cb: mix(c0, c1, 0.52),
+                    });
+                    out.push(Stroke {
+                        a: mid_pt,
+                        b: tip_pt,
+                        wa: 0.0068,
+                        wb: 0.0018,
+                        ca: mix(c0, c1, 0.52),
                         cb: c1,
                     });
                 }
+            }
+        }
+        BladeCard::Fan => {
+            // Palmate fan-palm blade (Washingtonia robusta cotton palm):
+            // slender olive-tan petiole rising into a circular pleated radiating fan of
+            // 30 stiff folded palmate segments with subtle light/shadow pleat ridges.
+            let petiole_base = Vec2::new(0.5, 0.99);
+            let hub = Vec2::new(0.5, 0.48);
+            let petiole_col = mix(base, [0.46, 0.42, 0.24], 0.55);
+            out.push(Stroke {
+                a: petiole_base,
+                b: hub,
+                wa: 0.028,
+                wb: 0.018,
+                ca: scale(petiole_col, 0.85),
+                cb: scale(petiole_col, 1.12),
+            });
+            // Central hastula / fan palmate web disc
+            out.push(disc(hub, 0.16, mix(base, tip, 0.35)));
+            let rays = 30;
+            for i in 0..rays {
+                let f = i as f32 / (rays - 1) as f32;
+                // Sweep ~290 degrees around the top/sides of the hub
+                let ang = -PI * 0.5 + (f - 0.5) * 5.05 + rng.range(-0.02, 0.02);
+                let ray_dir = Vec2::new(ang.cos(), ang.sin());
+                // Upper rays longest; lower basal rays slightly shorter
+                let front_w = (1.0 - ((f - 0.5).abs() * 2.0).powf(1.8)).clamp(0.58, 1.0);
+                let len = 0.46 * front_w * rng.range(0.92, 1.05);
+                let pleat_shade = if i % 2 == 0 { 1.12 } else { 0.80 };
+                let c0 = scale(base, pleat_shade);
+                let c1 = scale(tip, pleat_shade * 1.04);
+                let mid =
+                    (hub + ray_dir * (len * 0.62)).clamp(Vec2::splat(0.02), Vec2::splat(0.98));
+                let tip_pt = (hub + ray_dir * len).clamp(Vec2::splat(0.02), Vec2::splat(0.98));
+                out.push(Stroke {
+                    a: hub,
+                    b: mid,
+                    wa: 0.032,
+                    wb: 0.022,
+                    ca: c0,
+                    cb: mix(c0, c1, 0.6),
+                });
+                out.push(Stroke {
+                    a: mid,
+                    b: tip_pt,
+                    wa: 0.020,
+                    wb: 0.004,
+                    ca: mix(c0, c1, 0.6),
+                    cb: c1,
+                });
             }
         }
     }
@@ -309,10 +372,10 @@ fn spike_cell(rosette: &RosetteParams, seed: u64, res: u32) -> RgbaTexture {
         let grain = fbm(seed ^ 0xB1, u * 48.0, v * 12.0, 48, 12, 3);
         let scape_rgb = scale(scape, 0.82 + 0.36 * grain);
         match spike.style {
-            SpikeStyle::Raceme => {
-                // Woolly scape: fine pale flecks.
+            SpikeStyle::Raceme | SpikeStyle::Plume | SpikeStyle::Panicle => {
+                // Woolly / fibrous stalk
                 let fleck = value_noise(seed ^ 0xB2, u * 128.0, v * 128.0, 128, 128);
-                scale(scape, 0.78 + 0.5 * fleck)
+                scale(scape, 0.78 + 0.44 * fleck)
             }
             SpikeStyle::Cylinder => {
                 if v > 0.75 {
@@ -344,50 +407,98 @@ fn spike_cell(rosette: &RosetteParams, seed: u64, res: u32) -> RgbaTexture {
     canvas.finish()
 }
 
-/// Raceme flower: a woolly tube from the base, splitting into short lobes.
+/// Raceme / plume / panicle flower cell for rosettes.
 fn raceme_flower_cell(rosette: &RosetteParams, rng: &mut Rng, res: u32) -> RgbaTexture {
     let mut canvas = Canvas::new(res);
-    let Some(spike) = rosette
-        .spike
-        .as_ref()
-        .filter(|s| s.style == SpikeStyle::Raceme)
-    else {
+    let Some(spike) = rosette.spike.as_ref() else {
         return canvas.finish();
     };
-    let base = Vec2::new(0.5, 0.985);
-    let neck = Vec2::new(0.5, 0.36);
-    let mut strokes = vec![
-        Stroke {
-            a: base,
-            b: Vec2::new(0.5, 0.70),
-            wa: 0.12,
-            wb: 0.20,
-            ca: spike.color,
-            cb: mix(spike.color, spike.tip_color, 0.25),
-        },
-        Stroke {
-            a: Vec2::new(0.5, 0.70),
-            b: neck,
-            wa: 0.20,
-            wb: 0.17,
-            ca: mix(spike.color, spike.tip_color, 0.25),
-            cb: spike.tip_color,
-        },
-    ];
-    for i in 0..6 {
-        let f = i as f32 / 5.0 - 0.5;
-        let ang = -PI * 0.5 + f * 1.9 + rng.range(-0.06, 0.06);
-        strokes.push(Stroke {
-            a: neck,
-            b: neck + Vec2::new(ang.cos(), ang.sin()) * rng.range(0.24, 0.31),
-            wa: 0.070,
-            wb: 0.018,
-            ca: spike.tip_color,
-            cb: scale(spike.tip_color, 1.18),
-        });
+    match spike.style {
+        SpikeStyle::Raceme => {
+            let base = Vec2::new(0.5, 0.985);
+            let neck = Vec2::new(0.5, 0.36);
+            let mut strokes = vec![
+                Stroke {
+                    a: base,
+                    b: Vec2::new(0.5, 0.70),
+                    wa: 0.14,
+                    wb: 0.22,
+                    ca: spike.color,
+                    cb: mix(spike.color, spike.tip_color, 0.25),
+                },
+                Stroke {
+                    a: Vec2::new(0.5, 0.70),
+                    b: neck,
+                    wa: 0.22,
+                    wb: 0.18,
+                    ca: mix(spike.color, spike.tip_color, 0.25),
+                    cb: spike.tip_color,
+                },
+            ];
+            for i in 0..6 {
+                let f = i as f32 / 5.0 - 0.5;
+                let ang = -PI * 0.5 + f * 1.9 + rng.range(-0.06, 0.06);
+                strokes.push(Stroke {
+                    a: neck,
+                    b: neck + Vec2::new(ang.cos(), ang.sin()) * rng.range(0.24, 0.31),
+                    wa: 0.075,
+                    wb: 0.020,
+                    ca: spike.tip_color,
+                    cb: scale(spike.tip_color, 1.18),
+                });
+            }
+            canvas.paint(&strokes);
+            canvas.finish()
+        }
+        SpikeStyle::Plume => {
+            // Airy, feathery branched sedge / rush / spinifex seed plume
+            let root = Vec2::new(0.5, 0.98);
+            let mut strokes = vec![Stroke {
+                a: root,
+                b: Vec2::new(0.5, 0.18),
+                wa: 0.014,
+                wb: 0.005,
+                ca: spike.scape_color,
+                cb: spike.color,
+            }];
+            for i in 0..18 {
+                let t = 0.15 + 0.80 * (i as f32 / 17.0);
+                let node = Vec2::new(0.5, lerp(0.92, 0.14, t));
+                let side = if i % 2 == 0 { 1.0 } else { -1.0 };
+                let spread = side * lerp(0.95, 0.28, t) + rng.range(-0.14, 0.14);
+                let ang = -PI * 0.5 + spread;
+                let len = lerp(0.36, 0.16, t) * rng.range(0.8, 1.2);
+                let tip = (node + Vec2::new(ang.cos(), ang.sin()) * len)
+                    .clamp(Vec2::splat(0.04), Vec2::splat(0.96));
+                let shade = rng.range(0.82, 1.18);
+                strokes.push(Stroke {
+                    a: node,
+                    b: tip,
+                    wa: 0.008,
+                    wb: 0.003,
+                    ca: scale(spike.color, shade * 0.9),
+                    cb: scale(spike.tip_color, shade),
+                });
+                // Small loose spikelets along each branchlet
+                for k in 1..=3 {
+                    let st = k as f32 / 3.0;
+                    let c = node.lerp(tip, st);
+                    strokes.push(disc(
+                        c,
+                        rng.range(0.020, 0.034),
+                        scale(mix(spike.color, spike.tip_color, st), shade),
+                    ));
+                }
+            }
+            canvas.paint(&strokes);
+            canvas.finish()
+        }
+        SpikeStyle::Panicle => {
+            // Hanging golden-orange palm date/flower panicle strands
+            berries_cell(spike.color, spike.tip_color, rng, res)
+        }
+        _ => canvas.finish(),
     }
-    canvas.paint(&strokes);
-    canvas.finish()
 }
 
 // ---------------------------------------------------------------------------
@@ -635,58 +746,153 @@ fn bipinnate_leaf(base: Vec2, tip: Vec2, color: Rgb, rng: &mut Rng, out: &mut Ve
     }
 }
 
-/// One sheoak shoot from `base` toward `tip`: a short twig carrying long
-/// jointed branchlets that spread and then fall forward.
+/// One sheoak shoot from `base` toward `tip`: a fine dark woody twig carrying
+/// crisp, airy, drooping jointed wire-like branchlets with generous sky gaps
+/// so the crown reads as a soft see-through casuarina curtain (never a cotton ball or pine).
 fn branchlet_tuft(base: Vec2, tip: Vec2, color: Rgb, rng: &mut Rng, out: &mut Vec<Stroke>) {
     let axis = tip - base;
     let len = axis.length().max(1e-4);
     let dir = axis / len;
     let nrm = Vec2::new(-dir.y, dir.x);
-    let twig = [0.33, 0.27, 0.20];
-    let twig_end = base + axis * 0.42;
+    let twig = [0.28, 0.22, 0.16];
+    let twig_end = base + axis * 0.34;
     out.push(Stroke {
         a: base,
         b: twig_end,
-        wa: len * 0.014,
-        wb: len * 0.006,
+        wa: len * 0.011,
+        wb: len * 0.0045,
         ca: twig,
         cb: twig,
     });
-    let wires = 22;
+    let wires = 13;
     for i in 0..wires {
-        let t = rng.range(0.05, 1.0);
+        let t = (i as f32 + 0.5) / wires as f32;
         let node = base.lerp(twig_end, t);
         let side = if i % 2 == 0 { 1.0 } else { -1.0 };
-        let spread = rng.range(0.10, 0.62) * side;
+        let spread = lerp(0.56, 0.12, t) * side + rng.range(-0.08, 0.08);
         let d0 = (dir * spread.cos() + nrm * spread.sin()).normalize();
-        // The far half relaxes back toward the shoot axis (the wires hang).
-        let d1 = (d0 * 0.55 + dir * 0.45).normalize();
-        let wire_len = len * rng.range(0.50, 0.86);
-        let mid = node + d0 * wire_len * 0.5;
-        let end = (mid + d1 * wire_len * 0.5).clamp(Vec2::splat(0.01), Vec2::splat(0.99));
-        let shade = rng.range(0.74, 1.18);
-        let c0 = scale(color, shade * 0.9);
-        let c1 = scale(color, shade * 1.08);
+        // Gently weep back along the shoot axis so wires hang like soft horsehair curtains
+        let d1 = (d0 * 0.38 + dir * 0.62).normalize();
+        let d2 = (d0 * 0.18 + dir * 0.82).normalize();
+        let wire_len = len * rng.range(0.58, 0.94);
+        let p1 = node + d0 * (wire_len * 0.35);
+        let p2 = (p1 + d1 * (wire_len * 0.35)).clamp(Vec2::splat(0.01), Vec2::splat(0.99));
+        let p3 = (p2 + d2 * (wire_len * 0.30)).clamp(Vec2::splat(0.01), Vec2::splat(0.99));
+        let shade = rng.range(0.76, 1.18);
+        let c0 = scale(color, shade * 0.88);
+        let c1 = scale(color, shade * 1.04);
+        let c2 = scale(color, shade * 1.12);
+        // Subtle fine width (2.8 -> 1.4 per-mill) keeps sky open between wires
         out.push(Stroke {
             a: node,
-            b: mid,
-            wa: len * 0.0052,
-            wb: len * 0.0042,
+            b: p1,
+            wa: len * 0.0036,
+            wb: len * 0.0030,
             ca: c0,
-            cb: mix(c0, c1, 0.5),
+            cb: c1,
         });
         out.push(Stroke {
-            a: mid,
-            b: end,
-            wa: len * 0.0042,
-            wb: len * 0.0022,
-            ca: mix(c0, c1, 0.5),
-            cb: c1,
+            a: p1,
+            b: p2,
+            wa: len * 0.0030,
+            wb: len * 0.0024,
+            ca: c1,
+            cb: c2,
+        });
+        out.push(Stroke {
+            a: p2,
+            b: p3,
+            wa: len * 0.0024,
+            wb: len * 0.0014,
+            ca: c2,
+            cb: scale(c2, 0.95),
         });
     }
 }
 
-/// Leaf card for the stroke-painted shapes (`bipinnate`, `branchlet`).
+/// Delicate Melaleuca / paperbark twig spray: pale-tan slender forked branchlets
+/// clothed in fine soft narrow-elliptic leaves with generous open sky gaps
+/// (completely distinct from pine-needle fascicles).
+#[allow(clippy::too_many_arguments)]
+fn paperbark_sprig(
+    base: Vec2,
+    tip: Vec2,
+    color: Rgb,
+    underside: Option<Rgb>,
+    new_growth: Option<(Rgb, f32)>,
+    dead: Option<(Rgb, f32)>,
+    rng: &mut Rng,
+    out: &mut Vec<Stroke>,
+) {
+    let axis = tip - base;
+    let len = axis.length().max(1e-4);
+    let dir = axis / len;
+    let nrm = Vec2::new(-dir.y, dir.x);
+    let twig = [0.58, 0.52, 0.43]; // Pale papery Melaleuca twig
+
+    // Main twig plus two delicate side branchlets so the sprig fills a natural feathery silhouette
+    let mut twigs = vec![(base, tip, len)];
+    for &(frac, side, spread, scale_len) in &[
+        (0.28_f32, 1.0_f32, 0.56_f32, 0.58_f32),
+        (0.46_f32, -1.0_f32, 0.52_f32, 0.52_f32),
+    ] {
+        let start = base + axis * frac;
+        let bdir = (dir * spread.cos() + nrm * (side * spread.sin())).normalize();
+        let blen = len * scale_len;
+        let end = (start + bdir * blen).clamp(Vec2::splat(0.04), Vec2::splat(0.96));
+        twigs.push((start, end, blen));
+    }
+
+    for (t_idx, &(a, b, tlen)) in twigs.iter().enumerate() {
+        let taxis = b - a;
+        let tdir = taxis.normalize_or_zero();
+        let tnrm = Vec2::new(-tdir.y, tdir.x);
+        out.push(Stroke {
+            a,
+            b,
+            wa: tlen * 0.015,
+            wb: tlen * 0.005,
+            ca: twig,
+            cb: scale(twig, 1.1),
+        });
+        let leaves = if t_idx == 0 { 26 } else { 14 };
+        for i in 0..leaves {
+            let t = 0.12 + 0.86 * (i as f32 / (leaves - 1) as f32);
+            let node = a + taxis * t;
+            let side = if i % 2 == 0 { 1.0 } else { -1.0 };
+            let sweep = lerp(0.98, 0.34, t) + rng.range(-0.18, 0.18);
+            let ldir = (tdir * sweep.cos() + tnrm * (side * sweep.sin())).normalize();
+            let llen = len * lerp(0.22, 0.14, t) * rng.range(0.80, 1.22);
+            let end = (node + ldir * llen).clamp(Vec2::splat(0.02), Vec2::splat(0.98));
+            let shade = rng.range(0.78, 1.18);
+            let mut base_c = color;
+            if let Some((ng_c, ng_f)) = new_growth
+                && t > (1.0 - ng_f * 1.4)
+                && rng.next_f32() < 0.72
+            {
+                base_c = ng_c;
+            } else if let Some((dc, df)) = dead
+                && rng.next_f32() < df
+            {
+                base_c = dc;
+            } else if let Some(uc) = underside
+                && rng.next_f32() < 0.35
+            {
+                base_c = uc;
+            }
+            out.push(Stroke {
+                a: node,
+                b: end,
+                wa: len * 0.022,
+                wb: len * 0.007,
+                ca: scale(base_c, shade * 0.88),
+                cb: scale(base_c, shade * 1.12),
+            });
+        }
+    }
+}
+
+/// Leaf card for the stroke-painted shapes (`bipinnate`, `branchlet`, `paperbark`).
 /// `single` draws one leaf filling the card; every other layout draws a
 /// spray of several on a forked twig.
 pub(crate) fn stroke_leaf_card(
@@ -696,17 +902,36 @@ pub(crate) fn stroke_leaf_card(
     rng: &mut Rng,
     res: u32,
 ) -> RgbaTexture {
+    stroke_leaf_card_with_palette(shape, layout, color, None, None, None, rng, res)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stroke_leaf_card_with_palette(
+    shape: LeafShape,
+    layout: LeafCardLayout,
+    color: Option<[f32; 3]>,
+    underside: Option<Rgb>,
+    new_growth: Option<(Rgb, f32)>,
+    dead: Option<(Rgb, f32)>,
+    rng: &mut Rng,
+    res: u32,
+) -> RgbaTexture {
     let base = color.unwrap_or([0.27, 0.44, 0.17]);
     let mut strokes = Vec::new();
     let leaf = |a: Vec2, b: Vec2, rng: &mut Rng, out: &mut Vec<Stroke>| match shape {
         LeafShape::Branchlet => branchlet_tuft(a, b, base, rng, out),
+        LeafShape::Paperbark => paperbark_sprig(a, b, base, underside, new_growth, dead, rng, out),
         _ => bipinnate_leaf(a, b, base, rng, out),
     };
     let root = Vec2::new(0.5, 0.985);
     if layout == LeafCardLayout::Single {
         leaf(root, Vec2::new(0.5, 0.03), rng, &mut strokes);
     } else {
-        let twig = [0.31, 0.24, 0.16];
+        let twig = if shape == LeafShape::Paperbark {
+            [0.54, 0.48, 0.39]
+        } else {
+            [0.31, 0.24, 0.16]
+        };
         let top = Vec2::new(0.5 + rng.range(-0.03, 0.03), 0.42);
         strokes.push(Stroke {
             a: root,
@@ -784,47 +1009,74 @@ pub(crate) fn foliage_atlas(species: &Species, seed: u64, res: u32) -> RgbaTextu
         return atlas;
     }
 
-    let card = leaf_card(
-        params.leaf_shape,
-        params.leaf_card,
-        params.leaf_color,
-        seed,
-        half,
-    );
+    let card = crate::textures::leaf_card_for_species(species, seed, half);
     blit(&mut atlas, CELL_LEAF, &card);
     if let Some(inf) = &species.inflorescence {
-        let tip = inf.color_tip.unwrap_or(inf.color);
-        let (fresh, aged) = match inf.kind {
-            InflorescenceKind::Spike => (
-                flower_spike_cell(inf, seed, half),
-                aged_spike_cell(inf, seed, half),
-            ),
-            InflorescenceKind::Nut => (
-                nut_cell(inf.color, tip, seed, half),
-                nut_cell(
-                    inf.aged_color,
-                    scale(inf.aged_color, 1.25),
-                    seed ^ 0x55,
-                    half,
-                ),
-            ),
-            InflorescenceKind::Cluster => (
-                cluster_cell(inf.color, tip, None, &mut rng, half),
-                cluster_cell(
-                    mix(inf.color, inf.aged_color, 0.6),
-                    inf.aged_color,
-                    Some(inf.aged_color),
-                    &mut rng,
-                    half,
-                ),
-            ),
-            InflorescenceKind::Berries => (
-                berries_cell(inf.color, tip, &mut rng, half),
-                berries_cell(inf.aged_color, scale(inf.aged_color, 1.2), &mut rng, half),
-            ),
-        };
+        let (fresh, aged) = paint_inflorescence_pair(inf, seed, &mut rng, half);
         blit(&mut atlas, CELL_ORGAN, &fresh);
         blit(&mut atlas, CELL_AGED, &aged);
+    }
+    atlas
+}
+
+fn paint_inflorescence_pair(
+    inf: &InflorescenceParams,
+    seed: u64,
+    rng: &mut Rng,
+    half: u32,
+) -> (RgbaTexture, RgbaTexture) {
+    let tip = inf.color_tip.unwrap_or(inf.color);
+    match inf.kind {
+        InflorescenceKind::Spike => (
+            flower_spike_cell(inf, seed, half),
+            aged_spike_cell(inf, seed, half),
+        ),
+        InflorescenceKind::Nut => (
+            nut_cell(inf.color, tip, seed, half),
+            nut_cell(
+                inf.aged_color,
+                scale(inf.aged_color, 1.25),
+                seed ^ 0x55,
+                half,
+            ),
+        ),
+        InflorescenceKind::Cluster => (
+            cluster_cell(inf.color, tip, None, rng, half),
+            cluster_cell(
+                mix(inf.color, inf.aged_color, 0.6),
+                inf.aged_color,
+                Some(inf.aged_color),
+                rng,
+                half,
+            ),
+        ),
+        InflorescenceKind::Berries => (
+            berries_cell(inf.color, tip, rng, half),
+            berries_cell(inf.aged_color, scale(inf.aged_color, 1.2), rng, half),
+        ),
+    }
+}
+
+/// Build the dedicated 2x2 organ atlas for species with `separate_material = true`
+/// or `secondary_inflorescence`:
+/// - Cell 0: primary fresh organ
+/// - Cell 1: primary aged organ
+/// - Cell 2: secondary fresh organ (if present)
+/// - Cell 3: secondary aged organ (if present)
+pub(crate) fn organ_atlas(species: &Species, seed: u64, res: u32) -> RgbaTexture {
+    let res = (res / 2).max(8) * 2;
+    let half = res / 2;
+    let mut atlas = RgbaTexture::new(res, res);
+    let mut rng = Rng::from_seed(seed ^ 0x046A_4A71);
+    if let Some(inf) = &species.inflorescence {
+        let (fresh, aged) = paint_inflorescence_pair(inf, seed, &mut rng, half);
+        blit(&mut atlas, CELL_LEAF, &fresh);
+        blit(&mut atlas, CELL_ORGAN, &aged);
+    }
+    if let Some(inf2) = &species.secondary_inflorescence {
+        let (fresh, aged) = paint_inflorescence_pair(inf2, seed ^ 0x5E20, &mut rng, half);
+        blit(&mut atlas, CELL_AGED, &fresh);
+        blit(&mut atlas, CELL_FLOWER, &aged);
     }
     atlas
 }

@@ -15,8 +15,8 @@ biome = "suburban_verge"
 tags = ["perth_planted", "verge", "lawn", "fallen_flowers", "jacaranda"]
 
 [soil]
-profile = "grey_sand"
-color = "#8f8a7c"
+profile = "turf_sand"
+color = "#54633a"
 mound_scale = 0.05
 mound_height = 0.06
 mound_coverage = 0.5
@@ -40,27 +40,36 @@ tips = ["#7fae42", "#8cb84a", "#6c9c3a"]
 [[groundcover.layers]]
 kind = "grass"
 name = "couch lawn"
-density = 0.9
-coverage = 0.92
+density = 0.92
+coverage = 0.94
 patch_scale = 0.16
 patch_softness = 0.3
 height = 0.06
-width = 0.03
-curl = 0.6
-color_base = "#33561f"
-color_tip = "#86b247"
+width = 0.028
+curl = 0.65
+color_base = "#345622"
+color_tip = "#7da644"
+
+[groundcover.layers.cards]
+species = ["grass"]
+count = 4
+card_width = 0.26
+height_range = [0.65, 1.05]
+lean_degrees = [16.0, 36.0]
+loose = 0.12
+normal_up = 0.78
 
 [[groundcover.layers]]
 kind = "litter"
 name = "fallen jacaranda flowers"
-density = 0.85
-coverage = 0.9
-patch_scale = 0.2
-patch_softness = 0.3
-height = 0.03
-width = 0.05
-color_base = "#6f55c0"
-color_tip = "#b29be8"
+density = 0.88
+coverage = 0.74
+patch_scale = 0.14
+patch_softness = 0.22
+height = 0.018
+width = 0.034
+color_base = "#6d52c4"
+color_tip = "#b49be8"
 
 [[groundcover.layers]]
 kind = "flower"

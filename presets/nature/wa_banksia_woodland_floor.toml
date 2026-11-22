@@ -52,21 +52,21 @@ color_tip = "#9a8466"
 [[groundcover.layers]]
 kind = "grass"
 name = "sedge tussocks"
-density = 0.14
-coverage = 0.38
+density = 0.30
+coverage = 0.56
 patch_scale = 0.1
 patch_softness = 0.24
-height = 0.52
-width = 0.05
+height = 0.55
+width = 0.055
 curl = 0.5
-color_base = "#33441f"
-color_tip = "#7c8a4a"
+color_base = "#3a4927"
+color_tip = "#7f8c50"
 
 [groundcover.layers.cards]
 species = ["grass", "golden_grass"]
 count = 4
-card_width = 0.44
-height_range = [0.7, 1.2]
+card_width = 0.48
+height_range = [0.7, 1.25]
 lean_degrees = [6.0, 24.0]
 loose = 0.14
 normal_up = 0.70
@@ -74,21 +74,21 @@ normal_up = 0.70
 [[groundcover.layers]]
 kind = "weed"
 name = "low heath"
-density = 0.12
-coverage = 0.34
+density = 0.22
+coverage = 0.46
 patch_scale = 0.1
 patch_softness = 0.24
-height = 0.42
-width = 0.07
+height = 0.44
+width = 0.075
 curl = 0.4
-color_base = "#3c4a2c"
-color_tip = "#86905c"
+color_base = "#3e4c30"
+color_tip = "#889260"
 
 [[groundcover.layers]]
 kind = "flower"
 name = "yellow guinea-flower"
-density = 0.14
-coverage = 0.34
+density = 0.24
+coverage = 0.44
 patch_scale = 0.14
 patch_softness = 0.2
 height = 0.24

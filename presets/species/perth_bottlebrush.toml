@@ -1,0 +1,185 @@
+# Weeping bottlebrush (Melaleuca viminalis / Callistemon viminalis)
+# Classic 1980s-90s Perth suburban verge and front-lawn tree: fibrous furrowed grey-brown trunk,
+# graceful weeping willow-like olive-green foliage with coppery new tips, and abundant hanging
+# crimson-scarlet cylindrical bottlebrush flower spikes in spring and autumn.
+# PLANTED EXOTIC in Perth (native to eastern Australia), not part of the local Swan Coastal Plain flora.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Weeping Bottlebrush"
+scientific = "Melaleuca viminalis"
+latin = "Callistemon viminalis"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "street_tree", "evergreen", "weeping", "flowering"]
+
+[generator]
+family = "weber_penn"
+notes = "5.5 m weeping suburban verge tree with crimson hanging bottlebrush spikes on a dedicated Organ material."
+
+[trunk]
+height = 5.0
+height_variance = 0.15
+radius = 0.24
+taper = 0.72
+taper_profile = "exponential"
+curve = 18.0
+curve_variance = 10.0
+curve_back = 18.0
+segments = 16
+stems = 2
+stem_spread = 22.0
+stem_offset = 0.14
+stem_height_variation = 0.18
+buttress = 0.5
+
+[branches.level1]
+count = 8
+count_variance = 2
+length = 3.4
+length_variance = 0.22
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.14
+curve = 34.0
+curve_variance = 20.0
+segments = 12
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 2.2
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 42.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.58
+curve = 36.0
+curve_variance = 18.0
+segments = 10
+
+[branches.level3]
+count = 5
+count_variance = 1
+length = 1.85
+length_variance = 0.22
+radius_ratio = 0.30
+radius_model = "ratio"
+taper = 0.82
+taper_profile = "compound"
+angle = 26.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.92
+curve = 20.0
+curve_variance = 16.0
+segments = 8
+
+[pruning]
+mode = "crown_lift"
+lift_height = 1.15
+
+[crown]
+shape = "hemispherical"
+offset = 0.30
+density = 0.94
+width_ratio = 1.15
+
+[leaves]
+count = 2300
+min_level = 2
+size = 0.48
+size_variance = 0.20
+distribution = "along_branch"
+geometry = "cross_billboard"
+shape = "willow"
+up_influence = -0.72
+
+[inflorescence]
+kind = "spike"
+count = 920
+min_level = 2
+placement = "along_branch"
+orientation = "hang"
+length = 0.42
+width = 0.17
+offset = 0.24
+size_variance = 0.18
+color = [0.92, 0.04, 0.08]
+color_tip = [0.98, 0.14, 0.14]
+aged_fraction = 0.06
+aged_color = [0.46, 0.32, 0.26]
+separate_material = true
+roughness = 0.56
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.74
+up_bias = 0.22
+clump_weight = 0.64
+clump_level = 1
+crown_fill = 0
+shell = 0.12
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.36
+billboard_lod_compensation = true
+roughness = 0.78
+
+[textures]
+bark_prompt = "Callistemon viminalis pale grey-brown furrowed papery-fibrous bark"
+leaf_prompt = "Callistemon viminalis narrow lance-shaped olive-green leaves with copper-pink flushing tips"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "willow"
+leaf_card = "cluster"
+bark_color = [0.46, 0.42, 0.37]
+leaf_color = [0.34, 0.46, 0.27]
+leaf_new_growth_color = [0.66, 0.36, 0.28]
+leaf_new_growth_fraction = 0.14
+
+[materials]
+bark = "bottlebrush_bark"
+foliage = "bottlebrush_foliage"
+notes = "1024px furrowed grey-brown bark + weeping leaf card + dedicated crimson bottlebrush spike atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.0
+max = 8.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "spikes"
+label = "Flower Spikes"
+parameter = "inflorescence.count"
+min = 0.0
+max = 600.0
+step = 10.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: summer / mid-winter: leafy weeping habit without crimson spikes
+[states.out_of_flower]
+species.name = "Weeping Bottlebrush (out of flower)"
+inflorescence.count = 0

@@ -122,13 +122,13 @@ fn preset_snapshot(
 #[test]
 fn grass_tree_preset_seed_42_snapshot() {
     let (stems, leaves, organs, stats) = preset_snapshot("wa_grass_tree", None, 42);
-    assert_eq!((stems, leaves, organs), (1, 460, 242));
+    assert_eq!((stems, leaves, organs), (1, 540, 262));
     assert_eq!(
         stats,
         vec![
-            (0, 12922, 14112, 460),
-            (1, 2890, 2766, 184),
-            (2, 90, 144, 1)
+            (0, 14910, 16360, 540),
+            (1, 3376, 3262, 216),
+            (2, 108, 176, 1)
         ]
     );
 }
@@ -136,13 +136,13 @@ fn grass_tree_preset_seed_42_snapshot() {
 #[test]
 fn grass_tree_forked_state_seed_42_snapshot() {
     let (stems, leaves, organs, stats) = preset_snapshot("wa_grass_tree", Some("forked"), 42);
-    assert_eq!((stems, leaves, organs), (4, 960, 454));
+    assert_eq!((stems, leaves, organs), (4, 1080, 486));
     assert_eq!(
         stats,
         vec![
-            (0, 26500, 29176, 960),
-            (1, 5938, 5722, 384),
-            (2, 183, 279, 1)
+            (0, 29618, 32772, 1080),
+            (1, 6737, 6558, 432),
+            (2, 219, 341, 1)
         ]
     );
 }
@@ -150,13 +150,13 @@ fn grass_tree_forked_state_seed_42_snapshot() {
 #[test]
 fn firewood_banksia_preset_seed_42_snapshot() {
     let (stems, leaves, organs, stats) = preset_snapshot("wa_firewood_banksia", None, 42);
-    assert_eq!((stems, leaves, organs), (157, 1680, 90));
+    assert_eq!((stems, leaves, organs), (172, 1320, 135));
     assert_eq!(
         stats,
         vec![
-            (0, 44104, 48677, 1680),
-            (1, 12976, 15165, 672),
-            (2, 1957, 2841, 1)
+            (0, 41980, 50103, 1320),
+            (1, 13188, 16314, 528),
+            (2, 2834, 4140, 1)
         ]
     );
 }
@@ -164,13 +164,13 @@ fn firewood_banksia_preset_seed_42_snapshot() {
 #[test]
 fn jacaranda_flowering_state_seed_42_snapshot() {
     let (stems, leaves, organs, stats) = preset_snapshot("perth_jacaranda", Some("flowering"), 42);
-    assert_eq!((stems, leaves, organs), (183, 149, 2800));
+    assert_eq!((stems, leaves, organs), (157, 128, 3200));
     assert_eq!(
         stats,
         vec![
-            (0, 37415, 33073, 149),
-            (1, 13268, 14611, 59),
-            (2, 2495, 3647, 1)
+            (0, 38459, 31501, 128),
+            (1, 12670, 13189, 51),
+            (2, 2155, 3151, 1)
         ]
     );
 }

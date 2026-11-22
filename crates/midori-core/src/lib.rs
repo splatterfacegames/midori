@@ -88,7 +88,7 @@ pub use species::{
 };
 pub use species::{
     BladeCard, InflorescenceKind, InflorescenceParams, OrganOrientation, OrganPlacement,
-    RosetteParams, RosetteSpikeParams, SpikeStyle,
+    PruningMode, PruningParams, RosetteParams, RosetteSpikeParams, SpikeStyle,
 };
 pub use species::{Species, SpeciesError, SpeciesFieldError};
 pub use textures::{RgbaTexture, TextureError, TextureSet, species_texture_seed};

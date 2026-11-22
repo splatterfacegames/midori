@@ -22,7 +22,9 @@ import type { LodMesh, MaterialKind } from './engine';
 
 export const MATERIAL_COLORS: Record<MaterialKind, string> = {
   bark: '#6d4c2f',
+  upper_bark: '#b8b0a2',
   leaves: '#3f7a2e',
+  organ: '#d48b3b',
   impostor: '#5a8f46',
 };
 
@@ -33,13 +35,16 @@ export const CUTOUT_ALPHA = 0.5;
 export interface PreviewMaps {
   bark?: TextureSource;
   barkNormal?: TextureSource;
+  upper_bark?: TextureSource;
+  upperBarkNormal?: TextureSource;
   leaves?: TextureSource;
+  organ?: TextureSource;
   impostor?: TextureSource;
 }
 
-/** Impostor quads are baked foliage — they ride the leaves layer toggle. */
+/** Impostor quads and flower/fruit organs ride the leaves layer toggle; upper_bark rides bark. */
 function layerFor(material: MaterialKind): 'bark' | 'leaves' {
-  return material === 'bark' ? 'bark' : 'leaves';
+  return material === 'bark' || material === 'upper_bark' ? 'bark' : 'leaves';
 }
 
 export function lodToDescriptors(
@@ -76,14 +81,15 @@ export function lodToDescriptors(
       descriptor.uvs = uvs;
       descriptor.map = map;
       descriptor.mapFilter = 'linear';
-      if (range.material === 'bark') {
+      if (range.material === 'bark' || range.material === 'upper_bark') {
         // Bark V runs in metres along the stem — the map tiles vertically.
         descriptor.mapWrap = 'repeat';
-        if (maps?.barkNormal) {
-          descriptor.normalMap = maps.barkNormal;
+        const nrm = range.material === 'upper_bark' ? maps?.upperBarkNormal : maps?.barkNormal;
+        if (nrm) {
+          descriptor.normalMap = nrm;
         }
       } else {
-        // Leaves/impostor are cutout (matches glTF MASK).
+        // Leaves/organs/impostor are cutout (matches glTF MASK).
         descriptor.alphaTest = CUTOUT_ALPHA;
       }
     }

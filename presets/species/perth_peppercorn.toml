@@ -1,7 +1,8 @@
 # Peppercorn tree (Schinus molle)
-# Old farmyard, school and railway-station shade tree: a gnarled, burled trunk and a wide crown of weeping
-# branchlets hung with fine feathery leaves and strings of pink-red peppercorns.
-# PLANTED EXOTIC (South America), not a Western Australian native. Perth-specific sourcing was not found; see docs.
+# Heritage shade tree of Guildford, Fremantle, old Perth railway stations and 1980s-90s schoolyards
+# (widely planted across WA since settler-colonial times prior to late-1990s weed phase-out):
+# gnarled burled trunk, wide cascading weeping feathery curtains, and hanging rose-pink peppercorn strings.
+# PLANTED EXOTIC (South America), not a Western Australian native.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -13,40 +14,41 @@ tags = ["perth_planted", "non_native", "shade_tree", "evergreen", "weeping", "be
 
 [generator]
 family = "weber_penn"
-notes = "Tree of about 10 m. Pinnate leaves are drawn with the bipinnate card."
+notes = "10 m gnarled weeping shade tree with separate-material hanging rose-pink peppercorn racemes."
 
 [trunk]
-height = 8.0
+height = 8.2
 height_variance = 0.14
-radius = 0.5
+radius = 0.54
 taper = 0.74
 taper_profile = "exponential"
-curve = 30.0
-curve_variance = 14.0
-curve_back = 28.0
+curve = 24.0
+curve_variance = 12.0
+curve_back = 24.0
 segments = 18
+buttress = 1.2
 
 [branches.level1]
 count = 9
 count_variance = 2
-length = 4.6
+length = 4.8
 length_variance = 0.22
 radius_ratio = 0.58
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "exponential"
-angle = 50.0
+angle = 52.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = -0.04
+gravity = -0.06
 curve = 34.0
-curve_variance = 24.0
+curve_variance = 22.0
 segments = 14
 
 [branches.level2]
 count = 5
 count_variance = 1
-length = 2.8
+length = 2.9
 length_variance = 0.22
 radius_ratio = 0.46
 radius_model = "ratio"
@@ -55,7 +57,7 @@ taper_profile = "smooth"
 angle = 44.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = -0.45
+gravity = -0.48
 curve = 36.0
 curve_variance = 18.0
 segments = 11
@@ -63,7 +65,7 @@ segments = 11
 [branches.level3]
 count = 5
 count_variance = 1
-length = 2.2
+length = 2.3
 length_variance = 0.22
 radius_ratio = 0.28
 radius_model = "ratio"
@@ -72,70 +74,77 @@ taper_profile = "compound"
 angle = 26.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = -0.9
+gravity = -0.90
 curve = 20.0
-curve_variance = 18.0
+curve_variance = 16.0
 segments = 10
+
+[pruning]
+mode = "crown_lift"
+lift_height = 1.8
 
 [crown]
 shape = "hemispherical"
-offset = 0.3
-density = 1.0
-width_ratio = 1.2
+offset = 0.34
+density = 0.96
+width_ratio = 1.24
 
 [leaves]
-count = 2800
+count = 2700
 min_level = 2
-size = 0.6
+size = 0.62
 size_variance = 0.22
 distribution = "along_branch"
 geometry = "cross_billboard"
 shape = "bipinnate"
-up_influence = -0.6
+up_influence = -0.66
 
 [inflorescence]
 kind = "berries"
-count = 380
+count = 520
 min_level = 3
 placement = "along_branch"
 orientation = "hang"
-length = 0.3
-width = 0.3
-size_variance = 0.25
-color = [0.8, 0.3, 0.36]
-color_tip = [0.94, 0.62, 0.62]
-aged_fraction = 0.2
-aged_color = [0.56, 0.3, 0.26]
+length = 0.34
+width = 0.34
+size_variance = 0.24
+color = [0.88, 0.30, 0.38]
+color_tip = [0.96, 0.62, 0.64]
+aged_fraction = 0.16
+aged_color = [0.58, 0.32, 0.28]
+separate_material = true
+roughness = 0.56
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.76
+up_bias = 0.24
+clump_weight = 0.66
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.14
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.68
 
 [textures]
-bark_prompt = "Peppercorn tree bark, dark grey-brown, deeply fissured and flaky, burled"
-leaf_prompt = "Schinus molle leaf, pinnate, many narrow drooping leaflets, light green"
+bark_prompt = "Peppercorn tree bark, dark grey-brown, gnarled, deeply fissured and flaky"
+leaf_prompt = "Schinus molle feathery weeping pinnate fresh olive-green leaflets"
 resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "bipinnate"
 leaf_card = "cluster"
-bark_color = [0.36, 0.31, 0.27]
-leaf_color = [0.33, 0.5, 0.24]
+bark_color = [0.37, 0.31, 0.27]
+leaf_color = [0.35, 0.50, 0.26]
 
 [materials]
 bark = "peppercorn_bark"
 foliage = "peppercorn_foliage"
-notes = "2x2 foliage atlas: feathery leaf spray, pink-red peppercorns."
+notes = "1024px gnarled dark bark + weeping feathery leaf card + rose-pink peppercorn organ atlas."
 
 [[control_groups]]
 key = "shape"
@@ -145,7 +154,7 @@ label = "Shape"
 key = "height"
 label = "Height"
 parameter = "trunk.height"
-min = 2.0
+min = 3.0
 max = 14.0
 step = 0.1
 
@@ -153,7 +162,7 @@ step = 0.1
 key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
-min = 0.5
+min = 0.6
 max = 2.0
 step = 0.05
 

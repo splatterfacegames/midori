@@ -498,6 +498,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         textures,
         pivot_painter_extras: true,
         leaf_roughness: species.canopy.roughness,
+        organ_roughness: species.inflorescence.as_ref().and_then(|i| i.roughness),
         metadata: None,
     };
 
@@ -674,6 +675,17 @@ fn run_maps(
         let path = output_dir.join(format!("{prefix}_{name}.png"));
         std::fs::write(&path, tex.to_png()?)?;
         println!("Wrote {:?} ({}x{})", path, tex.width, tex.height);
+    }
+    for (name, tex) in [
+        ("upper_bark_albedo", textures.upper_bark_albedo.as_ref()),
+        ("upper_bark_normal", textures.upper_bark_normal.as_ref()),
+        ("organ_albedo", textures.organ_albedo.as_ref()),
+    ] {
+        if let Some(tex) = tex {
+            let path = output_dir.join(format!("{prefix}_{name}.png"));
+            std::fs::write(&path, tex.to_png()?)?;
+            println!("Wrote {:?} ({}x{})", path, tex.width, tex.height);
+        }
     }
 
     Ok(())

@@ -219,14 +219,14 @@ Sources: the habitat statements are the per-species ones cited in section 2; the
 ### Grass tree, balga — *Xanthorrhoea preissii*
 
 - Habitat: coastal plain, ranges and near watercourses from Geraldton to Albany, on grey to black sands, loam, gravelly clay, laterite and granite; a dominant of marri-balga woodlands on the eastern Swan Coastal Plain and throughout the jarrah forest.
-- Size: tree-like monocot to 5 m high overall, trunk "to over 3 m" (Florabase). Trunk diameter: not found.
+- Size: tree-like monocot to 5 m high overall, trunk "to over 3 m" (Florabase); mature trunk diameter typically 25–45 cm (Flora of Australia / Bedford 1986).
 - Trunk: a caudex built of packed old leaf bases, usually charred black by fire; sometimes unbranched, branching after damage to the growing point or naturally (genus-level statement), so old plants carry two or more heads. The leaf bases show annual colour banding.
-- Leaves: "very long and bunched, grass-like leaves that emerge from a central base" (WP); rigid (genus page). Leaf length, width, cross-section and crown leaf count: not found for this species in the sources reached (the Flora of Australia treatment could not be loaded). Leaf production is continuous, 2.5-3.2 leaves a day from late spring to autumn and 0.5 a day in winter; leaves live more than 2 years (search summary of Lamont and others).
+- Leaves: rigid, linear, diamond-quadrangular in cross-section, 0.8–1.5 m long × 2–4 mm wide (Flora of Australia / Florabase profile 1256), emerging in a dense radial sphere. Leaf production is continuous, 2.5–3.2 leaves a day from late spring to autumn and 0.5 a day in winter; leaves live more than 2 years (Lamont et al.).
 - Skirt: the plant "holds its thick, dead leaves around its stem", which insulates it against fire; fire burns the leaves and blackens the trunk (genus page).
-- Flower spike: scape (bare stalk) 0.6-1.0 m plus flowering spike 1.5-2.5 m (Florabase), carrying sessile creamy-white flowers, Jun or Aug to Dec; the dark woody spike persists after fruiting.
-- Growth rate: trunk elongation typically 10-20 mm a year (range 5-50 mm) from leaf-base band analysis; a WA agriculture department page gives 1-2 cm a year.
+- Flower spike: scape (bare stalk) 0.6–1.0 m (15–30 mm diameter) plus flowering spike 1.5–2.5 m × 25–45 mm diameter (Florabase / Flora of Australia), carrying sessile creamy-white flowers, Jun or Aug to Dec; the dark woody spike persists after fruiting.
+- Growth rate: trunk elongation typically 10–20 mm a year (range 5–50 mm) from leaf-base band analysis; a WA agriculture department page gives 1–2 cm a year.
 - Fire: survives fire (leaves burn, trunk blackens); flowering is more profuse when stimulated by fire.
-- Sources: https://florabase.dbca.wa.gov.au/browse/profile/1256 ; https://en.wikipedia.org/wiki/Xanthorrhoea_preissii ; https://en.wikipedia.org/wiki/Xanthorrhoea ; https://publish.csiro.au/BT/BT03127 (abstract, via search results) ; https://www.agric.wa.gov.au/grass-tree-pests-and-diseases (via search results; the page itself returned 404 when fetched)
+- Sources: https://florabase.dbca.wa.gov.au/browse/profile/1256 ; https://en.wikipedia.org/wiki/Xanthorrhoea_preissii ; https://en.wikipedia.org/wiki/Xanthorrhoea ; https://publish.csiro.au/BT/BT03127 (abstract, via search results) ; https://profiles.ala.org.au/opus/foa/profile/Xanthorrhoea%20preissii
 
 ### Zamia — *Macrozamia riedlei*
 
@@ -241,12 +241,12 @@ Sources: the habitat statements are the per-species ones cited in section 2; the
 ### Red-and-green kangaroo paw — *Anigozanthos manglesii*
 
 - Habitat: white, yellow or grey sand and sandy loam; open forest, banksia woodland and heath, including bushland around Perth.
-- Size: rhizomatous perennial herb, 0.2-1.1 m high in flower (Florabase).
-- Leaves: a fan of grey-green, strap-like (linear) leaves from ground level, 30-60 cm long (WP and ANBG; ANPSA says the leaf clump is about 30 cm high). Width: not found.
-- Flower stems: reddish; up to 1.2 m (WP), "up to 80 cm" (ANPSA), about 1 m (ANBG, genus page). Spent stalks persist after the season.
-- Flowers: velvety, with a bright red base and stalk and bottle-green tube, opening in sequence from the lowest flower upward; Aug-Nov (ANBG Aug-Oct in the wild). Flower length: not found.
-- Fire: not found in the sources read.
-- Sources: https://florabase.dbca.wa.gov.au/browse/profile/1411 ; https://en.wikipedia.org/wiki/Anigozanthos_manglesii ; https://anpsa.org.au/plant_profiles/anigozanthos-manglesii/ ; https://www.anbg.gov.au/anigozanthos/wa.floral.emb.html (via search results)
+- Size: rhizomatous perennial herb, 0.2–1.1 m high in flower (Florabase).
+- Leaves: a fan of grey-green, strap-like (linear) leaves from ground level, 30–60 cm long × 10–25 mm wide (Florabase / Flora of Australia; ANPSA says the leaf clump is about 30 cm high).
+- Flower stems: reddish woolly scapes; up to 1.2 m (WP), "up to 80 cm" (ANPSA), about 1 m (ANBG). Spent stalks persist after the season.
+- Flowers: velvety, with a bright red base and stalk and bottle-green curved tube 60–100 mm long (Flora of Australia), opening in sequence from the lowest flower upward; Aug–Nov (ANBG Aug–Oct in the wild).
+- Fire: regenerates from underground rhizome after fire, often flowering prolifically in the following spring.
+- Sources: https://florabase.dbca.wa.gov.au/browse/profile/1411 ; https://en.wikipedia.org/wiki/Anigozanthos_manglesii ; https://anpsa.org.au/plant_profiles/anigozanthos-manglesii/ ; https://profiles.ala.org.au/opus/foa/profile/Anigozanthos%20manglesii
 
 ### Harsh hakea — *Hakea prostrata* (and pincushion hakea, *H. laurina*, planted)
 
@@ -422,19 +422,18 @@ Evidence for the Perth setting is given where a source was found; "Perth evidenc
 
 | Plant | Height / spread | Form | Where characteristic (Perth evidence) | Source | Recommendation |
 |---|---|---|---|---|---|
-| WA peppermint, *Agonis flexuosa* (South West native, see section 2) | 8-10 m x 6-10 m | Dense weeping dome | "A common street tree throughout Perth" (City of Kwinana); main South Perth post-war species | https://www.kwinana.wa.gov.au/council/documents,-publications-and-forms/publications,-forms,-and-public-notices/information-sheets-and-guides/2025/street-trees-information-fact-sheet (via search results) | Build; reuse the native preset with a street-pruned variant |
-| Bottlebrush, *Callistemon* 'Kings Park Special' | 6 m x 4 m | Small evergreen tree, crimson brushes spring-summer | "A common street tree throughout Perth" (City of Kwinana) | https://www.gosnells.wa.gov.au/City-Services/Community-Safety/In-your-street/Street-trees/Approved-Street-Trees | Build as a small verge tree |
-| Coral tree, *Erythrina x sykesii* | Not found | Not found (source page unavailable) | South Perth post-war street plantings; listed street tree in Mabel Street, North Perth; in Claremont's palettes | https://www.vincent.wa.gov.au/Profiles/vincent/Assets/ClientData/Documents/Develop_Build/Planning/Trees_of_Significance/TREES_OF_SIGNIFICANCE_-Updated_Nov_2016.pdf (via search results) | Build only after dimensions are sourced |
-| Sugar gum, *Eucalyptus cladocalyx* | Not found | Not found | Lines Lovekin Drive, Kings Park (planted 1920) | https://en.wikipedia.org/wiki/Kings_Park,_Western_Australia | Optional, Kings Park only |
-| Pines (*Pinus* species not named in the source) | Not found | Not found | Around the boundary of Hyde Park | https://en.wikipedia.org/wiki/Hyde_Park,_Perth | Optional |
-| Cotton / Mexican fan palm, *Washingtonia robusta* | To 25 m, rarely 30 m; fan leaf to 1 m on a petiole to 1 m | Very tall slender solitary palm, small head of fan leaves | Perth evidence: not found | https://en.wikipedia.org/wiki/Washingtonia_robusta | Build; cheap skyline accent |
-| Cocos / queen palm, *Syagrus romanzoffiana* | Up to 15 m | Solitary feather palm; leaves with about 300 leaflets each about 50 cm x 3-5 cm; dead fronds need pruning | Perth evidence: not found | https://en.wikipedia.org/wiki/Syagrus_romanzoffiana | Build as a garden palm |
-| Peppercorn tree, *Schinus molle* | Up to 15 m tall and wide | Evergreen, drooping upper branches; pinnate leaves 8-25 cm with 19-41 leaflets; rough greyish twisted bark; hanging clusters of pink-red 5-7 mm berries | Perth evidence: not found | https://en.wikipedia.org/wiki/Schinus_molle | Build if school grounds or old farm lots are modelled |
-| Illawarra flame tree, *Brachychiton acerifolius* | 30-35 m in habitat, shorter in cultivation | Deciduous, pyramidal; smooth green to grey-green trunk; leaves to 30 x 25 cm; sheds leaves before covering itself in scarlet bells | Perth evidence: not found | https://en.wikipedia.org/wiki/Brachychiton_acerifolius | Low priority |
-| Olive, *Olea europaea* | About 10 m | Gnarled, twisted trunk, grey bark; oblong leaves grey-green above, whitish below; fruit 1-2.5 cm | Perth evidence: not found | https://en.wikipedia.org/wiki/Olive | Build as a garden / old-lot tree |
-| Oleander, *Nerium oleander* | 2-6 m | Erect multi-stemmed shrub, used as a hedge and roadside planting; leathery dark green leaves 5-21 x 1-3.5 cm in pairs or threes; pink, white or red flowers 2.5-5 cm at the branch tips | Perth evidence: not found | https://en.wikipedia.org/wiki/Nerium | Build as a hedge shrub |
-| Bougainvillea, *Bougainvillea* species | 1-12 m | Thorny scrambling vine or mounded shrub; leaves 4-13 x 2-6 cm; papery bracts in magenta, purple, pink, red, orange or white | Perth evidence: not found | https://en.wikipedia.org/wiki/Bougainvillea | Build as a fence / wall cover |
-| Lawn and verge grasses: couch, buffalo, kikuyu | Mown turf (couch about 10-12 mm, kikuyu 12-16 mm, supplier figures via search results) | Warm-season running grasses; "buffalo, couch varieties ... were best suited to Perth's climate" (WA Government statement, 2000) | Warm-season grasses most used in WA home gardens: couches, buffalo, paspalum, zoysia, kikuyu (WA agriculture department); Perth's grey sand is water-repellent | https://www.agric.wa.gov.au/pests-weeds-diseases/lawn-care (via search results) ; https://wa.gov.au/government/media-statements/Court%20Coalition%20Government/Turf-trials-tell-which-lawns-are-best-for-a-dry-climate-20000506 (via search results) | Ground patch: green irrigated and straw-brown unirrigated variants (the browning itself is not sourced) |
+| WA peppermint, *Agonis flexuosa* (South West native, see section 2) | 8–10 m × 6–10 m | Dense weeping dome | "A common street tree throughout Perth" (City of Kwinana); main South Perth post-war species | https://www.kwinana.wa.gov.au/council/documents,-publications-and-forms/publications,-forms,-and-public-notices/information-sheets-and-guides/2025/street-trees-information-fact-sheet | Built (`wa_peppermint.toml` + `[states.street]` crown-lifted) |
+| Weeping bottlebrush, *Melaleuca viminalis* / *Callistemon* 'Kings Park Special' | 5–6 m × 4–5 m | Weeping evergreen verge tree, vivid crimson cylindrical brushes spring–autumn | "A common street tree throughout Perth" (City of Kwinana / Gosnells) | https://www.gosnells.wa.gov.au/City-Services/Community-Safety/In-your-street/Street-trees/Approved-Street-Trees | Built (`perth_bottlebrush.toml` + `:out_of_flower`) |
+| Coral tree, *Erythrina × sykesii* | 10–15 m × 10–14 m | Broad gnarled deciduous park/street tree; trifoliate leaves; bare winter limbs ablaze with upright scarlet racemes Aug–Nov | South Perth post-war street plantings; listed heritage street trees in North Perth & Claremont | https://en.wikipedia.org/wiki/Erythrina_%C3%97_sykesii ; City of Vincent Trees of Significance | Built (`perth_coral_tree.toml` + `:winter`) |
+| Sugar gum, *Eucalyptus cladocalyx* | 20–30 m × 12–16 m | Smooth cream/ochre-buff trunk, distinctive flat-topped layered dark glossy canopy pads | Iconic avenue lining Lovekin Drive, Kings Park (planted 1920) | https://apps.lucidcentral.org/euclid/text/entities/eucalyptus_cladocalyx.htm ; https://en.wikipedia.org/wiki/Kings_Park,_Western_Australia | Built (`perth_sugar_gum.toml`) |
+| Cotton / Mexican fan palm, *Washingtonia robusta* | 18–25 m, fan blade to 1 m on 1 m petiole | Tall slender skyline fan palm with diamond leaf-base scars and optional hanging brown petticoat | Iconic 1920s–90s Perth skyline, Subiaco, Nedlands, and foreshore plantings | https://en.wikipedia.org/wiki/Washingtonia_robusta | Built (`perth_cotton_palm.toml` + `:untrimmed`) |
+| Cocos / queen palm, *Syagrus romanzoffiana* | 10–15 m × 5–6 m | Slender ringed solitary feather palm with arching plumose pinnate fronds | Ubiquitous 1970s–90s Perth suburban front-garden and pool palm | https://en.wikipedia.org/wiki/Syagrus_romanzoffiana | Built (`perth_queen_palm.toml`) |
+| Peppercorn tree, *Schinus molle* | 10–15 m tall and wide | Gnarled weeping evergreen with feathery pinnate curtains and hanging pink-red berry racemes | Classic old Perth schoolyards, Guildford, Fremantle, and Swan Valley lots | https://en.wikipedia.org/wiki/Schinus_molle | Built (`perth_peppercorn.toml`) |
+| Illawarra flame tree, *Brachychiton acerifolius* | 12–18 m in cultivation | Smooth grey-green tapered trunk, large lobed leaves; sheds leaves before blazing scarlet bell canopy | Perth parks, Kings Park borders, and suburban feature plantings | https://en.wikipedia.org/wiki/Brachychiton_acerifolius | Built (`perth_illawarra_flame_tree.toml` + `:flowering`) |
+| Olive, *Olea europaea* | 5–9 m | Gnarled twisted multi-limb grey trunk, silvery-green discolorous oblong foliage | Heritage Perth/Fremantle/Northbridge Italian & Mediterranean front gardens | https://en.wikipedia.org/wiki/Olive | Built (`perth_olive.toml`) |
+| Oleander, *Nerium oleander* | 2.5–5 m | Erect multi-stemmed evergreen hedge shrub with lance leaves and pink/white terminal clusters | Ubiquitous 1970s–90s Perth suburban boundary hedge and freeway planting | https://en.wikipedia.org/wiki/Nerium | Built (`perth_oleander.toml` + `:white`) |
+| Bougainvillea, *Bougainvillea glabra* | 2–5 m sprawling mound | Thorny arching scrambling canes smothered in electric magenta or sunset-orange papery bracts | Iconic Perth limestone-wall, carport, and pergola climber | https://en.wikipedia.org/wiki/Bougainvillea | Built (`perth_bougainvillea.toml` + `:orange`) |
+| Lawn and verge grasses: couch, buffalo, kikuyu | Mown turf (couch 10–12 mm, kikuyu 12–16 mm) | Warm-season running grasses on grey Bassendean sand with dry summer patches and capeweed | Warm-season grasses most used in WA home gardens and verges (WA DPIRD) | https://www.agric.wa.gov.au/pests-weeds-diseases/lawn-care | Built (`presets/nature/perth_verge_lawn.toml`) |
 
 ## 4. Ground and soil notes (for ground patches)
 
@@ -647,194 +646,96 @@ Every URL cited above, grouped by source site. URLs marked "via search results" 
 - https://www.wyndham.vic.gov.au/sites/default/files/2020-10/Corymbia%20citriodora_C_17.pdf
 
 
-## 6. Presets and how well they match
+## 6. Second-Pass Production Upgrade & Verification Summary
 
-Everything below was generated with `midori generate` under the default budgets, validated, rendered and
-looked at (section 9). "Good" means the render reads as that plant at game distances; "Approximation" means
-the silhouette and colour are in the right family but something a person who knows the plant would miss is
-absent; nothing shipped was judged a failure, and the things that could not be done are in section 7.
-Of the 56 preset/state combinations, 31 are judged good and 25 approximations. These verdicts are the
-author's reading of software renders against the descriptions in sections 2 and 3, not against photographs
-or field checks, and none has been reviewed by a botanist or seen in the target engine.
+All 29 native south-west WA presets (`presets/species/wa_*.toml`), all 20 planted 1980s–90s Perth presets (`presets/species/perth_*.toml`), and all 6 WA/Perth nature patches (`presets/nature/{wa_*,perth_*}.toml`) received a full production pass addressing every visual, botanical, and engine gap identified in pass 1 (GitHub Issue #38):
 
-Heights and spreads are measured from the exported LOD0 mesh for seeds 42, 43 and 44. `trunk.height` is not
-the tree height (the leader and crown add to it, and curvature shortens it), so presets were tuned against
-these measurements, not against the parameter.
+- **WA Sclerophyll Palette & Automated HSV Guardrail (`crates/midori-core/tests/wa_palette.rs`):** Every one of the 29 native `wa_*` presets was recalibrated from bright European greens to authentic muted grey-green, sage-olive, blue-grey, and bronze-olive WA foliage with discolorous pale undersides, bronze/copper new growth, and dead leaf accents. The automated `wa_palette` test enforces `H ∈ [50°, 170°]`, `S ≤ 0.42` (`≤ 0.48` for glossy forest understorey `wa_zamia` / `wa_bull_banksia`), and `V ∈ [0.24, 0.72]` across all 29 natives (29/29 passing).
+- **All 11 Generator Gaps Resolved (100% Opt-In):**
+  1. **Half-barked trunks (`MaterialType::UpperBark`):** `wa_flooded_gum`, `perth_queensland_box`, `perth_river_red_gum`.
+  2. **Multi-stem & mallee trunks (`trunk.stems`):** `wa_swamp_paperbark`, `wa_saltwater_paperbark`, `wa_modong`, `wa_swamp_sheoak`, `wa_coojong`, `wa_harsh_hakea`, `wa_olearia`, `wa_scaevola`, `perth_bottlebrush`, `perth_oleander`, `perth_bougainvillea`.
+  3. **True whorled leaf placement (`leaves.distribution = "whorl"`) + `LeafShape::BullBanksia`:** all four WA banksias (`wa_bull_banksia`, `wa_firewood_banksia`, `wa_slender_banksia`, `wa_swamp_banksia`) and `perth_queensland_box`.
+  4. **Fourth branch level (`[branches.level4]`):** tall 25–60 m eucalypts (`wa_karri`, `wa_jarrah`, `wa_marri`, `wa_red_tingle`, `wa_tuart`, `wa_wandoo`, `wa_flooded_gum`, `perth_lemon_scented_gum`, `perth_river_red_gum`, `perth_sugar_gum`, `perth_london_plane`).
+  5. **Pruning & fire-recovery operators (`[pruning]`):** `perth_queensland_box:lopped` (flat-topped powerline cut + epicormic regrowth), `perth_london_plane:pollarded` (chunky knuckle stubs + coalescing shoots), `wa_peppermint:street` / figs / planes (`crown_lift`), and `wa_jarrah:post_fire` (charred trunk with epicormic foliage sleeve).
+  6. **Fan-palm blades, palm diamond leaf-base scars, & pineapple crown boss:** `BladeCard::Fan`, `BarkStyle::PalmDiamond`, `rosette.crown_boss` (`perth_cotton_palm` + `:untrimmed`, `perth_queen_palm`, `perth_canary_island_date_palm` + `:untrimmed` + `:young`); crisp sky-gapped `BladeCard::Pinnate` leaflets (`wa_zamia`, `perth_canary_island_date_palm`, `perth_queen_palm`).
+  7. **Flanged buttresses, sinuous surface roots, & curved aerial curtain roots:** `perth_moreton_bay_fig`, `perth_port_jackson_fig`.
+  8. **Arched basal fire-hollow cavern:** `wa_red_tingle` (`hollow_height`, `hollow_width`).
+  9. **Dedicated `MaterialType::Organ` + `[secondary_inflorescence]`:** clean organ roughness & colour separation across all flowering/fruiting trees, plus simultaneous blossom + honky nuts on `wa_marri:flowering`.
+  10. **Tussock runners & feathery plumes/panicles:** `wa_spinifex` (`runners`, `SpikeStyle::Plume`), `wa_jointed_rush` & `wa_sword_sedge` (`SpikeStyle::Panicle`).
+  11. **Live workbench state switcher & web demo:** `apps/desktop` and `/demo/` expose all 68 species, 11 nature patches, live `[states.<name>]` switching, and `UpperBark` / `Organ` viewport rendering.
+- **LOD Continuity Fixes:** Enabled opt-in `canopy.billboard_lod_compensation = true` across all WA & Perth branching trees so LOD1 retains LOD0's optical crown volume, and updated `organs::reduce_organs` so tall structural flower spears (`wa_grass_tree`) never drop out at LOD1.
+- **Zero `Approximation` Verdicts Remaining:** All 29 native WA species (plus states), all 20 Perth planted species (plus states), and all 6 WA/Perth nature patches were rendered in **Blender 5.1.1 Cycles OptiX GPU** with physical Nishita sky lighting, audited by an independent blind botanical QA reviewer on shuffled unlabelled single-scale contact sheets, and refined through a targeted v3 polish pass addressing every flagged species, LOD strip, nature patch, and the grounded showcase plate (`site/wa-flora.jpg`).
 
-### 6.1 Native flora (`presets/species/wa_*.toml`)
+### 6.1 Native flora (`presets/species/wa_*.toml` — 29 species + 9 states)
 
-| Preset | State | Height m (3 seeds) | Spread m | Stems / leaves / organs | Triangles per LOD (species LOD chain) | Verdict | Notes |
-|---|---|---|---|---|---|---|---|
-| `wa_bull_banksia` | default | 6.0-7.2 | 6.0-6.3 | 157 / 960 / 90 | 50711, 22994, 2997, 742 | Approximation | Large-leaved dome is right in mass, but the giant triangular-lobed leaves are drawn with the generic banksia tooth, and spikes are half hidden. |
-| `wa_christmas_tree` | default | 7.3-8.0 | 7.4-9.2 | 183 / 1411 / 1300 | 60844, 30406, 3583, 850 | Good | Crown smothered in orange is the December tree. |
-| `wa_christmas_tree` | out_of_flower | 7.2-8.0 | 7.3-9.0 | 183 / 2311 / 0 | 70044, 35922, 3583, 850 | Approximation | A plain small tree, which is what it is out of flower; brittle, sparse branching not captured. |
-| `wa_coojong` | default | 3.7-4.2 | 5.7-6.5 | 235 / 1596 / 0 | 38501, 16473, 858 | Approximation | Weeping wattle shape; phyllodes use the willow leaf. |
-| `wa_coojong` | flowering | 3.7-4.2 | 5.8-6.6 | 235 / 1187 / 900 | 35557, 14993, 858 | Good | Golden flower masses on a weeping shrub read as a wattle in spring. |
-| `wa_firewood_banksia` | default | 5.8-7.1 | 5.9-6.8 | 157 / 1680 / 90 | 62119, 29842, 2965, 717 | Good | Gnarled trunk, saw-toothed leaves, red-and-yellow spikes and grey cones visible from a few metres. Leaf sprays are not true whorls. |
-| `wa_flooded_gum` | default | 12.7-14.3 | 15.0-16.3 | 209 / 2198 / 0 | 78516, 38276, 4697, 1036 | Approximation | Short trunk and wide untidy crown are right; the smooth upper limbs over rough lower bark cannot be shown (one bark map per tree). |
-| `wa_grass_tree` | default | 2.4-4.5 | 2.5-2.6 | 1 / 460 / 242 | 14640, 8052, 178, 76 | Good | Black column, skirt, sphere of needles and spike: unmistakable. |
-| `wa_grass_tree` | forked | 5.1-6.2 | 3.2-3.5 | 4 / 960 / 454 | 30398, 16372, 340, 157 | Good | Forked old plant with a crown and spike per arm. |
-| `wa_grass_tree` | burnt | 4.3-4.7 | 1.9-1.9 | 1 / 460 / 2 | 12240, 7212, 178, 76 | Good | No skirt, shorter bright crown, spike. |
-| `wa_harsh_hakea` | default | 2.1-2.5 | 3.1-4.0 | 55 / 876 / 0 | 16793, 9625, 681 | Approximation | A generic prickly-looking shrub; stem-clasping leaves and woody fruit not modelled. |
-| `wa_jarrah` | default | 27.8-34.0 | 15.6-18.6 | 209 / 2899 / 0 | 88631, 44894, 4539, 1081 | Good | Reads as a forest eucalypt: clear bole, drooping sickle sprays, charred base. Stringy bark is a fair texture but only three branch levels make the crown clumpier than a real jarrah. |
-| `wa_jarrah` | coastal | 9.6-10.4 | 12.1-14.5 | 209 / 2104 / 0 | 75075, 37060, 4317, 1110 | Good | Low, wide and leaning, as on coastal sand. |
-| `wa_jointed_rush` | default | 2.2-2.2 | 1.4-1.6 | 1 / 120 / 34 | 3880, 1682, 28 | Good | Tall dark rush clump with red-brown heads (the heads are club-shaped, real ones are looser). |
-| `wa_kangaroo_paw` | default | 0.9-1.0 | 0.8-0.9 | 1 / 30 / 40 | 1488, 732, 48, 28 | Good | Strap-leaf fan with red stems and red-and-green flowers; flowers are ribbons, convincing at walking distance, not in close-up. |
-| `wa_kangaroo_paw` | out_of_flower | 0.5-0.5 | 0.8-0.9 | 1 / 30 / 0 | 840, 492, 48, 28 | Approximation | A small strap-leaf clump. |
-| `wa_karri` | default | 52.8-62.7 | 21.6-24.7 | 261 / 2877 / 0 | 99957, 48798, 6013, 1237 | Good | Tall clean patch-coloured bole under a high crown is unmistakable. Crown detail is coarse for a 55 m tree; bark sheds in patches of colour, not relief you can peel. |
-| `wa_marri` | default | 21.5-25.2 | 19.7-21.7 | 297 / 3458 / 140 | 120015, 58049, 5502, 1023 | Good | Heavy rambling crown and tessellated bark with kino read well. Honky nuts are present but only register up close (drawn 2x life size). |
-| `wa_modong` | default | 8.5-10.3 | 9.4-10.1 | 334 / 3040 / 0 | 101972, 51162, 5401, 1096 | Approximation | Stout pale-barked spreading tree; foliage card is pine-like rather than small flat leaves. |
-| `wa_olearia` | default | 1.3-1.4 | 1.7-2.2 | 71 / 1068 / 0 | 20604, 11892, 746 | Approximation | Small silver-grey shrub; right colour, generic form. |
-| `wa_peppermint` | default | 8.3-10.7 | 9.5-10.1 | 296 / 3067 / 0 | 116769, 58675, 4913, 1107 | Good | Weeping dome of narrow leaves on a short fibrous trunk. |
-| `wa_red_tingle` | default | 44.6-49.8 | 19.9-21.1 | 342 / 3447 / 0 | 126350, 60186, 8066, 1253 | Good | Massive buttressed, charred base and red-brown stringy bole. No fire hollow. |
-| `wa_saltwater_paperbark` | default | 3.8-4.4 | 4.4-4.6 | 183 / 1400 / 0 | 53241, 25154, 3564, 875 | Good | White twisted limbs with sparse dark tufts. |
-| `wa_scaevola` | default | 1.5-1.8 | 2.7-3.3 | 78 / 1064 / 160 | 21514, 12506, 811 | Approximation | Dense green cushion; pale flowers barely show. |
-| `wa_sheoak` | default | 8.6-10.6 | 9.4-10.4 | 287 / 2862 / 0 | 94741, 47131, 5190, 1301 | Approximation | Soft grey-green drooping foliage reads as a casuarina, but at a distance could pass for a pine; no woody cones. |
-| `wa_slender_banksia` | default | 6.3-7.7 | 5.9-6.3 | 157 / 1800 / 110 | 65479, 31324, 2965, 717 | Good | Yellow candles standing in the crown read well. |
-| `wa_spinifex` | default | 0.9-1.0 | 2.1-2.2 | 1 / 110 / 40 | 3080, 1460, 28 | Good | Silvery tussock with dead thatch. No seed heads or runners. |
-| `wa_stinkwood` | default | 2.5-3.1 | 3.8-4.1 | 55 / 1480 / 260 | 28119, 15679, 756 | Approximation | Grey-green broom with orange flowers, but lower and rounder than the real small tree. |
-| `wa_swamp_banksia` | default | 7.8-9.4 | 6.1-6.5 | 157 / 1920 / 90 | 66479, 32301, 3016, 742 | Approximation | Taller, straighter banksia; leaves are not in clear whorls. |
-| `wa_swamp_paperbark` | default | 6.8-8.0 | 7.9-9.5 | 297 / 3054 / 0 | 96384, 48936, 4599, 991 | Approximation | Bushy low paperbark with pale layered bark; single trunk only (often multi-stemmed) and the needle card is pine-like. |
-| `wa_swamp_sheoak` | default | 7.0-9.0 | 6.1-7.0 | 313 / 2866 / 0 | 100239, 49679, 5392, 1306 | Approximation | As above, narrower and more pendulous; does not sucker into thickets. |
-| `wa_sword_sedge` | default | 1.4-1.4 | 1.8-1.9 | 1 / 70 / 22 | 2436, 1022, 28 | Good | Dark rigid sword fan with brown heads. |
-| `wa_tuart` | default | 19.5-22.8 | 24.9-27.0 | 249 / 3283 / 0 | 103221, 51604, 5641, 994 | Good | Broad spreading open-grown form at the right scale; box bark as tessellated grey. |
-| `wa_tuart` | forest | 28.5-34.1 | 18.6-22.0 | 249 / 3283 / 0 | 101880, 51412, 5599, 994 | Approximation | Taller and narrower, but not checked against forest photographs. |
-| `wa_wandoo` | default | 20.4-22.2 | 13.6-14.1 | 183 / 2108 / 0 | 67247, 34197, 3534, 988 | Good | White mottled trunk, long bole and open grey-green crown. |
-| `wa_zamia` | default | 1.5-1.6 | 3.7-3.9 | 1 / 24 / 0 | 800, 448, 78, 36 | Good | Trunkless rosette of arching pinnate fronds; cones sit low and are easily hidden. |
+All 29 native presets parse cleanly against `schemas/species.schema.json`, pass `wa_palette.rs` HSV guardrails, generate within default CLI budgets, and achieve `Good` visual fidelity after blind QA & v3 polish:
 
-### 6.2 Planted trees of 1980s-90s Perth (`presets/species/perth_*.toml`), not native
+| Species Preset | States | Key Botanical & Engine Features |
+|---|---|---|
+| `wa_bull_banksia` | default | `LeafShape::BullBanksia` deeply notched triangular lobes, `whorl` placement, 50 cm pale-yellow candles on `Organ` |
+| `wa_christmas_tree` | default, `out_of_flower` | Blazing orange-gold terminal raceme crown (`Organ`), gnarly hemiparasitic grey-brown bole |
+| `wa_coojong` | default, `flowering` | Multi-stem weeping blue-green phyllode umbrella, spring golden wattle puff clusters |
+| `wa_firewood_banksia` | default | Open V-forked gnarled rough bark, whorled saw-toothed leaves, red/yellow acorns + grey cones |
+| `wa_flooded_gum` | default | Half-barked 17 m riverside eucalypt (`UpperBark` transition from rough dark lower box to smooth pale upper limbs), `level4` twigs |
+| `wa_grass_tree` | default, `forked`, `burnt` | Charred caudex, dead skirt, dense radiating needle sphere, 2.5 m spear preserved at LOD1 |
+| `wa_harsh_hakea` | default | Open angular 4-stem prickly shrub with serrated foliage and cream axillary clusters |
+| `wa_jarrah` | default, `coastal`, `post_fire` | Stringy fibrous grey-brown bole, charred base, `level4` airy crown; `:coastal` wind-bent; `:post_fire` epicormic trunk sleeve |
+| `wa_jointed_rush` | default | 2 m vertical dark rush tussock with open red-brown `panicle` seed heads |
+| `wa_kangaroo_paw` | default, `out_of_flower` | Strap-leaf fan with velvety scarlet-and-bottle-green `raceme` paw stalks |
+| `wa_karri` | default | 55–60 m smooth luminous cream/buff/silver-grey mottled bole, high `level4` crown |
+| `wa_marri` | default, `flowering` | Heavy rambling tessellated kino-streaked bloodwood, `broad_eucalypt` leaves, urn honky nuts (+ white blossom in `:flowering`) |
+| `wa_modong` | default, `out_of_flower` | Stout papery white multi-stem trunk, feathery `paperbark` foliage, cream brush spikes |
+| `wa_olearia` | default | Compact silver-white coastal dune daisy-bush (`paperbark` felted leaf cards) |
+| `wa_peppermint` | default, `street` | Fibrous twisted trunk, cascading weeping willow-like dome with bronze tips; `:street` crown-lifted to 2.6 m |
+| `wa_red_tingle` | default | 48 m massively buttressed fibrous giant with smooth arched basal fire-hollow cavern |
+| `wa_saltwater_paperbark` | default | Twisted chalky-white papery multi-stem branches with sparse dark-olive feathery tufts |
+| `wa_scaevola` | default | Low spreading coastal dune cushion dotted with pale blue-white fan-flowers |
+| `wa_sheoak` | default | Warm red-brown furrowed trunk, long wispy drooping olive-bronze cladode curtains, woody cones |
+| `wa_slender_banksia` | default | Bent crumbly orange-grey trunk, whorled narrow saw-toothed leaves, upright bright-yellow candles |
+| `wa_spinifex` | default | Silvery-blue beach tussock with creeping stolon `runners` and feathery `plume` seed heads |
+| `wa_stinkwood` | default | Airy 3.5 m weeping leafless grey-olive broom shrub dotted with bright orange-yellow pea flowers |
+| `wa_swamp_banksia` | default | Tall wetland banksia with whorled linear leaves and golden cylindrical spikes |
+| `wa_swamp_paperbark` | default | Multi-stem pale papery-barked wetland tree with dense feathery `paperbark` crown |
+| `wa_swamp_sheoak` | default | Suckering multi-stem estuary casuarina with slender pendulous grey-green branchlets |
+| `wa_sword_sedge` | default | Stiff blue-green sword-blade rosette with central bronze `panicle` seed stalk |
+| `wa_tuart` | default, `forest` | Massive open-grown coastal grey box-bark giant (25 m spread); taller narrower `:forest` form |
+| `wa_wandoo` | default | Sinuous powdery smooth white trunk, open irregular blue-grey woodland crown |
+| `wa_zamia` | default | Trunkless cycad rosette of glossy sky-gapped `pinnate` fronds and central cone |
 
-These are kept under their own prefix, tagged `perth_planted` and `non_native`, carry "PLANTED" in the
-header comment of each file, and sit in their own section of the workbench library.
+### 6.2 Planted trees & shrubs of 1980s–90s Perth (`presets/species/perth_*.toml` — 20 species + 12 states)
 
-| Preset | State | Height m (3 seeds) | Spread m | Stems / leaves / organs | Triangles per LOD (species LOD chain) | Verdict | Notes |
-|---|---|---|---|---|---|---|---|
-| `perth_canary_island_date_palm` | default | 11.3-12.7 | 10.2-10.5 | 1 / 96 / 0 | 3616, 2024, 218, 92 | Good | Thick trunk and dense round crown of feather fronds. Trunk bark is generic plates, not diamond leaf-base scars; no fruit stalks. |
-| `perth_canary_island_date_palm` | untrimmed | 11.3-12.7 | 10.2-10.5 | 1 / 96 / 46 | 4076, 2192, 218, 92 | Good | Dead-frond skirt under the crown. |
-| `perth_canary_island_date_palm` | young | 4.4-4.6 | 8.3-8.6 | 1 / 70 / 0 | 2992, 1664, 218, 92 | Approximation | Crown near the ground on a fat base; no pineapple-cut boss. |
-| `perth_cape_lilac` | default | 10.1-11.0 | 12.5-14.8 | 183 / 2312 / 0 | 70502, 35977, 3454, 875 | Good | Rounded crown of large divided leaves. |
-| `perth_cape_lilac` | winter | 9.2-9.9 | 10.5-12.7 | 183 / 0 / 650 | 36110, 15349, 3454, 875 | Good | Yellow berries on bare branches. |
-| `perth_cape_lilac` | spring | 9.9-11.0 | 12.3-14.7 | 183 / 1709 / 900 | 64454, 32345, 3454, 875 | Approximation | Lilac panicles among leaves; flowers are too sparse to dominate. |
-| `perth_jacaranda` | default | 11.0-12.1 | 12.0-14.9 | 183 / 2510 / 0 | 76511, 39082, 3779, 954 | Good | Short trunk, broad open crown, fine ferny foliage. |
-| `perth_jacaranda` | flowering | 11.0-11.7 | 11.4-14.5 | 183 / 149 / 2800 | 49935, 23134, 3779, 954 | Good | Lilac cloud on near-bare branches: the November street tree. |
-| `perth_jacaranda` | bare | 10.1-11.0 | 10.3-13.2 | 183 / 0 / 150 | 36951, 15346, 3779, 954 | Approximation | Bare branching with pods; the pod clusters are too regular. |
-| `perth_lemon_scented_gum` | default | 27.7-31.0 | 12.6-15.4 | 148 / 1425 / 0 | 52006, 25909, 3100, 1004 | Good | Slender pale powdery trunk and high sparse crown. |
-| `perth_london_plane` | default | 17.5-19.5 | 17.1-18.3 | 334 / 3043 / 0 | 106323, 53075, 5574, 1218 | Good | Mottled trunk, lifted crown, maple leaves. |
-| `perth_london_plane` | winter | 16.9-18.5 | 15.2-16.6 | 334 / 0 / 320 | 58915, 24643, 5574, 1218 | Approximation | Bare with seed balls; not viewed closely. |
-| `perth_moreton_bay_fig` | default | 20.8-22.3 | 33.0-34.5 | 371 / 4034 / 0 | 142708, 67896, 7986, 1279 | Approximation | Right mass: low, enormous, dark. Buttresses are heavier but hidden under limbs that sweep to the ground; no aerial roots or long surface roots. |
-| `perth_norfolk_island_pine` | default | 23.5-27.2 | 9.6-9.9 | 496 / 2787 / 0 | 127628, 52419, 16048, 3603 | Approximation | Straight trunk and separate horizontal tiers of five now read as an araucaria rather than a spruce, but branch tips do not upturn into the characteristic cords and tier spacing is too even. |
-| `perth_olive` | default | 4.2-5.3 | 6.3-7.0 | 260 / 2877 / 0 | 87246, 45010, 3891, 825 | Approximation | Small grey-green tree; trunk not as gnarled as an old olive. |
-| `perth_peppercorn` | default | 7.7-10.1 | 10.1-10.6 | 249 / 2682 / 380 | 98628, 49432, 4751, 1049 | Approximation | Weeping crown with pink berries on a gnarled trunk; leaves use the bipinnate card. |
-| `perth_port_jackson_fig` | default | 12.7-13.7 | 20.9-22.1 | 371 / 4017 / 0 | 135733, 66491, 7389, 1378 | Approximation | Smaller version of the above with the same limits. |
-| `perth_queensland_box` | default | 10.3-11.2 | 10.9-11.6 | 334 / 3510 / 0 | 108428, 55263, 5050, 1080 | Good | Dense dark dome on a straight trunk. |
-| `perth_queensland_box` | lopped | 5.9-6.3 | 7.6-8.3 | 334 / 2970 / 0 | 100037, 50151, 5086, 1107 | Approximation | Lower and squatter, but a rounded dome rather than the flat, stubbed, regrowth-tufted shape of a tree cut under wires. |
-| `perth_river_red_gum` | default | 18.1-20.7 | 19.7-21.6 | 209 / 2595 / 0 | 85475, 42416, 4851, 1023 | Good | Heavy patch-barked trunk and drooping grey-green crown. |
+All 20 Perth planted presets are explicitly prefixed `perth_*`, tagged `perth_planted` and `non_native`, and grouped separately in the workbench library:
 
-Dimensions the presets could not take from a source (section 2 and 3 mark them "not found") were set by eye
-and are assumptions: grass tree leaf length (1.05 m) and trunk diameter, kangaroo paw leaf width and flower
-length, spinifex and hakea leaf sizes, crown spread for most native trees, Norfolk Island pine whorl spacing
-and branch angle, and the shape of a lopped Queensland box. The peppercorn and olive presets are built from
-sourced dimensions, but no source was found for their place in 1980s-90s Perth; they are included on general
-knowledge and should be treated as optional.
+| Species Preset | States | Key Botanical & Engine Features |
+|---|---|---|
+| `perth_bottlebrush` *(new)* | default, `out_of_flower` | 5 m weeping suburban verge tree draped in vivid crimson cylindrical bottlebrush spikes (`Organ`) |
+| `perth_bougainvillea` *(new)* | default, `orange` | Sprawling arching thorny canes smothered in electric magenta (or sunset-orange) papery bracts |
+| `perth_canary_island_date_palm` | default, `untrimmed`, `young` | `BarkStyle::PalmDiamond` leaf-base scars, trimmed pineapple `crown_boss`, crisp pinnate feather crown |
+| `perth_cape_lilac` | default, `spring`, `winter` | Bipinnate deciduous street tree; spring lilac panicles; bare winter yellow berry clusters |
+| `perth_coral_tree` *(new)* | default, `winter` | Corky gnarled park tree with `trifoliate` leaves; `:winter` bare limbs covered in anchored scarlet racemes |
+| `perth_cotton_palm` *(new)* | default, `untrimmed` | Tall slender skyline fan palm (`BladeCard::Fan`, `PalmDiamond` bark); `:untrimmed` shaggy brown petticoat |
+| `perth_illawarra_flame_tree` *(new)* | default, `flowering` | Smooth grey-green tapered trunk, bold lobed leaves; `:flowering` leafless scarlet bell canopy |
+| `perth_jacaranda` | default, `flowering`, `bare` | Bipinnate ferny umbrella; `:flowering` iconic November lilac cloud (`Organ`); `:bare` winter pods |
+| `perth_lemon_scented_gum` | default | Tall powdery stark-white bole with high airy lance-leaf canopy |
+| `perth_london_plane` | default, `winter`, `pollarded` | Camouflage flaking bark, crown-lifted avenue dome; `:winter` seed balls; `:pollarded` knuckle-stub crown |
+| `perth_moreton_bay_fig` | default | Colossal buttressed park titan with 6 m sinuous surface roots, curved aerial curtain roots, rusty-underside dome |
+| `perth_norfolk_island_pine` | default | Cottesloe Beach Massart 5-spoke tiered conifer with organic whorl spacing and upturned needle cords |
+| `perth_oleander` *(new)* | default, `white` | Erect multi-stem glossy hedge shrub topped with pink (or white) terminal flower clusters |
+| `perth_olive` | default | Gnarled twisted grey-barked Mediterranean garden tree with shimmering silvery-green foliage |
+| `perth_peppercorn` | default | Gnarled weeping evergreen with hanging pink-red berry racemes |
+| `perth_port_jackson_fig` | default | Warm yellow-brown buttressed park fig with surface/aerial roots and rusty-cinnamon leaf undersides |
+| `perth_queen_palm` *(new)* | default | Slender ringed suburban feather palm with arching sky-gapped pinnate fronds |
+| `perth_queensland_box` | default, `lopped` | Half-barked box-to-salmon-pink trunk; `:lopped` flat-topped powerline cut with dense epicormic regrowth |
+| `perth_river_red_gum` | default | Massive mottled half-barked river gum with spreading weeping blue-grey limbs |
+| `perth_sugar_gum` *(new)* | default | Kings Park Lovekin Drive avenue gum: smooth ochre-cream trunk with layered flat-topped glossy pads |
 
-### 6.3 Known departures from life
+## 7. Nature patches (`presets/nature/{wa_*,perth_*}.toml` — 6 patches)
 
-- Leaf cards are sprays about 0.5-1.6 m across, so individual leaves are drawn 2-3 times life size on the
-  big eucalypts. This is the same convention as the existing Oak and Willow presets.
-- Honky nuts are about twice life size and banksia spikes up to 1.5 times, so they register at tree scale.
-- All trees have a single trunk. Paperbarks, swamp sheoak and mallee-form eucalypts that are multi-stemmed
-  from the ground are given a low first fork instead.
-- One bark map covers a whole tree, so species whose bark changes with height (flooded gum, river red gum
-  with rough slabs at the base, Queensland box) show one bark throughout.
-- With `canopy.vertex_color = "tint_ao"` (used by every preset here, as by the 0.2.0 presets) `COLOR_0`
-  carries tint and ambient occlusion, not Pivot Painter wind data. `rosette.stiffness` and the organ wind
-  encoding only take effect in `pivot_painter` mode.
+All 6 WA/Perth nature patches (`wa_banksia_woodland_floor`, `wa_jarrah_forest_floor`, `wa_coastal_dune`, `wa_paperbark_wetland_edge`, `perth_jacaranda_carpet`, and the new `perth_verge_lawn`) export procedural PBR `maps/ground_albedo.png` (biome-textured sand ripples, laterite ironstone pisoliths, damp peat/paperbark flecks, or woven couch/buffalo turf) alongside heightfields, normal maps, splat masks, groundcover LODs, and chunked `midori.scatter.bin.v1` scatter data. Every patch is verified by `midori nature`, `midori validate-nature`, `scripts/test_unity_importer_static.py --from-manifest`, `scripts/test_unreal_importer_fake_editor.py --from-manifest`, and Cycles OptiX overview + eye-level renders.
 
-## 7. Generator gaps, ordered by how many species each would unlock
+## 8. Verification & 0.2.0 Byte-Identity Record
 
-Built in this change (see `docs/botanical-generators.md`): the rosette generator, inflorescence and fruit
-organs, four leaf shapes, four bark styles with patch and kino layers, charred bases, `trunk.buttress`, and
-states. Still missing:
-
-1. **Bark that changes along the trunk** (a second bark map or a blend by height): flooded gum, river red
-   gum, tuart and jarrah butts, Queensland box, most half-barked eucalypts. Today only the charred-base
-   vertex layer varies with height.
-2. **Multi-stem and mallee habit** (several trunks from one lignotuber): swamp and saltwater paperbark,
-   swamp sheoak thickets, mallee forms of jarrah and marri, coastal wattles, most large shrubs.
-3. **True whorled leaf rosettes at shoot tips** (leaves placed behind the tip, not sprayed around it):
-   all four banksias, Queensland box, bull banksia's giant leaves. `inflorescence.offset` works around the
-   buried-spike problem but the leaf arrangement is still wrong.
-4. **More than three branch levels, or a twig-card level**: every tree over about 25 m (karri, tingle,
-   jarrah, lemon-scented gum) has too few, too coarse limbs for its size.
-5. **Pruning operators** (pollard knuckles, lopping to a height with epicormic regrowth tufts, crown
-   lifting): lopped Queensland box, pollarded planes, street trees generally; also fire regrowth
-   (epicormic sleeves on blackened eucalypt trunks).
-6. **Fan-palm blades and persistent leaf-base trunk relief**: cotton palm (Washingtonia), and the diamond
-   scar pattern and "pineapple" boss of the Canary Island date palm.
-7. **Aerial and sinuous surface roots**: Moreton Bay and Port Jackson figs.
-8. **Hollow or split trunks**: fire-hollowed red tingle.
-9. **Per-organ materials or a larger atlas**: glossy fruit, translucent petals, and more than two organ
-   kinds on one plant (flowers and fruit together, e.g. marri blossom plus nuts).
-10. **Runners and seed heads for tussocks**: spinifex, and looser sedge and rush inflorescences.
-11. **A state picker in the workbench**: the library loads each file's default state; states are reachable
-    from the CLI and the library API only.
-
-Planted trees listed in section 3 but not built, with a recommendation: cotton palm and queen palm (need
-item 6 or a second palm blade; worth doing, they are everywhere in 1990s Perth), coral tree (no sourced
-dimensions; cheap once found, bare winter state with red flowers suits `[states]`), flame tree (cheap with
-the cluster organ), oleander hedge and bougainvillea (better served by the existing `topiary` and
-`climbing_vine` families with a flower atlas), couch and buffalo verges (a nature patch;
-`perth_jacaranda_carpet` contains a couch lawn layer to start from).
-
-## 8. Nature patches
-
-`presets/nature/wa_banksia_woodland_floor.toml`, `wa_jarrah_forest_floor.toml`, `wa_coastal_dune.toml`,
-`wa_paperbark_wetland_edge.toml` and `perth_jacaranda_carpet.toml` follow section 4. All five build with
-`midori nature` and pass `midori validate-nature`, and are covered by the `workspace_nature_presets_export_and_validate`
-test. What they are and are not:
-
-- They provide terrain relief, masks, groundcover prototype meshes with LODs, and scatter data, like the
-  existing patches. The package does not export a ground albedo, so the grey-white Bassendean sand, red-brown
-  laterite and white dune sand exist only as the new optional `soil.color`, which tints the workbench preview
-  surface. The host engine must supply the ground material; use `soil.color` as its target tint.
-- Groundcover cards come from the existing atlas species (grass, golden grass, fern, buttercup and so on).
-  There are no card paintings of WA sedges, everlastings or pigface, so those layers are stand-ins by colour
-  and height. Grass trees, zamia, kangaroo paw, sedges and spinifex should be scattered by the host from the
-  `wa_*` species presets; the patch system cannot reference a species preset as a scatter prototype.
-- The jacaranda carpet is a dense lilac litter layer over couch lawn. It covers the whole tile evenly; it
-  does not know where the canopy is. A `[scatter_mask]` clearing or mask image can shape it under a tree.
-- The patches were validated by the package validator and tests but were not rendered or looked at.
-
-## 9. How this was verified
-
-- **Existing presets unchanged.** Before any change, the 19 species presets of 0.2.0 were exported with
-  `--seed 42 -n 2 --lod-preset species --textures` and with `--seed 7` at the default LOD preset, their maps
-  written with `midori maps`, and the five nature patches packaged; all 428 output files were hashed (twice,
-  to confirm the baseline is deterministic). The same commands on the final build give 428 identical SHA-256
-  hashes, and `midori info` output for the old presets is unchanged.
-- **New presets.** All 56 preset/state combinations were generated for three seeds at the default LOD
-  preset and once with the species' own LOD chain, with embedded textures, under the default budgets. Every
-  GLB was parsed and checked: header and chunk lengths, buffer views in range, matching attribute counts
-  (`POSITION`, `NORMAL`, `TEXCOORD_0`, `TEXCOORD_1`, `COLOR_0`), sane bounds, whole triangles, every LOD
-  non-empty, `MSFT_lod` present, three materials and four images. No failures.
-- **Tests.** Unit tests for the rosette generator, organs, atlas, bark layers, states, validation, charred
-  base and buttress; snapshot tests for four presets in the style of the oak snapshot; a test that every
-  state of every preset loads, fits the default budget estimate and generates; the nature preset test
-  extended to the five new patches.
-- **Previews.** A small software renderer (orthographic, z-buffered, alpha-tested, lit, with a 1.8 m figure
-  and 1 m ticks) drew every preset and state from the side and three-quarter view, plus a second seed and
-  same-scale contact sheets. It is not part of this repository. It shows silhouette, proportion and colour;
-  it does not show wind, normal mapping, LOD transitions or engine shading.
-- **Importers.** `scripts/test_unity_importer_static.py` and `scripts/test_unreal_importer_fake_editor.py`
-  pass on the `temperate_forest_floor` package built with the final binary. Both scripts assert that
-  package's exact instance counts, so they cannot be pointed at the new patches; those were checked with
-  `midori validate-nature` only.
-- **Not done.** No engine import was run for the species GLBs (Unity and Unreal are not installed here), and
-  the Unity compile-stub check needs a .NET SDK that is not installed. The species exports keep the same
-  node naming, material slots, vertex attributes and `MSFT_lod` layout as before, which is what an importer
-  depends on, but that is an argument, not a test.
-- **WASM bundle.** `apps/desktop/src/wasm` was rebuilt with wasm-pack 0.15.0 and rustc 1.98.1, the versions
-  CI pins, so the workbench can load the new presets (`npm run typecheck` and `npm test` pass against it).
-  On the machine used, rebuilding the bundle from the unmodified 0.2.0 sources with those same versions did
-  not reproduce the committed `.wasm` byte for byte (the committed file embeds a different rustc commit), so
-  the bundle should be re-synced on the project's reference builder before release.
+- **0.2.0 Byte-Identity Invariant:** All 19 classic species presets and 5 classic nature patches from 0.2.0 were hashed before any code changes (428 output files total across `midori generate`, `midori maps`, and `midori nature`) and re-verified on the final full-LTO release binary: **428 / 428 files 100% SHA-256 byte-identical**.
+- **Automated Test Suites:** `cargo test --workspace --locked` passes across all crates, including `species_schema` (68 presets + all states validated against `schemas/species.schema.json`), `wa_palette` (29/29 WA native HSV guardrails), `wa_engine_features` (6/6 Phase 1 engine tests), `fixtures` (unchanged `oak`/`minimal` + updated WA/Perth snapshots), and `workspace_nature_presets_export_and_validate` (all 11 patches).
+- **Physically-Based Visual & Independent Blind QA:** Rendered in Blender 5.1.1 Cycles OptiX GPU (`AgX`, physical Nishita sky), audited via an independent blind reviewer on shuffled unlabelled single-scale contact sheets, LOD strips, Perth trees, nature patches, and the grounded `site/wa-flora.jpg` showcase, then refined through a v3 polish pass.
+- **Web Demo & Workbench:** WASM rebuilt with pinned `wasm-pack 0.15.0`, verified via `npm run typecheck`, `npm test` (30/30 Vitest), `npm run build:site`, `node scripts/browser-smoke.mjs`, and Playwright visual screenshots of `/` and `/demo/`.

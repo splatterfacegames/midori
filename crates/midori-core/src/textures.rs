@@ -259,10 +259,17 @@ pub struct TextureSet {
     pub bark_normal: RgbaTexture,
     /// Leaf card albedo+alpha.
     pub leaf_card: RgbaTexture,
+    /// Optional upper-trunk / limb bark albedo for half-barked species (opt-in).
+    pub upper_bark_albedo: Option<RgbaTexture>,
+    /// Optional upper-trunk / limb bark normal map (opt-in).
+    pub upper_bark_normal: Option<RgbaTexture>,
+    /// Optional dedicated 2x2 organ atlas albedo+alpha when `inflorescence.separate_material`
+    /// or `secondary_inflorescence` is set (opt-in).
+    pub organ_albedo: Option<RgbaTexture>,
 }
 
 impl TextureSet {
-    /// Generate all three maps procedurally from the species' `[textures]`
+    /// Generate all material maps procedurally from the species' `[textures]`
     /// parameters.
     pub fn generate(species: &Species) -> Self {
         let params = &species.textures;
@@ -292,21 +299,52 @@ impl TextureSet {
         );
         // Optional patch-colour / kino layers (no-op unless the species sets them).
         crate::bark_layers::apply_layers(&mut bark_albedo, &height, params, seed);
+
+        // Optional upper smooth/transition bark for half-barked species (flooded gum,
+        // river red gum, Queensland box, karri, lemon-scented gum).
+        let (upper_bark_albedo, upper_bark_normal) = if species.uses_upper_bark() {
+            let u_style = params.upper_bark_style.unwrap_or(BarkStyle::Patchy);
+            let u_seed = seed ^ 0x09E8_BA8C;
+            let u_height = bark_heightfield(u_style, u_seed, res);
+            let mut u_albedo = bark_albedo_from_height(
+                &u_height,
+                res,
+                u_style,
+                is_arid,
+                false,
+                params.upper_bark_color.or(params.bark_color),
+                u_seed,
+            );
+            let mut u_params = params.clone();
+            u_params.bark_style = u_style;
+            u_params.bark_color = params.upper_bark_color.or(params.bark_color);
+            u_params.bark_patch_colors = params.upper_bark_patch_colors.clone();
+            u_params.bark_kino = 0.0;
+            crate::bark_layers::apply_layers(&mut u_albedo, &u_height, &u_params, u_seed);
+            (Some(u_albedo), Some(normal_from_height(&u_height, res)))
+        } else {
+            (None, None)
+        };
+
         let leaf_card = if species.uses_foliage_atlas() {
             crate::botanical_cards::foliage_atlas(species, seed, res)
         } else {
-            leaf_card(
-                params.leaf_shape,
-                params.leaf_card,
-                params.leaf_color,
-                seed,
-                res,
-            )
+            leaf_card_for_species(species, seed, res)
         };
+
+        let organ_albedo = if species.uses_separate_organ_material() {
+            Some(crate::botanical_cards::organ_atlas(species, seed, res))
+        } else {
+            None
+        };
+
         Self {
             bark_albedo,
             bark_normal: normal_from_height(&height, res),
             leaf_card,
+            upper_bark_albedo,
+            upper_bark_normal,
+            organ_albedo,
         }
     }
 
@@ -648,9 +686,11 @@ fn bark_height_at(style: BarkStyle, u: f32, v: f32, seed: u64) -> f32 {
                 + eye_scar;
             h.clamp(0.0, 1.0)
         }
-        BarkStyle::Stringy | BarkStyle::Tessellated | BarkStyle::Patchy | BarkStyle::Papery => {
-            crate::bark_layers::height_at(style, u, v, seed)
-        }
+        BarkStyle::Stringy
+        | BarkStyle::Tessellated
+        | BarkStyle::Patchy
+        | BarkStyle::Papery
+        | BarkStyle::PalmDiamond => crate::bark_layers::height_at(style, u, v, seed),
     }
 }
 
@@ -733,7 +773,10 @@ fn bark_albedo_from_height(
             (base[1] * 0.74).min(1.0),
             (base[2] * 0.70).min(1.0),
         ],
-        BarkStyle::Furrowed | BarkStyle::Stringy | BarkStyle::Tessellated => [
+        BarkStyle::Furrowed
+        | BarkStyle::Stringy
+        | BarkStyle::Tessellated
+        | BarkStyle::PalmDiamond => [
             (base[0] * 0.76 + 0.02).min(1.0),
             (base[1] * 0.66 + 0.01).min(1.0),
             (base[2] * 0.54).min(1.0),
@@ -1033,6 +1076,7 @@ fn card_leaves_and_twigs(
 
                 let sub_count = match shape {
                     LeafShape::Willow | LeafShape::Sickle | LeafShape::Banksia => 4,
+                    LeafShape::BullBanksia | LeafShape::BroadEucalypt => 3,
                     _ => 2,
                 };
                 for i in 0..sub_count {
@@ -1047,9 +1091,11 @@ fn card_leaves_and_twigs(
                     let sweep = lerp(0.96, 0.62, st) + rng.range(-0.08, 0.08);
                     let dir = (tan * sweep.cos() + nrm * sweep.sin()).normalize();
                     let leaf_scale = match shape {
-                        LeafShape::Willow | LeafShape::Sickle | LeafShape::Banksia => {
-                            lerp(0.40, 0.31, st) * rng.variance_mul(0.08)
-                        }
+                        LeafShape::BullBanksia => lerp(0.50, 0.40, st) * rng.variance_mul(0.08),
+                        LeafShape::Willow
+                        | LeafShape::Sickle
+                        | LeafShape::Banksia
+                        | LeafShape::BroadEucalypt => lerp(0.40, 0.31, st) * rng.variance_mul(0.08),
                         LeafShape::Ginkgo => lerp(0.28, 0.23, st) * rng.variance_mul(0.08),
                         _ => lerp(0.32, 0.26, st) * rng.variance_mul(0.08),
                     };
@@ -1286,13 +1332,50 @@ fn card_leaves_and_twigs(
     }
 }
 
-/// Render the leaf card: woody twigs + petioles underleaf, then leaves back-to-front
-/// with botanical venation, inter-leaf contact AO, razor-sharp anti-aliased SDF edges,
-/// 16x16 tile spatial binning (for fast 1024x1024 WASM generation), and RGB edge dilation.
-pub(crate) fn leaf_card(
+/// Optional botanical foliage palette layers (discolorous underside, red/bronze
+/// new growth tips, held yellowing/brown dead leaves). `None` keeps legacy cards
+/// 100% byte-identical.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LeafPaletteExtra {
+    pub underside: Option<[f32; 3]>,
+    pub new_growth: Option<([f32; 3], f32)>,
+    pub dead: Option<([f32; 3], f32)>,
+}
+
+/// Render a species' leaf card with any opt-in botanical palette layers applied.
+pub(crate) fn leaf_card_for_species(species: &Species, seed: u64, res: u32) -> RgbaTexture {
+    let params = &species.textures;
+    let has_extra = params.leaf_underside_color.is_some()
+        || (params.leaf_new_growth_color.is_some() && params.leaf_new_growth_fraction > 0.0)
+        || params.leaf_dead_fraction > 0.0;
+    let extra = has_extra.then(|| LeafPaletteExtra {
+        underside: params.leaf_underside_color,
+        new_growth: params
+            .leaf_new_growth_color
+            .filter(|_| params.leaf_new_growth_fraction > 0.0)
+            .map(|c| (c, params.leaf_new_growth_fraction)),
+        dead: (params.leaf_dead_fraction > 0.0).then(|| {
+            (
+                params.leaf_dead_color.unwrap_or([0.52, 0.41, 0.22]),
+                params.leaf_dead_fraction,
+            )
+        }),
+    });
+    leaf_card_with_palette(
+        params.leaf_shape,
+        params.leaf_card,
+        params.leaf_color,
+        extra,
+        seed,
+        res,
+    )
+}
+
+fn leaf_card_with_palette(
     shape: LeafShape,
     layout: LeafCardLayout,
     color: Option<[f32; 3]>,
+    extra: Option<LeafPaletteExtra>,
     seed: u64,
     res: u32,
 ) -> RgbaTexture {
@@ -1309,8 +1392,24 @@ pub(crate) fn leaf_card(
     if shape == LeafShape::Paddle {
         return crate::bistro_cards::paddle_leaf_card(color, &mut rng, seed, res);
     }
-    if matches!(shape, LeafShape::Bipinnate | LeafShape::Branchlet) {
-        return crate::botanical_cards::stroke_leaf_card(shape, layout, color, &mut rng, res);
+    if matches!(
+        shape,
+        LeafShape::Bipinnate | LeafShape::Branchlet | LeafShape::Paperbark
+    ) {
+        return if let Some(ex) = extra {
+            crate::botanical_cards::stroke_leaf_card_with_palette(
+                shape,
+                layout,
+                color,
+                ex.underside,
+                ex.new_growth,
+                ex.dead,
+                &mut rng,
+                res,
+            )
+        } else {
+            crate::botanical_cards::stroke_leaf_card(shape, layout, color, &mut rng, res)
+        };
     }
     if shape == LeafShape::Willow && layout == LeafCardLayout::Frond {
         return palm_pinnae_card(color, &mut rng, res);
@@ -1550,6 +1649,30 @@ pub(crate) fn leaf_card(
                             lerp(base[1], 0.44, amber_t),
                             lerp(base[2], 0.10, amber_t),
                         ]
+                    } else if let Some(ex) = extra {
+                        // Deterministic per-leaf role using leaf index & center height (v = 0 is top tip):
+                        // - Apical tip leaves flush red/bronze when new_growth is set
+                        // - Dead fraction yields sun-bleached ochre/brown held leaves
+                        // - Turned lateral leaves reveal paler/silvery/rusty discolorous undersides
+                        let h_leaf =
+                            ((idx as f32 * 0.618_034 + leaf.center.x * 1.73).fract()).abs();
+                        let tip_ness = (1.0 - leaf.center.y).clamp(0.0, 1.0);
+                        if let Some((ng_col, ng_frac)) = ex.new_growth
+                            && tip_ness > (1.0 - ng_frac * 1.65)
+                            && h_leaf < (ng_frac * 2.2).clamp(0.25, 0.92)
+                        {
+                            ng_col
+                        } else if let Some((dead_col, dead_frac)) = ex.dead
+                            && h_leaf > (1.0 - dead_frac)
+                        {
+                            dead_col
+                        } else if let Some(under_col) = ex.underside
+                            && (idx % 3 == 1 || h_leaf < 0.34)
+                        {
+                            under_col
+                        } else {
+                            base
+                        }
                     } else {
                         base
                     };

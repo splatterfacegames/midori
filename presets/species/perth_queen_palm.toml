@@ -1,0 +1,112 @@
+# Queen palm / cocos palm (Syagrus romanzoffiana)
+# Ubiquitous 1980s-90s Perth suburban front-yard, poolside and townhouse feather palm: smooth pale
+# grey ringed trunk, graceful weeping plumose crown of soft arching green fronds, and hanging orange fruit bunches.
+# PLANTED EXOTIC (South America), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Queen Palm"
+scientific = "Syagrus romanzoffiana"
+latin = "Syagrus romanzoffiana"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "palm", "rosette", "garden_tree", "evergreen"]
+
+[generator]
+family = "rosette"
+notes = "11 m smooth-trunked weeping feather palm distinct from stout Canary Island date palm and tall fan cotton palm."
+
+[trunk]
+height = 10.5
+height_variance = 0.16
+radius = 0.23
+taper = 0.16
+curve = 8.0
+curve_variance = 5.0
+segments = 14
+buttress = 0.2
+
+[rosette]
+crowns = 1
+blades = 28
+blade_length = 4.2
+blade_length_variance = 0.14
+blade_width = 1.15
+blade_card = "pinnate"
+spread_min = 10.0
+spread_max = 114.0
+droop = 0.58
+stiffness = 0.62
+keel = 0.28
+crown_boss = 0.10
+color_base = [0.22, 0.42, 0.17]
+color_tip = [0.34, 0.54, 0.22]
+skirt = 0.0
+skirt_blades = 0
+skirt_color = [0.56, 0.47, 0.30]
+
+[rosette.spike]
+chance = 0.90
+count = 4
+style = "panicle"
+scape_length = 0.42
+scape_radius = 0.018
+length = 1.25
+radius = 0.22
+lean = 68.0
+color = [0.92, 0.56, 0.10]
+tip_color = [0.96, 0.70, 0.18]
+scape_color = [0.68, 0.54, 0.22]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.38
+up_bias = 0.26
+clump_weight = 0.20
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.08
+ao_strength = 0.36
+roughness = 0.52
+
+[textures]
+bark_prompt = "Syagrus romanzoffiana smooth pale grey slender palm trunk with fine horizontal leaf-scar rings"
+leaf_prompt = "Syagrus romanzoffiana soft glossy arching plumose feather palm frond"
+resolution = 2048
+bark_style = "smooth"
+bark_color = [0.60, 0.58, 0.54]
+leaf_color = [0.27, 0.47, 0.19]
+
+[materials]
+bark = "queen_palm_bark"
+foliage = "queen_palm_foliage"
+notes = "2048px smooth ringed grey trunk + 2x2 rosette atlas: graceful weeping pinnate frond, orange fruit bunch."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "trunk_height"
+label = "Trunk Height"
+parameter = "trunk.height"
+min = 3.0
+max = 16.0
+step = 0.2
+
+[[control_groups.controls]]
+key = "fronds"
+label = "Fronds"
+parameter = "rosette.blades"
+min = 14.0
+max = 42.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

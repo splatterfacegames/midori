@@ -1,6 +1,6 @@
 # Beach spinifex (Spinifex longifolius)
-# The foredune grass of Perth's beaches: stout tussocks of long, stiff, silvery inrolled leaves that trap
-# sand into hummocks, with a thatch of dead leaf around the base.
+# Foredune grass of Perth's beaches: stout silvery blue-grey-green tussocks with creeping
+# sand-binding stolon runners, basal straw thatch, and spiny-feathery globular seed heads.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,12 +12,12 @@ tags = ["wa_native", "rosette", "groundcover", "coastal_dune", "quindalup", "gra
 
 [generator]
 family = "rosette"
-notes = "Tussock about 0.9 m high and 1.6 m across. The spiky seed heads are not modelled."
+notes = "Silvery coastal dune tussock with creeping stolon runners and plume seed heads."
 
 [trunk]
-height = 0.03
+height = 0.04
 height_variance = 0.0
-radius = 0.04
+radius = 0.05
 taper = 0.0
 curve = 0.0
 curve_variance = 0.0
@@ -26,49 +26,64 @@ buttress = 0.0
 
 [rosette]
 crowns = 1
-blades = 110
-blade_length = 0.95
-blade_length_variance = 0.25
-blade_width = 0.05
+blades = 160
+blade_length = 1.00
+blade_length_variance = 0.24
+blade_width = 0.068
 blade_card = "tuft"
 spread_min = 6.0
-spread_max = 78.0
-droop = 0.3
-stiffness = 0.7
-keel = 0.1
-color_base = [0.46, 0.5, 0.36]
-color_tip = [0.72, 0.74, 0.58]
+spread_max = 80.0
+droop = 0.34
+stiffness = 0.72
+keel = 0.12
+color_base = [0.48, 0.54, 0.47]
+color_tip = [0.66, 0.69, 0.60]
 skirt = 1.0
-skirt_blades = 40
-skirt_color = [0.66, 0.58, 0.4]
+skirt_blades = 52
+skirt_color = [0.68, 0.60, 0.42]
+runners = 5
+runner_length = 1.65
+
+[rosette.spike]
+chance = 0.90
+count = 7
+style = "plume"
+scape_length = 0.55
+scape_radius = 0.007
+length = 0.30
+radius = 0.11
+lean = 22.0
+color = [0.76, 0.71, 0.56]
+tip_color = [0.88, 0.84, 0.70]
+scape_color = [0.56, 0.59, 0.48]
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.3
+normal_blend = 0.30
 up_bias = 0.28
-clump_weight = 0.2
+clump_weight = 0.20
 clump_level = 1
 crown_fill = 0
 shell = 0.0
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.3
-roughness = 0.8
+tint_variation = 0.15
+hue_variation = 0.08
+ao_strength = 0.28
+roughness = 0.82
 
 [textures]
-bark_prompt = "Tussock base, brown"
-leaf_prompt = "Spinifex longifolius leaves, long, stiff, silvery green, inrolled"
+bark_prompt = "Sand-binding dune grass stolons, pale straw-brown"
+leaf_prompt = "Spinifex longifolius stiff silvery blue-grey-green coastal dune blades"
 resolution = 1024
 bark_style = "smooth"
-bark_color = [0.32, 0.26, 0.18]
-leaf_color = [0.58, 0.62, 0.46]
+bark_color = [0.52, 0.46, 0.34]
+leaf_color = [0.57, 0.61, 0.53]
 
 [materials]
 bark = "spinifex_bark"
 foliage = "spinifex_foliage"
-notes = "2x2 foliage atlas: live blade, dead blade."
+notes = "1024px 2x2 rosette atlas: silvery live blade tuft, plume seed head, dead straw skirt."
 
 [[control_groups]]
 key = "shape"
@@ -79,14 +94,14 @@ key = "leaf_length"
 label = "Leaf Length"
 parameter = "rosette.blade_length"
 min = 0.4
-max = 1.4
+max = 1.5
 step = 0.05
 
 [[control_groups.controls]]
 key = "blades"
 label = "Blades"
 parameter = "rosette.blades"
-min = 30.0
+min = 40.0
 max = 300.0
 step = 5.0
 

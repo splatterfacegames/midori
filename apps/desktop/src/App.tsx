@@ -257,6 +257,7 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
             <PreviewPanel
               state={state}
               grid={grid}
+              onSelectState={(st) => model.selectState(st)}
               onReady={(controller) => {
                 viewport.current = controller;
               }}
@@ -301,7 +302,17 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
               {state.mode === 'nature'
                 ? `${state.naturePreview?.stats.prototype_count ?? 0} prototypes · Nature engine · WASM`
                 : `${state.lods ? `${state.lods.length} LODs · ` : ''}${
-                    state.json?.generator?.family === 'dichotomous' ? 'Dichotomous' : 'Weber–Penn'
+                    state.json?.generator?.family === 'rosette'
+                      ? 'Rosette'
+                      : state.json?.generator?.family === 'topiary'
+                        ? 'Topiary'
+                        : state.json?.generator?.family === 'floral_shrub'
+                          ? 'Floral'
+                          : state.json?.generator?.family === 'climbing_vine'
+                            ? 'Vine'
+                            : state.json?.generator?.family === 'dichotomous'
+                              ? 'Dichotomous'
+                              : 'Weber–Penn'
                   } engine · WASM`}
             </span>
           </>

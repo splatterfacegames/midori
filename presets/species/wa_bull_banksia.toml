@@ -1,6 +1,6 @@
 # Bull banksia (Banksia grandis)
-# Understorey tree of the jarrah forest: a short stout crooked trunk, enormous leaves cut to the midrib into
-# triangular lobes, crowded at the branch ends, and pale yellow spikes up to 40 cm tall.
+# Understorey tree of the jarrah forest: a short stout crooked trunk, architectural limbs,
+# unmistakable giant triangular-notched leaves in whorled rosettes, and huge pale yellow spikes.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,130 +12,139 @@ tags = ["wa_native", "banksia", "evergreen", "jarrah_forest", "darling_scarp", "
 
 [generator]
 family = "weber_penn"
-notes = "Leaves 10-45 cm long are the largest of any banksia; the card is drawn large to match."
+notes = "Uses dedicated bull_banksia deeply notched triangular leaf silhouette and giant 40 cm spikes."
 
 [trunk]
-height = 4.8
-height_variance = 0.18
-radius = 0.3
-taper = 0.72
+height = 5.0
+height_variance = 0.16
+radius = 0.35
+taper = 0.70
 taper_profile = "exponential"
-curve = 36.0
-curve_variance = 18.0
-curve_back = 34.0
+curve = 16.0
+curve_variance = 12.0
+curve_back = 20.0
 segments = 18
+buttress = 0.85
 
 [branches.level1]
-count = 7
-count_variance = 2
-length = 2.61
+count = 6
+count_variance = 1
+length = 3.7
 length_variance = 0.22
-radius_ratio = 0.6
+radius_ratio = 0.64
 radius_model = "ratio"
-taper = 0.78
+taper = 0.75
 taper_profile = "exponential"
-angle = 56.0
+angle = 58.0
 angle_variance = 18.0
 rotation = 137.5
-gravity = 0.02
-curve = 30.0
-curve_variance = 28.0
+gravity = 0.03
+curve = 28.0
+curve_variance = 26.0
 segments = 12
 
 [branches.level2]
-count = 5
+count = 4
 count_variance = 1
 length = 1.35
 length_variance = 0.22
-radius_ratio = 0.56
+radius_ratio = 0.58
 radius_model = "ratio"
-taper = 0.78
+taper = 0.76
 taper_profile = "smooth"
-angle = 50.0
-angle_variance = 14.0
+angle = 52.0
+angle_variance = 16.0
 rotation = 137.5
-gravity = 0.04
-curve = -22.0
-curve_variance = 24.0
+gravity = 0.05
+curve = -20.0
+curve_variance = 22.0
 segments = 9
 
 [branches.level3]
-count = 4
+count = 3
 count_variance = 1
-length = 0.63
-length_variance = 0.22
-radius_ratio = 0.5
+length = 0.65
+length_variance = 0.20
+radius_ratio = 0.54
 radius_model = "ratio"
-taper = 0.78
+taper = 0.76
 taper_profile = "compound"
 angle = 44.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = 0.1
+gravity = 0.12
 curve = 14.0
-curve_variance = 18.0
+curve_variance = 16.0
 segments = 6
 
 [crown]
-shape = "spherical"
-offset = 0.3
-density = 1.0
-width_ratio = 1.0
+shape = "hemispherical"
+offset = 0.36
+density = 0.82
+width_ratio = 1.08
 
 [leaves]
-count = 1000
+count = 780
 min_level = 2
-size = 0.72
-size_variance = 0.22
-distribution = "endpoint"
+size = 0.78
+size_variance = 0.18
+distribution = "whorl"
 geometry = "cross_billboard"
-shape = "banksia"
-up_influence = 0.25
+shape = "bull_banksia"
+up_influence = 0.22
 
 [inflorescence]
 kind = "spike"
-count = 90
+count = 135
 min_level = 3
 placement = "endpoint"
 orientation = "up"
-length = 0.36
-width = 0.1
-size_variance = 0.2
-offset = 0.3
-color = [0.9, 0.84, 0.42]
-color_tip = [0.7, 0.74, 0.36]
-aged_fraction = 0.5
-aged_color = [0.4, 0.35, 0.3]
+length = 0.52
+width = 0.135
+size_variance = 0.16
+offset = 0.26
+color = [0.92, 0.88, 0.44]
+color_tip = [0.78, 0.82, 0.40]
+aged_fraction = 0.22
+aged_color = [0.44, 0.37, 0.30]
+separate_material = true
+roughness = 0.62
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.58
+up_bias = 0.24
+clump_weight = 0.56
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.06
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.32
+billboard_lod_compensation = true
+roughness = 0.68
 
 [textures]
-bark_prompt = "Bull banksia bark, grey, rough and thick"
-leaf_prompt = "Banksia grandis leaves, very large, deeply lobed into triangles, shiny dark green"
+bark_prompt = "Bull banksia bark, dark grey, rough, thick and deeply tessellated"
+leaf_prompt = "Banksia grandis giant leaves, deeply lobed to midrib into broad triangles, olive-green above and pale felt below"
 resolution = 1024
 bark_style = "tessellated"
-leaf_shape = "banksia"
+leaf_shape = "bull_banksia"
 leaf_card = "cluster"
-bark_color = [0.42, 0.4, 0.37]
-leaf_color = [0.2, 0.35, 0.15]
+bark_color = [0.41, 0.39, 0.36]
+leaf_color = [0.33, 0.44, 0.24]
+leaf_underside_color = [0.58, 0.61, 0.48]
+leaf_new_growth_color = [0.58, 0.34, 0.22]
+leaf_new_growth_fraction = 0.12
+leaf_dead_fraction = 0.06
+leaf_dead_color = [0.54, 0.44, 0.24]
 
 [materials]
 bark = "bull_banksia_bark"
 foliage = "bull_banksia_foliage"
-notes = "2x2 foliage atlas: leaf spray, flowering spike, old cone."
+notes = "1024px bull_banksia leaf card + dedicated 2x2 organ atlas for giant pale-yellow spikes."
 
 [[control_groups]]
 key = "shape"

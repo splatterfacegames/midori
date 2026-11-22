@@ -17,18 +17,26 @@ import oakToml from '../../../presets/species/oak.toml?raw';
 import palmToml from '../../../presets/species/palm.toml?raw';
 import parisFlowerMoundToml from '../../../presets/species/paris_flower_mound.toml?raw';
 import parisHangingCascadeToml from '../../../presets/species/paris_hanging_cascade.toml?raw';
+import perthBottlebrushToml from '../../../presets/species/perth_bottlebrush.toml?raw';
+import perthBougainvilleaToml from '../../../presets/species/perth_bougainvillea.toml?raw';
 import perthCanaryIslandDatePalmToml from '../../../presets/species/perth_canary_island_date_palm.toml?raw';
 import perthCapeLilacToml from '../../../presets/species/perth_cape_lilac.toml?raw';
+import perthCoralTreeToml from '../../../presets/species/perth_coral_tree.toml?raw';
+import perthCottonPalmToml from '../../../presets/species/perth_cotton_palm.toml?raw';
+import perthIllawarraFlameTreeToml from '../../../presets/species/perth_illawarra_flame_tree.toml?raw';
 import perthJacarandaToml from '../../../presets/species/perth_jacaranda.toml?raw';
 import perthLemonScentedGumToml from '../../../presets/species/perth_lemon_scented_gum.toml?raw';
 import perthLondonPlaneToml from '../../../presets/species/perth_london_plane.toml?raw';
 import perthMoretonBayFigToml from '../../../presets/species/perth_moreton_bay_fig.toml?raw';
 import perthNorfolkIslandPineToml from '../../../presets/species/perth_norfolk_island_pine.toml?raw';
+import perthOleanderToml from '../../../presets/species/perth_oleander.toml?raw';
 import perthOliveToml from '../../../presets/species/perth_olive.toml?raw';
 import perthPeppercornToml from '../../../presets/species/perth_peppercorn.toml?raw';
 import perthPortJacksonFigToml from '../../../presets/species/perth_port_jackson_fig.toml?raw';
+import perthQueenPalmToml from '../../../presets/species/perth_queen_palm.toml?raw';
 import perthQueenslandBoxToml from '../../../presets/species/perth_queensland_box.toml?raw';
 import perthRiverRedGumToml from '../../../presets/species/perth_river_red_gum.toml?raw';
+import perthSugarGumToml from '../../../presets/species/perth_sugar_gum.toml?raw';
 import pineToml from '../../../presets/species/pine.toml?raw';
 import topdownBroadleafToml from '../../../presets/species/topdown_broadleaf.toml?raw';
 import topdownConiferToml from '../../../presets/species/topdown_conifer.toml?raw';
@@ -96,18 +104,26 @@ export const PRESETS: SpeciesPreset[] = [
   { id: 'paris_hanging_cascade', label: 'Hanging flower cascade', toml: parisHangingCascadeToml, group: 'bistro' },
   { id: 'english_ivy', label: 'Climbing facade ivy', toml: englishIvyToml, group: 'bistro' },
   { id: 'bird_of_paradise', label: 'Bird of paradise', toml: birdOfParadiseToml, group: 'bistro' },
+  { id: 'perth_bottlebrush', label: 'Weeping bottlebrush', toml: perthBottlebrushToml, group: 'perth_planted' },
+  { id: 'perth_bougainvillea', label: 'Bougainvillea', toml: perthBougainvilleaToml, group: 'perth_planted' },
   { id: 'perth_canary_island_date_palm', label: 'Canary Island date palm', toml: perthCanaryIslandDatePalmToml, group: 'perth_planted' },
   { id: 'perth_cape_lilac', label: 'Cape lilac / white cedar', toml: perthCapeLilacToml, group: 'perth_planted' },
+  { id: 'perth_coral_tree', label: 'Coral tree', toml: perthCoralTreeToml, group: 'perth_planted' },
+  { id: 'perth_cotton_palm', label: 'Cotton palm / Mexican fan palm', toml: perthCottonPalmToml, group: 'perth_planted' },
+  { id: 'perth_illawarra_flame_tree', label: 'Illawarra flame tree', toml: perthIllawarraFlameTreeToml, group: 'perth_planted' },
   { id: 'perth_jacaranda', label: 'Jacaranda', toml: perthJacarandaToml, group: 'perth_planted' },
   { id: 'perth_lemon_scented_gum', label: 'Lemon-scented gum', toml: perthLemonScentedGumToml, group: 'perth_planted' },
   { id: 'perth_london_plane', label: 'London plane', toml: perthLondonPlaneToml, group: 'perth_planted' },
   { id: 'perth_moreton_bay_fig', label: 'Moreton Bay fig', toml: perthMoretonBayFigToml, group: 'perth_planted' },
   { id: 'perth_norfolk_island_pine', label: 'Norfolk Island pine', toml: perthNorfolkIslandPineToml, group: 'perth_planted' },
+  { id: 'perth_oleander', label: 'Oleander', toml: perthOleanderToml, group: 'perth_planted' },
   { id: 'perth_olive', label: 'Olive', toml: perthOliveToml, group: 'perth_planted' },
   { id: 'perth_peppercorn', label: 'Peppercorn tree', toml: perthPeppercornToml, group: 'perth_planted' },
   { id: 'perth_port_jackson_fig', label: 'Port Jackson fig', toml: perthPortJacksonFigToml, group: 'perth_planted' },
+  { id: 'perth_queen_palm', label: 'Queen palm / cocos palm', toml: perthQueenPalmToml, group: 'perth_planted' },
   { id: 'perth_queensland_box', label: 'Queensland box / brush box', toml: perthQueenslandBoxToml, group: 'perth_planted' },
   { id: 'perth_river_red_gum', label: 'River red gum', toml: perthRiverRedGumToml, group: 'perth_planted' },
+  { id: 'perth_sugar_gum', label: 'Sugar gum', toml: perthSugarGumToml, group: 'perth_planted' },
   { id: 'wa_bull_banksia', label: 'Bull banksia', toml: waBullBanksiaToml, group: 'wa_native' },
   { id: 'wa_christmas_tree', label: 'WA Christmas tree / moodjar', toml: waChristmasTreeToml, group: 'wa_native' },
   { id: 'wa_coojong', label: 'Coojong / orange wattle', toml: waCoojongToml, group: 'wa_native' },
@@ -149,6 +165,7 @@ import aridScrubToml from '../../../presets/nature/arid_scrub.toml?raw';
 import floweringMeadowToml from '../../../presets/nature/flowering_meadow.toml?raw';
 import pampasMeadowToml from '../../../presets/nature/pampas_meadow.toml?raw';
 import perthJacarandaCarpetNatureToml from '../../../presets/nature/perth_jacaranda_carpet.toml?raw';
+import perthVergeLawnNatureToml from '../../../presets/nature/perth_verge_lawn.toml?raw';
 import temperateForestFloorToml from '../../../presets/nature/temperate_forest_floor.toml?raw';
 import waBanksiaWoodlandFloorNatureToml from '../../../presets/nature/wa_banksia_woodland_floor.toml?raw';
 import waJarrahForestFloorNatureToml from '../../../presets/nature/wa_jarrah_forest_floor.toml?raw';
@@ -166,4 +183,5 @@ export const NATURE_PRESETS: SpeciesPreset[] = [
   { id: 'wa_coastal_dune', label: 'WA coastal dune', toml: waCoastalDuneNatureToml },
   { id: 'wa_paperbark_wetland_edge', label: 'WA paperbark wetland edge', toml: waPaperbarkWetlandEdgeNatureToml },
   { id: 'perth_jacaranda_carpet', label: 'Perth jacaranda carpet', toml: perthJacarandaCarpetNatureToml },
+  { id: 'perth_verge_lawn', label: 'Perth verge lawn', toml: perthVergeLawnNatureToml },
 ];

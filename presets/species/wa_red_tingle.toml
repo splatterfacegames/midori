@@ -1,6 +1,6 @@
 # Red tingle (Eucalyptus jacksonii)
-# Giant of the Walpole wilderness: an enormous buttressed base (to 24 m around), red-brown stringy bark,
-# a massive bole and a dense compact crown. South West stretch goal.
+# Ancient giant of the Walpole wilderness: enormous fluted buttressed base with a charred
+# walk-through fire hollow, deep red-brown stringy bark, massive bole and dense high crown.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,60 +12,64 @@ tags = ["wa_native", "eucalypt", "tingle_forest", "south_west", "evergreen", "ta
 
 [generator]
 family = "weber_penn"
-notes = "Old tree of about 45 m. Fire-hollowed walk-through bases need a hollow-trunk feature; the base is charred instead."
+notes = "Old-growth 45 m giant with genuine basal fire-hollow cavern, deep fluted buttresses, surface roots, and level-4 crown."
 
 [trunk]
-height = 41.0
-height_variance = 0.1
-radius = 2.2
-taper = 0.8
+height = 42.0
+height_variance = 0.10
+radius = 2.30
+taper = 0.78
 taper_profile = "exponential"
 curve = 5.0
 curve_variance = 3.0
 curve_back = 5.0
-segments = 26
-buttress = 2.2
-char_height = 3.5
-char_strength = 0.8
+segments = 36
+buttress = 2.4
+buttress_height = 5.6
+surface_root_reach = 5.4
+hollow_height = 3.8
+hollow_width = 1.20
+char_height = 4.6
+char_strength = 0.88
 
 [branches.level1]
-count = 11
+count = 10
 count_variance = 2
-length = 9.5
+length = 9.8
 length_variance = 0.22
 radius_ratio = 0.36
 radius_model = "ratio"
-taper = 0.78
+taper = 0.76
 taper_profile = "exponential"
 angle = 50.0
 angle_variance = 12.0
 rotation = 137.5
 gravity = -0.03
 curve = 20.0
-curve_variance = 20.0
+curve_variance = 18.0
 segments = 14
 
 [branches.level2]
-count = 6
+count = 5
 count_variance = 1
-length = 4.4
+length = 4.5
 length_variance = 0.22
 radius_ratio = 0.52
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "smooth"
-angle = 50.0
+angle = 48.0
 angle_variance = 14.0
 rotation = 137.5
 gravity = -0.05
 curve = -14.0
-curve_variance = 18.0
+curve_variance = 16.0
 segments = 10
 
 [branches.level3]
-count = 4
+count = 3
 count_variance = 1
-length = 2.0
+length = 2.1
 length_variance = 0.22
 radius_ratio = 0.46
 radius_model = "ratio"
@@ -76,54 +80,77 @@ angle_variance = 14.0
 rotation = 137.5
 gravity = -0.08
 curve = 12.0
-curve_variance = 18.0
-segments = 7
+curve_variance = 16.0
+segments = 6
+
+[branches.level4]
+count = 2
+count_variance = 1
+length = 1.05
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 40.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.14
+curve = 10.0
+curve_variance = 12.0
+segments = 4
 
 [crown]
-shape = "spherical"
+shape = "hemispherical"
 offset = 0.58
-density = 1.0
-width_ratio = 0.95
+density = 0.98
+width_ratio = 0.98
 
 [leaves]
-count = 3600
-min_level = 2
-size = 1.5
+count = 3500
+min_level = 3
+size = 1.40
 size_variance = 0.22
 distribution = "both"
 geometry = "cross_billboard"
 shape = "sickle"
-up_influence = -0.3
+up_influence = -0.30
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
+normal_blend = 0.74
 up_bias = 0.28
-clump_weight = 0.7
+clump_weight = 0.68
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.16
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.68
 
 [textures]
-bark_prompt = "Red tingle bark, red-brown to grey-brown, thick, stringy and furrowed"
-leaf_prompt = "Eucalyptus jacksonii leaves, dark green above, paler below, lanceolate"
+bark_prompt = "Red tingle bark, deep red-brown to grey-brown, thick, deeply stringy and fibrous"
+leaf_prompt = "Eucalyptus jacksonii leaves, deep moist-forest olive-green above, paler below"
 resolution = 1024
 bark_style = "stringy"
 leaf_shape = "sickle"
 leaf_card = "cluster"
-bark_color = [0.42, 0.29, 0.23]
-leaf_color = [0.17, 0.32, 0.14]
+bark_color = [0.44, 0.28, 0.21]
+leaf_color = [0.33, 0.43, 0.27]
+leaf_underside_color = [0.48, 0.55, 0.40]
+leaf_new_growth_color = [0.56, 0.30, 0.22]
+leaf_new_growth_fraction = 0.10
+leaf_dead_fraction = 0.05
+leaf_dead_color = [0.54, 0.42, 0.24]
 
 [materials]
 bark = "red_tingle_bark"
 foliage = "red_tingle_foliage"
-notes = "1024px procedural bark and leaf card."
+notes = "1024px red-brown stringy bark with charred fire hollow and moist-forest sickle leaf card."
 
 [[control_groups]]
 key = "shape"
@@ -133,8 +160,8 @@ label = "Shape"
 key = "height"
 label = "Height"
 parameter = "trunk.height"
-min = 4.0
-max = 60.0
+min = 10.0
+max = 65.0
 step = 0.5
 
 [[control_groups.controls]]
@@ -142,7 +169,7 @@ key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
 min = 0.5
-max = 2.0
+max = 1.6
 step = 0.05
 
 [lod]

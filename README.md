@@ -10,11 +10,11 @@ A procedural nature asset generator for real-time game engines. Midori generates
 - **Pivot Painter 2.0** - Wind animation vertex data compatible with Unreal Engine 5
 - **glTF 2.0 export** - Binary (.glb) or JSON (.gltf) output with split bark/foliage material slots and Midori metadata
 - **Procedural textures** - Deterministic bark albedo/normal and leaf albedo+alpha card generation from `[textures]` params; `midori maps` writes PNGs, glTF export can embed them; file-override slots for host-provided maps
-- **Nature patches (WIP)** - Deterministic soil height fields, grass density, moss/wetness/crack masks, and low-cost groundcover prototype LODs
-- **Rosette plants** - Grass trees, cycads, strap-leaf clumps and feather palms: crowns of blade ribbons on an optional (forked, fire-blackened) trunk, with a dead-leaf skirt and flower spikes
-- **Inflorescences and fruit** - Flower spikes, woody nuts, crown-colouring flower clusters and berries carried by branching trees, drawn from a foliage atlas without an extra material slot
-- **Seasonal states** - `[states.<name>]` overlays in a species file (`--state flowering`) for in-flower, bare, burnt or site-form variants
-- **Species presets** - Oak, Pine, Palm, Willow, and a Joshua tree prototype included, plus the native flora of south-west Western Australia (`wa_*`) and the planted trees of Perth's streets and parks (`perth_*`); see `docs/wa-flora.md`
+- **Nature patches** - Deterministic soil height fields, baked procedural `maps/ground_albedo.png` (opt-in), grass density, moss/wetness/crack masks, and low-cost groundcover prototype LODs across 11 presets (5 classic + 6 WA/Perth biomes)
+- **Rosette plants** - Grass trees, cycads, strap-leaf clumps, coastal spinifex (with creeping runners & plumes), and feather/fan palms: crowns of blade ribbons on an optional (forked, fire-blackened, diamond-scarred) trunk, with a dead-leaf skirt, pineapple boss, and flower spikes
+- **Inflorescences, fruit & multi-material bark** - Flower spikes, woody nuts, crown-colouring flower clusters, berries, optional `[secondary_inflorescence]` dual organs, dedicated `Organ` & half-barked `UpperBark` material slots, and pruning/fire-recovery operators (`lopped`, `pollard`, `crown_lift`, epicormic shoots)
+- **Seasonal states & interactive workbench** - `[states.<name>]` overlays in a species file (`--state flowering` in CLI, plus live state switcher in the desktop/WebGL workbench) for in-flower, bare, burnt, pruned, or site-form variants
+- **Species presets (68 total)** - 19 classic/bistro/top-down presets, all 29 native south-west Western Australian species (`wa_*`), and 20 planted 1980s–90s Perth street, park and garden species (`perth_*`); see `docs/wa-flora.md`
 
 ## Installation
 

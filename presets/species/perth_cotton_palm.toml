@@ -1,0 +1,119 @@
+# Cotton palm / Mexican fan palm (Washingtonia robusta)
+# Iconic towering sky-scraping fan palm of Perth's South Perth foreshore, Stirling Highway,
+# Cottesloe and 1980s-90s avenues: slender tapering diamond-scarred trunk topped by a crisp
+# starburst crown of pleated circular fan fronds; [states.untrimmed] keeps the classic thick brown petticoat.
+# PLANTED EXOTIC (Mexico), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Cotton Palm"
+scientific = "Washingtonia robusta"
+latin = "Washingtonia robusta"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "palm", "rosette", "street_tree", "park_tree", "evergreen"]
+
+[generator]
+family = "rosette"
+notes = "17 m sky-scraping fan palm with BladeCard::Fan pleated fronds and [states.untrimmed] petticoat skirt."
+
+[trunk]
+height = 16.5
+height_variance = 0.16
+radius = 0.30
+taper = 0.30
+curve = 6.0
+curve_variance = 4.0
+segments = 18
+buttress = 0.35
+
+[rosette]
+crowns = 1
+blades = 46
+blade_length = 2.4
+blade_length_variance = 0.12
+blade_width = 1.45
+blade_card = "fan"
+spread_min = 12.0
+spread_max = 118.0
+droop = 0.36
+stiffness = 0.84
+keel = 0.22
+crown_boss = 0.30
+color_base = [0.28, 0.43, 0.22]
+color_tip = [0.40, 0.52, 0.28]
+skirt = 0.08
+skirt_blades = 14
+skirt_color = [0.54, 0.45, 0.30]
+
+[rosette.spike]
+chance = 0.85
+count = 4
+style = "panicle"
+scape_length = 0.85
+scape_radius = 0.015
+length = 1.65
+radius = 0.18
+lean = 52.0
+color = [0.76, 0.66, 0.44]
+tip_color = [0.86, 0.78, 0.56]
+scape_color = [0.64, 0.56, 0.36]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.38
+up_bias = 0.28
+clump_weight = 0.20
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.08
+ao_strength = 0.36
+roughness = 0.62
+
+[textures]
+bark_prompt = "Washingtonia robusta slender grey-brown trunk with criss-crossing diamond leaf-base scars"
+leaf_prompt = "Washingtonia robusta pleated circular fan palm frond with radiating stiff segments"
+resolution = 2048
+bark_style = "palm_diamond"
+bark_color = [0.46, 0.42, 0.37]
+leaf_color = [0.34, 0.48, 0.25]
+
+[materials]
+bark = "cotton_palm_bark"
+foliage = "cotton_palm_foliage"
+notes = "2048px diamond-scar trunk + 2x2 rosette atlas: circular pleated fan frond, straw panicle, dead skirt."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "trunk_height"
+label = "Trunk Height"
+parameter = "trunk.height"
+min = 4.0
+max = 26.0
+step = 0.2
+
+[[control_groups.controls]]
+key = "fronds"
+label = "Fan Fronds"
+parameter = "rosette.blades"
+min = 24.0
+max = 70.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: unpruned Perth landmark form with a thick 7 m brown dry-frond petticoat skirt
+[states.untrimmed]
+species.name = "Cotton Palm (untrimmed petticoat)"
+rosette.skirt = 0.46
+rosette.skirt_blades = 96

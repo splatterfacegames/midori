@@ -1,6 +1,7 @@
 # Queensland box / brush box (Lophostemon confertus)
-# The ubiquitous suburban verge tree: a straight trunk, brown scaly bark below and smooth pinkish limbs above,
-# and a very dense dark dome of glossy leaves clustered at the twig ends.
+# Ubiquitous 1980s-90s Perth suburban verge tree: straight rough scaly lower trunk transitioning
+# into smooth salmon-pink upper limbs, dense glossy whorled dome; [states.lopped] is Western Power
+# powerline lopping with blunt stubbed scaffold limbs and dense epicormic regrowth.
 # PLANTED EXOTIC (eastern Australia), not a Western Australian native.
 # Botanical notes and sources: docs/wa-flora.md
 
@@ -13,21 +14,22 @@ tags = ["perth_planted", "non_native", "street_tree", "evergreen"]
 
 [generator]
 family = "weber_penn"
-notes = "Free-grown street tree of about 12 m. The lopped state is the flat, cut-back tree under power lines."
+notes = "Half-barked verge tree (rough brown lower -> smooth salmon-pink upper limbs); [states.lopped] uses real flat-top pruning."
 
 [trunk]
-height = 7.0
+height = 7.4
 height_variance = 0.12
-radius = 0.36
+radius = 0.38
 taper = 0.72
 taper_profile = "exponential"
-curve = 12.0
-curve_variance = 7.0
-curve_back = 12.0
+curve = 9.0
+curve_variance = 5.0
+curve_back = 9.0
 segments = 18
+buttress = 0.8
 
 [branches.level1]
-count = 10
+count = 9
 count_variance = 2
 length = 4.6
 length_variance = 0.22
@@ -35,16 +37,16 @@ radius_ratio = 0.54
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "exponential"
-angle = 52.0
+angle = 50.0
 angle_variance = 14.0
 rotation = 137.5
 gravity = 0.02
-curve = 20.0
-curve_variance = 20.0
+curve = 18.0
+curve_variance = 18.0
 segments = 13
 
 [branches.level2]
-count = 6
+count = 5
 count_variance = 1
 length = 2.2
 length_variance = 0.22
@@ -52,77 +54,87 @@ radius_ratio = 0.54
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "smooth"
-angle = 48.0
+angle = 46.0
 angle_variance = 14.0
 rotation = 137.5
 gravity = 0.02
 curve = -14.0
-curve_variance = 18.0
+curve_variance = 16.0
 segments = 9
 
 [branches.level3]
-count = 5
+count = 4
 count_variance = 1
-length = 1.0
+length = 1.05
 length_variance = 0.22
 radius_ratio = 0.46
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "compound"
-angle = 44.0
+angle = 42.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = 0.02
+gravity = 0.04
 curve = 12.0
-curve_variance = 18.0
+curve_variance = 16.0
 segments = 6
 
+[pruning]
+mode = "crown_lift"
+lift_height = 2.5
+
 [crown]
-shape = "spherical"
-offset = 0.32
-density = 1.0
-width_ratio = 1.1
+shape = "hemispherical"
+offset = 0.36
+density = 0.98
+width_ratio = 1.12
 
 [leaves]
-count = 3600
+count = 3200
 min_level = 2
-size = 0.8
-size_variance = 0.22
-distribution = "endpoint"
+size = 0.76
+size_variance = 0.20
+distribution = "whorl"
 geometry = "cross_billboard"
 shape = "pointed"
-up_influence = 0.15
+up_influence = 0.16
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
+normal_blend = 0.78
 up_bias = 0.28
-clump_weight = 0.7
+clump_weight = 0.70
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.16
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.58
-roughness = 0.5
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.48
 
 [textures]
-bark_prompt = "Brush box bark, brown, rough and scaly on the trunk"
-leaf_prompt = "Lophostemon confertus leaves, elliptic, leathery, dark glossy green, in whorls at twig ends"
+bark_prompt = "Brush box lower bark, brown rough scaly plated transitioning to smooth salmon-pink upper limbs"
+leaf_prompt = "Lophostemon confertus elliptic leathery dark glossy green whorled leaves"
 resolution = 1024
 bark_style = "plated"
 leaf_shape = "pointed"
 leaf_card = "cluster"
 seed = 1968
-bark_color = [0.44, 0.34, 0.27]
-leaf_color = [0.15, 0.31, 0.12]
+bark_color = [0.44, 0.34, 0.26]
+upper_bark_style = "smooth"
+upper_bark_color = [0.76, 0.56, 0.45]
+bark_transition_height = 3.2
+bark_transition_span = 0.9
+leaf_color = [0.22, 0.37, 0.17]
+leaf_underside_color = [0.38, 0.48, 0.28]
 
 [materials]
 bark = "queensland_box_bark"
 foliage = "queensland_box_foliage"
-notes = "1024px procedural bark and leaf card."
+notes = "1024px half-barked brown/pink-salmon bark + whorled glossy leaf card."
 
 [[control_groups]]
 key = "shape"
@@ -132,7 +144,7 @@ label = "Shape"
 key = "height"
 label = "Height"
 parameter = "trunk.height"
-min = 2.0
+min = 3.0
 max = 14.0
 step = 0.1
 
@@ -140,7 +152,7 @@ step = 0.1
 key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
-min = 0.5
+min = 0.6
 max = 2.0
 step = 0.05
 
@@ -150,18 +162,12 @@ preset = "high_quality"
 [platform]
 target = "modern_pc"
 
-# State: lopped under power lines: short trunk, stubby limbs, flat dense regrowth
+# State: powerline-lopped verge tree: real flat-top cut stubs with dense bushy epicormic regrowth
 [states.lopped]
 species.name = "Queensland Box (lopped)"
-trunk.height = 3.4
-trunk.radius = 0.4
-crown.shape = "hemispherical"
-crown.offset = 0.45
-crown.width_ratio = 1.5
-branches.level1.length = 2.3
-branches.level1.angle = 66.0
-branches.level1.radius_ratio = 0.62
-branches.level2.length = 1.3
-branches.level3.length = 0.8
-leaves.size = 0.7
-leaves.count = 3000
+pruning.mode = "lopped"
+pruning.cut_height = 5.4
+pruning.regrowth_per_stub = 5
+pruning.regrowth_length = 1.25
+leaves.count = 2900
+leaves.size = 0.64

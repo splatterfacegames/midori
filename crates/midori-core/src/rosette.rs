@@ -66,11 +66,19 @@ pub(crate) fn estimate_rosette(species: &Species) -> GenerationEstimate {
     let spike_organs = r
         .spike
         .as_ref()
-        .map(|s| (2 + s.flowers as u64) * s.count.max(1) as u64)
+        .map(|s| {
+            let per = match s.style {
+                SpikeStyle::Plume | SpikeStyle::Panicle => 2 + s.flowers.max(6) as u64,
+                _ => 2 + s.flowers as u64,
+            };
+            per * s.count.max(1) as u64
+        })
         .unwrap_or(0);
+    let runner_blades = (r.runners as u64) * 14;
     GenerationEstimate {
-        max_stems: 1 + crowns,
-        max_leaves: crowns * (r.blades as u64 + r.skirt_blades as u64 + spike_organs),
+        max_stems: 1 + crowns + r.runners as u64,
+        max_leaves: crowns * (r.blades as u64 + r.skirt_blades as u64 + spike_organs)
+            + runner_blades,
     }
 }
 
@@ -197,6 +205,7 @@ pub(crate) fn generate_rosette(
         BladeCard::Tuft => PI * 0.5,
         BladeCard::Single => 0.6,
         BladeCard::Pinnate => 0.18,
+        BladeCard::Fan => 0.14,
     };
     let waver = (1.0 - params.stiffness.clamp(0.0, 1.0)) * radians(9.0);
 
@@ -371,6 +380,148 @@ pub(crate) fn generate_rosette(
                             });
                         }
                     }
+                    SpikeStyle::Plume => {
+                        // Slender arching culm topped by a loose, airy spray of small
+                        // crossed-card panicle branchlets (rushes, sedges, coastal spinifex).
+                        let scape =
+                            (spike.scape_length + spike.length * 0.5) * rng.range(0.82, 1.15);
+                        tree.organs.push(organ(
+                            base,
+                            scape,
+                            spike.scape_radius * 2.0,
+                            OrganKind::Cylinder,
+                            CELL_ORGAN,
+                            [1.0, 0.72],
+                        ));
+                        let heads = spike.flowers.max(5);
+                        let (at, ab) = create_basis(axis);
+                        let head_span = spike.length.max(0.12);
+                        for h in 0..heads {
+                            let k = (h as f32 + 0.5) / heads as f32;
+                            let a = h as f32 * GOLDEN_ANGLE + rng.range(-0.3, 0.3);
+                            let side = at * a.cos() + ab * a.sin();
+                            let splay = lerp(0.55, 0.18, k) + rng.range(-0.08, 0.08);
+                            let launch = (axis * splay.cos() + side * splay.sin())
+                                .try_normalize()
+                                .unwrap_or(axis);
+                            let sz = spike.flower_length.max(spike.radius * 3.0)
+                                * lerp(1.15, 0.75, k)
+                                * rng.range(0.82, 1.18);
+                            tree.organs.push(Organ {
+                                position: base
+                                    + axis * (scape - head_span * (1.0 - k) * 0.7)
+                                    + side * (head_span * 0.18 * (1.0 - k)),
+                                rotation: Quat::from_axis_angle(launch, rng.range(0.0, TAU))
+                                    * Quat::from_rotation_arc(Vec3::Y, launch),
+                                length: sz,
+                                width: sz,
+                                kind: OrganKind::Card,
+                                cell: CELL_FLOWER,
+                                v_range: [1.0, 0.0],
+                                bend: 0.0,
+                                stem_id: site.stem_id,
+                            });
+                        }
+                    }
+                    SpikeStyle::Panicle => {
+                        // Drooping branched fruit/flower panicles hanging out from beneath
+                        // the crown (Canary Island date palm, queen palm).
+                        let hang_dir = (out * 0.55 - Vec3::Y * 0.84)
+                            .try_normalize()
+                            .unwrap_or(Vec3::NEG_Y);
+                        let stalk_base =
+                            site.tip + out * (site.radius * 0.85) - site.axis * (site.radius * 0.9);
+                        let stalk_len = spike.scape_length.max(0.35) * rng.range(0.85, 1.15);
+                        tree.organs.push(Organ {
+                            position: stalk_base,
+                            rotation: Quat::from_rotation_arc(Vec3::Y, hang_dir),
+                            length: stalk_len,
+                            width: spike.scape_radius * 2.4,
+                            kind: OrganKind::Cylinder,
+                            cell: CELL_ORGAN,
+                            v_range: [1.0, 0.75],
+                            bend: 0.0,
+                            stem_id: site.stem_id,
+                        });
+                        let clusters = spike.flowers.max(6);
+                        for c_i in 0..clusters {
+                            let k = (c_i as f32 + 0.5) / clusters as f32;
+                            let p = stalk_base + hang_dir * (stalk_len * (0.35 + 0.65 * k));
+                            let sz = spike.length * lerp(0.55, 0.35, k) * rng.range(0.85, 1.15);
+                            let hang_q = Quat::from_axis_angle(Vec3::NEG_Y, rng.range(0.0, TAU))
+                                * Quat::from_rotation_arc(Vec3::Y, Vec3::NEG_Y);
+                            tree.organs.push(Organ {
+                                position: p,
+                                rotation: hang_q,
+                                length: sz,
+                                width: sz,
+                                kind: OrganKind::Card,
+                                cell: CELL_FLOWER,
+                                v_range: [1.0, 0.0],
+                                bend: 0.0,
+                                stem_id: site.stem_id,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Opt-in creeping stolon runners with secondary tufts (coastal spinifex).
+    if params.runners > 0 {
+        let base_az = rng.range(0.0, TAU);
+        for r_idx in 0..params.runners {
+            let az =
+                base_az + (r_idx as f32 / params.runners as f32) * TAU + rng.range(-0.35, 0.35);
+            let out = Vec3::new(az.cos(), 0.0, az.sin());
+            let perp = Vec3::new(-az.sin(), 0.0, az.cos());
+            let run_len = params.runner_length * rng.range(0.75, 1.25);
+            let segs = 5usize;
+            let stem_id = tree.stems.len() as u32;
+            let mut runner = Stem::new(stem_id, 1);
+            runner.parent_id = Some(0);
+            runner.parent_offset = 0.0;
+            let mut p = out * (trunk.radius * 0.5);
+            p.y = 0.03;
+            let mut nodes = Vec::new();
+            for s in 0..segs {
+                let u = (s + 1) as f32 / segs as f32;
+                let wiggle = (u * PI * 1.6 + r_idx as f32).sin() * 0.14 * run_len;
+                let end = Vec3::new(
+                    out.x * (trunk.radius * 0.5 + run_len * u) + perp.x * wiggle,
+                    0.02 + 0.025 * (u * PI * 2.0).sin().abs(),
+                    out.z * (trunk.radius * 0.5 + run_len * u) + perp.z * wiggle,
+                );
+                let d = (end - p).try_normalize().unwrap_or(out);
+                runner.segments.push(Segment {
+                    start: p,
+                    end,
+                    start_radius: 0.010,
+                    end_radius: 0.008,
+                    direction: d,
+                });
+                if s >= 1 {
+                    nodes.push(end);
+                }
+                p = end;
+            }
+            tree.add_stem(runner);
+            for (n_i, node_pos) in nodes.into_iter().enumerate() {
+                let blades_here = 3usize;
+                for b in 0..blades_here {
+                    let ba = (b as f32 * GOLDEN_ANGLE) + (n_i as f32 * 1.1) + rng.range(-0.4, 0.4);
+                    let bd = Vec3::new(ba.cos(), 0.0, ba.sin());
+                    let polar = radians(rng.range(18.0, 62.0));
+                    let launch = (Vec3::Y * polar.cos() + bd * polar.sin())
+                        .try_normalize()
+                        .unwrap_or(Vec3::Y);
+                    tree.leaves.push(Leaf {
+                        position: node_pos,
+                        rotation: blade_rotation(launch, Vec3::Y, rng.variance_add(0.8)),
+                        scale: params.blade_length * rng.range(0.32, 0.58),
+                        stem_id,
+                    });
                 }
             }
         }

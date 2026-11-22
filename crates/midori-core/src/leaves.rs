@@ -265,6 +265,10 @@ fn calculate_stem_weight(stem: &Stem, distribution: LeafDistribution) -> f32 {
             let length_weight = stem.length().max(0.1) * 0.3;
             endpoint_weight + length_weight
         }
+        LeafDistribution::Whorl => {
+            // Terminal shoots carry radial leaf rosettes behind the shoot tip
+            if stem.child_ids.is_empty() { 1.0 } else { 0.0 }
+        }
     }
 }
 
@@ -341,6 +345,28 @@ fn choose_leaf_position(
                     rng,
                 )
             }
+        }
+        LeafDistribution::Whorl => {
+            // True radial leaf whorl sitting just behind the shoot tip (`t = 0.68..0.92`),
+            // fanning outward around the stem axis so terminal banksia spikes sit cleanly
+            // exposed above the foliage collar rather than buried inside a spray.
+            let count_f = stem_leaf_count.max(1) as f32;
+            let ring_frac = (leaf_idx as f32 + 0.5) / count_f;
+            let t = lerp(0.68, 0.92, ring_frac) + rng.range(-0.02, 0.02);
+            let t = t.clamp(0.55, 0.94);
+            let pos = stem.point_at(t);
+            let stem_dir = stem.direction_at(t).try_normalize().unwrap_or(Vec3::Y);
+            let (tan, bit) = create_basis(stem_dir);
+            let az = (leaf_idx as f32) * GOLDEN_ANGLE + rng.range(-0.14, 0.14);
+            let radial = tan * az.cos() + bit * az.sin();
+            // Lower whorl leaves spread wider (~78 deg); upper collar leaves angle forward (~42 deg)
+            let polar = lerp(1.36, 0.72, ring_frac) + rng.range(-0.10, 0.10);
+            let dir = (stem_dir * polar.cos() + radial * polar.sin())
+                .try_normalize()
+                .unwrap_or(radial);
+            let r = stem.radius_at(t);
+            let env = lerp(1.06, 0.84, ring_frac);
+            (pos + radial * (r + 0.02), dir, env)
         }
     }
 }
@@ -1750,6 +1776,52 @@ pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
             let d_side = px - half_w;
             let d_end = py.abs() - 0.50;
             smooth_max_2d(d_side, d_end)
+        }
+        LeafShape::BullBanksia => {
+            // Giant pinnatifid Banksia grandis leaf: bold broad strap deeply cut nearly
+            // to the midrib into 9 prominent crisp triangular lobes per side.
+            let y_norm = ((py + 0.52) / 1.04).clamp(0.0, 1.0);
+            let env = (y_norm / 0.18).clamp(0.0, 1.0).powf(0.65)
+                * ((1.0 - y_norm) / 0.10).clamp(0.0, 1.0).powf(0.55);
+            let lobe_phase = (y_norm * 9.0).fract();
+            // Sharp triangular lobe: steep basal edge, sweeping outer point
+            let tri = if lobe_phase < 0.35 {
+                lobe_phase / 0.35
+            } else {
+                (1.0 - lobe_phase) / 0.65
+            };
+            let half_w = (0.018 + 0.155 * tri * env).max(0.012);
+            let d_side = px - half_w;
+            let d_end = py.abs() - 0.52;
+            smooth_max_2d(d_side, d_end)
+        }
+        LeafShape::Paperbark => {
+            // Soft narrow-elliptic Melaleuca leaf (~5:1) tapering softly at both ends.
+            let y_norm = ((py + 0.50) / 1.0).clamp(0.0, 1.0);
+            let blade = (y_norm * PI).sin().max(0.0).powf(0.75);
+            let half_w = 0.095 * blade;
+            let d_side = px - half_w;
+            let d_end = py.abs() - 0.50;
+            smooth_max_2d(d_side, d_end)
+        }
+        LeafShape::BroadEucalypt => {
+            // Broad ovate-lanceolate adult marri / tuart / sugar gum leaf (~3.6:1) with slight falcate curve.
+            let y_norm = ((py + 0.52) / 1.04).clamp(0.0, 1.0);
+            let bow = 0.045 * (1.0 - (2.0 * y_norm - 1.0).powi(2)) - 0.015;
+            let x = (p.x - bow).abs();
+            let blade = (y_norm.powf(0.68) * PI).sin().max(0.0).powf(0.78);
+            let half_w = 0.145 * blade;
+            let d_side = x - half_w;
+            let d_end = py.abs() - 0.52;
+            smooth_max_2d(d_side, d_end)
+        }
+        LeafShape::Trifoliate => {
+            // Coral tree three-leaflet silhouette: broad diamond central leaflet + 2 lateral leaflets.
+            let c_y = py - 0.16;
+            let c_d = (Vec2::new(px * 1.35, c_y * 1.15)).length() - 0.32;
+            let l_p = Vec2::new((px - 0.28).abs(), py + 0.14);
+            let l_d = (Vec2::new(l_p.x * 1.45, l_p.y * 1.35)).length() - 0.24;
+            c_d.min(l_d)
         }
     }
 }

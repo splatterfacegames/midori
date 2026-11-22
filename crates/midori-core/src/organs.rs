@@ -62,18 +62,51 @@ pub struct Organ {
     pub stem_id: u32,
 }
 
-/// Place the species' `[inflorescence]` organs on a generated tree.
+/// Place the species' `[inflorescence]` (and optional `[secondary_inflorescence]`)
+/// organs on a generated tree.
 ///
 /// Returns an empty list when the species has no inflorescence section or no
 /// stem qualifies.
 pub fn place_inflorescence(tree: &Tree, species: &Species, seed: u64) -> Vec<Organ> {
-    let Some(inf) = &species.inflorescence else {
-        return Vec::new();
-    };
+    let separate = species.uses_separate_organ_material();
+    let mut all = Vec::new();
+    if let Some(inf) = &species.inflorescence {
+        let (fresh_cell, aged_cell) = if separate {
+            (crate::botanical_cards::CELL_LEAF, CELL_ORGAN)
+        } else {
+            (CELL_ORGAN, CELL_AGED)
+        };
+        all.extend(place_one_inflorescence(
+            tree,
+            inf,
+            seed.wrapping_add(0x0F10_4E55),
+            fresh_cell,
+            aged_cell,
+        ));
+    }
+    if let Some(inf2) = &species.secondary_inflorescence {
+        all.extend(place_one_inflorescence(
+            tree,
+            inf2,
+            seed.wrapping_add(0x5EC0_4D12),
+            CELL_AGED,
+            crate::botanical_cards::CELL_FLOWER,
+        ));
+    }
+    all
+}
+
+fn place_one_inflorescence(
+    tree: &Tree,
+    inf: &InflorescenceParams,
+    rng_seed: u64,
+    fresh_cell: u8,
+    aged_cell: u8,
+) -> Vec<Organ> {
     if inf.count == 0 {
         return Vec::new();
     }
-    let mut rng = Rng::from_seed(seed.wrapping_add(0x0F10_4E55));
+    let mut rng = Rng::from_seed(rng_seed);
 
     // Qualifying stems; fall back to the deepest level the tree actually has.
     let deepest = tree.stems.iter().map(|s| s.level as u32).max().unwrap_or(0);
@@ -146,7 +179,7 @@ pub fn place_inflorescence(tree: &Tree, species: &Species, seed: u64) -> Vec<Org
             length: inf.length * size,
             width: inf.width * size,
             kind: organ_kind(inf),
-            cell: if aged { CELL_AGED } else { CELL_ORGAN },
+            cell: if aged { aged_cell } else { fresh_cell },
             v_range: [1.0, 0.0],
             bend: 0.0,
             stem_id: stem.id,
@@ -192,7 +225,18 @@ pub fn reduce_organs(organs: &[Organ], reduction: f32) -> Vec<Organ> {
     if keep >= total {
         return organs.to_vec();
     }
-    (0..keep).map(|i| organs[i * total / keep.max(1)]).collect()
+    let mut out: Vec<Organ> = (0..keep).map(|i| organs[i * total / keep.max(1)]).collect();
+    // Always retain hero structural tall spikes (e.g. grass tree flowering spears)
+    // so they never pop out at LOD1.
+    for (idx, organ) in organs.iter().enumerate() {
+        if organ.kind == OrganKind::Cylinder && organ.length >= 0.45 {
+            let already = (0..keep).any(|i| i * total / keep.max(1) == idx);
+            if !already {
+                out.push(*organ);
+            }
+        }
+    }
+    out
 }
 
 /// Radius profile of a lathe organ along its axis (`t` in `0..=1`), as a

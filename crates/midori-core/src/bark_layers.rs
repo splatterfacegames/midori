@@ -139,6 +139,25 @@ pub(crate) fn height_at(style: BarkStyle, u: f32, v: f32, seed: u64) -> f32 {
             let h = sheet - lip_shadow + 0.10 * (wrinkle - 0.5) - split_cut + 0.05 * (fuzz - 0.5);
             h.clamp(0.0, 1.0)
         }
+        BarkStyle::PalmDiamond => {
+            // Persistent criss-crossing diamond leaf-base scars of Canary Island
+            // date palm and cotton fan palm: diagonal lattice of raised truncated
+            // petiole bosses separated by deep dark fibrous diamond seams.
+            let du = u * 10.0;
+            let dv = v * 14.0;
+            // Two diagonal coordinates forming crisp interlocking diamonds
+            let a = (du + dv).rem_euclid(1.0);
+            let b = (du - dv).rem_euclid(1.0);
+            let edge_a = a.min(1.0 - a);
+            let edge_b = b.min(1.0 - b);
+            let seam = smooth((edge_a.min(edge_b) / 0.14).clamp(0.0, 1.0));
+            // Each diamond boss steps outward slightly toward its upper truncated lip
+            let lip = smooth((b / 0.85).clamp(0.0, 1.0));
+            let fibre = fbm(seed ^ 0xA1, u * 96.0, v * 48.0, 96, 48, 3);
+            let scar = value_noise(seed ^ 0xA2, u * 192.0, v * 192.0, 192, 192);
+            let h = seam * (0.48 + 0.34 * lip + 0.14 * fibre) + (scar - 0.5) * 0.08;
+            h.clamp(0.0, 1.0)
+        }
         // The original styles are evaluated in `textures.rs`.
         BarkStyle::Furrowed | BarkStyle::Plated | BarkStyle::Smooth => 0.5,
     }

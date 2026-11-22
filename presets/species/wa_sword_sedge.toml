@@ -1,6 +1,6 @@
 # Coast sword-sedge (Lepidosperma gladiatum)
-# Bold sedge of dunes and limestone: a dense fan of flat, rigid, dark green sword leaves to 1.5 m,
-# with brown flower heads held among them.
+# Bold sedge of coastal dunes and limestone: dense fan of broad flat rigid glaucous blue-green
+# sword blades to 1.5 m, with dark rusty-brown plume seed panicles held among the foliage.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,12 +12,12 @@ tags = ["wa_native", "rosette", "groundcover", "coastal_dune", "coastal_limeston
 
 [generator]
 family = "rosette"
-notes = "Clump about 1.3 m high. Also stands in for other sword-sedges of the banksia woodland floor."
+notes = "Dense bold fan of 115 flat glaucous sword blades with dark rusty-brown plume seed panicles."
 
 [trunk]
-height = 0.03
+height = 0.04
 height_variance = 0.0
-radius = 0.04
+radius = 0.05
 taper = 0.0
 curve = 0.0
 curve_variance = 0.0
@@ -26,62 +26,62 @@ buttress = 0.0
 
 [rosette]
 crowns = 1
-blades = 70
-blade_length = 1.25
-blade_length_variance = 0.2
-blade_width = 0.035
+blades = 115
+blade_length = 1.35
+blade_length_variance = 0.20
+blade_width = 0.052
 blade_card = "single"
 spread_min = 3.0
-spread_max = 42.0
+spread_max = 44.0
 droop = 0.16
-stiffness = 0.9
+stiffness = 0.90
 keel = 0.15
-color_base = [0.14, 0.28, 0.13]
-color_tip = [0.26, 0.4, 0.18]
+color_base = [0.35, 0.45, 0.37]
+color_tip = [0.49, 0.55, 0.44]
 skirt = 1.0
-skirt_blades = 14
-skirt_color = [0.5, 0.42, 0.26]
+skirt_blades = 22
+skirt_color = [0.54, 0.46, 0.30]
 
 [rosette.spike]
-chance = 0.7
-count = 5
-style = "cylinder"
-scape_length = 0.9
-scape_radius = 0.005
-length = 0.22
-radius = 0.016
-lean = 20.0
-color = [0.36, 0.24, 0.14]
-tip_color = [0.5, 0.36, 0.2]
-scape_color = [0.2, 0.32, 0.14]
+chance = 0.95
+count = 8
+style = "plume"
+scape_length = 0.95
+scape_radius = 0.006
+length = 0.32
+radius = 0.068
+lean = 18.0
+color = [0.40, 0.26, 0.16]
+tip_color = [0.54, 0.38, 0.22]
+scape_color = [0.36, 0.44, 0.34]
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.3
+normal_blend = 0.30
 up_bias = 0.28
-clump_weight = 0.2
+clump_weight = 0.20
 clump_level = 1
 crown_fill = 0
 shell = 0.0
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.3
-roughness = 0.8
+tint_variation = 0.14
+hue_variation = 0.08
+ao_strength = 0.30
+roughness = 0.76
 
 [textures]
-bark_prompt = "Tussock base, brown"
-leaf_prompt = "Lepidosperma gladiatum leaves, flat, rigid, sword shaped, dark green"
+bark_prompt = "Sedge tussock base, warm brown"
+leaf_prompt = "Lepidosperma gladiatum broad rigid flat glaucous blue-green sword blades"
 resolution = 1024
 bark_style = "smooth"
-bark_color = [0.32, 0.26, 0.18]
-leaf_color = [0.2, 0.36, 0.16]
+bark_color = [0.34, 0.28, 0.20]
+leaf_color = [0.42, 0.50, 0.40]
 
 [materials]
 bark = "sword_sedge_bark"
 foliage = "sword_sedge_foliage"
-notes = "2x2 foliage atlas: live blade, dead blade."
+notes = "1024px 2x2 rosette atlas: broad glaucous sword blade, dark rusty plume panicle, straw base."
 
 [[control_groups]]
 key = "shape"
@@ -99,8 +99,8 @@ step = 0.05
 key = "blades"
 label = "Blades"
 parameter = "rosette.blades"
-min = 20.0
-max = 160.0
+min = 30.0
+max = 180.0
 step = 5.0
 
 [lod]

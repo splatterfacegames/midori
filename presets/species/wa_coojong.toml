@@ -1,6 +1,6 @@
 # Coojong / orange wattle (Acacia saligna)
-# Fast, short-lived wattle of the coastal plain and road verges: a short trunk, dense weeping habit, long
-# drooping blue-green phyllodes, and masses of golden ball flowers in late winter and spring.
+# Fast weeping wattle of the Swan Coastal Plain and road verges: multi-stemmed short trunk,
+# graceful weeping arch of long glaucous blue-green phyllodes, and golden spring ball flowers.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,86 +12,94 @@ tags = ["wa_native", "shrub", "wattle", "swan_coastal_plain", "coastal", "weepin
 
 [generator]
 family = "weber_penn"
-notes = "Small tree of about 5 m. Default is out of flower; the flowering state is August-October."
+notes = "Multi-stem weeping 5 m wattle with cool blue-green phyllodes; [states.flowering] explodes with golden wattle clusters."
 
 [trunk]
-height = 1.6
-height_variance = 0.18
-radius = 0.14
-taper = 0.7
+height = 2.4
+height_variance = 0.16
+radius = 0.13
+taper = 0.70
 taper_profile = "exponential"
-curve = 30.0
-curve_variance = 16.0
-curve_back = 26.0
+curve = 20.0
+curve_variance = 12.0
+curve_back = 20.0
 segments = 12
+stems = 3
+stem_spread = 24.0
+stem_offset = 0.18
+stem_height_variation = 0.22
 buttress = 0.0
 
 [branches.level1]
-count = 9
-count_variance = 2
-length = 2.6
-length_variance = 0.22
-radius_ratio = 0.62
-radius_model = "ratio"
-taper = 0.78
-taper_profile = "exponential"
-angle = 52.0
-angle_variance = 18.0
-rotation = 137.5
-gravity = -0.1
-curve = 30.0
-curve_variance = 24.0
-segments = 11
-
-[branches.level2]
-count = 5
+count = 6
 count_variance = 1
-length = 1.6
+length = 2.6
 length_variance = 0.22
 radius_ratio = 0.58
 radius_model = "ratio"
 taper = 0.78
-taper_profile = "smooth"
+taper_profile = "exponential"
 angle = 52.0
-angle_variance = 18.0
+angle_variance = 16.0
 rotation = 137.5
-gravity = -0.4
-curve = 30.0
-curve_variance = 20.0
-segments = 9
+gravity = -0.14
+curve = 28.0
+curve_variance = 22.0
+segments = 10
 
-[branches.level3]
+[branches.level2]
 count = 4
 count_variance = 1
-length = 1.0
+length = 1.65
 length_variance = 0.22
-radius_ratio = 0.4
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 48.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.46
+curve = 28.0
+curve_variance = 18.0
+segments = 8
+
+[branches.level3]
+count = 3
+count_variance = 1
+length = 1.05
+length_variance = 0.22
+radius_ratio = 0.40
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "compound"
 angle = 30.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = -0.8
+gravity = -0.82
 curve = 16.0
-curve_variance = 18.0
-segments = 7
+curve_variance = 16.0
+segments = 6
+
+[pruning]
+mode = "crown_lift"
+lift_height = 0.65
 
 [crown]
 shape = "hemispherical"
-offset = 0.25
-density = 1.0
-width_ratio = 1.2
+offset = 0.34
+density = 0.90
+width_ratio = 1.24
 
 [leaves]
-count = 1700
+count = 1650
 min_level = 2
-size = 0.6
+size = 0.62
 size_variance = 0.22
 distribution = "along_branch"
 geometry = "cross_billboard"
 shape = "willow"
-up_influence = -0.55
+up_influence = -0.60
 
 [inflorescence]
 kind = "cluster"
@@ -99,44 +107,50 @@ count = 0
 min_level = 2
 placement = "along_branch"
 orientation = "hang"
-length = 0.42
-width = 0.42
-size_variance = 0.25
-color = [0.98, 0.8, 0.1]
-color_tip = [1.0, 0.9, 0.3]
+length = 0.46
+width = 0.46
+size_variance = 0.24
+color = [0.98, 0.78, 0.08]
+color_tip = [1.0, 0.88, 0.26]
 aged_fraction = 0.05
-aged_color = [0.55, 0.42, 0.2]
+aged_color = [0.56, 0.42, 0.20]
+separate_material = true
+roughness = 0.62
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.72
+up_bias = 0.20
+clump_weight = 0.62
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.12
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
 roughness = 0.72
 
 [textures]
-bark_prompt = "Acacia saligna bark, grey to red-brown, smooth becoming fissured"
-leaf_prompt = "Acacia saligna phyllodes, long, narrow, drooping, blue-green"
+bark_prompt = "Acacia saligna bark, smooth dark grey-brown becoming finely fissured"
+leaf_prompt = "Acacia saligna long drooping glaucous blue-green willow-like phyllodes"
 resolution = 1024
 bark_style = "smooth"
 leaf_shape = "willow"
 leaf_card = "cluster"
 seed = 411
-bark_color = [0.36, 0.31, 0.27]
-leaf_color = [0.27, 0.42, 0.25]
+bark_color = [0.36, 0.32, 0.28]
+leaf_color = [0.38, 0.49, 0.42]
+leaf_underside_color = [0.50, 0.59, 0.53]
+leaf_dead_fraction = 0.05
+leaf_dead_color = [0.58, 0.48, 0.26]
 
 [materials]
 bark = "coojong_bark"
 foliage = "coojong_foliage"
-notes = "2x2 foliage atlas: leaf spray, flowers, spent flowers."
+notes = "1024px glaucous blue-green willow phyllode card + golden wattle flower organ atlas."
 
 [[control_groups]]
 key = "shape"
@@ -146,16 +160,16 @@ label = "Shape"
 key = "height"
 label = "Height"
 parameter = "trunk.height"
-min = 0.2
-max = 4.0
+min = 0.6
+max = 5.0
 step = 0.05
 
 [[control_groups.controls]]
 key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
-min = 0.5
-max = 2.5
+min = 0.6
+max = 2.4
 step = 0.05
 
 [lod]
@@ -164,8 +178,11 @@ preset = "balanced"
 [platform]
 target = "modern_pc"
 
-# State: August to October: golden ball flowers
+# State: August to October: laden with golden wattle ball flowers
 [states.flowering]
 species.name = "Coojong (flowering)"
-inflorescence.count = 900
-leaves.count = 1300
+inflorescence.count = 1650
+inflorescence.length = 0.60
+inflorescence.width = 0.60
+inflorescence.offset = 0.14
+leaves.count = 1350

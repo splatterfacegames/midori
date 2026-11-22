@@ -86,10 +86,21 @@ pub fn estimate_tree(species: &Species) -> GenerationEstimate {
     let l1 = level_max(&species.branches.level1);
     let l2 = level_max(&species.branches.level2);
     let l3 = level_max(&species.branches.level3);
-    let mut max_stems = 1u64
+    let l4 = level_max(&species.branches.level4);
+    let trunk_stems = species.trunk.stems.max(1) as u64;
+    let per_trunk = 1u64
         .saturating_add(l1)
         .saturating_add(l1.saturating_mul(l2))
-        .saturating_add(l1.saturating_mul(l2).saturating_mul(l3));
+        .saturating_add(l1.saturating_mul(l2).saturating_mul(l3))
+        .saturating_add(l1.saturating_mul(l2).saturating_mul(l3).saturating_mul(l4));
+    let mut max_stems = trunk_stems.saturating_mul(per_trunk);
+    if let Some(p) = &species.pruning {
+        let extra = (p.epicormic_count as u64).saturating_add(
+            l1.saturating_mul(p.regrowth_per_stub as u64)
+                .saturating_mul(trunk_stems),
+        );
+        max_stems = max_stems.saturating_add(extra);
+    }
     if matches!(species.generator.family, GeneratorFamily::Dichotomous) {
         max_stems = max_stems.saturating_mul(2);
     }
@@ -97,7 +108,14 @@ pub fn estimate_tree(species: &Species) -> GenerationEstimate {
         .inflorescence
         .as_ref()
         .map(|inf| inf.count as u64)
-        .unwrap_or(0);
+        .unwrap_or(0)
+        .saturating_add(
+            species
+                .secondary_inflorescence
+                .as_ref()
+                .map(|inf| inf.count as u64)
+                .unwrap_or(0),
+        );
     GenerationEstimate {
         max_stems,
         max_leaves: (species.leaves.count as u64).saturating_add(organs),
@@ -240,18 +258,39 @@ impl<'a> TreeGenerator<'a> {
 
     /// Generate a complete tree
     pub fn generate(mut self) -> Result<Tree, GenerationError> {
-        // Generate trunk
-        let trunk = self.generate_trunk();
-        let trunk_id = self.tree.add_stem(trunk);
-
-        // Generate branches recursively
-        self.generate_children(trunk_id, 1);
+        // Generate trunk(s): single trunk preserves exact legacy RNG sequence;
+        // multi-stem / mallee habit (`trunk.stems > 1`) spawns co-dominant stems
+        // radiating from a shared basal lignotuber.
+        let trunk_count = self.species.trunk.stems.max(1);
+        if trunk_count == 1 {
+            let trunk = self.generate_trunk();
+            let trunk_id = self.tree.add_stem(trunk);
+            self.generate_children(trunk_id, 1);
+        } else {
+            let mut trunk_ids = Vec::with_capacity(trunk_count as usize);
+            for s_idx in 0..trunk_count {
+                let trunk = self.generate_multistem_trunk(s_idx, trunk_count);
+                let trunk_id = self.tree.add_stem(trunk);
+                trunk_ids.push(trunk_id);
+            }
+            for trunk_id in trunk_ids {
+                self.generate_children(trunk_id, 1);
+                if self.over_budget {
+                    break;
+                }
+            }
+        }
         if self.over_budget {
             return Err(GenerationError::BudgetExceeded {
                 resource: "stems",
                 limit: self.budget.max_stems as u64,
                 actual: self.tree.stems.len() as u64,
             });
+        }
+
+        // Optional pruning & epicormic regrowth operator (`[pruning]`)
+        if let Some(pruning) = &self.species.pruning {
+            self.apply_pruning(pruning.clone());
         }
 
         // Update bounding box
@@ -264,6 +303,107 @@ impl<'a> TreeGenerator<'a> {
         self.budget.check_tree(&self.tree)?;
 
         Ok(self.tree)
+    }
+
+    /// Generate one stem of a multi-stem / mallee tree (`trunk.stems > 1`).
+    fn generate_multistem_trunk(&mut self, idx: u32, total: u32) -> Stem {
+        let trunk = &self.species.trunk;
+        let mut s_rng = Rng::from_seed(
+            self.seed
+                .wrapping_add((idx as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)),
+        );
+        // Stem 0 is the dominant leader; secondary stems vary naturally in height and thickness
+        let dominance = if idx == 0 {
+            1.0
+        } else {
+            let h_var = trunk.stem_height_variation.clamp(0.0, 0.7);
+            1.0 - h_var * s_rng.range(0.20, 1.0)
+        };
+        let height = trunk.height * dominance * self.rng.variance_mul(trunk.height_variance);
+        let base_r = trunk.radius * (0.62 + 0.38 * dominance);
+        let segment_count = trunk.segments.max(2);
+        let segment_length = height / segment_count as f32;
+
+        let az = (self.seed as f32 * 0.618_034) * TAU
+            + (idx as f32 / total as f32) * TAU
+            + s_rng.range(-0.32, 0.32);
+        let out_xz = Vec3::new(az.cos(), 0.0, az.sin());
+        let spread_rad = radians(
+            trunk.stem_spread
+                * if idx == 0 {
+                    0.42
+                } else {
+                    s_rng.range(0.75, 1.25)
+                },
+        );
+        let mut position = out_xz
+            * (trunk.stem_offset
+                * if idx == 0 {
+                    0.35
+                } else {
+                    s_rng.range(0.7, 1.15)
+                });
+        let mut direction = (Vec3::Y * spread_rad.cos() + out_xz * spread_rad.sin())
+            .try_normalize()
+            .unwrap_or(Vec3::Y);
+        let mut bend_axis = Vec3::Y.cross(out_xz).try_normalize().unwrap_or(Vec3::X);
+
+        let mut stem = Stem::new(self.next_stem_id(), 0);
+        let mut radius = base_r;
+        let segs_f = segment_count as f32;
+        let phase = s_rng.range(0.0, TAU);
+        let crook_t = 0.25 + 0.35 * s_rng.next_f32();
+        let crook_sign = if (idx & 1) == 0 { 1.0 } else { -1.0 };
+
+        for i in 0..segment_count {
+            let t = i as f32 / segs_f;
+            let mut curve_amount = self.calculate_curve(
+                t,
+                trunk.curve,
+                trunk.curve_variance,
+                trunk.curve_back,
+                segment_count,
+            );
+            let u_crook = (t - crook_t) / 0.14;
+            let crook_jog = crook_sign
+                * u_crook
+                * (-u_crook * u_crook).exp()
+                * radians(trunk.curve_variance * 1.9)
+                / (segs_f * 0.16).max(1.0);
+            let serpent = radians(trunk.curve_variance * 0.8)
+                * (TAU * 1.25 / segs_f)
+                * (t * TAU * 1.25 + phase).cos();
+            curve_amount += crook_jog + serpent;
+
+            bend_axis = transport_axis(bend_axis, direction);
+            direction = rotate_around_axis(direction, bend_axis, curve_amount);
+            // Gentle phototropic recovery above mid-stem while keeping outward splay
+            if t > 0.35 && direction.y < 0.72 {
+                direction = (direction + Vec3::Y * (0.28 / segs_f))
+                    .try_normalize()
+                    .unwrap_or(Vec3::Y);
+            }
+            let roll = radians(95.0) / segs_f
+                + s_rng.variance_add(radians(trunk.curve_variance * 0.4)) / segs_f.sqrt();
+            if roll.abs() > f32::EPSILON {
+                bend_axis = rotate_around_axis(bend_axis, direction, roll);
+            }
+
+            let next_t = (i + 1) as f32 / segs_f;
+            let next_radius =
+                tapered_radius(base_r, radius, trunk.taper, next_t, trunk.taper_profile);
+            let end = position + direction * segment_length;
+            stem.segments.push(Segment {
+                start: position,
+                end,
+                start_radius: radius,
+                end_radius: next_radius,
+                direction,
+            });
+            position = end;
+            radius = next_radius;
+        }
+        stem
     }
 
     /// Generate the trunk stem
@@ -449,7 +589,15 @@ impl<'a> TreeGenerator<'a> {
                 } else {
                     (w_idx as f32 + 0.30) / (num_whorls as f32 - 0.35)
                 };
-                let jitter = self.rng.variance_add(0.06 / num_whorls.max(1) as f32);
+                let tier_var = if branch_params.whorl_spacing_variance > 0.0 {
+                    // Coherent per-tier offset so an entire whorl shifts up/down naturally
+                    let h =
+                        ((w_idx as f32 * 0.618_034 + self.seed as f32 * 0.137).fract() - 0.5) * 2.0;
+                    h * (branch_params.whorl_spacing_variance / num_whorls.max(1) as f32)
+                } else {
+                    0.0
+                };
+                let jitter = self.rng.variance_add(0.06 / num_whorls.max(1) as f32) + tier_var;
                 let ct = (base_frac + jitter).clamp(0.0, 0.985);
                 let spoke_step = crate::constants::TAU / this_whorl_n as f32;
                 // Alternate adjacent whorls by half a spoke so tiers interlock naturally
@@ -696,7 +844,12 @@ impl<'a> TreeGenerator<'a> {
                     photo_lift += urgency * 0.58 * segment_length;
                 }
             }
-            let gravity_influence = spec.params.gravity * segment_length + photo_lift;
+            let mut gravity_influence = spec.params.gravity * segment_length + photo_lift;
+            // Opt-in upward cord-like tip sweep (e.g., Norfolk Island pine upturned branch tips)
+            if spec.params.tip_upturn != 0.0 && t > 0.45 {
+                let k = ((t - 0.45) / 0.55).powf(1.35);
+                gravity_influence += radians(spec.params.tip_upturn) * k / segs_f * 2.4;
+            }
 
             bend_axis = transport_axis(bend_axis, dir);
             dir = self.apply_curve_and_gravity(
@@ -992,6 +1145,273 @@ impl<'a> TreeGenerator<'a> {
         for cid in children {
             self.translate_subtree(cid, delta);
         }
+    }
+
+    /// Apply opt-in pruning (`lopped`, `pollard`, `crown_lift`) and epicormic regrowth.
+    fn apply_pruning(&mut self, pruning: crate::species::PruningParams) {
+        use crate::species::PruningMode;
+        use std::collections::HashSet;
+
+        let mut p_rng = Rng::from_seed(self.seed ^ 0x5052_554E_E123);
+        let leaf_level = self.species.leaves.min_level.min(MAX_BRANCH_LEVELS) as u8;
+
+        match pruning.mode {
+            PruningMode::None => {}
+            PruningMode::CrownLift => {
+                let lift_y = pruning.lift_height;
+                let mut remove_roots = Vec::new();
+                for stem in &self.tree.stems {
+                    if (stem.level == 1 && stem.base().y < lift_y)
+                        || (stem.level >= 2 && stem.base().y < lift_y * 0.90)
+                    {
+                        remove_roots.push(stem.id);
+                    }
+                }
+                if !remove_roots.is_empty() {
+                    let removed = collect_descendants(&self.tree, &remove_roots);
+                    remove_stems(&mut self.tree, &removed);
+                }
+                // Trim hanging lower tips of weeping branches that dip below pedestrian clearance.
+                let tip_floor = lift_y * 0.82;
+                for stem in &mut self.tree.stems {
+                    if stem.level >= 2 && stem.segments.len() > 2 {
+                        let mut keep = stem.segments.len();
+                        for (idx, seg) in stem.segments.iter().enumerate().skip(1) {
+                            if seg.end.y < tip_floor {
+                                keep = idx.max(1);
+                                break;
+                            }
+                        }
+                        if keep < stem.segments.len() {
+                            stem.segments.truncate(keep);
+                        }
+                    }
+                }
+            }
+            PruningMode::Lopped | PruningMode::Pollard => {
+                let is_pollard = pruning.mode == PruningMode::Pollard;
+                let cut_h = pruning.cut_height;
+                let mut stub_tips: Vec<(u32, Vec3, Vec3, f32)> = Vec::new();
+                let mut dead_roots: Vec<u32> = Vec::new();
+
+                // First pass: truncate stems crossing the cut plane (or shorten L1/L2 for pollard)
+                for stem in &mut self.tree.stems {
+                    if stem.segments.is_empty() {
+                        continue;
+                    }
+                    // Organic slight undulation on the wire-clearance cut plane
+                    let base = stem.base();
+                    let local_cut = cut_h
+                        + if is_pollard {
+                            0.18 * (base.x * 1.3 + base.z * 0.9).sin()
+                        } else {
+                            0.22 * (base.x * 0.7 - base.z * 0.5).sin()
+                        };
+
+                    if stem.level > 0 && base.y >= local_cut {
+                        dead_roots.push(stem.id);
+                        continue;
+                    }
+
+                    // For pollard: prune level 2+ limbs back to short stubs off level 1 knuckles
+                    if is_pollard && stem.level >= 2 {
+                        dead_roots.push(stem.id);
+                        continue;
+                    }
+
+                    let mut clipped_at: Option<usize> = None;
+                    for (idx, seg) in stem.segments.iter_mut().enumerate() {
+                        if seg.end.y > local_cut {
+                            let dy = (seg.end.y - seg.start.y).max(1e-4);
+                            let frac = ((local_cut - seg.start.y) / dy).clamp(0.05, 1.0);
+                            seg.end = seg.start + (seg.end - seg.start) * frac;
+                            // Keep a thick blunt cut stub radius (swollen knuckle if pollarded)
+                            let stub_r = lerp(seg.start_radius, seg.end_radius, frac)
+                                * if is_pollard { 1.48 } else { 1.05 };
+                            seg.end_radius = stub_r.max(MIN_RADIUS);
+                            clipped_at = Some(idx);
+                            break;
+                        }
+                    }
+
+                    // For pollard: also knuckle level-1 scaffold branches even below cut_h
+                    if is_pollard
+                        && stem.level == 1
+                        && clipped_at.is_none()
+                        && stem.segments.len() >= 4
+                    {
+                        let keep = (stem.segments.len() / 2).max(2);
+                        clipped_at = Some(keep - 1);
+                        if let Some(last) = stem.segments.get_mut(keep - 1) {
+                            last.end_radius = (last.start_radius * 1.45).max(MIN_RADIUS);
+                        }
+                    }
+
+                    if let Some(last_idx) = clipped_at {
+                        stem.segments.truncate(last_idx + 1);
+                        if let Some(last) = stem.segments.last() {
+                            stub_tips.push((stem.id, last.end, last.direction, last.end_radius));
+                        }
+                    }
+                }
+
+                // Prune any child stems whose parent was truncated below their attachment point
+                let mut extra_dead: HashSet<u32> = dead_roots.into_iter().collect();
+                for stem in &self.tree.stems {
+                    if let Some(pid) = stem.parent_id
+                        && let Some(parent) = self.tree.get_stem(pid)
+                        && !parent.segments.is_empty()
+                    {
+                        let p_tip_y = parent.tip().y;
+                        if stem.base().y > p_tip_y + 0.15 {
+                            extra_dead.insert(stem.id);
+                        }
+                    }
+                }
+                let dead_vec: Vec<u32> = extra_dead.into_iter().collect();
+                if !dead_vec.is_empty() {
+                    let removed = collect_descendants(&self.tree, &dead_vec);
+                    remove_stems(&mut self.tree, &removed);
+                }
+
+                // Spawn dense upright epicormic regrowth tufts erupting from every cut stub
+                let regrowth_n = pruning.regrowth_per_stub;
+                let regrowth_len = pruning.regrowth_length;
+                for (stub_id, tip_pos, stub_dir, stub_r) in stub_tips {
+                    if self.tree.get_stem(stub_id).is_none() {
+                        continue;
+                    }
+                    let (t, b) = create_basis(Vec3::Y);
+                    for k in 0..regrowth_n {
+                        if self.tree.stems.len() >= self.budget.max_stems as usize {
+                            break;
+                        }
+                        let az =
+                            (k as f32 / regrowth_n.max(1) as f32) * TAU + p_rng.range(-0.35, 0.35);
+                        let out = t * az.cos() + b * az.sin();
+                        let tilt = if is_pollard {
+                            p_rng.range(0.18, 0.65)
+                        } else {
+                            p_rng.range(0.22, 0.78)
+                        };
+                        let mut dir = (Vec3::Y * tilt.cos() + out * tilt.sin() + stub_dir * 0.15)
+                            .try_normalize()
+                            .unwrap_or(Vec3::Y);
+                        let shoot_len = regrowth_len * p_rng.range(0.65, 1.30);
+                        let segs = 4usize;
+                        let seg_len = shoot_len / segs as f32;
+                        let r0 = (stub_r * 0.24).clamp(0.012, 0.045);
+                        let id = self.next_stem_id();
+                        let mut shoot = Stem::new(id, leaf_level.max(2));
+                        shoot.parent_id = Some(stub_id);
+                        shoot.parent_offset = 0.96;
+                        let mut pos = tip_pos - stub_dir * (stub_r * 0.2) + out * (stub_r * 0.65);
+                        let mut r = r0;
+                        for s in 0..segs {
+                            let next_r = (r0 * (1.0 - 0.72 * ((s + 1) as f32 / segs as f32)))
+                                .max(MIN_RADIUS);
+                            dir = (dir + Vec3::Y * 0.12 + out * p_rng.range(-0.08, 0.08))
+                                .try_normalize()
+                                .unwrap_or(Vec3::Y);
+                            let end = pos + dir * seg_len;
+                            shoot.segments.push(Segment {
+                                start: pos,
+                                end,
+                                start_radius: r,
+                                end_radius: next_r,
+                                direction: dir,
+                            });
+                            pos = end;
+                            r = next_r;
+                        }
+                        self.tree.add_stem(shoot);
+                        if let Some(p) = self.tree.get_stem_mut(stub_id) {
+                            p.child_ids.push(id);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Optional trunk / lower-limb epicormic resprouting shoots (post-fire sleeves)
+        if pruning.epicormic_count > 0 {
+            let candidates: Vec<(u32, f32)> = self
+                .tree
+                .stems
+                .iter()
+                .filter(|s| s.level <= 1 && !s.segments.is_empty())
+                .map(|s| (s.id, s.length()))
+                .collect();
+            if !candidates.is_empty() {
+                for i in 0..pruning.epicormic_count {
+                    if self.tree.stems.len() >= self.budget.max_stems as usize {
+                        break;
+                    }
+                    let (pid, _) = candidates[(i as usize) % candidates.len()];
+                    let Some((base_pos, p_dir, p_r, t_off)) = self.tree.get_stem(pid).map(|p| {
+                        let t = p_rng.range(0.18, 0.92);
+                        (p.point_at(t), p.direction_at(t), p.radius_at(t), t)
+                    }) else {
+                        continue;
+                    };
+                    let (tan, bit) = create_basis(p_dir);
+                    let az = (i as f32) * GOLDEN_ANGLE + p_rng.range(-0.3, 0.3);
+                    let out = tan * az.cos() + bit * az.sin();
+                    let mut dir = (out * 0.85 + Vec3::Y * p_rng.range(0.25, 0.65))
+                        .try_normalize()
+                        .unwrap_or(out);
+                    let shoot_len = pruning.regrowth_length * p_rng.range(0.55, 1.15);
+                    let segs = 3usize;
+                    let seg_len = shoot_len / segs as f32;
+                    let r0 = (p_r * 0.14).clamp(0.008, 0.032);
+                    let id = self.next_stem_id();
+                    let mut shoot = Stem::new(id, leaf_level.max(2));
+                    shoot.parent_id = Some(pid);
+                    shoot.parent_offset = t_off;
+                    let mut pos = base_pos + out * (p_r * 0.82);
+                    let mut r = r0;
+                    for s in 0..segs {
+                        let next_r =
+                            (r0 * (1.0 - 0.7 * ((s + 1) as f32 / segs as f32))).max(MIN_RADIUS);
+                        dir = (dir + Vec3::Y * 0.15).try_normalize().unwrap_or(dir);
+                        let end = pos + dir * seg_len;
+                        shoot.segments.push(Segment {
+                            start: pos,
+                            end,
+                            start_radius: r,
+                            end_radius: next_r,
+                            direction: dir,
+                        });
+                        pos = end;
+                        r = next_r;
+                    }
+                    self.tree.add_stem(shoot);
+                    if let Some(p) = self.tree.get_stem_mut(pid) {
+                        p.child_ids.push(id);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn collect_descendants(tree: &Tree, roots: &[u32]) -> std::collections::HashSet<u32> {
+    let mut visited = std::collections::HashSet::new();
+    let mut stack: Vec<u32> = roots.to_vec();
+    while let Some(id) = stack.pop() {
+        if visited.insert(id)
+            && let Some(stem) = tree.get_stem(id)
+        {
+            stack.extend_from_slice(&stem.child_ids);
+        }
+    }
+    visited
+}
+
+fn remove_stems(tree: &mut Tree, removed: &std::collections::HashSet<u32>) {
+    tree.stems.retain(|s| !removed.contains(&s.id));
+    for stem in &mut tree.stems {
+        stem.child_ids.retain(|cid| !removed.contains(cid));
     }
 }
 

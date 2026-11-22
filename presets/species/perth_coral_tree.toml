@@ -1,0 +1,182 @@
+# Coral tree (Erythrina x sykesii)
+# Iconic winter-flowering park and riverfront tree of older Perth suburbs (South Perth, Subiaco,
+# Guildford, Nedlands): broad gnarled spreading corky grey trunk, bold trifoliate diamond leaves
+# in summer; bare sculptural limbs ablaze with upright scarlet-red pea-flower racemes in Aug-Nov.
+# PLANTED EXOTIC (sterile garden hybrid), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Coral Tree"
+scientific = "Erythrina x sykesii"
+latin = "Erythrina x sykesii"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "park_tree", "deciduous", "flowering", "winter"]
+
+[generator]
+family = "weber_penn"
+notes = "Default summer broad trifoliate canopy; [states.winter] bare sculptural limbs covered in upright scarlet racemes."
+
+[trunk]
+height = 5.4
+height_variance = 0.14
+radius = 0.56
+taper = 0.70
+taper_profile = "exponential"
+curve = 18.0
+curve_variance = 10.0
+curve_back = 18.0
+segments = 18
+buttress = 1.4
+
+[branches.level1]
+count = 8
+count_variance = 2
+length = 6.2
+length_variance = 0.22
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "exponential"
+angle = 60.0
+angle_variance = 15.0
+rotation = 137.5
+gravity = 0.04
+curve = 24.0
+curve_variance = 22.0
+segments = 13
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 3.0
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.04
+curve = -16.0
+curve_variance = 18.0
+segments = 9
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 1.4
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 44.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.08
+curve = 12.0
+curve_variance = 16.0
+segments = 6
+
+[pruning]
+mode = "crown_lift"
+lift_height = 2.2
+
+[crown]
+shape = "hemispherical"
+offset = 0.34
+density = 0.94
+width_ratio = 1.32
+
+[leaves]
+count = 2200
+min_level = 2
+size = 0.92
+size_variance = 0.20
+distribution = "both"
+geometry = "cross_billboard"
+shape = "trifoliate"
+up_influence = 0.16
+
+[inflorescence]
+kind = "spike"
+count = 0
+min_level = 2
+placement = "endpoint"
+orientation = "up"
+length = 0.30
+width = 0.115
+offset = 0.0
+size_variance = 0.20
+color = [0.90, 0.08, 0.06]
+color_tip = [0.98, 0.24, 0.10]
+aged_fraction = 0.04
+aged_color = [0.48, 0.20, 0.16]
+separate_material = true
+roughness = 0.54
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.74
+up_bias = 0.26
+clump_weight = 0.66
+clump_level = 1
+crown_fill = 0
+shell = 0.12
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.62
+
+[textures]
+bark_prompt = "Erythrina coral tree pale corky furrowed grey-tan stout trunk"
+leaf_prompt = "Erythrina x sykesii broad three-leaflet trifoliate fresh green leaves"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "trifoliate"
+leaf_card = "cluster"
+bark_color = [0.56, 0.52, 0.45]
+leaf_color = [0.27, 0.46, 0.20]
+leaf_underside_color = [0.42, 0.55, 0.32]
+
+[materials]
+bark = "coral_tree_bark"
+foliage = "coral_tree_foliage"
+notes = "1024px corky furrowed pale bark + trifoliate leaf card + dedicated upright scarlet spike organ atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 3.0
+max = 14.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.7
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: August-November: leafless gnarled winter limbs blazing with anchored upright scarlet racemes
+[states.winter]
+species.name = "Coral Tree (winter flowering)"
+leaves.count = 0
+inflorescence.count = 720
+inflorescence.placement = "along_branch"

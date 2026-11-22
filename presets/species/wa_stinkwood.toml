@@ -1,6 +1,6 @@
 # Stinkwood / green stinkwood (Jacksonia sternbergiana)
-# Leafless weeping broom-like shrub or small tree of Perth's sandplain: green angular branchlets do the
-# work of leaves, hanging in a soft grey-green curtain dotted with orange pea flowers most of the year.
+# Tall weeping leafless broom-like shrub/small tree of Perth's sandplain: airy curtains of fine
+# hanging olive-sage angular branchlets dotted with bright orange-yellow pea flowers.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,113 +12,117 @@ tags = ["wa_native", "shrub", "pea_family", "banksia_woodland", "swan_coastal_pl
 
 [generator]
 family = "weber_penn"
-notes = "About 3.5 m. Branchlets are painted with the branchlet leaf shape; flowers are small orange clusters."
+notes = "Tall 3.6 m airy weeping leafless broom with wispy branchlet curtains and separate-material orange pea flowers."
 
 [trunk]
-height = 2.2
-height_variance = 0.18
-radius = 0.1
-taper = 0.7
+height = 3.2
+height_variance = 0.16
+radius = 0.11
+taper = 0.70
 taper_profile = "exponential"
-curve = 30.0
-curve_variance = 16.0
-curve_back = 26.0
+curve = 16.0
+curve_variance = 12.0
+curve_back = 16.0
 segments = 12
+stems = 1
 buttress = 0.0
 
 [branches.level1]
-count = 9
+count = 7
 count_variance = 2
-length = 1.9
+length = 2.25
 length_variance = 0.22
-radius_ratio = 0.62
+radius_ratio = 0.54
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "exponential"
 angle = 46.0
-angle_variance = 18.0
+angle_variance = 16.0
 rotation = 137.5
-gravity = -0.06
+gravity = -0.14
 curve = 28.0
-curve_variance = 24.0
+curve_variance = 22.0
 segments = 10
 
 [branches.level2]
-count = 5
+count = 4
 count_variance = 1
-length = 1.3
+length = 1.65
 length_variance = 0.22
-radius_ratio = 0.58
+radius_ratio = 0.50
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "smooth"
-angle = 52.0
-angle_variance = 18.0
+angle = 44.0
+angle_variance = 16.0
 rotation = 137.5
-gravity = -0.45
-curve = 26.0
-curve_variance = 20.0
+gravity = -0.62
+curve = 30.0
+curve_variance = 18.0
 segments = 8
 
 [crown]
 shape = "flame"
-offset = 0.25
-density = 1.0
-width_ratio = 1.0
+offset = 0.28
+density = 0.78
+width_ratio = 0.96
 
 [leaves]
-count = 1500
+count = 880
 min_level = 2
-size = 0.6
+size = 0.72
 size_variance = 0.22
 distribution = "along_branch"
 geometry = "cross_billboard"
 shape = "branchlet"
-up_influence = -0.7
+up_influence = -0.84
 
 [inflorescence]
 kind = "cluster"
-count = 260
+count = 360
 min_level = 2
 placement = "along_branch"
 orientation = "hang"
-length = 0.16
-width = 0.16
-size_variance = 0.3
-color = [0.96, 0.58, 0.1]
-color_tip = [0.86, 0.22, 0.1]
-aged_fraction = 0.1
-aged_color = [0.5, 0.4, 0.24]
+length = 0.18
+width = 0.18
+size_variance = 0.28
+color = [0.98, 0.64, 0.12]
+color_tip = [0.90, 0.28, 0.08]
+aged_fraction = 0.08
+aged_color = [0.54, 0.42, 0.24]
+separate_material = true
+roughness = 0.62
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.54
+up_bias = 0.16
+clump_weight = 0.48
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.05
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.16
+hue_variation = 0.09
+ao_strength = 0.26
+billboard_lod_compensation = true
+roughness = 0.80
 
 [textures]
-bark_prompt = "Jacksonia bark, grey-brown, furrowed"
-leaf_prompt = "Jacksonia branchlets, grey-green, fine, drooping"
+bark_prompt = "Jacksonia sternbergiana bark, grey-brown, finely furrowed"
+leaf_prompt = "Jacksonia branchlets, wispy drooping grey-olive leafless broom wires"
 resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "branchlet"
 leaf_card = "cluster"
-bark_color = [0.36, 0.33, 0.29]
-leaf_color = [0.36, 0.44, 0.3]
+bark_color = [0.40, 0.36, 0.32]
+leaf_color = [0.48, 0.55, 0.42]
 
 [materials]
 bark = "stinkwood_bark"
 foliage = "stinkwood_foliage"
-notes = "2x2 foliage atlas: leaf spray, flowers, spent flowers."
+notes = "1024px wispy drooping branchlet card + dedicated orange-yellow pea flower atlas."
 
 [[control_groups]]
 key = "shape"
@@ -128,8 +132,8 @@ label = "Shape"
 key = "height"
 label = "Height"
 parameter = "trunk.height"
-min = 0.2
-max = 4.0
+min = 0.6
+max = 4.5
 step = 0.05
 
 [[control_groups.controls]]
@@ -137,7 +141,7 @@ key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
 min = 0.5
-max = 2.5
+max = 2.0
 step = 0.05
 
 [lod]

@@ -425,6 +425,10 @@ pub struct NatureExportManifest {
     /// The external scatter mask used, when the patch has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scatter_mask: Option<ScatterMaskConfig>,
+    /// Exported procedural ground albedo map (`maps/ground_albedo.png`), written
+    /// when `soil.color` is configured (opt-in so legacy 0.2.0 patches stay byte-identical).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ground_albedo: Option<String>,
 }
 
 /// The alpha-card species atlas written with a package.
@@ -1545,6 +1549,22 @@ pub fn validate_nature_package(
         budget_scatter_chunks,
     )?;
     let preview_mesh_path = optional_existing_package_file(directory, "preview_tile.glb")?;
+    if let Some(ref rel) = manifest.ground_albedo {
+        let albedo_path = directory.join(rel);
+        if !albedo_path.is_file() {
+            return Err(NaturePatchError::Validation(format!(
+                "manifest.ground_albedo missing on disk: {rel}"
+            )));
+        }
+        let img = image::open(&albedo_path).map_err(|e| {
+            NaturePatchError::Validation(format!("manifest.ground_albedo unreadable ({rel}): {e}"))
+        })?;
+        if img.width() == 0 || img.height() == 0 {
+            return Err(NaturePatchError::Validation(format!(
+                "manifest.ground_albedo has zero dimensions: {rel}"
+            )));
+        }
+    }
     let memory_config = NaturePackageConfig {
         map_resolution: manifest.map_resolution,
         ..NaturePackageConfig::default()
@@ -2381,6 +2401,11 @@ impl NaturePatch {
             texture_pipeline: "parked".to_string(),
             card_atlas: self.card_atlas_manifest(),
             scatter_mask: self.scatter_mask.clone(),
+            ground_albedo: self
+                .soil
+                .color
+                .as_ref()
+                .map(|_| "maps/ground_albedo.png".to_string()),
         }
     }
 
@@ -2417,12 +2442,36 @@ impl NaturePatch {
         let maps_directory = directory.join("maps");
         let field = self.terrain_field();
         let maps = field.write_maps(&maps_directory, config.map_resolution)?;
+        let surface_maps = self.soil.color.as_ref().map(|_| {
+            let res = config.map_resolution.max(256);
+            field.bake_preview_surface_maps(res)
+        });
+        if let Some((ref ground_albedo, _)) = surface_maps {
+            let png = ground_albedo
+                .to_png()
+                .map_err(|e| NaturePatchError::Validation(format!("ground_albedo encode: {e}")))?;
+            std::fs::write(maps_directory.join("ground_albedo.png"), png)?;
+        }
         let scatter_sets = self.scatter_sets_for_package(config);
 
         let preview_mesh_path = if config.write_preview_mesh {
             let path = directory.join("preview_tile.glb");
             let mesh = field.build_preview_mesh(config.preview_resolution);
-            export_mesh(&mesh, &path, &nature_mesh_export_config())?;
+            let export_cfg = if let Some((ref ground_albedo, ref ground_normal)) = surface_maps {
+                let mut cfg = nature_mesh_export_config();
+                cfg.textures = Some(crate::textures::TextureSet {
+                    bark_albedo: ground_albedo.clone(),
+                    bark_normal: ground_normal.clone(),
+                    leaf_card: crate::textures::RgbaTexture::new(2, 2),
+                    upper_bark_albedo: None,
+                    upper_bark_normal: None,
+                    organ_albedo: None,
+                });
+                cfg
+            } else {
+                nature_mesh_export_config()
+            };
+            export_mesh(&mesh, &path, &export_cfg)?;
             Some(path)
         } else {
             None
@@ -2801,13 +2850,13 @@ impl TerrainField {
         };
 
         // An explicit `soil.color` replaces the palette's three soil tones.
-        let (soil_dark, soil_mid, soil_light) = match self
+        let parsed_soil_color = self
             .patch
             .soil
             .color
             .as_deref()
-            .and_then(crate::nature_cards::parse_hex)
-        {
+            .and_then(crate::nature_cards::parse_hex);
+        let (soil_dark, soil_mid, soil_light) = match parsed_soil_color {
             Some(c) => (
                 [c[0] * 0.62, c[1] * 0.60, c[2] * 0.58],
                 c,
@@ -2875,6 +2924,75 @@ impl TerrainField {
                     rgb[2] = lerp(rgb[2], 0.46, pk);
                 }
 
+                // Opt-in WA / Perth biome surface micro-detail (only when a valid `soil.color`
+                // is configured, so 0.2.0 nature patches and fallback palettes stay byte-identical).
+                let mut extra_h = 0.0_f32;
+                if parsed_soil_color.is_some() {
+                    let detail_hi = fbm(wx * 44.0 + 3.7, wz * 44.0 - 9.1, seed ^ 0xA1);
+                    if profile.contains("sand")
+                        || biome.contains("dune")
+                        || biome.contains("banksia")
+                    {
+                        // Wind-blown sand ripples + organic charcoal/leaf-humus flecks
+                        let ripple = ((wx * 5.2 + wz * 1.9 + macro_var * 3.8).sin() * 0.5 + 0.5)
+                            * (0.45 + 0.55 * med_grain);
+                        let shade = 0.88 + 0.20 * ripple;
+                        for c in &mut rgb {
+                            *c *= shade;
+                        }
+                        if detail_hi < 0.28 {
+                            let fk = ((0.28 - detail_hi) / 0.28 * 0.42).clamp(0.0, 0.42);
+                            rgb[0] = lerp(rgb[0], soil_dark[0] * 0.55, fk);
+                            rgb[1] = lerp(rgb[1], soil_dark[1] * 0.52, fk);
+                            rgb[2] = lerp(rgb[2], soil_dark[2] * 0.48, fk);
+                        }
+                        extra_h += 0.022 * ripple;
+                    } else if profile.contains("laterite") || biome.contains("jarrah") {
+                        // Laterite ironstone pisolith pea-gravel & eucalypt duff mottling
+                        let gravel = fbm(wx * 34.0 - 5.1, wz * 34.0 + 7.4, seed ^ 0xB3);
+                        if gravel > 0.60 {
+                            let gk = ((gravel - 0.60) / 0.40 * 0.58).clamp(0.0, 0.58);
+                            rgb[0] = lerp(rgb[0], 0.44, gk);
+                            rgb[1] = lerp(rgb[1], 0.21, gk);
+                            rgb[2] = lerp(rgb[2], 0.12, gk);
+                            extra_h += 0.028 * gk;
+                        } else if detail_hi < 0.34 {
+                            let dk = ((0.34 - detail_hi) / 0.34 * 0.48).clamp(0.0, 0.48);
+                            rgb[0] = lerp(rgb[0], 0.22, dk);
+                            rgb[1] = lerp(rgb[1], 0.16, dk);
+                            rgb[2] = lerp(rgb[2], 0.11, dk);
+                        }
+                    } else if profile.contains("turf")
+                        || biome.contains("verge")
+                        || biome.contains("lawn")
+                        || biome.contains("jacaranda")
+                    {
+                        // Woven warm-season couch/buffalo turf mat with fine straw thatch
+                        let blade_grain = fbm(wx * 52.0 + 1.4, wz * 52.0 - 2.9, seed ^ 0xC7);
+                        let thatch = (detail_hi - 0.52).max(0.0) * 1.4;
+                        rgb[0] = lerp(rgb[0], 0.24 + 0.18 * blade_grain, 0.52);
+                        rgb[1] = lerp(rgb[1], 0.31 + 0.18 * blade_grain, 0.52);
+                        rgb[2] = lerp(rgb[2], 0.15 + 0.08 * blade_grain, 0.52);
+                        if thatch > 0.0 {
+                            let tk = thatch.clamp(0.0, 0.38);
+                            rgb[0] = lerp(rgb[0], 0.56, tk);
+                            rgb[1] = lerp(rgb[1], 0.49, tk);
+                            rgb[2] = lerp(rgb[2], 0.29, tk);
+                        }
+                        extra_h += 0.015 * blade_grain;
+                    } else if biome.contains("wetland") || profile.contains("peat") {
+                        // Wetland organic peat & fallen papery bark flecks
+                        let bark_fleck = fbm(wx * 28.0 + 6.3, wz * 28.0 - 4.2, seed ^ 0xD9);
+                        if bark_fleck > 0.72 {
+                            let bk = ((bark_fleck - 0.72) / 0.28 * 0.48).clamp(0.0, 0.48);
+                            rgb[0] = lerp(rgb[0], 0.58, bk);
+                            rgb[1] = lerp(rgb[1], 0.53, bk);
+                            rgb[2] = lerp(rgb[2], 0.46, bk);
+                        }
+                        extra_h += 0.016 * detail_hi;
+                    }
+                }
+
                 // Damp soil darkening
                 let wet_mul = 1.0 - 0.34 * masks.wetness.clamp(0.0, 1.0);
                 for c in &mut rgb {
@@ -2902,6 +3020,7 @@ impl TerrainField {
                     + 0.042 * med_grain
                     + 0.018 * fine_crumb
                     + 0.012 * (pebble - 0.5).max(0.0)
+                    + extra_h
                     - 0.055 * crack_w;
             }
         }
@@ -5827,6 +5946,7 @@ fn nature_mesh_export_config() -> ExportConfig {
         textures: None,
         pivot_painter_extras: true,
         leaf_roughness: None,
+        organ_roughness: None,
         metadata: None,
     }
 }
@@ -7723,6 +7843,10 @@ kind = "laser_grass"
             (
                 "perth_jacaranda_carpet",
                 include_str!("../../../presets/nature/perth_jacaranda_carpet.toml"),
+            ),
+            (
+                "perth_verge_lawn",
+                include_str!("../../../presets/nature/perth_verge_lawn.toml"),
             ),
         ];
         let config = NaturePackageConfig {

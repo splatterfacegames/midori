@@ -98,6 +98,8 @@ fn assert_reopened(result: &TreeResult) {
                 MaterialType::Bark => "bark",
                 MaterialType::Leaves => "leaves",
                 MaterialType::Impostor => "impostor",
+                MaterialType::UpperBark => "upper_bark",
+                MaterialType::Organ => "organ",
             };
             let name = primitive.material().name().unwrap_or_default();
             if range.material == MaterialType::Impostor {

@@ -1,7 +1,8 @@
 # Olive (Olea europaea)
-# Backyard and front-garden tree of Perth's post-war migrant suburbs: a short gnarled grey trunk and a
-# rounded crown of small narrow leaves, grey-green above and silver beneath.
-# PLANTED EXOTIC (Mediterranean), not a Western Australian native. Perth-specific sourcing was not found; see docs.
+# Iconic front-garden and backyard tree of Perth's post-war Italian/Greek/Croatian suburbs
+# (Northbridge, Fremantle, Balcatta, Spearwood, Bassendean) and colonial parklands: gnarled twisting
+# grey trunk and shimmering rounded crown of narrow leaves, grey-green above and silvery-white beneath.
+# PLANTED EXOTIC (Mediterranean), not a Western Australian native.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -13,25 +14,30 @@ tags = ["perth_planted", "non_native", "garden_tree", "evergreen", "grey_foliage
 
 [generator]
 family = "weber_penn"
-notes = "Garden tree of about 6 m."
+notes = "6 m gnarled Mediterranean garden tree with silver-underside shimmering willow-like foliage."
 
 [trunk]
-height = 2.6
+height = 2.8
 height_variance = 0.16
-radius = 0.3
-taper = 0.72
+radius = 0.34
+taper = 0.70
 taper_profile = "exponential"
-curve = 36.0
-curve_variance = 18.0
-curve_back = 32.0
+curve = 26.0
+curve_variance = 16.0
+curve_back = 28.0
 segments = 18
+stems = 2
+stem_spread = 22.0
+stem_offset = 0.16
+stem_height_variation = 0.18
+buttress = 1.1
 
 [branches.level1]
-count = 8
-count_variance = 2
-length = 3.0
+count = 6
+count_variance = 1
+length = 3.1
 length_variance = 0.22
-radius_ratio = 0.62
+radius_ratio = 0.60
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "exponential"
@@ -39,14 +45,14 @@ angle = 54.0
 angle_variance = 16.0
 rotation = 137.5
 gravity = 0.02
-curve = 28.0
-curve_variance = 26.0
+curve = 26.0
+curve_variance = 24.0
 segments = 12
 
 [branches.level2]
-count = 6
+count = 5
 count_variance = 1
-length = 1.6
+length = 1.65
 length_variance = 0.22
 radius_ratio = 0.54
 radius_model = "ratio"
@@ -57,13 +63,13 @@ angle_variance = 14.0
 rotation = 137.5
 gravity = -0.05
 curve = -18.0
-curve_variance = 20.0
+curve_variance = 18.0
 segments = 9
 
 [branches.level3]
-count = 5
+count = 4
 count_variance = 1
-length = 0.8
+length = 0.85
 length_variance = 0.22
 radius_ratio = 0.46
 radius_model = "ratio"
@@ -74,54 +80,56 @@ angle_variance = 14.0
 rotation = 137.5
 gravity = -0.08
 curve = 14.0
-curve_variance = 18.0
+curve_variance = 16.0
 segments = 6
 
 [crown]
-shape = "spherical"
-offset = 0.28
-density = 1.0
-width_ratio = 1.15
+shape = "hemispherical"
+offset = 0.32
+density = 0.96
+width_ratio = 1.20
 
 [leaves]
-count = 3000
+count = 2800
 min_level = 2
-size = 0.45
-size_variance = 0.22
+size = 0.46
+size_variance = 0.20
 distribution = "both"
 geometry = "cross_billboard"
 shape = "willow"
-up_influence = 0.1
+up_influence = 0.12
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.74
+up_bias = 0.26
+clump_weight = 0.66
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.14
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.15
+hue_variation = 0.08
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.68
 
 [textures]
-bark_prompt = "Olive bark, grey, smooth becoming gnarled and fissured"
-leaf_prompt = "Olea europaea leaves, small, narrow, grey-green above, silvery below"
+bark_prompt = "Ancient olive tree bark, pale weathered silver-grey, gnarled and twisted"
+leaf_prompt = "Olea europaea narrow elliptic leaves, grey-olive above and shimmering silvery-white beneath"
 resolution = 1024
 bark_style = "furrowed"
 leaf_shape = "willow"
 leaf_card = "cluster"
-bark_color = [0.46, 0.44, 0.4]
-leaf_color = [0.4, 0.47, 0.36]
+bark_color = [0.48, 0.46, 0.42]
+leaf_color = [0.40, 0.47, 0.35]
+leaf_underside_color = [0.68, 0.71, 0.66]
 
 [materials]
 bark = "olive_bark"
 foliage = "olive_foliage"
-notes = "1024px procedural bark and leaf card."
+notes = "1024px gnarled silver-grey bark + shimmering silver-underside olive leaf card."
 
 [[control_groups]]
 key = "shape"
@@ -132,14 +140,14 @@ key = "height"
 label = "Height"
 parameter = "trunk.height"
 min = 1.5
-max = 6.0
+max = 6.5
 step = 0.1
 
 [[control_groups.controls]]
 key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
-min = 0.5
+min = 0.6
 max = 2.0
 step = 0.05
 

@@ -1,6 +1,6 @@
 # Zamia (Macrozamia riedlei)
-# Cycad of the jarrah forest and banksia woodland understorey: a trunkless rosette of stiff arching
-# pinnate fronds 1.2-2.2 m long, with large cones sitting in the centre.
+# Cycad of the jarrah forest and banksia woodland understorey: armoured caudex, lush rosette of
+# 34 broad arching glossy olive-green pinnate fronds, and large central cones.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,75 +12,75 @@ tags = ["wa_native", "cycad", "rosette", "understorey", "jarrah_forest", "banksi
 
 [generator]
 family = "rosette"
-notes = "Rosette generator with pinnate blade cards and cone-style spikes."
+notes = "Rosette generator with upgraded dense 40-pair pinnate blade cards and prominent central cycad cones."
 
 [trunk]
-height = 0.16
-height_variance = 0.3
-radius = 0.17
+height = 0.24
+height_variance = 0.25
+radius = 0.22
 taper = 0.05
 curve = 0.0
 curve_variance = 0.0
-segments = 3
+segments = 4
 buttress = 0.0
 
 [rosette]
 crowns = 1
-blades = 24
-blade_length = 1.7
-blade_length_variance = 0.16
-blade_width = 0.46
+blades = 34
+blade_length = 1.75
+blade_length_variance = 0.14
+blade_width = 0.56
 blade_card = "pinnate"
 spread_min = 14.0
-spread_max = 80.0
-droop = 0.3
+spread_max = 68.0
+droop = 0.24
 stiffness = 0.85
-keel = 0.45
-color_base = [0.16, 0.3, 0.12]
-color_tip = [0.3, 0.46, 0.18]
+keel = 0.42
+color_base = [0.30, 0.42, 0.24]
+color_tip = [0.40, 0.50, 0.29]
 skirt = 0.0
 skirt_blades = 0
 
 [rosette.spike]
-chance = 0.6
+chance = 1.0
 count = 2
 style = "cone"
 scape_length = 0.0
-scape_radius = 0.02
-length = 0.36
-radius = 0.085
-lean = 22.0
-color = [0.36, 0.4, 0.2]
-tip_color = [0.62, 0.56, 0.32]
-scape_color = [0.3, 0.28, 0.18]
+scape_radius = 0.025
+length = 0.42
+radius = 0.11
+lean = 20.0
+color = [0.38, 0.42, 0.24]
+tip_color = [0.68, 0.60, 0.34]
+scape_color = [0.32, 0.30, 0.20]
 
 [canopy]
 normals = "canopy"
 normal_blend = 0.35
 up_bias = 0.28
-clump_weight = 0.2
+clump_weight = 0.20
 clump_level = 1
 crown_fill = 0
 shell = 0.0
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
+tint_variation = 0.14
+hue_variation = 0.08
 ao_strength = 0.34
-roughness = 0.6
+roughness = 0.56
 
 [textures]
-bark_prompt = "Cycad caudex, dark brown, armoured with old frond bases"
-leaf_prompt = "Macrozamia riedlei frond, glossy dark green stiff leaflets on a pale rachis"
+bark_prompt = "Cycad caudex, dark brown, armoured with diamond frond bases"
+leaf_prompt = "Macrozamia riedlei arching pinnate cycad frond, broad glossy olive-green stiff leaflets"
 resolution = 1024
-bark_style = "plated"
-bark_color = [0.22, 0.17, 0.12]
-leaf_color = [0.2, 0.38, 0.14]
+bark_style = "palm_diamond"
+bark_color = [0.24, 0.19, 0.14]
+leaf_color = [0.35, 0.45, 0.27]
 
 [materials]
 bark = "zamia_bark"
 foliage = "zamia_foliage"
-notes = "2x2 foliage atlas: pinnate frond, cone wrap."
+notes = "1024px armoured caudex + 2x2 rosette atlas: dense pinnate frond, cycad cone."
 
 [[control_groups]]
 key = "shape"
@@ -98,8 +98,8 @@ step = 0.05
 key = "fronds"
 label = "Fronds"
 parameter = "rosette.blades"
-min = 8.0
-max = 40.0
+min = 12.0
+max = 48.0
 step = 1.0
 
 [lod]

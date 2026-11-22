@@ -381,7 +381,16 @@
 
 .midori-view-tools {
   display: flex;
+  align-items: center;
   gap: 4px;
+}
+
+.midori-state-hud {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 4;
+  pointer-events: auto;
 }
 
 /* ---- activity ---- */

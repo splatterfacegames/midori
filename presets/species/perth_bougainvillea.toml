@@ -1,0 +1,163 @@
+# Bougainvillea (Bougainvillea glabra)
+# Iconic 1980s-90s Perth limestone-wall, pergola and carport scrambling shrub/vine:
+# sprawling thorny arching canes clothed in glossy bright green leaves and smothered all summer
+# in electric magenta-purple papery bract clusters (or sunset-orange in [states.orange]).
+# PLANTED EXOTIC (South America), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Bougainvillea"
+scientific = "Bougainvillea glabra"
+latin = "Bougainvillea glabra"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "shrub", "climber", "flowering", "summer"]
+
+[generator]
+family = "weber_penn"
+notes = "3.2 m sprawling thorny arching mound smothered in magenta papery bracts; [states.orange] is sunset-orange."
+
+[trunk]
+height = 1.25
+height_variance = 0.20
+radius = 0.065
+taper = 0.68
+taper_profile = "exponential"
+curve = 32.0
+curve_variance = 20.0
+curve_back = 24.0
+segments = 10
+stems = 6
+stem_spread = 58.0
+stem_offset = 0.28
+stem_height_variation = 0.48
+buttress = 0.0
+
+[branches.level1]
+count = 6
+count_variance = 2
+length = 2.95
+length_variance = 0.38
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 66.0
+angle_variance = 22.0
+rotation = 137.5
+gravity = -0.34
+curve = 46.0
+curve_variance = 30.0
+segments = 10
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 1.35
+length_variance = 0.30
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 56.0
+angle_variance = 18.0
+rotation = 137.5
+gravity = -0.44
+curve = 28.0
+curve_variance = 24.0
+segments = 6
+
+[crown]
+shape = "spherical"
+offset = 0.14
+density = 0.92
+width_ratio = 1.78
+
+[leaves]
+count = 1350
+min_level = 1
+size = 0.36
+size_variance = 0.20
+distribution = "both"
+geometry = "cross_billboard"
+shape = "oval"
+up_influence = 0.16
+
+[inflorescence]
+kind = "cluster"
+count = 1700
+min_level = 1
+placement = "along_branch"
+orientation = "up"
+length = 0.52
+width = 0.52
+offset = 0.14
+size_variance = 0.24
+color = [0.86, 0.08, 0.48]
+color_tip = [0.96, 0.28, 0.66]
+aged_fraction = 0.05
+aged_color = [0.58, 0.28, 0.36]
+separate_material = true
+roughness = 0.54
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.72
+up_bias = 0.26
+clump_weight = 0.62
+clump_level = 1
+crown_fill = 0
+shell = 0.10
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.15
+hue_variation = 0.09
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.58
+
+[textures]
+bark_prompt = "Bougainvillea thorny twisting pale brown woody climbing canes"
+leaf_prompt = "Bougainvillea glabra glossy fresh green ovate leaves"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "oval"
+leaf_card = "cluster"
+bark_color = [0.44, 0.38, 0.31]
+leaf_color = [0.24, 0.43, 0.18]
+
+[materials]
+bark = "bougainvillea_bark"
+foliage = "bougainvillea_foliage"
+notes = "1024px glossy ovate leaf card + dedicated electric-magenta papery bract organ atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 0.4
+max = 2.5
+step = 0.05
+
+[[control_groups.controls]]
+key = "bracts"
+label = "Bract Clusters"
+parameter = "inflorescence.count"
+min = 0.0
+max = 2400.0
+step = 20.0
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"
+
+# State: sunset-orange / terracotta bougainvillea cultivar
+[states.orange]
+species.name = "Bougainvillea (orange)"
+inflorescence.color = [0.94, 0.32, 0.08]
+inflorescence.color_tip = [0.98, 0.56, 0.18]

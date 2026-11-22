@@ -1,6 +1,6 @@
 # Coastal daisybush (Olearia axillaris)
-# Silver-grey aromatic shrub of the dunes: erect, densely twiggy, clothed in small narrow woolly leaves
-# that give the dune scrub its pale colour.
+# Silvery-white woolly aromatic shrub of WA's coastal dunes: upright multi-stem bushy dome
+# clothed in tiny soft grey-silver leaves that give Perth's coastal scrub its pale hue.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,99 +12,105 @@ tags = ["wa_native", "shrub", "coastal_dune", "quindalup", "grey_foliage"]
 
 [generator]
 family = "weber_penn"
-notes = "About 1.6 m."
+notes = "Upright ~1.8 m multi-stem coastal dune shrub using soft paperbark sprig cards (not pine needles) in silvery-white tones."
 
 [trunk]
-height = 0.4
-height_variance = 0.18
+height = 0.65
+height_variance = 0.16
 radius = 0.05
-taper = 0.7
+taper = 0.70
 taper_profile = "exponential"
-curve = 30.0
-curve_variance = 16.0
-curve_back = 26.0
-segments = 12
+curve = 18.0
+curve_variance = 14.0
+curve_back = 16.0
+segments = 10
+stems = 5
+stem_spread = 32.0
+stem_offset = 0.16
+stem_height_variation = 0.22
 buttress = 0.0
 
 [branches.level1]
-count = 10
-count_variance = 2
-length = 1.15
-length_variance = 0.22
-radius_ratio = 0.62
-radius_model = "ratio"
-taper = 0.78
-taper_profile = "exponential"
-angle = 38.0
-angle_variance = 18.0
-rotation = 137.5
-gravity = 0.06
-curve = 16.0
-curve_variance = 24.0
-segments = 9
-
-[branches.level2]
-count = 6
+count = 5
 count_variance = 1
-length = 0.55
-length_variance = 0.22
+length = 1.35
+length_variance = 0.20
 radius_ratio = 0.58
 radius_model = "ratio"
 taper = 0.78
-taper_profile = "smooth"
-angle = 40.0
-angle_variance = 18.0
+taper_profile = "exponential"
+angle = 36.0
+angle_variance = 16.0
 rotation = 137.5
 gravity = 0.08
-curve = -18.0
-curve_variance = 20.0
-segments = 6
+curve = 14.0
+curve_variance = 18.0
+segments = 8
+
+[branches.level2]
+count = 4
+count_variance = 1
+length = 0.56
+length_variance = 0.20
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 38.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = 0.10
+curve = -14.0
+curve_variance = 16.0
+segments = 5
 
 [crown]
-shape = "flame"
-offset = 0.1
-density = 1.0
-width_ratio = 1.0
+shape = "hemispherical"
+offset = 0.12
+density = 0.96
+width_ratio = 1.05
 
 [leaves]
-count = 1100
+count = 1300
 min_level = 1
-size = 0.24
-size_variance = 0.22
+size = 0.32
+size_variance = 0.20
 distribution = "along_branch"
 geometry = "cross_billboard"
-shape = "needle"
-up_influence = 0.35
+shape = "paperbark"
+up_influence = 0.30
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.72
+up_bias = 0.30
+clump_weight = 0.64
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.12
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.12
+hue_variation = 0.06
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.88
 
 [textures]
-bark_prompt = "Dune shrub stems, pale grey"
-leaf_prompt = "Olearia axillaris leaves, tiny, narrow, silver-grey woolly"
+bark_prompt = "Olearia axillaris dune shrub stems, pale weathered silvery grey"
+leaf_prompt = "Olearia axillaris tiny narrow soft woolly silvery-white sage leaves"
 resolution = 1024
 bark_style = "smooth"
-leaf_shape = "needle"
+leaf_shape = "paperbark"
 leaf_card = "cluster"
-bark_color = [0.46, 0.42, 0.36]
-leaf_color = [0.56, 0.62, 0.56]
+bark_color = [0.54, 0.52, 0.48]
+leaf_color = [0.58, 0.62, 0.56]
+leaf_underside_color = [0.74, 0.76, 0.72]
 
 [materials]
 bark = "olearia_bark"
 foliage = "olearia_foliage"
-notes = "1024px procedural bark and leaf card."
+notes = "1024px silvery-grey woolly coastal shrub card."
 
 [[control_groups]]
 key = "shape"
@@ -114,16 +120,16 @@ label = "Shape"
 key = "height"
 label = "Height"
 parameter = "trunk.height"
-min = 0.2
-max = 4.0
+min = 0.25
+max = 2.5
 step = 0.05
 
 [[control_groups.controls]]
 key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
-min = 0.5
-max = 2.5
+min = 0.6
+max = 2.0
 step = 0.05
 
 [lod]

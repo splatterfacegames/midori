@@ -195,16 +195,32 @@ def main() -> int:
     )
     parser.add_argument("--expect-chunks", type=int, default=26)
     parser.add_argument("--expect-instances", type=int, default=4511)
+    parser.add_argument(
+        "--from-manifest",
+        action="store_true",
+        help="Derive expected chunk and instance counts from midori_nature.json instead of forest-floor defaults",
+    )
     args = parser.parse_args()
 
     check_source_contract(args.source)
     if args.package_dir.is_dir():
         stats = validate_package(args.package_dir)
-        if stats.chunks != args.expect_chunks:
-            raise AssertionError(f"expected {args.expect_chunks} chunks, got {stats.chunks}")
-        if stats.instances != args.expect_instances:
+        expect_chunks = args.expect_chunks
+        expect_instances = args.expect_instances
+        if args.from_manifest:
+            manifest = json.loads(
+                (args.package_dir / "midori_nature.json").read_text(encoding="utf-8")
+            )
+            binary_files = (manifest.get("scatter") or {}).get("binary_files", [])
+            expect_chunks = len(binary_files)
+            expect_instances = sum(int(item["instance_count"]) for item in binary_files)
+            if expect_chunks == 0 or expect_instances == 0:
+                raise AssertionError("manifest reported zero scatter chunks or instances")
+        if stats.chunks != expect_chunks:
+            raise AssertionError(f"expected {expect_chunks} chunks, got {stats.chunks}")
+        if stats.instances != expect_instances:
             raise AssertionError(
-                f"expected {args.expect_instances} instances, got {stats.instances}"
+                f"expected {expect_instances} instances, got {stats.instances}"
             )
         print(
             "unity importer preflight ok: "

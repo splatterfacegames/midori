@@ -257,6 +257,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package", type=Path, default=Path("target/midori_engine_validation/forest_floor"))
     parser.add_argument("--report", type=Path)
+    parser.add_argument(
+        "--from-manifest",
+        action="store_true",
+        help="Derive expected chunk, instance, and optional prototype-kind checks from midori_nature.json",
+    )
     return parser.parse_args()
 
 
@@ -301,11 +306,24 @@ def main() -> int:
 
     if report["dry_run"]:
         raise AssertionError("fake editor import unexpectedly produced a dry-run report")
-    if report["scatter_binary_chunks"] != 26:
-        raise AssertionError(f"unexpected chunk count: {report['scatter_binary_chunks']}")
-    if report["scatter_binary_instances"] != 4511:
-        raise AssertionError(f"unexpected instance count: {report['scatter_binary_instances']}")
     manifest = json.loads((package_dir / "midori_nature.json").read_text(encoding="utf-8"))
+    if args.from_manifest:
+        binary_files = (manifest.get("scatter") or {}).get("binary_files", [])
+        expected_chunks = len(binary_files)
+        expected_instances = sum(int(item["instance_count"]) for item in binary_files)
+        if expected_chunks == 0 or expected_instances == 0:
+            raise AssertionError("manifest reported zero scatter chunks or instances")
+    else:
+        expected_chunks = 26
+        expected_instances = 4511
+    if report["scatter_binary_chunks"] != expected_chunks:
+        raise AssertionError(
+            f"unexpected chunk count: {report['scatter_binary_chunks']} != {expected_chunks}"
+        )
+    if report["scatter_binary_instances"] != expected_instances:
+        raise AssertionError(
+            f"unexpected instance count: {report['scatter_binary_instances']} != {expected_instances}"
+        )
     expected_source_files = importer.collect_source_files(manifest, "unreal_yminus_file")
     if report.get("source_files") != expected_source_files:
         raise AssertionError("fake editor import did not report the expected source file list")
@@ -522,15 +540,16 @@ def main() -> int:
     ]
     if report.get("prototype_surface_targets") != expected_surface_targets:
         raise AssertionError("fake editor import did not report prototype surface targets")
-    if not {"static_surface", "rock"}.issubset(
+    prototype_kinds = {prototype.get("kind") for prototype in manifest.get("prototypes", [])}
+    if ("rock" in prototype_kinds or not args.from_manifest) and not {"static_surface", "rock"}.issubset(
         set(report.get("rock_prototype_surface_targets", []))
     ):
         raise AssertionError("fake editor import did not report rock prototype surface targets")
-    if not {"static_surface", "log"}.issubset(
+    if ("log" in prototype_kinds or not args.from_manifest) and not {"static_surface", "log"}.issubset(
         set(report.get("log_prototype_surface_targets", []))
     ):
         raise AssertionError("fake editor import did not report log prototype surface targets")
-    if not {"groundcover_foliage", "shrub_base"}.issubset(
+    if ("shrub" in prototype_kinds or not args.from_manifest) and not {"groundcover_foliage", "shrub_base"}.issubset(
         set(report.get("shrub_prototype_surface_targets", []))
     ):
         raise AssertionError("fake editor import did not report shrub prototype surface targets")
@@ -576,9 +595,9 @@ def main() -> int:
             raise AssertionError("fake foliage asset has wrong cull interval")
     if report.get("scatter_binary_records_validated") is not True:
         raise AssertionError("fake editor import did not validate scatter binary records")
-    if report.get("scatter_binary_records_read") != 4511:
+    if report.get("scatter_binary_records_read") != expected_instances:
         raise AssertionError(f"unexpected record count: {report.get('scatter_binary_records_read')}")
-    if len(report.get("scatter_chunks", [])) != 26:
+    if len(report.get("scatter_chunks", [])) != expected_chunks:
         raise AssertionError("fake editor import did not report every scatter chunk")
     first_chunk = report["scatter_chunks"][0]
     for field in [

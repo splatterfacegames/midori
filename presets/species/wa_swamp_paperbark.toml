@@ -1,6 +1,6 @@
 # Swamp paperbark (Melaleuca rhaphiophylla)
-# Bushy paperbark of river banks, lakes and swamps: short, often leaning or forked trunk,
-# grey-white papery bark in loose layers, fine needle leaves in dense dark masses.
+# Multi-stemmed paperbark of river banks, lakes and swamps: leaning pale cream-white papery trunks
+# peeling in thick layered sheets beneath a billowing grey-sage crown of fine paperbark twigs.
 # Botanical notes and sources: docs/wa-flora.md
 
 [species]
@@ -12,117 +12,129 @@ tags = ["wa_native", "paperbark", "wetland", "river_edge", "swan_coastal_plain",
 
 [generator]
 family = "weber_penn"
-notes = "Single-trunk approximation of a tree that is often multi-stemmed from the base."
+notes = "Multi-stem leaning papery trunks with dedicated fine Melaleuca paperbark foliage (non-conifer)."
 
 [trunk]
-height = 5.2
+height = 6.0
 height_variance = 0.16
-radius = 0.34
-taper = 0.7
+radius = 0.29
+taper = 0.68
 taper_profile = "exponential"
-curve = 34.0
+curve = 32.0
 curve_variance = 14.0
-curve_back = 30.0
+curve_back = 28.0
 segments = 18
-buttress = 0.6
+stems = 3
+stem_spread = 24.0
+stem_offset = 0.28
+stem_height_variation = 0.22
+buttress = 0.7
 
 [branches.level1]
-count = 9
-count_variance = 2
-length = 3.6
-length_variance = 0.22
-radius_ratio = 0.6
-radius_model = "ratio"
-taper = 0.78
-taper_profile = "exponential"
-angle = 52.0
-angle_variance = 16.0
-rotation = 137.5
-gravity = -0.06
-curve = 30.0
-curve_variance = 26.0
-segments = 13
-
-[branches.level2]
 count = 6
 count_variance = 1
-length = 1.9
+length = 3.2
 length_variance = 0.22
-radius_ratio = 0.54
+radius_ratio = 0.58
 radius_model = "ratio"
-taper = 0.78
-taper_profile = "smooth"
-angle = 52.0
-angle_variance = 14.0
+taper = 0.76
+taper_profile = "exponential"
+angle = 54.0
+angle_variance = 16.0
 rotation = 137.5
 gravity = -0.05
-curve = -20.0
-curve_variance = 22.0
-segments = 9
+curve = 28.0
+curve_variance = 24.0
+segments = 12
 
-[branches.level3]
+[branches.level2]
 count = 5
 count_variance = 1
-length = 0.9
+length = 1.7
 length_variance = 0.22
-radius_ratio = 0.46
+radius_ratio = 0.52
 radius_model = "ratio"
-taper = 0.78
-taper_profile = "compound"
+taper = 0.76
+taper_profile = "smooth"
 angle = 50.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = -0.12
-curve = 16.0
-curve_variance = 18.0
+gravity = -0.06
+curve = -18.0
+curve_variance = 20.0
+segments = 9
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 0.85
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.76
+taper_profile = "compound"
+angle = 46.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.10
+curve = 14.0
+curve_variance = 16.0
 segments = 6
 
+[pruning]
+mode = "crown_lift"
+lift_height = 2.4
+
 [crown]
-shape = "spherical"
-offset = 0.18
-density = 1.0
-width_ratio = 1.25
+shape = "hemispherical"
+offset = 0.42
+density = 0.92
+width_ratio = 1.30
 
 [leaves]
-count = 3200
+count = 2300
 min_level = 2
 size = 0.62
 size_variance = 0.22
 distribution = "both"
 geometry = "cross_billboard"
-shape = "needle"
-up_influence = 0.1
+shape = "paperbark"
+up_influence = 0.06
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.78
+up_bias = 0.24
+clump_weight = 0.66
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.14
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.76
 
 [textures]
-bark_prompt = "Swamp paperbark, greyish-white papery bark peeling in thin layered sheets"
-leaf_prompt = "Melaleuca rhaphiophylla needle leaves, 1-4 cm, dark grey-green, crowded on fine twigs"
+bark_prompt = "Swamp paperbark, luminous cream-white papery bark peeling in thick layered sheets"
+leaf_prompt = "Melaleuca rhaphiophylla fine linear soft paperbark twigs, muted dark grey-sage"
 resolution = 1024
 bark_style = "papery"
-leaf_shape = "needle"
+leaf_shape = "paperbark"
 leaf_card = "cluster"
-bark_color = [0.8, 0.77, 0.72]
-leaf_color = [0.24, 0.36, 0.22]
-bark_patch_colors = [[0.66, 0.55, 0.44], [0.56, 0.5, 0.45], [0.86, 0.8, 0.7]]
+bark_color = [0.86, 0.83, 0.77]
+leaf_color = [0.36, 0.44, 0.34]
+leaf_underside_color = [0.48, 0.54, 0.44]
+leaf_new_growth_color = [0.56, 0.60, 0.46]
+leaf_new_growth_fraction = 0.08
+bark_patch_colors = [[0.68, 0.56, 0.44], [0.58, 0.51, 0.44], [0.91, 0.87, 0.80]]
 
 [materials]
 bark = "swamp_paperbark_bark"
 foliage = "swamp_paperbark_foliage"
-notes = "1024px procedural bark and leaf card."
+notes = "1024px layered papery bark and soft Melaleuca sprig card."
 
 [[control_groups]]
 key = "shape"
@@ -140,7 +152,7 @@ step = 0.1
 key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
-min = 0.5
+min = 0.6
 max = 2.0
 step = 0.05
 

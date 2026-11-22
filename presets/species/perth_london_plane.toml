@@ -1,6 +1,6 @@
 # London plane (Platanus x acerifolia)
-# City street tree: a tall straight trunk whose bark flakes into a camouflage of grey-brown, olive and cream,
-# high-pruned over the road, with a broad crown of large maple-like leaves; bare in winter with hanging seed balls.
+# Perth city avenue tree: tall straight camouflage-flaking trunk high-pruned over traffic,
+# broad crown of maple-like leaves; winter bare with hanging seed balls; pollarded street form.
 # PLANTED EXOTIC (hybrid of garden origin), not a Western Australian native.
 # Botanical notes and sources: docs/wa-flora.md
 
@@ -13,21 +13,22 @@ tags = ["perth_planted", "non_native", "street_tree", "deciduous"]
 
 [generator]
 family = "weber_penn"
-notes = "Street tree of about 20 m with the crown lifted over traffic. The winter state is leafless with seed balls."
+notes = "City street tree (~20 m) with crown lift, level-4 twigs; states: winter (bare + seed balls), pollarded (knuckle stubs)."
 
 [trunk]
-height = 13.0
+height = 13.5
 height_variance = 0.12
-radius = 0.44
+radius = 0.46
 taper = 0.72
 taper_profile = "exponential"
-curve = 10.0
-curve_variance = 6.0
-curve_back = 10.0
+curve = 9.0
+curve_variance = 5.0
+curve_back = 9.0
 segments = 20
+buttress = 0.9
 
 [branches.level1]
-count = 9
+count = 8
 count_variance = 2
 length = 7.4
 length_variance = 0.22
@@ -35,16 +36,16 @@ radius_ratio = 0.52
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "exponential"
-angle = 54.0
+angle = 52.0
 angle_variance = 14.0
 rotation = 137.5
 gravity = 0.0
-curve = 22.0
-curve_variance = 20.0
+curve = 20.0
+curve_variance = 18.0
 segments = 14
 
 [branches.level2]
-count = 6
+count = 5
 count_variance = 1
 length = 3.5
 length_variance = 0.22
@@ -52,46 +53,67 @@ radius_ratio = 0.54
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "smooth"
-angle = 50.0
+angle = 48.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = -0.05
-curve = -16.0
-curve_variance = 18.0
+gravity = -0.04
+curve = -14.0
+curve_variance = 16.0
 segments = 10
 
 [branches.level3]
-count = 5
+count = 4
 count_variance = 1
-length = 1.6
+length = 1.65
 length_variance = 0.22
-radius_ratio = 0.46
+radius_ratio = 0.48
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "compound"
-angle = 46.0
+angle = 44.0
 angle_variance = 14.0
 rotation = 137.5
 gravity = -0.06
-curve = 14.0
-curve_variance = 18.0
-segments = 7
+curve = 12.0
+curve_variance = 16.0
+segments = 6
+
+[branches.level4]
+count = 2
+count_variance = 1
+length = 0.80
+length_variance = 0.20
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 40.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.08
+curve = 10.0
+curve_variance = 12.0
+segments = 4
+
+[pruning]
+mode = "crown_lift"
+lift_height = 3.8
 
 [crown]
-shape = "spherical"
-offset = 0.36
-density = 1.0
-width_ratio = 1.2
+shape = "hemispherical"
+offset = 0.38
+density = 0.94
+width_ratio = 1.18
 
 [leaves]
-count = 3200
-min_level = 2
-size = 0.95
-size_variance = 0.22
+count = 3000
+min_level = 3
+size = 0.92
+size_variance = 0.20
 distribution = "both"
 geometry = "cross_billboard"
 shape = "maple"
-up_influence = 0.2
+up_influence = 0.18
 
 [inflorescence]
 kind = "berries"
@@ -99,45 +121,49 @@ count = 0
 min_level = 2
 placement = "endpoint"
 orientation = "hang"
-length = 0.34
-width = 0.34
-size_variance = 0.2
-color = [0.46, 0.38, 0.24]
-color_tip = [0.62, 0.54, 0.36]
-aged_fraction = 0.3
-aged_color = [0.36, 0.29, 0.2]
+length = 0.38
+width = 0.38
+size_variance = 0.18
+color = [0.48, 0.39, 0.24]
+color_tip = [0.64, 0.55, 0.36]
+aged_fraction = 0.30
+aged_color = [0.38, 0.30, 0.20]
+separate_material = true
+roughness = 0.76
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
-up_bias = 0.28
-clump_weight = 0.7
+normal_blend = 0.76
+up_bias = 0.26
+clump_weight = 0.66
 clump_level = 1
 crown_fill = 0
-shell = 0.2
+shell = 0.14
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.5
-roughness = 0.72
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.68
 
 [textures]
-bark_prompt = "London plane bark, flaking in plates, mottled grey-brown, olive-green and cream"
-leaf_prompt = "Platanus x acerifolia leaf, large, maple-like with 3-5 pointed lobes, mid green"
+bark_prompt = "London plane bark, flaking camouflage plates of olive-grey, warm cream and fawn"
+leaf_prompt = "Platanus x acerifolia large 5-lobed palmate maple-like leaves, fresh mid green"
 resolution = 1024
 bark_style = "patchy"
 leaf_shape = "maple"
 leaf_card = "cluster"
 seed = 1870
-bark_color = [0.5, 0.46, 0.39]
-leaf_color = [0.3, 0.48, 0.18]
-bark_patch_colors = [[0.84, 0.8, 0.66], [0.58, 0.6, 0.44], [0.7, 0.62, 0.48]]
+bark_color = [0.52, 0.48, 0.40]
+leaf_color = [0.32, 0.49, 0.21]
+leaf_underside_color = [0.46, 0.58, 0.34]
+bark_patch_colors = [[0.86, 0.82, 0.68], [0.56, 0.60, 0.43], [0.72, 0.64, 0.49]]
 
 [materials]
 bark = "london_plane_bark"
 foliage = "london_plane_foliage"
-notes = "2x2 foliage atlas: leaf spray, seed balls."
+notes = "1024px camouflage patchy bark, maple leaf card, and dedicated winter seed-ball organ atlas."
 
 [[control_groups]]
 key = "shape"
@@ -147,15 +173,15 @@ label = "Shape"
 key = "height"
 label = "Height"
 parameter = "trunk.height"
-min = 4.0
-max = 60.0
+min = 5.0
+max = 35.0
 step = 0.5
 
 [[control_groups.controls]]
 key = "crown_width"
 label = "Crown Width"
 parameter = "crown.width_ratio"
-min = 0.5
+min = 0.6
 max = 2.0
 step = 0.05
 
@@ -165,8 +191,23 @@ preset = "high_quality"
 [platform]
 target = "modern_pc"
 
-# State: June-August: leafless, seed balls hanging
+# State: June-August: leafless sculptural skeleton hung with round bobble seed balls
 [states.winter]
 species.name = "London Plane (winter)"
 leaves.count = 0
-inflorescence.count = 320
+inflorescence.count = 460
+
+# State: city-street pollarded London plane with swollen knuckle stubs and coalescing shoot crown
+[states.pollarded]
+species.name = "London Plane (pollarded)"
+trunk.height = 9.5
+branches.level1.count = 10
+branches.level1.angle = 58.0
+crown.offset = 0.32
+pruning.mode = "pollard"
+pruning.cut_height = 6.4
+pruning.regrowth_per_stub = 10
+pruning.regrowth_length = 2.6
+leaves.count = 3200
+leaves.min_level = 2
+leaves.size = 1.05

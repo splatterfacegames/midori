@@ -1,6 +1,7 @@
 # Jacaranda (Jacaranda mimosifolia)
-# The defining street tree of Perth's older suburbs: a short trunk and a broad, open, spreading crown
-# of fine fern-like leaves, turning into a cloud of lilac-purple trumpets in October and November.
+# Defining street tree of Perth's older suburbs (Applecross, Subiaco, Mount Lawley, Inglewood):
+# short trunk, broad spreading umbrella of fine fern-like bipinnate foliage, turning into a luminous
+# lilac-purple cloud in October-November and leafless with hanging woody disc pods in late winter.
 # PLANTED EXOTIC (South America), not a Western Australian native.
 # Botanical notes and sources: docs/wa-flora.md
 
@@ -13,25 +14,26 @@ tags = ["perth_planted", "non_native", "street_tree", "semi_deciduous", "floweri
 
 [generator]
 family = "weber_penn"
-notes = "Default is the summer tree in leaf. States: flowering (Oct-Nov, near-bare branches), bare (late winter, seed pods)."
+notes = "Default summer leafy umbrella; flowering (Oct-Nov lilac cloud on dedicated Organ material); bare (winter woody disc pods)."
 
 [trunk]
-height = 5.4
+height = 5.6
 height_variance = 0.14
-radius = 0.34
+radius = 0.36
 taper = 0.72
 taper_profile = "exponential"
-curve = 24.0
-curve_variance = 12.0
-curve_back = 22.0
+curve = 18.0
+curve_variance = 10.0
+curve_back = 18.0
 segments = 18
+buttress = 0.8
 
 [branches.level1]
 count = 8
 count_variance = 2
-length = 6.4
+length = 6.5
 length_variance = 0.22
-radius_ratio = 0.6
+radius_ratio = 0.58
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "exponential"
@@ -40,7 +42,7 @@ angle_variance = 14.0
 rotation = 137.5
 gravity = 0.02
 curve = 24.0
-curve_variance = 22.0
+curve_variance = 20.0
 segments = 14
 
 [branches.level2]
@@ -55,9 +57,9 @@ taper_profile = "smooth"
 angle = 50.0
 angle_variance = 14.0
 rotation = 137.5
-gravity = 0.02
-curve = -18.0
-curve_variance = 20.0
+gravity = 0.01
+curve = -16.0
+curve_variance = 18.0
 segments = 10
 
 [branches.level3]
@@ -74,69 +76,77 @@ angle_variance = 14.0
 rotation = 137.5
 gravity = -0.04
 curve = 14.0
-curve_variance = 18.0
+curve_variance = 16.0
 segments = 7
+
+[pruning]
+mode = "crown_lift"
+lift_height = 2.4
 
 [crown]
 shape = "hemispherical"
 offset = 0.38
-density = 1.0
-width_ratio = 1.25
+density = 0.94
+width_ratio = 1.28
 
 [leaves]
-count = 2600
+count = 2500
 min_level = 2
 size = 0.95
 size_variance = 0.22
 distribution = "both"
 geometry = "cross_billboard"
 shape = "bipinnate"
-up_influence = -0.1
+up_influence = -0.08
 
 [inflorescence]
 kind = "cluster"
 count = 0
 min_level = 2
-placement = "endpoint"
-orientation = "branch"
-length = 0.7
-width = 0.7
-size_variance = 0.25
-color = [0.6, 0.47, 0.86]
-color_tip = [0.78, 0.7, 0.96]
+placement = "along_branch"
+orientation = "up"
+length = 0.82
+width = 0.82
+offset = 0.14
+size_variance = 0.24
+color = [0.58, 0.42, 0.90]
+color_tip = [0.78, 0.66, 0.98]
 aged_fraction = 0.03
-aged_color = [0.36, 0.27, 0.18]
+aged_color = [0.38, 0.28, 0.19]
+separate_material = true
+roughness = 0.58
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.84
+normal_blend = 0.76
 up_bias = 0.28
-clump_weight = 0.7
+clump_weight = 0.66
 clump_level = 1
 crown_fill = 0
-shell = 0.1
+shell = 0.10
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.12
-ao_strength = 0.42
-roughness = 0.72
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.68
 
 [textures]
-bark_prompt = "Jacaranda bark, grey-brown, thin, smooth becoming finely scaly"
-leaf_prompt = "Jacaranda mimosifolia leaf, bipinnate, fern-like, 13-31 pinnae of tiny leaflets, light green"
+bark_prompt = "Jacaranda bark, pale grey-brown, thin, smooth becoming finely scaly"
+leaf_prompt = "Jacaranda mimosifolia delicate fern-like bipinnate fresh green foliage"
 resolution = 1024
 bark_style = "smooth"
 leaf_shape = "bipinnate"
 leaf_card = "cluster"
 seed = 1954
-bark_color = [0.47, 0.42, 0.37]
-leaf_color = [0.33, 0.51, 0.22]
+bark_color = [0.48, 0.43, 0.38]
+leaf_color = [0.34, 0.52, 0.23]
 
 [materials]
 bark = "jacaranda_bark"
 foliage = "jacaranda_foliage"
-notes = "2x2 foliage atlas: bipinnate leaf spray, lilac flower panicle, seed pods."
+notes = "1024px fern-like bipinnate leaf card + dedicated lilac flower / woody pod organ atlas."
 
 [[control_groups]]
 key = "shape"
@@ -172,17 +182,20 @@ preset = "high_quality"
 [platform]
 target = "modern_pc"
 
-# State: October-November: a mass of lilac flowers on near-bare branches
+# State: October-November: blazing Perth purple-lilac blossom cloud on near-bare branches
 [states.flowering]
 species.name = "Jacaranda (flowering)"
-leaves.count = 260
-inflorescence.count = 2800
+leaves.count = 220
+inflorescence.count = 3200
 
-# State: late winter: leafless, with last season's round woody seed pods
+# State: late winter: leafless crooked branches hung with dark woody clam-shaped seed pods
 [states.bare]
 species.name = "Jacaranda (bare)"
 leaves.count = 0
-inflorescence.count = 150
+inflorescence.kind = "nut"
+inflorescence.count = 240
 inflorescence.aged_fraction = 1.0
-inflorescence.length = 0.5
+inflorescence.length = 0.14
+inflorescence.width = 0.12
 inflorescence.orientation = "hang"
+inflorescence.placement = "endpoint"

@@ -701,7 +701,7 @@ h2 {
 .specimens {
   display: grid;
   margin-top: 16px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
 }
 
@@ -716,6 +716,7 @@ h2 {
 .specimen img {
   display: block;
   width: 100%;
+  height: auto;
   aspect-ratio: 16 / 10;
   object-fit: cover;
   border-bottom: 1px solid var(--line);

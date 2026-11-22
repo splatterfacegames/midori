@@ -1,0 +1,181 @@
+# Illawarra flame tree (Brachychiton acerifolius)
+# Dramatic civic and park specimen of Perth (Kings Park, Stirling Gardens, older avenues):
+# smooth straight grey-green trunk, tall pyramidal-domed glossy lobed canopy; drops all leaves in
+# late spring to erupt into a solid blaze of scarlet bell flowers.
+# PLANTED EXOTIC in Perth (native to eastern Australian rainforests), not a WA native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Illawarra Flame Tree"
+scientific = "Brachychiton acerifolius"
+latin = "Brachychiton acerifolius"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "park_tree", "deciduous", "flowering", "summer"]
+
+[generator]
+family = "weber_penn"
+notes = "13 m smooth-barked pyramidal park tree; [states.flowering] drops all leaves for a blaze of scarlet bell clusters."
+
+[trunk]
+height = 9.8
+height_variance = 0.12
+radius = 0.44
+taper = 0.70
+taper_profile = "exponential"
+curve = 6.0
+curve_variance = 4.0
+curve_back = 6.0
+segments = 20
+buttress = 0.8
+
+[branches.level1]
+count = 10
+count_variance = 2
+length = 4.8
+length_variance = 0.20
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 48.0
+angle_variance = 12.0
+rotation = 137.5
+gravity = 0.02
+curve = 16.0
+curve_variance = 16.0
+segments = 12
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 2.3
+length_variance = 0.20
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 46.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.0
+curve = -12.0
+curve_variance = 14.0
+segments = 8
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 1.1
+length_variance = 0.20
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 42.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.02
+curve = 10.0
+curve_variance = 14.0
+segments = 5
+
+[pruning]
+mode = "crown_lift"
+lift_height = 2.4
+
+[crown]
+shape = "flame"
+offset = 0.34
+density = 0.96
+width_ratio = 0.96
+
+[leaves]
+count = 2600
+min_level = 2
+size = 0.88
+size_variance = 0.20
+distribution = "both"
+geometry = "cross_billboard"
+shape = "maple"
+up_influence = 0.16
+
+[inflorescence]
+kind = "cluster"
+count = 0
+min_level = 2
+placement = "along_branch"
+orientation = "up"
+length = 0.76
+width = 0.76
+offset = 0.12
+size_variance = 0.22
+color = [0.95, 0.10, 0.08]
+color_tip = [1.0, 0.28, 0.10]
+aged_fraction = 0.04
+aged_color = [0.46, 0.18, 0.14]
+separate_material = true
+roughness = 0.52
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.76
+up_bias = 0.28
+clump_weight = 0.68
+clump_level = 1
+crown_fill = 0
+shell = 0.14
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.14
+hue_variation = 0.08
+ao_strength = 0.38
+billboard_lod_compensation = true
+roughness = 0.46
+
+[textures]
+bark_prompt = "Brachychiton acerifolius smooth straight grey-green fissured trunk"
+leaf_prompt = "Brachychiton acerifolius large glossy deep-green 5-lobed palmate leaves"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "maple"
+leaf_card = "cluster"
+bark_color = [0.48, 0.49, 0.44]
+leaf_color = [0.20, 0.40, 0.16]
+leaf_underside_color = [0.34, 0.49, 0.26]
+
+[materials]
+bark = "illawarra_flame_bark"
+foliage = "illawarra_flame_foliage"
+notes = "1024px smooth grey-green bark + glossy lobed leaf card + dedicated scarlet bell flower atlas."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 4.0
+max = 22.0
+step = 0.2
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.6
+max = 1.6
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: November-December: leafless blazing crimson-scarlet bell crown
+[states.flowering]
+species.name = "Illawarra Flame Tree (flowering)"
+leaves.count = 0
+inflorescence.count = 2900

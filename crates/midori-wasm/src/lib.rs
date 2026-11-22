@@ -259,6 +259,25 @@ impl MidoriGenerator {
     /// Deterministic for the species' `[textures]` parameters. The browser
     /// has no filesystem, so file-slot overrides are ignored here (procedural
     /// maps are used); native hosts resolve slots via `TextureSet::resolve`.
+    /// Create a generator with an optional `[states.<name>]` overlay applied.
+    #[wasm_bindgen(js_name = fromTomlWithState)]
+    pub fn from_toml_with_state(
+        toml: &str,
+        state: Option<String>,
+    ) -> Result<MidoriGenerator, JsValue> {
+        let species = Species::from_toml_with_state(toml, state.as_deref())
+            .map_err(|e| js_error("input", format_args!("Species parse error: {e}")))?;
+        Ok(Self { species })
+    }
+
+    /// Sorted list of `[states.<name>]` names declared on this species document.
+    #[wasm_bindgen(js_name = stateNames)]
+    pub fn state_names(&self) -> Result<JsValue, JsValue> {
+        let names: Vec<&str> = self.species.state_names();
+        serde_wasm_bindgen::to_value(&names)
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
+    }
+
     #[wasm_bindgen(js_name = generateMaps)]
     pub fn generate_maps(&self) -> Result<JsValue, JsValue> {
         let textures = TextureSet::generate(&self.species);
@@ -266,6 +285,21 @@ impl MidoriGenerator {
             bark_albedo: GeneratedMap::strict(&textures.bark_albedo)?,
             bark_normal: GeneratedMap::strict(&textures.bark_normal)?,
             leaf_card: GeneratedMap::strict(&textures.leaf_card)?,
+            upper_bark_albedo: textures
+                .upper_bark_albedo
+                .as_ref()
+                .map(GeneratedMap::strict)
+                .transpose()?,
+            upper_bark_normal: textures
+                .upper_bark_normal
+                .as_ref()
+                .map(GeneratedMap::strict)
+                .transpose()?,
+            organ_albedo: textures
+                .organ_albedo
+                .as_ref()
+                .map(GeneratedMap::strict)
+                .transpose()?,
         };
         serde_wasm_bindgen::to_value(&result)
             .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
@@ -295,6 +329,12 @@ impl MidoriGenerator {
     fn export_config(&self, embed_textures: bool) -> ExportConfig {
         ExportConfig {
             textures: embed_textures.then(|| TextureSet::generate(&self.species)),
+            leaf_roughness: self.species.canopy.roughness,
+            organ_roughness: self
+                .species
+                .inflorescence
+                .as_ref()
+                .and_then(|i| i.roughness),
             ..ExportConfig::default()
         }
     }
@@ -599,6 +639,12 @@ struct MapsOutput {
     bark_albedo: GeneratedMap,
     bark_normal: GeneratedMap,
     leaf_card: GeneratedMap,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    upper_bark_albedo: Option<GeneratedMap>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    upper_bark_normal: Option<GeneratedMap>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    organ_albedo: Option<GeneratedMap>,
 }
 
 /// Single mesh output (for generate_lod).
@@ -733,6 +779,8 @@ fn submesh_outputs(mesh: &Mesh) -> Vec<SubmeshOutput> {
                 midori_core::MaterialType::Bark => "bark",
                 midori_core::MaterialType::Leaves => "leaves",
                 midori_core::MaterialType::Impostor => "impostor",
+                midori_core::MaterialType::UpperBark => "upper_bark",
+                midori_core::MaterialType::Organ => "organ",
             },
         })
         .collect()

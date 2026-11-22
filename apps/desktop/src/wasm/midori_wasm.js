@@ -89,6 +89,35 @@ export class MidoriGenerator {
         return MidoriGenerator.__wrap(ret[0]);
     }
     /**
+     * Generate the species' material maps.
+     *
+     * Returns `{ bark_albedo, bark_normal, leaf_card }`, each a
+     * `GeneratedMap`: `png` carries PNG bytes for blob URLs and file
+     * inspection; `rgba` carries the same image as `{ data, width, height }`
+     * raw RGBA8 (top row first — the glTF/`TextureSource` V convention) for
+     * hosts that upload textures directly to the GPU. One `TextureSet` bake
+     * serves both encodings; `data`/`png` cross as Uint8Arrays.
+     *
+     * Deterministic for the species' `[textures]` parameters. The browser
+     * has no filesystem, so file-slot overrides are ignored here (procedural
+     * maps are used); native hosts resolve slots via `TextureSet::resolve`.
+     * Create a generator with an optional `[states.<name>]` overlay applied.
+     * @param {string} toml
+     * @param {string | null} [state]
+     * @returns {MidoriGenerator}
+     */
+    static fromTomlWithState(toml, state) {
+        const ptr0 = passStringToWasm0(toml, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(state) ? 0 : passStringToWasm0(state, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        const ret = wasm.midorigenerator_fromTomlWithState(ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return MidoriGenerator.__wrap(ret[0]);
+    }
+    /**
      * Generate a tree and return mesh data as a JavaScript object.
      *
      * Returns an object containing all LOD levels with their mesh data.
@@ -103,18 +132,6 @@ export class MidoriGenerator {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
-     * Generate the species' material maps.
-     *
-     * Returns `{ bark_albedo, bark_normal, leaf_card }`, each a
-     * `GeneratedMap`: `png` carries PNG bytes for blob URLs and file
-     * inspection; `rgba` carries the same image as `{ data, width, height }`
-     * raw RGBA8 (top row first — the glTF/`TextureSource` V convention) for
-     * hosts that upload textures directly to the GPU. One `TextureSet` bake
-     * serves both encodings; `data`/`png` cross as Uint8Arrays.
-     *
-     * Deterministic for the species' `[textures]` parameters. The browser
-     * has no filesystem, so file-slot overrides are ignored here (procedural
-     * maps are used); native hosts resolve slots via `TextureSet::resolve`.
      * @returns {any}
      */
     generateMaps() {
@@ -192,6 +209,17 @@ export class MidoriGenerator {
         this.__wbg_ptr = ret[0];
         MidoriGeneratorFinalization.register(this, this.__wbg_ptr, this);
         return this;
+    }
+    /**
+     * Sorted list of `[states.<name>]` names declared on this species document.
+     * @returns {any}
+     */
+    stateNames() {
+        const ret = wasm.midorigenerator_stateNames(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
     }
     /**
      * Return the species definition as a plain JS object.
