@@ -1,0 +1,172 @@
+# London plane (Platanus x acerifolia)
+# City street tree: a tall straight trunk whose bark flakes into a camouflage of grey-brown, olive and cream,
+# high-pruned over the road, with a broad crown of large maple-like leaves; bare in winter with hanging seed balls.
+# PLANTED EXOTIC (hybrid of garden origin), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "London Plane"
+scientific = "Platanus x acerifolia"
+latin = "Platanus x acerifolia"
+biome = "temperate"
+tags = ["perth_planted", "non_native", "street_tree", "deciduous"]
+
+[generator]
+family = "weber_penn"
+notes = "Street tree of about 20 m with the crown lifted over traffic. The winter state is leafless with seed balls."
+
+[trunk]
+height = 13.0
+height_variance = 0.12
+radius = 0.44
+taper = 0.72
+taper_profile = "exponential"
+curve = 10.0
+curve_variance = 6.0
+curve_back = 10.0
+segments = 20
+
+[branches.level1]
+count = 9
+count_variance = 2
+length = 7.4
+length_variance = 0.22
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 54.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.0
+curve = 22.0
+curve_variance = 20.0
+segments = 14
+
+[branches.level2]
+count = 6
+count_variance = 1
+length = 3.5
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = -16.0
+curve_variance = 18.0
+segments = 10
+
+[branches.level3]
+count = 5
+count_variance = 1
+length = 1.6
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 46.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.06
+curve = 14.0
+curve_variance = 18.0
+segments = 7
+
+[crown]
+shape = "spherical"
+offset = 0.36
+density = 1.0
+width_ratio = 1.2
+
+[leaves]
+count = 3200
+min_level = 2
+size = 0.95
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "maple"
+up_influence = 0.2
+
+[inflorescence]
+kind = "berries"
+count = 0
+min_level = 2
+placement = "endpoint"
+orientation = "hang"
+length = 0.34
+width = 0.34
+size_variance = 0.2
+color = [0.46, 0.38, 0.24]
+color_tip = [0.62, 0.54, 0.36]
+aged_fraction = 0.3
+aged_color = [0.36, 0.29, 0.2]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "London plane bark, flaking in plates, mottled grey-brown, olive-green and cream"
+leaf_prompt = "Platanus x acerifolia leaf, large, maple-like with 3-5 pointed lobes, mid green"
+resolution = 1024
+bark_style = "patchy"
+leaf_shape = "maple"
+leaf_card = "cluster"
+seed = 1870
+bark_color = [0.5, 0.46, 0.39]
+leaf_color = [0.3, 0.48, 0.18]
+bark_patch_colors = [[0.84, 0.8, 0.66], [0.58, 0.6, 0.44], [0.7, 0.62, 0.48]]
+
+[materials]
+bark = "london_plane_bark"
+foliage = "london_plane_foliage"
+notes = "2x2 foliage atlas: leaf spray, seed balls."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 4.0
+max = 60.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: June-August: leafless, seed balls hanging
+[states.winter]
+species.name = "London Plane (winter)"
+leaves.count = 0
+inflorescence.count = 320

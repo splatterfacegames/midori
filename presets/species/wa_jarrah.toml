@@ -1,0 +1,168 @@
+# Jarrah (Eucalyptus marginata)
+# Tall forest eucalypt of the Darling Scarp and plateau: straight bole to about half height,
+# grey-brown stringy bark in long flat strips, dark sickle leaves held in drooping tufts.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Jarrah"
+scientific = "Eucalyptus marginata"
+latin = "Eucalyptus marginata"
+biome = "mediterranean"
+tags = ["wa_native", "eucalypt", "jarrah_forest", "darling_scarp", "evergreen", "lignotuber"]
+
+[generator]
+family = "weber_penn"
+notes = "Forest form (about 30 m). The coastal state is the low spreading form on Swan Coastal Plain sand."
+
+[trunk]
+height = 27.0
+height_variance = 0.14
+radius = 0.62
+taper = 0.72
+taper_profile = "exponential"
+curve = 8.0
+curve_variance = 5.0
+curve_back = 8.0
+segments = 22
+char_height = 1.6
+char_strength = 0.7
+
+[branches.level1]
+count = 9
+count_variance = 2
+length = 8.0
+length_variance = 0.22
+radius_ratio = 0.42
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 52.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.04
+curve = 22.0
+curve_variance = 22.0
+segments = 14
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 3.8
+length_variance = 0.22
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = -16.0
+curve_variance = 18.0
+segments = 10
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 1.7
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.1
+curve = 14.0
+curve_variance = 18.0
+segments = 7
+
+[crown]
+shape = "spherical"
+offset = 0.5
+density = 1.0
+width_ratio = 1.0
+
+[leaves]
+count = 3000
+min_level = 2
+size = 1.25
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "sickle"
+up_influence = -0.42
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Jarrah bark, grey-brown, fibrous and stringy, shed in long flat strips"
+leaf_prompt = "Eucalyptus marginata adult leaves, dark glossy green above, paler below, sickle shaped"
+resolution = 1024
+bark_style = "stringy"
+leaf_shape = "sickle"
+leaf_card = "cluster"
+bark_color = [0.37, 0.31, 0.26]
+leaf_color = [0.19, 0.32, 0.15]
+
+[materials]
+bark = "jarrah_bark"
+foliage = "jarrah_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 4.0
+max = 60.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: stunted, spreading jarrah of the coastal plain sands (8-10 m)
+[states.coastal]
+species.name = "Jarrah (coastal)"
+trunk.height = 6.0
+trunk.radius = 0.42
+trunk.curve = 30.0
+trunk.curve_variance = 14.0
+trunk.char_height = 0.9
+crown.offset = 0.3
+crown.width_ratio = 1.35
+branches.level1.length = 4.6
+branches.level1.angle = 62.0
+branches.level2.length = 2.4
+branches.level3.length = 1.2
+leaves.size = 0.85
+leaves.count = 2200

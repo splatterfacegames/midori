@@ -1,0 +1,166 @@
+# Marri (Corymbia calophylla)
+# Big bloodwood of the jarrah forest and coastal plain: thick rambling limbs, a dense heavy crown,
+# tessellated grey-brown bark bleeding red kino, and large urn-shaped 'honky nut' fruit.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Marri"
+scientific = "Corymbia calophylla"
+latin = "Corymbia calophylla"
+biome = "mediterranean"
+tags = ["wa_native", "bloodwood", "jarrah_forest", "swan_coastal_plain", "evergreen", "lignotuber"]
+
+[generator]
+family = "weber_penn"
+notes = "Woodland form (about 25 m). Honky nuts are drawn at about twice life size so they read at tree scale."
+
+[trunk]
+height = 19.0
+height_variance = 0.14
+radius = 0.75
+taper = 0.72
+taper_profile = "exponential"
+curve = 16.0
+curve_variance = 9.0
+curve_back = 16.0
+segments = 22
+char_height = 1.2
+char_strength = 0.55
+
+[branches.level1]
+count = 9
+count_variance = 2
+length = 8.6
+length_variance = 0.22
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 58.0
+angle_variance = 15.0
+rotation = 137.5
+gravity = -0.05
+curve = 26.0
+curve_variance = 24.0
+segments = 14
+
+[branches.level2]
+count = 6
+count_variance = 1
+length = 4.0
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 52.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = -18.0
+curve_variance = 18.0
+segments = 10
+
+[branches.level3]
+count = 5
+count_variance = 1
+length = 1.8
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.08
+curve = 16.0
+curve_variance = 18.0
+segments = 7
+
+[crown]
+shape = "spherical"
+offset = 0.34
+density = 1.0
+width_ratio = 1.15
+
+[leaves]
+count = 3600
+min_level = 2
+size = 1.25
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "sickle"
+up_influence = -0.3
+
+[inflorescence]
+kind = "nut"
+count = 140
+min_level = 3
+placement = "endpoint"
+orientation = "hang"
+length = 0.1
+width = 0.075
+size_variance = 0.25
+color = [0.42, 0.44, 0.24]
+color_tip = [0.46, 0.36, 0.22]
+aged_fraction = 0.6
+aged_color = [0.36, 0.28, 0.21]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Marri bark, grey-brown, tessellated into small squarish plates, dark red kino bleeding from cracks"
+leaf_prompt = "Corymbia calophylla leaves, broad lanceolate, glossy dark green above, much paler below"
+resolution = 1024
+bark_style = "tessellated"
+leaf_shape = "sickle"
+leaf_card = "cluster"
+bark_color = [0.4, 0.34, 0.29]
+leaf_color = [0.17, 0.33, 0.13]
+bark_kino = 0.7
+
+[materials]
+bark = "marri_bark"
+foliage = "marri_foliage"
+notes = "2x2 foliage atlas: leaf spray, fresh and aged honky nuts."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 4.0
+max = 60.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

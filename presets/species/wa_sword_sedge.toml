@@ -1,0 +1,110 @@
+# Coast sword-sedge (Lepidosperma gladiatum)
+# Bold sedge of dunes and limestone: a dense fan of flat, rigid, dark green sword leaves to 1.5 m,
+# with brown flower heads held among them.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Coast Sword-sedge"
+scientific = "Lepidosperma gladiatum"
+latin = "Lepidosperma gladiatum"
+biome = "mediterranean"
+tags = ["wa_native", "rosette", "groundcover", "coastal_dune", "coastal_limestone", "banksia_woodland", "sedge"]
+
+[generator]
+family = "rosette"
+notes = "Clump about 1.3 m high. Also stands in for other sword-sedges of the banksia woodland floor."
+
+[trunk]
+height = 0.03
+height_variance = 0.0
+radius = 0.04
+taper = 0.0
+curve = 0.0
+curve_variance = 0.0
+segments = 2
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 70
+blade_length = 1.25
+blade_length_variance = 0.2
+blade_width = 0.035
+blade_card = "single"
+spread_min = 3.0
+spread_max = 42.0
+droop = 0.16
+stiffness = 0.9
+keel = 0.15
+color_base = [0.14, 0.28, 0.13]
+color_tip = [0.26, 0.4, 0.18]
+skirt = 1.0
+skirt_blades = 14
+skirt_color = [0.5, 0.42, 0.26]
+
+[rosette.spike]
+chance = 0.7
+count = 5
+style = "cylinder"
+scape_length = 0.9
+scape_radius = 0.005
+length = 0.22
+radius = 0.016
+lean = 20.0
+color = [0.36, 0.24, 0.14]
+tip_color = [0.5, 0.36, 0.2]
+scape_color = [0.2, 0.32, 0.14]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.3
+up_bias = 0.28
+clump_weight = 0.2
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.3
+roughness = 0.8
+
+[textures]
+bark_prompt = "Tussock base, brown"
+leaf_prompt = "Lepidosperma gladiatum leaves, flat, rigid, sword shaped, dark green"
+resolution = 1024
+bark_style = "smooth"
+bark_color = [0.32, 0.26, 0.18]
+leaf_color = [0.2, 0.36, 0.16]
+
+[materials]
+bark = "sword_sedge_bark"
+foliage = "sword_sedge_foliage"
+notes = "2x2 foliage atlas: live blade, dead blade."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "leaf_length"
+label = "Leaf Length"
+parameter = "rosette.blade_length"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[[control_groups.controls]]
+key = "blades"
+label = "Blades"
+parameter = "rosette.blades"
+min = 20.0
+max = 160.0
+step = 5.0
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"

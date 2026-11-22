@@ -27,7 +27,9 @@
 //! println!("Generated {} stems", tree.stem_count());
 //! ```
 
+pub mod bark_layers;
 pub mod bistro_cards;
+pub mod botanical_cards;
 pub mod constants;
 pub mod error;
 pub mod export;
@@ -40,8 +42,10 @@ pub mod mesh;
 pub mod mesh_builder;
 pub mod nature;
 pub mod nature_cards;
+pub mod organs;
 pub mod ornamental;
 pub mod rng;
+pub mod rosette;
 pub mod species;
 pub mod textures;
 pub mod tree;
@@ -75,11 +79,16 @@ pub use nature::{
     TerrainSample, UnityImportHints, UnrealImportHints, WindPackingManifest, WindParams,
     validate_nature_package,
 };
+pub use organs::{Organ, OrganKind};
 pub use rng::Rng;
 pub use species::{
     BarkStyle, ControlGroup, ControlSpec, FloralHabit, FloralParams, GeneratorConfig,
     GeneratorFamily, LeafCardLayout, LeafShape, MaterialPlaceholders, TextureParams, TopiaryParams,
     TopiaryShape, VineParams,
+};
+pub use species::{
+    BladeCard, InflorescenceKind, InflorescenceParams, OrganOrientation, OrganPlacement,
+    RosetteParams, RosetteSpikeParams, SpikeStyle,
 };
 pub use species::{Species, SpeciesError, SpeciesFieldError};
 pub use textures::{RgbaTexture, TextureError, TextureSet, species_texture_seed};

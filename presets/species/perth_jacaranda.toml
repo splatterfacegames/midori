@@ -1,0 +1,188 @@
+# Jacaranda (Jacaranda mimosifolia)
+# The defining street tree of Perth's older suburbs: a short trunk and a broad, open, spreading crown
+# of fine fern-like leaves, turning into a cloud of lilac-purple trumpets in October and November.
+# PLANTED EXOTIC (South America), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Jacaranda"
+scientific = "Jacaranda mimosifolia"
+latin = "Jacaranda mimosifolia"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "street_tree", "semi_deciduous", "flowering", "spring"]
+
+[generator]
+family = "weber_penn"
+notes = "Default is the summer tree in leaf. States: flowering (Oct-Nov, near-bare branches), bare (late winter, seed pods)."
+
+[trunk]
+height = 5.4
+height_variance = 0.14
+radius = 0.34
+taper = 0.72
+taper_profile = "exponential"
+curve = 24.0
+curve_variance = 12.0
+curve_back = 22.0
+segments = 18
+
+[branches.level1]
+count = 8
+count_variance = 2
+length = 6.4
+length_variance = 0.22
+radius_ratio = 0.6
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 60.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.02
+curve = 24.0
+curve_variance = 22.0
+segments = 14
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 3.2
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.02
+curve = -18.0
+curve_variance = 20.0
+segments = 10
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 1.5
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 44.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.04
+curve = 14.0
+curve_variance = 18.0
+segments = 7
+
+[crown]
+shape = "hemispherical"
+offset = 0.38
+density = 1.0
+width_ratio = 1.25
+
+[leaves]
+count = 2600
+min_level = 2
+size = 0.95
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "bipinnate"
+up_influence = -0.1
+
+[inflorescence]
+kind = "cluster"
+count = 0
+min_level = 2
+placement = "endpoint"
+orientation = "branch"
+length = 0.7
+width = 0.7
+size_variance = 0.25
+color = [0.6, 0.47, 0.86]
+color_tip = [0.78, 0.7, 0.96]
+aged_fraction = 0.03
+aged_color = [0.36, 0.27, 0.18]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.1
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.42
+roughness = 0.72
+
+[textures]
+bark_prompt = "Jacaranda bark, grey-brown, thin, smooth becoming finely scaly"
+leaf_prompt = "Jacaranda mimosifolia leaf, bipinnate, fern-like, 13-31 pinnae of tiny leaflets, light green"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "bipinnate"
+leaf_card = "cluster"
+seed = 1954
+bark_color = [0.47, 0.42, 0.37]
+leaf_color = [0.33, 0.51, 0.22]
+
+[materials]
+bark = "jacaranda_bark"
+foliage = "jacaranda_foliage"
+notes = "2x2 foliage atlas: bipinnate leaf spray, lilac flower panicle, seed pods."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 3.0
+max = 10.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.6
+max = 2.0
+step = 0.05
+
+[[control_groups.controls]]
+key = "flowers"
+label = "Flower Clusters"
+parameter = "inflorescence.count"
+min = 0.0
+max = 4000.0
+step = 20.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: October-November: a mass of lilac flowers on near-bare branches
+[states.flowering]
+species.name = "Jacaranda (flowering)"
+leaves.count = 260
+inflorescence.count = 2800
+
+# State: late winter: leafless, with last season's round woody seed pods
+[states.bare]
+species.name = "Jacaranda (bare)"
+leaves.count = 0
+inflorescence.count = 150
+inflorescence.aged_fraction = 1.0
+inflorescence.length = 0.5
+inflorescence.orientation = "hang"

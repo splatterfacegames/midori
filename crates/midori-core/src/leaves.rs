@@ -38,6 +38,11 @@ pub struct LeafConfig {
     pub paddle_leaf_ribbon: bool,
     /// Remap each leaf's UVs into a 2x2 sub-card floral/foliage atlas indexed by `stem_id & 3`
     pub floral_quad_atlas: bool,
+    /// Draw leaves as rosette blade ribbons with these settings
+    pub blade_ribbon: Option<crate::rosette::BladeRibbon>,
+    /// Remap leaf UVs into cell 0 of the 2x2 foliage atlas (species with an
+    /// `[inflorescence]` section, and rosettes)
+    pub foliage_atlas: bool,
     /// Canopy shaping (normals, card orientation, vertex tint/AO)
     pub canopy: CanopyParams,
 }
@@ -54,6 +59,8 @@ impl Default for LeafConfig {
             palm_frond_ribbon: false,
             paddle_leaf_ribbon: false,
             floral_quad_atlas: false,
+            blade_ribbon: None,
+            foliage_atlas: false,
             canopy: CanopyParams::default(),
         }
     }
@@ -106,6 +113,8 @@ impl LeafConfig {
             palm_frond_ribbon: is_pinnate_palm_species(species),
             paddle_leaf_ribbon: is_paddle_ribbon_species(species),
             floral_quad_atlas: is_floral_atlas_species(species),
+            blade_ribbon: crate::rosette::BladeRibbon::from_species(species),
+            foliage_atlas: species.uses_foliage_atlas(),
             canopy: species.canopy.clone(),
         }
     }
@@ -422,7 +431,12 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
     } else {
         leaves
     };
-    let (mut mesh, per_leaf) = if config.palm_frond_ribbon {
+    let (mut mesh, per_leaf) = if let Some(ribbon) = &config.blade_ribbon {
+        (
+            crate::rosette::generate_blade_ribbons(leaves, config, ribbon, tree),
+            (ribbon.rows.max(1) + 1) * 3,
+        )
+    } else if config.palm_frond_ribbon {
         let rows = 18usize;
         let cols = 7usize;
         (
@@ -480,9 +494,14 @@ pub fn generate_leaf_mesh(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) -> 
         leaves,
         per_leaf,
         config.geometry,
-        config.palm_frond_ribbon || config.paddle_leaf_ribbon,
+        config.palm_frond_ribbon || config.paddle_leaf_ribbon || config.blade_ribbon.is_some(),
         config.floral_quad_atlas,
     );
+    if config.foliage_atlas {
+        for v in &mut mesh.vertices {
+            v.uv = crate::botanical_cards::atlas_uv(crate::botanical_cards::CELL_LEAF, v.uv);
+        }
+    }
     mesh
 }
 
@@ -1457,7 +1476,7 @@ fn add_billboard_quad(
 }
 
 /// Encode Pivot Painter data for a leaf vertex
-fn encode_leaf_pivot_painter(vertex: &mut Vertex, leaf: &Leaf, tree: &Tree) {
+pub(crate) fn encode_leaf_pivot_painter(vertex: &mut Vertex, leaf: &Leaf, tree: &Tree) {
     // UV2: depth=1.0 (leaves are deepest in hierarchy), phase from stem
     let phase = (leaf.stem_id as f32 * GOLDEN_RATIO).fract();
     vertex.uv2 = Vec2::new(1.0, phase);
@@ -1689,6 +1708,48 @@ pub(crate) fn leaf_sdf(p: Vec2, shape: LeafShape) -> f32 {
             };
             let d_end = py.abs() - 0.51;
             smooth_max_2d(d_side.max(d_notch), d_end)
+        }
+        LeafShape::Sickle => {
+            // Adult eucalypt leaf: narrow lanceolate (~7:1), widest in the lower third,
+            // drawn out to a long fine point and curved to one side like a sickle.
+            let y_norm = ((py + 0.53) / 1.06).clamp(0.0, 1.0);
+            let bow = 0.085 * (1.0 - (2.0 * y_norm - 1.0).powi(2)) - 0.03;
+            let x = (p.x - bow).abs();
+            let blade = (y_norm.powf(0.62) * PI).sin().max(0.0).powf(0.85);
+            let half_w = 0.076 * blade;
+            let d_side = x - half_w;
+            let d_end = py.abs() - 0.53;
+            smooth_max_2d(d_side, d_end)
+        }
+        LeafShape::Banksia => {
+            // Banksia leaf: a long, almost parallel-sided strap (~8:1) narrowing to the
+            // petiole, with regular triangular saw teeth and a blunt (truncate) tip.
+            let y_norm = ((py + 0.52) / 1.04).clamp(0.0, 1.0);
+            let strap = (y_norm / 0.30).clamp(0.0, 1.0).powf(0.7)
+                * ((1.0 - y_norm) / 0.05).clamp(0.0, 1.0).powf(0.5);
+            let saw = (y_norm * 15.0).fract();
+            let tooth = (1.0 - saw).powf(1.4) * 0.030 * (y_norm / 0.12).clamp(0.0, 1.0);
+            let half_w = (0.034 + tooth) * strap + 0.006;
+            let d_side = px - half_w;
+            let d_end = py.abs() - 0.52;
+            smooth_max_2d(d_side, d_end)
+        }
+        LeafShape::Bipinnate => {
+            // Outline of the whole twice-divided leaf: an elongated ovate frond.
+            let y_norm = ((py + 0.50) / 1.0).clamp(0.0, 1.0);
+            let half_w = 0.30 * (y_norm.powf(0.6) * PI).sin().max(0.0).powf(0.8);
+            let d_side = px - half_w;
+            let d_end = py.abs() - 0.50;
+            smooth_max_2d(d_side, d_end)
+        }
+        LeafShape::Branchlet => {
+            // Outline of a drooping branchlet tuft: a narrow brush widening to the tip.
+            let y_norm = ((py + 0.50) / 1.0).clamp(0.0, 1.0);
+            let half_w =
+                0.04 + 0.20 * y_norm.powf(0.8) * ((1.0 - y_norm) / 0.12).clamp(0.0, 1.0).sqrt();
+            let d_side = px - half_w;
+            let d_end = py.abs() - 0.50;
+            smooth_max_2d(d_side, d_end)
         }
     }
 }

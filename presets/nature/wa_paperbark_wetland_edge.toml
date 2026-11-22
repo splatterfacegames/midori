@@ -1,0 +1,168 @@
+# Edge of a paperbark swamp or lake on the Swan Coastal Plain.
+# Dark peaty sand, seasonally wet, with dense rushes and sedges, papery bark litter and moss. Stand
+# paperbarks, flooded gum, swamp banksia and jointed rush on it from presets/species/wa_*.
+# Notes and sources: docs/wa-flora.md
+
+[asset]
+kind = "nature_patch"
+name = "WA Paperbark Wetland Edge"
+units = "meters"
+
+[patch]
+size = 16.0
+seed = 6018
+biome = "wetland_edge"
+tags = ["wa_native", "wetland", "river_edge", "peat", "rush", "sedge"]
+
+[soil]
+profile = "peaty_sand"
+color = "#3b342c"
+mound_scale = 0.09
+mound_height = 0.25
+mound_coverage = 0.8
+relief_scale = 0.7
+relief_strength = 0.45
+wetness_coverage = 0.6
+
+[soil.cracks]
+enabled = false
+amount = 0.5
+plate_density = 0.9
+channel_width = 0.05
+warp = 0.2
+depth = 0.5
+
+[groundcover.card_atlas]
+cell = 256
+base = "#1f3a1a"
+tips = ["#5f8a3c", "#74963f", "#4c7a34"]
+
+[[groundcover.layers]]
+kind = "grass"
+name = "jointed rush"
+density = 0.5
+coverage = 0.62
+patch_scale = 0.1
+patch_softness = 0.26
+height = 1.5
+width = 0.05
+curl = 0.25
+color_base = "#1c3a1a"
+color_tip = "#5a8a3a"
+
+[groundcover.layers.cards]
+species = ["grass", "oat_seeds"]
+count = 5
+card_width = 0.5
+height_range = [0.8, 1.25]
+lean_degrees = [3.0, 14.0]
+loose = 0.14
+normal_up = 0.70
+
+[[groundcover.layers]]
+kind = "grass"
+name = "low sedges"
+density = 0.4
+coverage = 0.6
+patch_scale = 0.13
+patch_softness = 0.26
+height = 0.5
+width = 0.045
+curl = 0.7
+color_base = "#22401c"
+color_tip = "#6a923e"
+
+[[groundcover.layers]]
+kind = "moss"
+name = "damp moss"
+density = 0.2
+coverage = 0.4
+patch_scale = 0.14
+patch_softness = 0.24
+height = 0.03
+width = 0.16
+color_base = "#1c3416"
+color_tip = "#4f8030"
+
+[[groundcover.layers]]
+kind = "litter"
+name = "paperbark and leaf litter"
+density = 0.3
+coverage = 0.56
+patch_scale = 0.1
+patch_softness = 0.2
+height = 0.08
+width = 0.12
+color_base = "#7a6e5e"
+color_tip = "#cfc6b4"
+
+[[groundcover.layers]]
+kind = "weed"
+name = "swamp herbs"
+density = 0.14
+coverage = 0.34
+patch_scale = 0.12
+patch_softness = 0.24
+height = 0.3
+width = 0.06
+curl = 0.4
+color_base = "#244a22"
+color_tip = "#6fa050"
+
+[[groundcover.layers]]
+kind = "log"
+name = "fallen paperbark limb"
+density = 0.12
+coverage = 0.5
+patch_scale = 0.07
+patch_softness = 0.2
+height = 1.1
+width = 0.13
+curl = 0.0
+color_base = "#8a8072"
+color_tip = "#d6cebc"
+
+[wind]
+strength = 0.3
+speed = 1.0
+direction_degrees = 230
+gust_scale = 0.3
+flutter = 0.5
+
+[profiles.mobile]
+tile_size = 16.0
+terrain_resolution = 64
+lod0_max_triangles = 120
+lod1_max_triangles = 40
+lod2_max_triangles = 8
+lod0_max_distance = 6.0
+lod1_max_distance = 18.0
+lod2_max_distance = 38.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 0.6
+cull_start = 18.0
+cull_end = 38.0
+shadows = false
+grass_collision = false
+moss_collision = false
+
+[profiles.console]
+tile_size = 32.0
+terrain_resolution = 128
+lod0_max_triangles = 300
+lod1_max_triangles = 100
+lod2_max_triangles = 16
+lod0_max_distance = 12.0
+lod1_max_distance = 38.0
+lod2_max_distance = 82.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 1.0
+cull_start = 38.0
+cull_end = 82.0
+shadows = false
+grass_collision = false
+moss_collision = false

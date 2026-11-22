@@ -1,0 +1,149 @@
+# Common sheoak (Allocasuarina fraseriana)
+# Sheoak of the jarrah forest and banksia woodland: an erect trunk in reddish-brown furrowed bark and a
+# soft, rounded crown of long drooping grey-green needle-like branchlets.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Common Sheoak"
+scientific = "Allocasuarina fraseriana"
+latin = "Allocasuarina fraseriana"
+biome = "mediterranean"
+tags = ["wa_native", "sheoak", "jarrah_forest", "banksia_woodland", "evergreen"]
+
+[generator]
+family = "weber_penn"
+notes = "Typical 12 m tree. The 'needles' are jointed branchlets, painted with the branchlet leaf shape."
+
+[trunk]
+height = 8.0
+height_variance = 0.14
+radius = 0.34
+taper = 0.74
+taper_profile = "exponential"
+curve = 18.0
+curve_variance = 9.0
+curve_back = 18.0
+segments = 20
+
+[branches.level1]
+count = 11
+count_variance = 2
+length = 3.8
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 56.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.02
+curve = 22.0
+curve_variance = 20.0
+segments = 13
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 1.9
+length_variance = 0.22
+radius_ratio = 0.5
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.06
+curve = -16.0
+curve_variance = 18.0
+segments = 9
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 0.95
+length_variance = 0.22
+radius_ratio = 0.44
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 42.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.25
+curve = 14.0
+curve_variance = 18.0
+segments = 6
+
+[crown]
+shape = "flame"
+offset = 0.28
+density = 1.0
+width_ratio = 1.1
+
+[leaves]
+count = 3000
+min_level = 2
+size = 0.85
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "branchlet"
+up_influence = -0.6
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Sheoak bark, reddish-brown, fibrous, furrowed"
+leaf_prompt = "Allocasuarina fraseriana branchlets, long drooping jointed grey-green wires"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "branchlet"
+leaf_card = "cluster"
+bark_color = [0.4, 0.3, 0.24]
+leaf_color = [0.3, 0.38, 0.26]
+
+[materials]
+bark = "sheoak_bark"
+foliage = "sheoak_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.0
+max = 14.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

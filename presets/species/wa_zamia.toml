@@ -1,0 +1,109 @@
+# Zamia (Macrozamia riedlei)
+# Cycad of the jarrah forest and banksia woodland understorey: a trunkless rosette of stiff arching
+# pinnate fronds 1.2-2.2 m long, with large cones sitting in the centre.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Zamia"
+scientific = "Macrozamia riedlei"
+latin = "Macrozamia riedlei"
+biome = "mediterranean"
+tags = ["wa_native", "cycad", "rosette", "understorey", "jarrah_forest", "banksia_woodland"]
+
+[generator]
+family = "rosette"
+notes = "Rosette generator with pinnate blade cards and cone-style spikes."
+
+[trunk]
+height = 0.16
+height_variance = 0.3
+radius = 0.17
+taper = 0.05
+curve = 0.0
+curve_variance = 0.0
+segments = 3
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 24
+blade_length = 1.7
+blade_length_variance = 0.16
+blade_width = 0.46
+blade_card = "pinnate"
+spread_min = 14.0
+spread_max = 80.0
+droop = 0.3
+stiffness = 0.85
+keel = 0.45
+color_base = [0.16, 0.3, 0.12]
+color_tip = [0.3, 0.46, 0.18]
+skirt = 0.0
+skirt_blades = 0
+
+[rosette.spike]
+chance = 0.6
+count = 2
+style = "cone"
+scape_length = 0.0
+scape_radius = 0.02
+length = 0.36
+radius = 0.085
+lean = 22.0
+color = [0.36, 0.4, 0.2]
+tip_color = [0.62, 0.56, 0.32]
+scape_color = [0.3, 0.28, 0.18]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.35
+up_bias = 0.28
+clump_weight = 0.2
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.34
+roughness = 0.6
+
+[textures]
+bark_prompt = "Cycad caudex, dark brown, armoured with old frond bases"
+leaf_prompt = "Macrozamia riedlei frond, glossy dark green stiff leaflets on a pale rachis"
+resolution = 1024
+bark_style = "plated"
+bark_color = [0.22, 0.17, 0.12]
+leaf_color = [0.2, 0.38, 0.14]
+
+[materials]
+bark = "zamia_bark"
+foliage = "zamia_foliage"
+notes = "2x2 foliage atlas: pinnate frond, cone wrap."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "frond_length"
+label = "Frond Length"
+parameter = "rosette.blade_length"
+min = 1.0
+max = 2.4
+step = 0.05
+
+[[control_groups.controls]]
+key = "fronds"
+label = "Fronds"
+parameter = "rosette.blades"
+min = 8.0
+max = 40.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

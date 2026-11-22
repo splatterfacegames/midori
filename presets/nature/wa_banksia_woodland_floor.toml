@@ -1,0 +1,169 @@
+# Banksia woodland floor on Bassendean sand (Swan Coastal Plain).
+# Leached grey-white quartz sand, a thin litter of banksia leaves and old cones, scattered sedge tussocks
+# and low heath. Stand grass trees, zamia, kangaroo paw and the banksias on it from presets/species/wa_*.
+# Notes and sources: docs/wa-flora.md
+
+[asset]
+kind = "nature_patch"
+name = "WA Banksia Woodland Floor"
+units = "meters"
+
+[patch]
+size = 16.0
+seed = 6009
+biome = "banksia_woodland"
+tags = ["wa_native", "swan_coastal_plain", "bassendean_sand", "litter", "sedge", "heath"]
+
+[soil]
+profile = "leached_sand"
+color = "#c9c5ba"
+mound_scale = 0.08
+mound_height = 0.22
+mound_coverage = 0.7
+relief_scale = 0.8
+relief_strength = 0.35
+wetness_coverage = 0.0
+
+[soil.cracks]
+enabled = false
+amount = 0.5
+plate_density = 0.9
+channel_width = 0.05
+warp = 0.2
+depth = 0.5
+
+[groundcover.card_atlas]
+cell = 256
+base = "#3f4a2a"
+tips = ["#7f8a4c", "#96925a", "#6c7c44"]
+
+[[groundcover.layers]]
+kind = "litter"
+name = "banksia leaf and cone litter"
+density = 0.46
+coverage = 0.72
+patch_scale = 0.11
+patch_softness = 0.22
+height = 0.1
+width = 0.11
+color_base = "#5a4a38"
+color_tip = "#9a8466"
+
+[[groundcover.layers]]
+kind = "grass"
+name = "sedge tussocks"
+density = 0.14
+coverage = 0.38
+patch_scale = 0.1
+patch_softness = 0.24
+height = 0.52
+width = 0.05
+curl = 0.5
+color_base = "#33441f"
+color_tip = "#7c8a4a"
+
+[groundcover.layers.cards]
+species = ["grass", "golden_grass"]
+count = 4
+card_width = 0.44
+height_range = [0.7, 1.2]
+lean_degrees = [6.0, 24.0]
+loose = 0.14
+normal_up = 0.70
+
+[[groundcover.layers]]
+kind = "weed"
+name = "low heath"
+density = 0.12
+coverage = 0.34
+patch_scale = 0.1
+patch_softness = 0.24
+height = 0.42
+width = 0.07
+curl = 0.4
+color_base = "#3c4a2c"
+color_tip = "#86905c"
+
+[[groundcover.layers]]
+kind = "flower"
+name = "yellow guinea-flower"
+density = 0.14
+coverage = 0.34
+patch_scale = 0.14
+patch_softness = 0.2
+height = 0.24
+width = 0.045
+curl = 0.1
+color_base = "#3a4a26"
+color_tip = "#e0bc30"
+
+[[groundcover.layers]]
+kind = "shrub"
+name = "pricklybark and pea shrubs"
+density = 0.09
+coverage = 0.34
+patch_scale = 0.08
+patch_softness = 0.22
+height = 0.9
+width = 0.14
+curl = 0.4
+color_base = "#34432a"
+color_tip = "#7d8c58"
+
+[[groundcover.layers]]
+kind = "log"
+name = "fallen banksia limb"
+density = 0.12
+coverage = 0.5
+patch_scale = 0.07
+patch_softness = 0.2
+height = 0.9
+width = 0.1
+curl = 0.0
+color_base = "#4a4038"
+color_tip = "#8d8172"
+
+[wind]
+strength = 0.45
+speed = 1.4
+direction_degrees = 250
+gust_scale = 0.3
+flutter = 0.5
+
+[profiles.mobile]
+tile_size = 16.0
+terrain_resolution = 64
+lod0_max_triangles = 120
+lod1_max_triangles = 40
+lod2_max_triangles = 8
+lod0_max_distance = 6.0
+lod1_max_distance = 18.0
+lod2_max_distance = 38.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 0.6
+cull_start = 18.0
+cull_end = 38.0
+shadows = false
+grass_collision = false
+moss_collision = false
+
+[profiles.console]
+tile_size = 32.0
+terrain_resolution = 128
+lod0_max_triangles = 300
+lod1_max_triangles = 100
+lod2_max_triangles = 16
+lod0_max_distance = 12.0
+lod1_max_distance = 38.0
+lod2_max_distance = 82.0
+material_slots = 1
+max_instances_per_tile = 16384
+max_instances_per_chunk = 4096
+density_scale = 1.0
+cull_start = 38.0
+cull_end = 82.0
+shadows = false
+grass_collision = false
+moss_collision = false

@@ -74,6 +74,9 @@ pub fn estimate_tree(species: &Species) -> GenerationEstimate {
     ) {
         return crate::ornamental::estimate_ornamental(species);
     }
+    if species.generator.family == GeneratorFamily::Rosette {
+        return crate::rosette::estimate_rosette(species);
+    }
     let level_max = |params: &Option<BranchParams>| {
         params
             .as_ref()
@@ -90,9 +93,14 @@ pub fn estimate_tree(species: &Species) -> GenerationEstimate {
     if matches!(species.generator.family, GeneratorFamily::Dichotomous) {
         max_stems = max_stems.saturating_mul(2);
     }
+    let organs = species
+        .inflorescence
+        .as_ref()
+        .map(|inf| inf.count as u64)
+        .unwrap_or(0);
     GenerationEstimate {
         max_stems,
-        max_leaves: species.leaves.count as u64,
+        max_leaves: (species.leaves.count as u64).saturating_add(organs),
     }
 }
 
@@ -157,11 +165,13 @@ impl GenerationBudget {
                 actual: tree.stems.len() as u64,
             });
         }
-        if tree.leaves.len() > self.max_leaves as usize {
+        // Organs (inflorescences, skirt blades, spikes) are foliage too.
+        let foliage = tree.leaves.len() + tree.organs.len();
+        if foliage > self.max_leaves as usize {
             return Err(GenerationError::BudgetExceeded {
                 resource: "leaves",
                 limit: self.max_leaves as u64,
-                actual: tree.leaves.len() as u64,
+                actual: foliage as u64,
             });
         }
         Ok(())
@@ -249,6 +259,8 @@ impl<'a> TreeGenerator<'a> {
 
         // Generate leaves
         crate::leaves::add_leaves_to_tree(&mut self.tree, self.species, self.seed);
+        // Inflorescences / fruit (none unless the species defines them)
+        self.tree.organs = crate::organs::place_inflorescence(&self.tree, self.species, self.seed);
         self.budget.check_tree(&self.tree)?;
 
         Ok(self.tree)
@@ -1028,6 +1040,7 @@ impl<'a> DichotomousGenerator<'a> {
 
         self.tree.update_bounds();
         crate::leaves::add_leaves_to_tree(&mut self.tree, self.species, self.seed);
+        self.tree.organs = crate::organs::place_inflorescence(&self.tree, self.species, self.seed);
         self.budget.check_tree(&self.tree)?;
 
         Ok(self.tree)
@@ -1498,6 +1511,7 @@ pub fn generate_tree_with_budget(
         | GeneratorFamily::TropicalClump => {
             crate::ornamental::generate_ornamental(species, seed, *budget)
         }
+        GeneratorFamily::Rosette => crate::rosette::generate_rosette(species, seed, *budget),
         GeneratorFamily::WeberPenn
         | GeneratorFamily::Cactus
         | GeneratorFamily::PadChain

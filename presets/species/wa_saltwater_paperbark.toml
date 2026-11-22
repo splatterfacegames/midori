@@ -1,0 +1,151 @@
+# Saltwater paperbark (Melaleuca cuticularis)
+# Small paperbark of the estuary edge and salt lakes: startlingly white papery bark on rigid, twisted,
+# tortuous branches, with tiny leaves in sparse dark tufts.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Saltwater Paperbark"
+scientific = "Melaleuca cuticularis"
+latin = "Melaleuca cuticularis"
+biome = "mediterranean"
+tags = ["wa_native", "paperbark", "river_edge", "saline", "swan_coastal_plain", "evergreen"]
+
+[generator]
+family = "weber_penn"
+notes = "Typical 4-5 m tree with strongly crooked limbs."
+
+[trunk]
+height = 2.9
+height_variance = 0.18
+radius = 0.22
+taper = 0.7
+taper_profile = "exponential"
+curve = 46.0
+curve_variance = 22.0
+curve_back = 42.0
+segments = 18
+buttress = 0.5
+
+[branches.level1]
+count = 8
+count_variance = 2
+length = 2.3
+length_variance = 0.22
+radius_ratio = 0.62
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 56.0
+angle_variance = 20.0
+rotation = 137.5
+gravity = 0.02
+curve = 36.0
+curve_variance = 34.0
+segments = 13
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 1.3
+length_variance = 0.22
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 54.0
+angle_variance = 20.0
+rotation = 137.5
+gravity = -0.05
+curve = -26.0
+curve_variance = 30.0
+segments = 10
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 0.6
+length_variance = 0.22
+radius_ratio = 0.5
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = 18.0
+curve_variance = 20.0
+segments = 6
+
+[crown]
+shape = "spherical"
+offset = 0.2
+density = 1.0
+width_ratio = 1.25
+
+[leaves]
+count = 1500
+min_level = 2
+size = 0.36
+size_variance = 0.22
+distribution = "endpoint"
+geometry = "cross_billboard"
+shape = "needle"
+up_influence = 0.2
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Saltwater paperbark, very white, papery, peeling in thin sheets"
+leaf_prompt = "Melaleuca cuticularis leaves, 4-12 mm, dark green, in opposite pairs"
+resolution = 1024
+bark_style = "papery"
+leaf_shape = "needle"
+leaf_card = "cluster"
+bark_color = [0.9, 0.88, 0.84]
+leaf_color = [0.21, 0.32, 0.2]
+bark_patch_colors = [[0.76, 0.68, 0.58], [0.84, 0.8, 0.74]]
+
+[materials]
+bark = "saltwater_paperbark_bark"
+foliage = "saltwater_paperbark_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 1.5
+max = 7.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

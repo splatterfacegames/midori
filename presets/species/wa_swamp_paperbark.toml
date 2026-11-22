@@ -1,0 +1,151 @@
+# Swamp paperbark (Melaleuca rhaphiophylla)
+# Bushy paperbark of river banks, lakes and swamps: short, often leaning or forked trunk,
+# grey-white papery bark in loose layers, fine needle leaves in dense dark masses.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Swamp Paperbark"
+scientific = "Melaleuca rhaphiophylla"
+latin = "Melaleuca rhaphiophylla"
+biome = "mediterranean"
+tags = ["wa_native", "paperbark", "wetland", "river_edge", "swan_coastal_plain", "evergreen"]
+
+[generator]
+family = "weber_penn"
+notes = "Single-trunk approximation of a tree that is often multi-stemmed from the base."
+
+[trunk]
+height = 5.2
+height_variance = 0.16
+radius = 0.34
+taper = 0.7
+taper_profile = "exponential"
+curve = 34.0
+curve_variance = 14.0
+curve_back = 30.0
+segments = 18
+buttress = 0.6
+
+[branches.level1]
+count = 9
+count_variance = 2
+length = 3.6
+length_variance = 0.22
+radius_ratio = 0.6
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 52.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.06
+curve = 30.0
+curve_variance = 26.0
+segments = 13
+
+[branches.level2]
+count = 6
+count_variance = 1
+length = 1.9
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 52.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = -20.0
+curve_variance = 22.0
+segments = 9
+
+[branches.level3]
+count = 5
+count_variance = 1
+length = 0.9
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.12
+curve = 16.0
+curve_variance = 18.0
+segments = 6
+
+[crown]
+shape = "spherical"
+offset = 0.18
+density = 1.0
+width_ratio = 1.25
+
+[leaves]
+count = 3200
+min_level = 2
+size = 0.62
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "needle"
+up_influence = 0.1
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Swamp paperbark, greyish-white papery bark peeling in thin layered sheets"
+leaf_prompt = "Melaleuca rhaphiophylla needle leaves, 1-4 cm, dark grey-green, crowded on fine twigs"
+resolution = 1024
+bark_style = "papery"
+leaf_shape = "needle"
+leaf_card = "cluster"
+bark_color = [0.8, 0.77, 0.72]
+leaf_color = [0.24, 0.36, 0.22]
+bark_patch_colors = [[0.66, 0.55, 0.44], [0.56, 0.5, 0.45], [0.86, 0.8, 0.7]]
+
+[materials]
+bark = "swamp_paperbark_bark"
+foliage = "swamp_paperbark_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.0
+max = 10.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

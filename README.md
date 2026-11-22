@@ -11,7 +11,10 @@ A procedural nature asset generator for real-time game engines. Midori generates
 - **glTF 2.0 export** - Binary (.glb) or JSON (.gltf) output with split bark/foliage material slots and Midori metadata
 - **Procedural textures** - Deterministic bark albedo/normal and leaf albedo+alpha card generation from `[textures]` params; `midori maps` writes PNGs, glTF export can embed them; file-override slots for host-provided maps
 - **Nature patches (WIP)** - Deterministic soil height fields, grass density, moss/wetness/crack masks, and low-cost groundcover prototype LODs
-- **Species presets** - Oak, Pine, Palm, Willow, and a Joshua tree prototype included
+- **Rosette plants** - Grass trees, cycads, strap-leaf clumps and feather palms: crowns of blade ribbons on an optional (forked, fire-blackened) trunk, with a dead-leaf skirt and flower spikes
+- **Inflorescences and fruit** - Flower spikes, woody nuts, crown-colouring flower clusters and berries carried by branching trees, drawn from a foliage atlas without an extra material slot
+- **Seasonal states** - `[states.<name>]` overlays in a species file (`--state flowering`) for in-flower, bare, burnt or site-form variants
+- **Species presets** - Oak, Pine, Palm, Willow, and a Joshua tree prototype included, plus the native flora of south-west Western Australia (`wa_*`) and the planted trees of Perth's streets and parks (`perth_*`); see `docs/wa-flora.md`
 
 ## Installation
 
@@ -51,6 +54,15 @@ midori nature -p presets/nature/temperate_forest_floor.toml -o forest_floor_mido
 
 This writes `midori_nature.json`, baked maps, a preview tile GLB, prototype groundcover GLBs, and scatter data into the output directory.
 
+### Generate a seasonal or site state
+
+```bash
+midori generate -s presets/species/perth_jacaranda.toml --state flowering -o jacaranda_november.glb
+midori info -s presets/species/perth_jacaranda.toml      # lists the states a file defines
+```
+
+A species file may carry `[states.<name>]` overlays (in flower, bare, burnt, a site form). `--state` deep-merges one onto the document before validation; `generate`, `maps` and `info` accept it. See `docs/botanical-generators.md`.
+
 ### Show species information
 
 ```bash
@@ -62,6 +74,7 @@ midori info -s presets/species/willow.toml
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-s, --species <FILE>` | Species TOML file | required |
+| `--state <NAME>` | Apply the species file's `[states.<NAME>]` overlay | none |
 | `-o, --output <PATH>` | Output path | `tree.glb` |
 | `-n, --count <N>` | Number of variants | `1` |
 | `--seed <N>` | Random seed | random |
@@ -225,6 +238,10 @@ step = 0.1
 
 See `presets/species/` for complete examples.
 
+### Western Australian flora
+
+`presets/species/wa_*.toml` are the native trees, banksias, paperbarks, grass tree, zamia, kangaroo paw, shrubs and sedges of the Perth region and the South West; `presets/species/perth_*.toml` are the planted, non-native trees of 1980s-90s Perth (jacaranda, Norfolk Island pine, London plane, figs, date palm and others), kept under their own prefix so the two are never confused. `presets/nature/wa_*.toml` are the matching ground patches. `docs/wa-flora.md` has the botany, the sources, and an honest verdict on how well each preset matches its plant; `docs/botanical-generators.md` documents the generator features they use (`rosette` family, `[inflorescence]`, the `sickle`/`banksia`/`bipinnate`/`branchlet` leaf shapes, the `stringy`/`tessellated`/`patchy`/`papery` bark styles, `trunk.buttress`, `trunk.char_height`, `[states]`).
+
 ## Nature Patches
 
 Midori's nature pipeline is in active development. The first slice adds `NaturePatch` TOML for soil, grass, moss, flowers, weeds, litter, wind, and mobile/console profile metadata, with deterministic Rust-side height/mask sampling, prototype groundcover meshes, chunked scatter data, and an initial package writer.
@@ -266,13 +283,15 @@ For terminal fork species, `radius_model = "pipe"` splits child radii across sib
 - `billboard` - Single quad, cheapest option
 - `none` - No leaves (used for lowest LOD)
 
+Leaf shapes (`leaves.shape`, `textures.leaf_shape`) and bark styles (`textures.bark_style`) are listed in `docs/species-schema.md`.
+
 ## Output Format
 
 Midori exports glTF 2.0 with:
 
 - Multiple meshes (one per LOD level)
 - Predictable node and mesh names such as `<species>_LOD0`
-- Separate bark and foliage material primitives when both submeshes are present
+- Separate bark and foliage material primitives when both submeshes are present (inflorescences, fruit, skirt blades and flower spikes share the foliage material through a 2x2 atlas, so the slot count never changes)
 - Vertex attributes: `POSITION`, `NORMAL`, `TEXCOORD_0`, `TEXCOORD_1`, `COLOR_0`
 - Midori export metadata in glTF extras, including species, seed, and LOD thresholds
 - Pivot Painter data encoded in `TEXCOORD_1` and `COLOR_0`

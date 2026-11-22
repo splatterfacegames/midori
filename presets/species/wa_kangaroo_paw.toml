@@ -1,0 +1,116 @@
+# Red and green kangaroo paw (Anigozanthos manglesii)
+# Western Australia's floral emblem: a fan of grey-green strap leaves and tall woolly red stems
+# ending in a one-sided rack of red-and-green tubular flowers (August to November).
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Kangaroo Paw"
+scientific = "Anigozanthos manglesii"
+latin = "Anigozanthos manglesii"
+biome = "mediterranean"
+tags = ["wa_native", "rosette", "understorey", "banksia_woodland", "floral_emblem", "flowering", "spring"]
+
+[generator]
+family = "rosette"
+notes = "Rosette generator with single strap blades and raceme spikes. Default is in flower."
+
+[trunk]
+height = 0.04
+height_variance = 0.0
+radius = 0.03
+taper = 0.0
+curve = 0.0
+curve_variance = 0.0
+segments = 2
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 30
+blade_length = 0.46
+blade_length_variance = 0.22
+blade_width = 0.028
+blade_card = "single"
+spread_min = 6.0
+spread_max = 58.0
+droop = 0.28
+stiffness = 0.6
+keel = 0.3
+color_base = [0.24, 0.36, 0.2]
+color_tip = [0.4, 0.5, 0.3]
+skirt = 0.0
+skirt_blades = 0
+
+[rosette.spike]
+chance = 0.85
+count = 4
+style = "raceme"
+scape_length = 0.72
+scape_radius = 0.006
+length = 0.11
+radius = 0.01
+lean = 14.0
+color = [0.78, 0.09, 0.1]
+tip_color = [0.33, 0.56, 0.22]
+scape_color = [0.72, 0.1, 0.1]
+flowers = 9
+flower_length = 0.075
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.3
+up_bias = 0.28
+clump_weight = 0.2
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.25
+roughness = 0.7
+
+[textures]
+bark_prompt = "Kangaroo paw rhizome crown, brown"
+leaf_prompt = "Anigozanthos manglesii strap leaves, grey-green, flat, 30-60 cm"
+resolution = 1024
+bark_style = "smooth"
+bark_color = [0.3, 0.22, 0.14]
+leaf_color = [0.32, 0.44, 0.25]
+
+[materials]
+bark = "kangaroo_paw_bark"
+foliage = "kangaroo_paw_foliage"
+notes = "2x2 foliage atlas: strap leaf, woolly red scape, red-and-green flower."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "leaf_length"
+label = "Leaf Length"
+parameter = "rosette.blade_length"
+min = 0.2
+max = 0.7
+step = 0.01
+
+[[control_groups.controls]]
+key = "stems"
+label = "Flower Stems"
+parameter = "rosette.spike.count"
+min = 1.0
+max = 12.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: December to July: leaves only
+[states.out_of_flower]
+species.name = "Kangaroo Paw (out of flower)"
+rosette.spike.chance = 0.0

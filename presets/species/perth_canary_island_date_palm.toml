@@ -1,0 +1,113 @@
+# Canary Island date palm (Phoenix canariensis)
+# Formal palm of older parks, foreshores and hotel forecourts: a thick trunk patterned with diamond leaf-base
+# scars and a dense round crown of 75-125 arching feather fronds 4-6 m long.
+# PLANTED EXOTIC (Canary Islands), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Canary Island Date Palm"
+scientific = "Phoenix canariensis"
+latin = "Phoenix canariensis"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "palm", "rosette", "park_tree", "evergreen"]
+
+[generator]
+family = "rosette"
+notes = "Rosette generator with pinnate blades (the existing Palm preset draws a slender coconut palm and cannot carry this crown or a skirt). States: untrimmed (dead-frond skirt), young (pineapple stage)."
+
+[trunk]
+height = 7.5
+height_variance = 0.2
+radius = 0.42
+taper = 0.04
+curve = 2.0
+curve_variance = 2.0
+segments = 10
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 96
+blade_length = 4.6
+blade_length_variance = 0.12
+blade_width = 1.0
+blade_card = "pinnate"
+spread_min = 6.0
+spread_max = 120.0
+droop = 0.4
+stiffness = 0.8
+keel = 0.5
+color_base = [0.15, 0.3, 0.11]
+color_tip = [0.26, 0.44, 0.16]
+skirt = 0.0
+skirt_blades = 0
+skirt_color = [0.52, 0.42, 0.26]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.4
+up_bias = 0.28
+clump_weight = 0.2
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.4
+roughness = 0.6
+
+[textures]
+bark_prompt = "Phoenix canariensis trunk, brown, covered in diamond-shaped leaf-base scars"
+leaf_prompt = "Phoenix canariensis frond, pinnate, stiff deep green leaflets, spiny at the base"
+resolution = 2048
+bark_style = "plated"
+bark_color = [0.38, 0.31, 0.24]
+leaf_color = [0.19, 0.37, 0.13]
+
+[materials]
+bark = "canary_island_date_palm_bark"
+foliage = "canary_island_date_palm_foliage"
+notes = "2x2 foliage atlas at 2048px: pinnate frond, dead frond."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "trunk_height"
+label = "Trunk Height"
+parameter = "trunk.height"
+min = 0.5
+max = 15.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "fronds"
+label = "Fronds"
+parameter = "rosette.blades"
+min = 40.0
+max = 130.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: unpruned: a skirt of dead fronds hanging under the crown
+[states.untrimmed]
+species.name = "Canary Island Date Palm (untrimmed)"
+rosette.skirt = 0.16
+rosette.skirt_blades = 46
+
+# State: young 'pineapple' stage: crown almost at ground level on a swollen base
+[states.young]
+species.name = "Canary Island Date Palm (young)"
+trunk.height = 1.3
+trunk.radius = 0.55
+rosette.blades = 70
+rosette.blade_length = 3.6
+rosette.spread_max = 92.0

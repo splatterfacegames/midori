@@ -54,6 +54,7 @@
             "floral_shrub",
             "climbing_vine",
             "tropical_clump",
+            "rosette",
             "cactus",
             "pad_chain",
             "custom"
@@ -110,6 +111,26 @@
           "type": "integer",
           "minimum": 0,
           "default": 8
+        },
+        "buttress": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Root-buttress flare, flutes and surface roots: 0 = plain column, 1 = built-in look, up to 3 = heavy buttresses",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "char_height": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Height in meters of fire-blackened bark from the ground (needs canopy.vertex_color = tint_ao)",
+          "minimum": 0
+        },
+        "char_strength": {
+          "type": "number",
+          "default": 0.85,
+          "description": "How black the charred base is",
+          "minimum": 0,
+          "maximum": 1
         }
       }
     },
@@ -327,7 +348,11 @@
           "enum": [
             "furrowed",
             "plated",
-            "smooth"
+            "smooth",
+            "stringy",
+            "tessellated",
+            "patchy",
+            "papery"
           ],
           "default": "furrowed"
         },
@@ -354,6 +379,21 @@
         },
         "leaf_color": {
           "$ref": "#/$defs/rgb"
+        },
+        "bark_patch_colors": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/rgb"
+          },
+          "description": "Extra bark colours: exposed patches (patchy), sheet-edge underlayers (papery)"
+        },
+        "bark_kino": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Amount of dark red gum (kino) bleeding down from bark cracks",
+          "minimum": 0,
+          "maximum": 1
         },
         "bark_albedo": {
           "type": "string",
@@ -636,6 +676,292 @@
           "default": 8
         }
       }
+    },
+    "rosette": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Rosette plants (generator.family = rosette): crowns of long blades on an optional trunk. See docs/botanical-generators.md",
+      "properties": {
+        "crowns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Number of crowns; more than one forks the trunk"
+        },
+        "fork_height": {
+          "type": "number",
+          "default": 0.55,
+          "description": "Fraction of trunk height where the arms leave",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fork_angle": {
+          "type": "number",
+          "default": 32.0,
+          "description": "Degrees between an arm and the trunk axis",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "blades": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 240,
+          "description": "Live blades per crown"
+        },
+        "blade_length": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Blade length in meters"
+        },
+        "blade_length_variance": {
+          "type": "number",
+          "default": 0.15,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "blade_width": {
+          "type": "number",
+          "default": 0.03,
+          "description": "Ribbon width in meters"
+        },
+        "blade_card": {
+          "type": "string",
+          "enum": [
+            "single",
+            "tuft",
+            "pinnate"
+          ],
+          "default": "tuft"
+        },
+        "spread_min": {
+          "type": "number",
+          "default": 5.0,
+          "description": "Degrees from the crown axis for the youngest blades",
+          "minimum": 0,
+          "maximum": 180
+        },
+        "spread_max": {
+          "type": "number",
+          "default": 120.0,
+          "description": "Degrees from the crown axis for the oldest blades",
+          "minimum": 0,
+          "maximum": 180
+        },
+        "droop": {
+          "type": "number",
+          "default": 0.35,
+          "description": "Arching under gravity",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "stiffness": {
+          "type": "number",
+          "default": 0.7,
+          "description": "Blade rigidity; also the Pivot Painter stiffness",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "keel": {
+          "type": "number",
+          "default": 0.2,
+          "description": "V fold along the midrib",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "color_base": {
+          "$ref": "#/$defs/rgb",
+          "description": "Blade colour at the base"
+        },
+        "color_tip": {
+          "$ref": "#/$defs/rgb",
+          "description": "Blade colour at the tip"
+        },
+        "skirt": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Fraction of the stem below each crown clothed in dead blades",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "skirt_blades": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Dead blades per crown"
+        },
+        "skirt_color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Dead blade colour"
+        },
+        "spike": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "chance": {
+              "type": "number",
+              "default": 1.0,
+              "description": "Probability that a spike appears",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "description": "Spikes attempted per crown"
+            },
+            "style": {
+              "type": "string",
+              "enum": [
+                "cylinder",
+                "raceme",
+                "cone"
+              ],
+              "default": "cylinder"
+            },
+            "scape_length": {
+              "type": "number",
+              "default": 0.9,
+              "description": "Bare stalk length in meters",
+              "minimum": 0
+            },
+            "scape_radius": {
+              "type": "number",
+              "default": 0.012
+            },
+            "length": {
+              "type": "number",
+              "default": 1.2,
+              "description": "Length of the flowering part or cone in meters"
+            },
+            "radius": {
+              "type": "number",
+              "default": 0.025
+            },
+            "lean": {
+              "type": "number",
+              "default": 8.0,
+              "description": "Maximum lean from the crown axis in degrees",
+              "minimum": 0,
+              "maximum": 90
+            },
+            "color": {
+              "$ref": "#/$defs/rgb"
+            },
+            "tip_color": {
+              "$ref": "#/$defs/rgb"
+            },
+            "scape_color": {
+              "$ref": "#/$defs/rgb"
+            },
+            "flowers": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "raceme: tubular flowers at the top of the scape"
+            },
+            "flower_length": {
+              "type": "number",
+              "default": 0.08
+            }
+          }
+        }
+      }
+    },
+    "inflorescence": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Inflorescence / fruit organs on a branching tree. See docs/botanical-generators.md",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "spike",
+            "nut",
+            "cluster",
+            "berries"
+          ],
+          "default": "spike"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 40,
+          "description": "Organs on the whole tree"
+        },
+        "min_level": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2,
+          "description": "Only stems at or beyond this branch level carry organs"
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "endpoint",
+            "along_branch"
+          ],
+          "default": "endpoint"
+        },
+        "orientation": {
+          "type": "string",
+          "enum": [
+            "up",
+            "branch",
+            "hang"
+          ],
+          "default": "up"
+        },
+        "length": {
+          "type": "number",
+          "default": 0.2,
+          "description": "Length in meters (card size for clusters and berries)"
+        },
+        "width": {
+          "type": "number",
+          "default": 0.08,
+          "description": "Diameter in meters (spike, nut)"
+        },
+        "size_variance": {
+          "type": "number",
+          "default": 0.0,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "offset": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Meters between the attachment point and the organ base, along its axis",
+          "minimum": 0
+        },
+        "color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Fresh colour"
+        },
+        "color_tip": {
+          "$ref": "#/$defs/rgb",
+          "description": "Colour toward the tip or centre"
+        },
+        "aged_fraction": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Share of organs drawn as aged",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "aged_color": {
+          "$ref": "#/$defs/rgb",
+          "description": "Aged colour: old cones, spent flowers, pods"
+        }
+      }
+    },
+    "states": {
+      "type": "object",
+      "description": "Named overlays ([states.<name>]) deep-merged onto the document by --state / Species::from_toml_with_state. Each value may set any species parameter.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
     }
   },
   "$defs": {
@@ -673,7 +999,11 @@
         "palmate",
         "ginkgo",
         "ivy",
-        "paddle"
+        "paddle",
+        "sickle",
+        "banksia",
+        "bipinnate",
+        "branchlet"
       ],
       "description": "lobed is a legacy alias for oak_lobed"
     },

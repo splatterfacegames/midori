@@ -14,8 +14,10 @@ export function SpeciesLibrary({
   onImport: () => void;
 }) {
   const active = state.label.startsWith('Preset · ') ? state.label.slice(9) : null;
-  const treePresets = PRESETS.filter((p) => p.group !== 'bistro');
+  const treePresets = PRESETS.filter((p) => p.group === undefined || p.group === 'trees');
   const bistroPresets = PRESETS.filter((p) => p.group === 'bistro');
+  const waNativePresets = PRESETS.filter((p) => p.group === 'wa_native');
+  const perthPlantedPresets = PRESETS.filter((p) => p.group === 'perth_planted');
   return (
     <div className="midori-panel-content">
       <div className="midori-eyebrow">SPECIES</div>
@@ -37,6 +39,38 @@ export function SpeciesLibrary({
       <div className="midori-eyebrow">BISTRO &amp; ORNAMENTAL</div>
       <div className="midori-preset-list">
         {bistroPresets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="midori-preset"
+            aria-pressed={state.mode === 'species' && active === preset.label}
+            onClick={() => onLoadPreset(preset.id)}
+          >
+            <Leaf size={14} aria-hidden="true" />
+            <span>{preset.label}</span>
+            <small>{preset.id}.toml</small>
+          </button>
+        ))}
+      </div>
+      <div className="midori-eyebrow">WA NATIVE FLORA</div>
+      <div className="midori-preset-list">
+        {waNativePresets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="midori-preset"
+            aria-pressed={state.mode === 'species' && active === preset.label}
+            onClick={() => onLoadPreset(preset.id)}
+          >
+            <Leaf size={14} aria-hidden="true" />
+            <span>{preset.label}</span>
+            <small>{preset.id}.toml</small>
+          </button>
+        ))}
+      </div>
+      <div className="midori-eyebrow">PERTH PLANTED TREES (NOT NATIVE)</div>
+      <div className="midori-preset-list">
+        {perthPlantedPresets.map((preset) => (
           <button
             key={preset.id}
             type="button"

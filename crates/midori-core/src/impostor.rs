@@ -57,9 +57,24 @@ pub fn bake_impostor(
         palm_frond_ribbon: crate::leaves::is_pinnate_palm_species(species),
         paddle_leaf_ribbon: crate::leaves::is_paddle_ribbon_species(species),
         floral_quad_atlas: crate::leaves::is_floral_atlas_species(species),
+        blade_ribbon: crate::rosette::BladeRibbon::from_species(species).map(|mut ribbon| {
+            ribbon.rows = 3;
+            ribbon
+        }),
+        foliage_atlas: species.uses_foliage_atlas(),
         canopy,
     };
-    let leaf_mesh = generate_leaf_mesh(&tree.leaves, &leaf_config, tree);
+    let mut leaf_mesh = generate_leaf_mesh(&tree.leaves, &leaf_config, tree);
+    if !tree.organs.is_empty() {
+        let organ_mesh = crate::organs::generate_organ_mesh(
+            &tree.organs,
+            tree,
+            crate::species::FoliageVertexColor::TintAo,
+            false,
+            2,
+        );
+        crate::organs::append_foliage(&mut leaf_mesh, &organ_mesh);
+    }
 
     let stem_config = MeshConfig {
         ring_resolution: [6, 5, 4, 3],

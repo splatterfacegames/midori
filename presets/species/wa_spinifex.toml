@@ -1,0 +1,97 @@
+# Beach spinifex (Spinifex longifolius)
+# The foredune grass of Perth's beaches: stout tussocks of long, stiff, silvery inrolled leaves that trap
+# sand into hummocks, with a thatch of dead leaf around the base.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Beach Spinifex"
+scientific = "Spinifex longifolius"
+latin = "Spinifex longifolius"
+biome = "mediterranean"
+tags = ["wa_native", "rosette", "groundcover", "coastal_dune", "quindalup", "grass"]
+
+[generator]
+family = "rosette"
+notes = "Tussock about 0.9 m high and 1.6 m across. The spiky seed heads are not modelled."
+
+[trunk]
+height = 0.03
+height_variance = 0.0
+radius = 0.04
+taper = 0.0
+curve = 0.0
+curve_variance = 0.0
+segments = 2
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 110
+blade_length = 0.95
+blade_length_variance = 0.25
+blade_width = 0.05
+blade_card = "tuft"
+spread_min = 6.0
+spread_max = 78.0
+droop = 0.3
+stiffness = 0.7
+keel = 0.1
+color_base = [0.46, 0.5, 0.36]
+color_tip = [0.72, 0.74, 0.58]
+skirt = 1.0
+skirt_blades = 40
+skirt_color = [0.66, 0.58, 0.4]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.3
+up_bias = 0.28
+clump_weight = 0.2
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.3
+roughness = 0.8
+
+[textures]
+bark_prompt = "Tussock base, brown"
+leaf_prompt = "Spinifex longifolius leaves, long, stiff, silvery green, inrolled"
+resolution = 1024
+bark_style = "smooth"
+bark_color = [0.32, 0.26, 0.18]
+leaf_color = [0.58, 0.62, 0.46]
+
+[materials]
+bark = "spinifex_bark"
+foliage = "spinifex_foliage"
+notes = "2x2 foliage atlas: live blade, dead blade."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "leaf_length"
+label = "Leaf Length"
+parameter = "rosette.blade_length"
+min = 0.4
+max = 1.4
+step = 0.05
+
+[[control_groups.controls]]
+key = "blades"
+label = "Blades"
+parameter = "rosette.blades"
+min = 30.0
+max = 300.0
+step = 5.0
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"

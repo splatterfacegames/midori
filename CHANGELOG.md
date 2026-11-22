@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 See [docs/releasing.md](docs/releasing.md) for the versioning and
 compatibility policy.
 
+## [Unreleased]
+
+### Added
+
+- **Rosette generator** (`generator.family = "rosette"`, `[rosette]`, `midori-core::rosette`): crowns of
+  curved blade ribbons on an optional trunk that may fork into arms, a skirt of dead blades, and
+  `cylinder` / `raceme` / `cone` flower spikes; blade cards `single`, `tuft` and `pinnate`. Covers grass
+  trees, cycads, kangaroo paw, sedge and rush clumps, spinifex and feather palms.
+- **Inflorescence and fruit organs** (`[inflorescence]`, `midori-core::organs`): `spike` (banksia flower
+  spikes and old cones), `nut` (marri "honky nuts"), `cluster` (crown-colouring flower panicles) and
+  `berries`, placed at shoot tips or along branches, thinned per LOD and baked into crown impostors.
+  They draw from a 2x2 **foliage atlas** in the existing foliage material, so exports keep one bark and
+  one foliage slot.
+- **Leaf shapes** `sickle` (adult eucalypt), `banksia` (saw-toothed strap), `bipinnate` (fern-like,
+  jacaranda and wattles) and `branchlet` (sheoak).
+- **Bark styles** `stringy`, `tessellated`, `patchy` and `papery`, with optional `bark_patch_colors`
+  (exposed patches, sheet-edge underlayers) and `bark_kino` (red gum streaks).
+- **Trunk layers**: `trunk.buttress` (0 = plain column, 1 = unchanged, up to 3 = heavy fig/tingle
+  buttresses) and `trunk.char_height` / `char_strength` (fire-blackened base, a `tint_ao` vertex-colour
+  layer).
+- **States**: `[states.<name>]` overlays in a species file, applied with `--state` on `generate`, `maps`
+  and `info` (`Species::from_toml_with_state`), for seasonal, burnt and site-form variants of one species.
+- **South-west Western Australian flora**: 29 native species presets (`presets/species/wa_*.toml`) and 12
+  planted Perth street and park trees (`presets/species/perth_*.toml`), 11 of the 41 with states, plus five
+  nature patches (`presets/nature/wa_*.toml`, `perth_jacaranda_carpet.toml`). Botany, sources and per-preset
+  verdicts in `docs/wa-flora.md`; generator design in `docs/botanical-generators.md`.
+- Nature patches: optional `soil.color` (`#rrggbb`) for the preview surface albedo.
+
+### Compatibility
+
+- Every feature above is opt-in. All 19 presets shipped in 0.2.0 and the five 0.2.0 nature patches export
+  byte-identical files (428 files hashed before and after; see `docs/wa-flora.md`).
+- `Tree` gains a public `organs` field, `LeafConfig` gains `blade_ribbon` and `foliage_atlas`, and
+  `MeshConfig` gains `trunk_buttress`: code that builds these structs with literal syntax must add the
+  new fields. Organs count against the leaf budget (`--max-leaves`).
+
 ## [0.2.0] - 2026-11-18
 
 ### Added

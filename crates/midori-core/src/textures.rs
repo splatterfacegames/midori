@@ -281,24 +281,32 @@ impl TextureSet {
         } else {
             bark_heightfield(params.bark_style, seed, res)
         };
-        Self {
-            bark_albedo: bark_albedo_from_height(
-                &height,
-                res,
-                params.bark_style,
-                is_arid,
-                is_palm_ringed,
-                params.bark_color,
-                seed,
-            ),
-            bark_normal: normal_from_height(&height, res),
-            leaf_card: leaf_card(
+        let mut bark_albedo = bark_albedo_from_height(
+            &height,
+            res,
+            params.bark_style,
+            is_arid,
+            is_palm_ringed,
+            params.bark_color,
+            seed,
+        );
+        // Optional patch-colour / kino layers (no-op unless the species sets them).
+        crate::bark_layers::apply_layers(&mut bark_albedo, &height, params, seed);
+        let leaf_card = if species.uses_foliage_atlas() {
+            crate::botanical_cards::foliage_atlas(species, seed, res)
+        } else {
+            leaf_card(
                 params.leaf_shape,
                 params.leaf_card,
                 params.leaf_color,
                 seed,
                 res,
-            ),
+            )
+        };
+        Self {
+            bark_albedo,
+            bark_normal: normal_from_height(&height, res),
+            leaf_card,
         }
     }
 
@@ -383,14 +391,14 @@ fn wrap_period(i: i32, p: i32) -> i32 {
 }
 
 #[inline]
-fn smooth(t: f32) -> f32 {
+pub(crate) fn smooth(t: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
 /// Value noise on a wrapping lattice. Sampling `u*px`/`v*py` over u,v in
 /// [0,1) produces a texture that tiles seamlessly.
 #[inline]
-fn value_noise(seed: u64, x: f32, y: f32, px: i32, py: i32) -> f32 {
+pub(crate) fn value_noise(seed: u64, x: f32, y: f32, px: i32, py: i32) -> f32 {
     let ix = x.floor() as i32;
     let iy = y.floor() as i32;
     let fx = smooth(x - ix as f32);
@@ -408,7 +416,7 @@ fn value_noise(seed: u64, x: f32, y: f32, px: i32, py: i32) -> f32 {
 
 /// Fractional Brownian motion; periods double with frequency so the result
 /// stays periodic over [0, 1).
-fn fbm(seed: u64, x: f32, y: f32, px: i32, py: i32, octaves: u32) -> f32 {
+pub(crate) fn fbm(seed: u64, x: f32, y: f32, px: i32, py: i32, octaves: u32) -> f32 {
     let mut sum = 0.0;
     let mut amp = 0.5;
     let mut norm = 0.0;
@@ -432,7 +440,7 @@ fn fbm(seed: u64, x: f32, y: f32, px: i32, py: i32, octaves: u32) -> f32 {
 /// Periodic Worley F1 & F2 distances (scaled by `px`/`py` cells per side).
 /// Returns `(f1_dist, f2_dist, nearest_cell_hash)` so `f2 - f1` yields crisp
 /// polygonal bark-plate fissures rather than circular polka-dot cones.
-fn voronoi_f1_f2(seed: u64, x: f32, y: f32, px: i32, py: i32) -> (f32, f32, f32) {
+pub(crate) fn voronoi_f1_f2(seed: u64, x: f32, y: f32, px: i32, py: i32) -> (f32, f32, f32) {
     let ix = x.floor() as i32;
     let iy = y.floor() as i32;
     let fx = x - ix as f32;
@@ -640,6 +648,9 @@ fn bark_height_at(style: BarkStyle, u: f32, v: f32, seed: u64) -> f32 {
                 + eye_scar;
             h.clamp(0.0, 1.0)
         }
+        BarkStyle::Stringy | BarkStyle::Tessellated | BarkStyle::Patchy | BarkStyle::Papery => {
+            crate::bark_layers::height_at(style, u, v, seed)
+        }
     }
 }
 
@@ -706,7 +717,9 @@ fn bark_albedo_from_height(
 ) -> RgbaTexture {
     let base = color.unwrap_or([0.42, 0.34, 0.26]);
     let crevice = match style {
-        BarkStyle::Furrowed => [base[0] * 0.16, base[1] * 0.15, base[2] * 0.14],
+        BarkStyle::Furrowed | BarkStyle::Stringy | BarkStyle::Tessellated => {
+            [base[0] * 0.16, base[1] * 0.15, base[2] * 0.14]
+        }
         _ => [base[0] * 0.24, base[1] * 0.22, base[2] * 0.20],
     };
     let phloem = match style {
@@ -715,12 +728,12 @@ fn bark_albedo_from_height(
             (base[1] * 0.72 + 0.01).min(1.0),
             (base[2] * 0.54).min(1.0),
         ],
-        BarkStyle::Smooth => [
+        BarkStyle::Smooth | BarkStyle::Patchy | BarkStyle::Papery => [
             (base[0] * 0.76).min(1.0),
             (base[1] * 0.74).min(1.0),
             (base[2] * 0.70).min(1.0),
         ],
-        BarkStyle::Furrowed => [
+        BarkStyle::Furrowed | BarkStyle::Stringy | BarkStyle::Tessellated => [
             (base[0] * 0.76 + 0.02).min(1.0),
             (base[1] * 0.66 + 0.01).min(1.0),
             (base[2] * 0.54).min(1.0),
@@ -1019,7 +1032,7 @@ fn card_leaves_and_twigs(
                 }
 
                 let sub_count = match shape {
-                    LeafShape::Willow => 4,
+                    LeafShape::Willow | LeafShape::Sickle | LeafShape::Banksia => 4,
                     _ => 2,
                 };
                 for i in 0..sub_count {
@@ -1034,7 +1047,9 @@ fn card_leaves_and_twigs(
                     let sweep = lerp(0.96, 0.62, st) + rng.range(-0.08, 0.08);
                     let dir = (tan * sweep.cos() + nrm * sweep.sin()).normalize();
                     let leaf_scale = match shape {
-                        LeafShape::Willow => lerp(0.40, 0.31, st) * rng.variance_mul(0.08),
+                        LeafShape::Willow | LeafShape::Sickle | LeafShape::Banksia => {
+                            lerp(0.40, 0.31, st) * rng.variance_mul(0.08)
+                        }
                         LeafShape::Ginkgo => lerp(0.28, 0.23, st) * rng.variance_mul(0.08),
                         _ => lerp(0.32, 0.26, st) * rng.variance_mul(0.08),
                     };
@@ -1065,7 +1080,9 @@ fn card_leaves_and_twigs(
                 let ang = f_tan.y.atan2(f_tan.x) + fork_side * 0.12 + rng.range(-0.06, 0.06);
                 let dir = Vec2::new(ang.cos(), ang.sin());
                 let leaf_scale = match shape {
-                    LeafShape::Willow => 0.34 * rng.variance_mul(0.08),
+                    LeafShape::Willow | LeafShape::Sickle | LeafShape::Banksia => {
+                        0.34 * rng.variance_mul(0.08)
+                    }
                     LeafShape::Ginkgo => 0.25 * rng.variance_mul(0.08),
                     _ => 0.28 * rng.variance_mul(0.08),
                 };
@@ -1088,7 +1105,7 @@ fn card_leaves_and_twigs(
             }
 
             let count: usize = match shape {
-                LeafShape::Willow => 8,
+                LeafShape::Willow | LeafShape::Sickle | LeafShape::Banksia => 8,
                 _ => 5,
             };
 
@@ -1107,7 +1124,9 @@ fn card_leaves_and_twigs(
                 let sweep = lerp(1.12, 0.68, t) + rng.range(-0.08, 0.08);
                 let dir = (tangent * sweep.cos() + normal * sweep.sin()).normalize();
                 let leaf_scale = match shape {
-                    LeafShape::Willow => lerp(0.44, 0.32, t) * rng.variance_mul(0.08),
+                    LeafShape::Willow | LeafShape::Sickle | LeafShape::Banksia => {
+                        lerp(0.44, 0.32, t) * rng.variance_mul(0.08)
+                    }
                     LeafShape::Ginkgo => lerp(0.31, 0.25, t) * rng.variance_mul(0.08),
                     _ => lerp(0.36, 0.28, t) * rng.variance_mul(0.08),
                 };
@@ -1146,7 +1165,9 @@ fn card_leaves_and_twigs(
                 let ang = apex_tan.y.atan2(apex_tan.x) + fan + rng.range(-0.05, 0.05);
                 let dir = Vec2::new(ang.cos(), ang.sin());
                 let leaf_scale = match shape {
-                    LeafShape::Willow => 0.34 * rng.variance_mul(0.08),
+                    LeafShape::Willow | LeafShape::Sickle | LeafShape::Banksia => {
+                        0.34 * rng.variance_mul(0.08)
+                    }
                     LeafShape::Ginkgo => 0.26 * rng.variance_mul(0.08),
                     _ => 0.29 * rng.variance_mul(0.08),
                 };
@@ -1268,7 +1289,7 @@ fn card_leaves_and_twigs(
 /// Render the leaf card: woody twigs + petioles underleaf, then leaves back-to-front
 /// with botanical venation, inter-leaf contact AO, razor-sharp anti-aliased SDF edges,
 /// 16x16 tile spatial binning (for fast 1024x1024 WASM generation), and RGB edge dilation.
-fn leaf_card(
+pub(crate) fn leaf_card(
     shape: LeafShape,
     layout: LeafCardLayout,
     color: Option<[f32; 3]>,
@@ -1287,6 +1308,9 @@ fn leaf_card(
     }
     if shape == LeafShape::Paddle {
         return crate::bistro_cards::paddle_leaf_card(color, &mut rng, seed, res);
+    }
+    if matches!(shape, LeafShape::Bipinnate | LeafShape::Branchlet) {
+        return crate::botanical_cards::stroke_leaf_card(shape, layout, color, &mut rng, res);
     }
     if shape == LeafShape::Willow && layout == LeafCardLayout::Frond {
         return palm_pinnae_card(color, &mut rng, res);
@@ -2197,5 +2221,69 @@ bark_albedo = "maps/bark.png"
         assert_eq!(t.leaf_card, LeafCardLayout::Single);
         assert_eq!(t.bark_color, Some([0.4, 0.3, 0.2]));
         assert_eq!(t.bark_albedo, "maps/bark.png");
+    }
+
+    #[test]
+    fn layered_bark_styles_generate_distinct_tileable_maps() {
+        let mut seen = Vec::new();
+        for style in ["stringy", "tessellated", "patchy", "papery"] {
+            let species = test_species(&format!(
+                "[textures]\nresolution = 64\nbark_style = \"{style}\"\nbark_color = [0.5, 0.45, 0.4]\n"
+            ));
+            let set = TextureSet::generate(&species);
+            assert_eq!(set.bark_albedo.width, 64);
+            assert!(set.bark_albedo.pixels.chunks(4).all(|p| p[3] == 255));
+            assert!(
+                !seen.contains(&set.bark_albedo.pixels),
+                "{style} repeats another style"
+            );
+            seen.push(set.bark_albedo.pixels.clone());
+        }
+    }
+
+    #[test]
+    fn patch_colours_and_kino_recolour_the_bark() {
+        let base =
+            "[textures]\nresolution = 64\nbark_style = \"patchy\"\nbark_color = [0.8, 0.8, 0.8]\n";
+        let plain = TextureSet::generate(&test_species(base));
+        let patched = TextureSet::generate(&test_species(&format!(
+            "{base}bark_patch_colors = [[0.9, 0.4, 0.1]]\n"
+        )));
+        let kino = TextureSet::generate(&test_species(&format!("{base}bark_kino = 1.0\n")));
+        assert_ne!(plain.bark_albedo.pixels, patched.bark_albedo.pixels);
+        assert_ne!(plain.bark_albedo.pixels, kino.bark_albedo.pixels);
+        // The relief (and so the normal map) is untouched by colour layers.
+        assert_eq!(plain.bark_normal.pixels, patched.bark_normal.pixels);
+        assert_eq!(plain.bark_normal.pixels, kino.bark_normal.pixels);
+        // Orange patches push red above blue on a meaningful share of texels.
+        let warm = patched
+            .bark_albedo
+            .pixels
+            .chunks(4)
+            .filter(|p| p[0] as i32 - p[2] as i32 > 60)
+            .count();
+        assert!(warm > 64 * 64 / 20, "only {warm} orange texels");
+        // Patch colours are ignored by styles that have no patches.
+        let furrowed = "[textures]\nresolution = 64\nbark_style = \"furrowed\"\n";
+        let a = TextureSet::generate(&test_species(furrowed));
+        let b = TextureSet::generate(&test_species(&format!(
+            "{furrowed}bark_patch_colors = [[0.9, 0.4, 0.1]]\n"
+        )));
+        assert_eq!(a.bark_albedo.pixels, b.bark_albedo.pixels);
+    }
+
+    #[test]
+    fn foliage_atlas_is_used_only_when_a_species_needs_it() {
+        let plain = test_species("[textures]\nresolution = 64\n");
+        assert!(!plain.uses_foliage_atlas());
+        let with_organs =
+            test_species("[textures]\nresolution = 64\n[inflorescence]\nkind = \"spike\"\n");
+        assert!(with_organs.uses_foliage_atlas());
+        let a = TextureSet::generate(&plain);
+        let b = TextureSet::generate(&with_organs);
+        assert_eq!((b.leaf_card.width, b.leaf_card.height), (64, 64));
+        assert_ne!(a.leaf_card.pixels, b.leaf_card.pixels);
+        // The organ cell (top right) is an opaque wrap; the plain card is not opaque there.
+        assert_eq!(b.leaf_card.get(48, 16)[3], 255);
     }
 }

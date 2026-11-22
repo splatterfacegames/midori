@@ -1,0 +1,110 @@
+# Jointed rush (Machaerina articulata)
+# Tall rush of lake edges and paperbark swamps: dense stands of erect, cylindrical, dark green stems
+# to 2.5 m, topped by drooping red-brown flower heads.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Jointed Rush"
+scientific = "Machaerina articulata"
+latin = "Machaerina articulata"
+biome = "mediterranean"
+tags = ["wa_native", "rosette", "groundcover", "wetland", "river_edge", "rush"]
+
+[generator]
+family = "rosette"
+notes = "Clump about 2 m high."
+
+[trunk]
+height = 0.03
+height_variance = 0.0
+radius = 0.04
+taper = 0.0
+curve = 0.0
+curve_variance = 0.0
+segments = 2
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 120
+blade_length = 1.9
+blade_length_variance = 0.2
+blade_width = 0.035
+blade_card = "tuft"
+spread_min = 1.0
+spread_max = 20.0
+droop = 0.1
+stiffness = 0.85
+keel = 0.0
+color_base = [0.13, 0.27, 0.13]
+color_tip = [0.28, 0.42, 0.2]
+skirt = 1.0
+skirt_blades = 24
+skirt_color = [0.52, 0.44, 0.28]
+
+[rosette.spike]
+chance = 0.8
+count = 8
+style = "cylinder"
+scape_length = 1.8
+scape_radius = 0.005
+length = 0.28
+radius = 0.022
+lean = 16.0
+color = [0.42, 0.22, 0.14]
+tip_color = [0.56, 0.34, 0.2]
+scape_color = [0.18, 0.32, 0.15]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.3
+up_bias = 0.28
+clump_weight = 0.2
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.3
+roughness = 0.8
+
+[textures]
+bark_prompt = "Tussock base, brown"
+leaf_prompt = "Machaerina articulata stems, cylindrical, jointed, dark green"
+resolution = 1024
+bark_style = "smooth"
+bark_color = [0.32, 0.26, 0.18]
+leaf_color = [0.2, 0.36, 0.17]
+
+[materials]
+bark = "jointed_rush_bark"
+foliage = "jointed_rush_foliage"
+notes = "2x2 foliage atlas: live blade, dead blade."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "stem_length"
+label = "Stem Length"
+parameter = "rosette.blade_length"
+min = 0.8
+max = 2.6
+step = 0.05
+
+[[control_groups.controls]]
+key = "stems"
+label = "Stems"
+parameter = "rosette.blades"
+min = 30.0
+max = 300.0
+step = 5.0
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"

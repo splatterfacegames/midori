@@ -1,0 +1,159 @@
+# Port Jackson fig (Ficus rubiginosa)
+# Smaller, rounder cousin of the Moreton Bay fig, common in parks and school grounds: buttressed trunk,
+# yellow-brown bark, and a dense crown of smaller dark leaves with rusty undersides.
+# PLANTED EXOTIC (eastern Australia), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Port Jackson Fig"
+scientific = "Ficus rubiginosa"
+latin = "Ficus rubiginosa"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "park_tree", "fig", "evergreen", "buttressed"]
+
+[generator]
+family = "weber_penn"
+notes = "Park tree about 14 m tall and 18 m across."
+
+[trunk]
+height = 5.89
+height_variance = 0.12
+radius = 0.806
+taper = 0.78
+taper_profile = "exponential"
+curve = 14.0
+curve_variance = 8.0
+curve_back = 14.0
+segments = 22
+buttress = 2.6
+
+[branches.level1]
+count = 11
+count_variance = 2
+length = 8.06
+length_variance = 0.22
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 62.0
+angle_variance = 12.0
+rotation = 137.5
+gravity = 0.03
+curve = 22.0
+curve_variance = 20.0
+segments = 16
+
+[branches.level2]
+count = 6
+count_variance = 1
+length = 3.72
+length_variance = 0.22
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 52.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = -16.0
+curve_variance = 18.0
+segments = 11
+
+[branches.level3]
+count = 5
+count_variance = 1
+length = 1.612
+length_variance = 0.22
+radius_ratio = 0.48
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.06
+curve = 14.0
+curve_variance = 18.0
+segments = 7
+
+[crown]
+shape = "hemispherical"
+offset = 0.22
+density = 1.0
+width_ratio = 1.35
+
+[leaves]
+count = 4200
+min_level = 2
+size = 1.05
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "oval"
+up_influence = 0.1
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.6
+roughness = 0.5
+
+[textures]
+bark_prompt = "Fig bark, grey, smooth, with fine lenticels; flanged buttress roots"
+leaf_prompt = "Ficus rubiginosa leaves, 4-19 cm, dark green above, rusty hairy below"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "oval"
+leaf_card = "cluster"
+bark_color = [0.5, 0.44, 0.35]
+leaf_color = [0.13, 0.27, 0.11]
+
+[materials]
+bark = "port_jackson_fig_bark"
+foliage = "port_jackson_fig_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 3.0
+max = 14.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.6
+max = 2.0
+step = 0.05
+
+[[control_groups.controls]]
+key = "buttress"
+label = "Buttress"
+parameter = "trunk.buttress"
+min = 0.0
+max = 3.0
+step = 0.1
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

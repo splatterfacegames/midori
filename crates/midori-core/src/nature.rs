@@ -92,6 +92,10 @@ pub struct SoilParams {
     /// Soil profile label such as `loam`, `sand`, or `clay`.
     #[serde(default = "default_soil_profile")]
     pub profile: String,
+    /// Optional bare-soil colour (`#rrggbb`) for the preview surface albedo.
+    /// Unset keeps the built-in palette chosen from `profile` and the biome.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
     /// Broad mound frequency.
     #[serde(default = "default_mound_scale")]
     pub mound_scale: f32,
@@ -2796,6 +2800,26 @@ impl TerrainField {
             )
         };
 
+        // An explicit `soil.color` replaces the palette's three soil tones.
+        let (soil_dark, soil_mid, soil_light) = match self
+            .patch
+            .soil
+            .color
+            .as_deref()
+            .and_then(crate::nature_cards::parse_hex)
+        {
+            Some(c) => (
+                [c[0] * 0.62, c[1] * 0.60, c[2] * 0.58],
+                c,
+                [
+                    lerp(c[0], 1.0, 0.22),
+                    lerp(c[1], 1.0, 0.22),
+                    lerp(c[2], 1.0, 0.22),
+                ],
+            ),
+            None => (soil_dark, soil_mid, soil_light),
+        };
+
         let mut albedo = crate::textures::RgbaTexture::new(res, res);
         let mut micro_h = vec![0.0_f32; (res * res) as usize];
 
@@ -3252,6 +3276,7 @@ impl Default for SoilParams {
     fn default() -> Self {
         Self {
             profile: default_soil_profile(),
+            color: None,
             mound_scale: default_mound_scale(),
             mound_height: default_mound_height(),
             mound_coverage: default_one(),
@@ -7679,6 +7704,26 @@ kind = "laser_grass"
                 "pampas_meadow",
                 include_str!("../../../presets/nature/pampas_meadow.toml"),
             ),
+            (
+                "wa_banksia_woodland_floor",
+                include_str!("../../../presets/nature/wa_banksia_woodland_floor.toml"),
+            ),
+            (
+                "wa_jarrah_forest_floor",
+                include_str!("../../../presets/nature/wa_jarrah_forest_floor.toml"),
+            ),
+            (
+                "wa_coastal_dune",
+                include_str!("../../../presets/nature/wa_coastal_dune.toml"),
+            ),
+            (
+                "wa_paperbark_wetland_edge",
+                include_str!("../../../presets/nature/wa_paperbark_wetland_edge.toml"),
+            ),
+            (
+                "perth_jacaranda_carpet",
+                include_str!("../../../presets/nature/perth_jacaranda_carpet.toml"),
+            ),
         ];
         let config = NaturePackageConfig {
             map_resolution: 8,
@@ -8684,5 +8729,37 @@ kind = "laser_grass"
 
         let err = manifest.validate().unwrap_err().to_string();
         assert!(err.contains("surface target `rock`"), "{err}");
+    }
+
+    #[test]
+    fn soil_color_tints_the_preview_surface() {
+        let plain = NaturePatch::from_toml(PATCH_TOML).unwrap();
+        assert!(plain.soil.color.is_none());
+        // Unset colour is not serialized, so existing manifests are unchanged.
+        let soil = serde_json::to_value(&plain.soil).unwrap();
+        assert!(soil.get("color").is_none());
+
+        let mut pale = plain.clone();
+        pale.soil.color = Some("#e4dcc6".to_string());
+        let mean = |patch: &NaturePatch| {
+            let (albedo, _) = patch.terrain_field().bake_preview_surface_maps(24);
+            let n = (albedo.width * albedo.height) as f32;
+            let sum: f32 = albedo
+                .pixels
+                .chunks(4)
+                .map(|p| p[0] as f32 + p[2] as f32)
+                .sum();
+            sum / n
+        };
+        assert!(
+            mean(&pale) > mean(&plain) + 20.0,
+            "pale sand should brighten the surface: {} vs {}",
+            mean(&pale),
+            mean(&plain)
+        );
+        // An unparsable colour falls back to the built-in palette.
+        let mut bad = plain.clone();
+        bad.soil.color = Some("not a colour".to_string());
+        assert_eq!(mean(&bad), mean(&plain));
     }
 }

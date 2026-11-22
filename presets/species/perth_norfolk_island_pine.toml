@@ -1,0 +1,134 @@
+# Norfolk Island pine (Araucaria heterophylla)
+# The Cottesloe foreshore silhouette: one dead-straight trunk carrying regular tiers of five near-horizontal
+# branches, each a flat spray of upturned rope-like branchlets, in a symmetric narrow triangle.
+# PLANTED EXOTIC (Norfolk Island), not a Western Australian native.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Norfolk Island Pine"
+scientific = "Araucaria heterophylla"
+latin = "Araucaria heterophylla"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "conifer", "coastal", "evergreen", "tiered"]
+
+[generator]
+family = "weber_penn"
+notes = "Whorled branching (rotation = 72 gives tiers of five) with flat, two-ranked side branchlets. About 25 m."
+
+[trunk]
+height = 25.0
+height_variance = 0.1
+radius = 0.48
+taper = 0.86
+taper_profile = "exponential"
+curve = 0.0
+curve_variance = 1.0
+curve_back = 0.0
+segments = 24
+buttress = 0.5
+
+[branches.level1]
+count = 55
+count_variance = 0
+length = 4.4
+length_variance = 0.06
+radius_ratio = 0.18
+radius_model = "ratio"
+taper = 0.86
+taper_profile = "exponential"
+angle = 88.0
+angle_variance = 2.0
+rotation = 72.0
+gravity = 0.02
+curve = -8.0
+curve_variance = 2.0
+segments = 8
+
+[branches.level2]
+count = 8
+count_variance = 1
+length = 0.85
+length_variance = 0.15
+radius_ratio = 0.4
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 60.0
+angle_variance = 6.0
+rotation = 180.0
+gravity = 0.12
+curve = -14.0
+curve_variance = 4.0
+segments = 3
+
+[crown]
+shape = "conical"
+offset = 0.14
+density = 1.0
+width_ratio = 1.0
+
+[leaves]
+count = 3000
+min_level = 2
+size = 0.44
+size_variance = 0.15
+distribution = "along_branch"
+geometry = "cross_billboard"
+shape = "needle"
+up_influence = 0.45
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.85
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.4
+roughness = 0.72
+
+[textures]
+bark_prompt = "Norfolk Island pine bark, grey-brown, thin, peeling in fine horizontal scales"
+leaf_prompt = "Araucaria heterophylla branchlets, cord-like, clothed in small incurved bright green scale leaves"
+resolution = 1024
+bark_style = "plated"
+leaf_shape = "needle"
+leaf_card = "frond"
+bark_color = [0.4, 0.34, 0.29]
+leaf_color = [0.16, 0.36, 0.17]
+
+[materials]
+bark = "norfolk_island_pine_bark"
+foliage = "norfolk_island_pine_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 8.0
+max = 40.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "tiers"
+label = "Branches"
+parameter = "branches.level1.count"
+min = 20.0
+max = 120.0
+step = 5.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

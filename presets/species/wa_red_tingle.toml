@@ -1,0 +1,152 @@
+# Red tingle (Eucalyptus jacksonii)
+# Giant of the Walpole wilderness: an enormous buttressed base (to 24 m around), red-brown stringy bark,
+# a massive bole and a dense compact crown. South West stretch goal.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Red Tingle"
+scientific = "Eucalyptus jacksonii"
+latin = "Eucalyptus jacksonii"
+biome = "mediterranean"
+tags = ["wa_native", "eucalypt", "tingle_forest", "south_west", "evergreen", "tall_forest", "buttressed"]
+
+[generator]
+family = "weber_penn"
+notes = "Old tree of about 45 m. Fire-hollowed walk-through bases need a hollow-trunk feature; the base is charred instead."
+
+[trunk]
+height = 41.0
+height_variance = 0.1
+radius = 2.2
+taper = 0.8
+taper_profile = "exponential"
+curve = 5.0
+curve_variance = 3.0
+curve_back = 5.0
+segments = 26
+buttress = 2.2
+char_height = 3.5
+char_strength = 0.8
+
+[branches.level1]
+count = 11
+count_variance = 2
+length = 9.5
+length_variance = 0.22
+radius_ratio = 0.36
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 50.0
+angle_variance = 12.0
+rotation = 137.5
+gravity = -0.03
+curve = 20.0
+curve_variance = 20.0
+segments = 14
+
+[branches.level2]
+count = 6
+count_variance = 1
+length = 4.4
+length_variance = 0.22
+radius_ratio = 0.52
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = -14.0
+curve_variance = 18.0
+segments = 10
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 2.0
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 46.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.08
+curve = 12.0
+curve_variance = 18.0
+segments = 7
+
+[crown]
+shape = "spherical"
+offset = 0.58
+density = 1.0
+width_ratio = 0.95
+
+[leaves]
+count = 3600
+min_level = 2
+size = 1.5
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "sickle"
+up_influence = -0.3
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Red tingle bark, red-brown to grey-brown, thick, stringy and furrowed"
+leaf_prompt = "Eucalyptus jacksonii leaves, dark green above, paler below, lanceolate"
+resolution = 1024
+bark_style = "stringy"
+leaf_shape = "sickle"
+leaf_card = "cluster"
+bark_color = [0.42, 0.29, 0.23]
+leaf_color = [0.17, 0.32, 0.14]
+
+[materials]
+bark = "red_tingle_bark"
+foliage = "red_tingle_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 4.0
+max = 60.0
+step = 0.5
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

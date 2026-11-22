@@ -33,6 +33,10 @@ pub struct MeshConfig {
     pub branch_base_swell: f32,
     /// How far branch base swell extends (0.0-1.0, as fraction of branch length)
     pub branch_base_falloff: f32,
+    /// Strength of the trunk's root-buttress flutes and exposed surface roots
+    /// (1.0 = the built-in look, 0.0 = a plain column with no surface roots,
+    /// above 1.0 = heavier buttresses). Set from `trunk.buttress`.
+    pub trunk_buttress: f32,
 }
 
 impl Default for MeshConfig {
@@ -49,6 +53,7 @@ impl Default for MeshConfig {
             trunk_base_flare_height: 0.18,
             branch_base_swell: 1.32,
             branch_base_falloff: 0.13,
+            trunk_buttress: 1.0,
         }
     }
 }
@@ -278,6 +283,7 @@ impl<'a> MeshBuilder<'a> {
             && stem.segments.len() >= 10
             && base_r >= 0.25
             && tip_r < base_r * 0.44
+            && self.config.trunk_buttress > 0.0
         {
             self.build_trunk_roots(stem, ring_res);
         }
@@ -850,13 +856,22 @@ impl<'a> MeshBuilder<'a> {
                     } else {
                         0.0
                     };
-                    (1.0 + falloff * toe + flute_ridge, -raw_d * 0.15 * falloff)
+                    let k = self.config.trunk_buttress;
+                    if k == 1.0 {
+                        (1.0 + falloff * toe + flute_ridge, -raw_d * 0.15 * falloff)
+                    } else {
+                        (
+                            1.0 + (falloff * toe + flute_ridge) * k,
+                            -raw_d * 0.15 * falloff * k,
+                        )
+                    }
                 } else if stem.level == 0 && resolution >= 8 && h_frac < 0.28 {
                     let falloff = (1.0 - h_frac / 0.28).powi(2);
                     let phase = angle * 5.0 + seed_phase + 0.38 * (angle * 2.0 - seed_phase).sin();
                     let lobe = phase.cos().max(-0.28);
                     let deriv = -phase.sin() * 0.30 * falloff;
-                    (1.0 + 0.28 * falloff * lobe, deriv)
+                    let k = self.config.trunk_buttress;
+                    (1.0 + 0.28 * falloff * lobe * k, deriv * k)
                 } else if resolution >= 12 && stem.level <= 2 {
                     // Twisting 3D sapwood muscle cords + craggy bark furrow relief across trunks & boughs
                     let (muscle_amp, bark_amp) = match stem.level {

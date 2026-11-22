@@ -61,6 +61,11 @@ enum Commands {
         #[arg(short, long)]
         species: PathBuf,
 
+        /// Named state from the species file's `[states.<name>]` overlays
+        /// (seasonal or condition variants, e.g. `flowering`)
+        #[arg(long)]
+        state: Option<String>,
+
         /// Output path (default: tree.glb)
         #[arg(short, long, default_value = "tree.glb")]
         output: PathBuf,
@@ -116,6 +121,11 @@ enum Commands {
         #[arg(short, long)]
         species: PathBuf,
 
+        /// Named state from the species file's `[states.<name>]` overlays
+        /// (seasonal or condition variants, e.g. `flowering`)
+        #[arg(long)]
+        state: Option<String>,
+
         /// Output directory (default: ./maps)
         #[arg(short, long, default_value = "maps")]
         output: PathBuf,
@@ -130,6 +140,11 @@ enum Commands {
         /// Species TOML file
         #[arg(short, long)]
         species: PathBuf,
+
+        /// Named state from the species file's `[states.<name>]` overlays
+        /// (seasonal or condition variants, e.g. `flowering`)
+        #[arg(long)]
+        state: Option<String>,
     },
 
     /// Generate a nature package from a NaturePatch definition
@@ -285,6 +300,7 @@ fn main() {
     let result = match cli.command {
         Commands::Generate {
             species,
+            state,
             output,
             count,
             seed,
@@ -299,6 +315,7 @@ fn main() {
             verbose,
         } => run_generate(&GenerateOptions {
             species_path: &species,
+            state: state.as_deref(),
             output_path: &output,
             count,
             seed,
@@ -313,10 +330,11 @@ fn main() {
         }),
         Commands::Maps {
             species,
+            state,
             output,
             prefix,
-        } => run_maps(&species, &output, prefix.as_deref()),
-        Commands::Info { species } => run_info(&species),
+        } => run_maps(&species, state.as_deref(), &output, prefix.as_deref()),
+        Commands::Info { species, state } => run_info(&species, state.as_deref()),
         Commands::Nature {
             patch,
             output,
@@ -405,6 +423,7 @@ fn error_kind(err: &(dyn std::error::Error + 'static)) -> &'static str {
 
 struct GenerateOptions<'a> {
     species_path: &'a Path,
+    state: Option<&'a str>,
     output_path: &'a Path,
     count: u32,
     seed: Option<u64>,
@@ -431,7 +450,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
     if verbose {
         println!("Loading species from {species_path:?}...");
     }
-    let species = Species::from_file(species_path)?;
+    let species = Species::from_file_with_state(species_path, options.state)?;
     if !options.quiet {
         println!(
             "Species: {} ({})",
@@ -629,10 +648,11 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
 
 fn run_maps(
     species_path: &Path,
+    state: Option<&str>,
     output_dir: &Path,
     prefix: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let species = Species::from_file(species_path)?;
+    let species = Species::from_file_with_state(species_path, state)?;
     println!(
         "Species: {} ({})",
         species.species.name, species.species.scientific
@@ -659,8 +679,8 @@ fn run_maps(
     Ok(())
 }
 
-fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let species = Species::from_file(species_path)?;
+fn run_info(species_path: &Path, state: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    let species = Species::from_file_with_state(species_path, state)?;
 
     println!(
         "Species: {} ({})",
@@ -693,6 +713,13 @@ fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("  Radius: {:.3}m", species.trunk.radius);
     println!("  Taper: {:.0}%", species.trunk.taper * 100.0);
     println!("  Segments: {}", species.trunk.segments);
+    if species.trunk.char_height > 0.0 {
+        println!(
+            "  Charred base: {:.2}m ({:.0}%)",
+            species.trunk.char_height,
+            species.trunk.char_strength * 100.0
+        );
+    }
     println!();
 
     println!("Branches:");
@@ -729,6 +756,46 @@ fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("  Geometry: {:?}", species.leaves.geometry);
     println!();
 
+    if let Some(rosette) = &species.rosette {
+        println!("Rosette:");
+        println!("  {}", midori_core::rosette::describe(rosette));
+        println!("  Blade card: {:?}", rosette.blade_card);
+        println!(
+            "  Droop: {:.2}, stiffness: {:.2}, keel: {:.2}",
+            rosette.droop, rosette.stiffness, rosette.keel
+        );
+        if let Some(spike) = &rosette.spike {
+            println!(
+                "  Spike: {:?} x{} (chance {:.0}%), scape {:.2}m + {:.2}m",
+                spike.style,
+                spike.count,
+                spike.chance * 100.0,
+                spike.scape_length,
+                spike.length
+            );
+        }
+        println!();
+    }
+    if let Some(inf) = &species.inflorescence {
+        println!("Inflorescence:");
+        println!("  Kind: {:?}", inf.kind);
+        println!("  Count: {}", inf.count);
+        println!("  Size: {:.3}m x {:.3}m", inf.length, inf.width);
+        println!(
+            "  Placement: {:?}, orientation: {:?}",
+            inf.placement, inf.orientation
+        );
+        println!("  Aged: {:.0}%", inf.aged_fraction * 100.0);
+        println!();
+    }
+    if !species.states.is_empty() {
+        println!("States: {}", species.state_names().join(", "));
+        if let Some(state) = state {
+            println!("  Applied: {state}");
+        }
+        println!();
+    }
+
     println!("Textures:");
     let t = &species.textures;
     println!("  Resolution: {}px", t.resolution);
@@ -741,6 +808,15 @@ fn run_info(species_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("  Bark style: {:?}", t.bark_style);
     println!("  Leaf shape: {:?}", t.leaf_shape);
     println!("  Leaf card: {:?}", t.leaf_card);
+    if species.uses_foliage_atlas() {
+        println!("  Foliage atlas: 2x2 (leaf card + organ cells)");
+    }
+    if !t.bark_patch_colors.is_empty() {
+        println!("  Bark patch colours: {}", t.bark_patch_colors.len());
+    }
+    if t.bark_kino > 0.0 {
+        println!("  Bark kino: {:.2}", t.bark_kino);
+    }
     for (label, slot) in [
         ("bark_albedo", &t.bark_albedo),
         ("bark_normal", &t.bark_normal),
@@ -956,6 +1032,32 @@ mod tests {
                 assert!(!no_scatter_binary);
             }
             _ => panic!("expected nature command"),
+        }
+    }
+
+    #[test]
+    fn parses_state_option_on_generate_maps_and_info() {
+        let cli = Cli::parse_from([
+            "midori",
+            "generate",
+            "-s",
+            "presets/species/perth_jacaranda.toml",
+            "--state",
+            "flowering",
+        ]);
+        match cli.command {
+            Commands::Generate { state, .. } => assert_eq!(state.as_deref(), Some("flowering")),
+            _ => panic!("expected generate command"),
+        }
+        let cli = Cli::parse_from(["midori", "info", "-s", "x.toml", "--state", "bare"]);
+        match cli.command {
+            Commands::Info { state, .. } => assert_eq!(state.as_deref(), Some("bare")),
+            _ => panic!("expected info command"),
+        }
+        let cli = Cli::parse_from(["midori", "maps", "-s", "x.toml"]);
+        match cli.command {
+            Commands::Maps { state, .. } => assert!(state.is_none()),
+            _ => panic!("expected maps command"),
         }
     }
 

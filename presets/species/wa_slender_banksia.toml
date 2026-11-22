@@ -1,0 +1,164 @@
+# Slender / candlestick banksia (Banksia attenuata)
+# The commonest banksia of Perth's sandplain: a bent or wavy trunk in crumbly orange-grey bark, long narrow
+# toothed leaves, and tall bright yellow 'candles' standing above the foliage in spring and summer.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Slender Banksia"
+scientific = "Banksia attenuata"
+latin = "Banksia attenuata"
+biome = "mediterranean"
+tags = ["wa_native", "banksia", "evergreen", "banksia_woodland", "swan_coastal_plain", "lignotuber"]
+
+[generator]
+family = "weber_penn"
+notes = "Spikes at about life size (to 25 cm); aged spikes are brown-grey cones."
+
+[trunk]
+height = 5.2
+height_variance = 0.18
+radius = 0.27
+taper = 0.72
+taper_profile = "exponential"
+curve = 34.0
+curve_variance = 16.0
+curve_back = 32.0
+segments = 18
+
+[branches.level1]
+count = 7
+count_variance = 2
+length = 2.9
+length_variance = 0.22
+radius_ratio = 0.6
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 56.0
+angle_variance = 18.0
+rotation = 137.5
+gravity = 0.02
+curve = 30.0
+curve_variance = 28.0
+segments = 12
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 1.5
+length_variance = 0.22
+radius_ratio = 0.56
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.04
+curve = -22.0
+curve_variance = 24.0
+segments = 9
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 0.7
+length_variance = 0.22
+radius_ratio = 0.5
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 44.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.1
+curve = 14.0
+curve_variance = 18.0
+segments = 6
+
+[crown]
+shape = "spherical"
+offset = 0.28
+density = 1.0
+width_ratio = 1.1
+
+[leaves]
+count = 1900
+min_level = 2
+size = 0.46
+size_variance = 0.22
+distribution = "endpoint"
+geometry = "cross_billboard"
+shape = "banksia"
+up_influence = 0.22
+
+[inflorescence]
+kind = "spike"
+count = 110
+min_level = 3
+placement = "endpoint"
+orientation = "up"
+length = 0.28
+width = 0.08
+size_variance = 0.2
+offset = 0.2
+color = [0.95, 0.83, 0.2]
+color_tip = [0.72, 0.76, 0.26]
+aged_fraction = 0.4
+aged_color = [0.42, 0.37, 0.31]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Slender banksia bark, orange-grey, crumbly"
+leaf_prompt = "Banksia attenuata leaves, long, narrow, evenly toothed"
+resolution = 1024
+bark_style = "tessellated"
+leaf_shape = "banksia"
+leaf_card = "cluster"
+bark_color = [0.5, 0.42, 0.35]
+leaf_color = [0.24, 0.37, 0.18]
+
+[materials]
+bark = "slender_banksia_bark"
+foliage = "slender_banksia_foliage"
+notes = "2x2 foliage atlas: leaf spray, flowering spike, old cone."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.0
+max = 12.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "spikes"
+label = "Flower Spikes"
+parameter = "inflorescence.count"
+min = 0.0
+max = 120.0
+step = 1.0
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"

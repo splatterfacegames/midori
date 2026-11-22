@@ -1,0 +1,183 @@
+# Cape lilac / white cedar (Melia azedarach)
+# Deciduous shade tree of old backyards, schools and farm gates: a rounded spreading crown of large
+# twice-divided leaves, lilac flowers in spring, and clusters of yellow berries left hanging on bare winter branches.
+# PLANTED EXOTIC in Perth (Asia and northern Australia), not part of the local flora.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Cape Lilac"
+scientific = "Melia azedarach"
+latin = "Melia azedarach"
+biome = "subtropical"
+tags = ["perth_planted", "non_native", "shade_tree", "deciduous", "berries"]
+
+[generator]
+family = "weber_penn"
+notes = "Default is the summer tree in leaf. States: winter (bare, yellow berries), spring (lilac flower panicles)."
+
+[trunk]
+height = 4.6
+height_variance = 0.14
+radius = 0.32
+taper = 0.72
+taper_profile = "exponential"
+curve = 20.0
+curve_variance = 10.0
+curve_back = 18.0
+segments = 18
+
+[branches.level1]
+count = 8
+count_variance = 2
+length = 5.2
+length_variance = 0.22
+radius_ratio = 0.6
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 58.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = 0.02
+curve = 22.0
+curve_variance = 20.0
+segments = 13
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 2.6
+length_variance = 0.22
+radius_ratio = 0.54
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 50.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.05
+curve = -16.0
+curve_variance = 18.0
+segments = 9
+
+[branches.level3]
+count = 4
+count_variance = 1
+length = 1.2
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "compound"
+angle = 44.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.04
+curve = 12.0
+curve_variance = 18.0
+segments = 6
+
+[crown]
+shape = "spherical"
+offset = 0.36
+density = 1.0
+width_ratio = 1.25
+
+[leaves]
+count = 2400
+min_level = 2
+size = 1.05
+size_variance = 0.22
+distribution = "both"
+geometry = "cross_billboard"
+shape = "bipinnate"
+up_influence = -0.15
+
+[inflorescence]
+kind = "berries"
+count = 0
+min_level = 2
+placement = "endpoint"
+orientation = "hang"
+length = 0.42
+width = 0.42
+size_variance = 0.25
+color = [0.88, 0.76, 0.3]
+color_tip = [0.96, 0.9, 0.56]
+aged_fraction = 0.25
+aged_color = [0.62, 0.5, 0.24]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Cape lilac bark, dark brown, furrowed in long stripes"
+leaf_prompt = "Melia azedarach leaf, bipinnate to 50 cm, toothed dark green leaflets"
+resolution = 1024
+bark_style = "furrowed"
+leaf_shape = "bipinnate"
+leaf_card = "cluster"
+seed = 1911
+bark_color = [0.33, 0.27, 0.22]
+leaf_color = [0.24, 0.43, 0.16]
+
+[materials]
+bark = "cape_lilac_bark"
+foliage = "cape_lilac_foliage"
+notes = "2x2 foliage atlas: bipinnate leaf spray, berries (or flowers in the spring state)."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.0
+max = 14.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: June-August: leafless, yellow berries hanging
+[states.winter]
+species.name = "Cape Lilac (winter)"
+leaves.count = 0
+inflorescence.count = 650
+
+# State: September-October: lilac flower panicles among the new leaves
+[states.spring]
+species.name = "Cape Lilac (spring)"
+leaves.count = 1800
+inflorescence.kind = "cluster"
+inflorescence.orientation = "branch"
+inflorescence.count = 900
+inflorescence.length = 0.5
+inflorescence.color = [0.8, 0.72, 0.92]
+inflorescence.color_tip = [0.5, 0.32, 0.62]
+inflorescence.aged_fraction = 0.0

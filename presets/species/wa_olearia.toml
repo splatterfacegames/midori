@@ -1,0 +1,133 @@
+# Coastal daisybush (Olearia axillaris)
+# Silver-grey aromatic shrub of the dunes: erect, densely twiggy, clothed in small narrow woolly leaves
+# that give the dune scrub its pale colour.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Coastal Daisybush"
+scientific = "Olearia axillaris"
+latin = "Olearia axillaris"
+biome = "mediterranean"
+tags = ["wa_native", "shrub", "coastal_dune", "quindalup", "grey_foliage"]
+
+[generator]
+family = "weber_penn"
+notes = "About 1.6 m."
+
+[trunk]
+height = 0.4
+height_variance = 0.18
+radius = 0.05
+taper = 0.7
+taper_profile = "exponential"
+curve = 30.0
+curve_variance = 16.0
+curve_back = 26.0
+segments = 12
+buttress = 0.0
+
+[branches.level1]
+count = 10
+count_variance = 2
+length = 1.15
+length_variance = 0.22
+radius_ratio = 0.62
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 38.0
+angle_variance = 18.0
+rotation = 137.5
+gravity = 0.06
+curve = 16.0
+curve_variance = 24.0
+segments = 9
+
+[branches.level2]
+count = 6
+count_variance = 1
+length = 0.55
+length_variance = 0.22
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 40.0
+angle_variance = 18.0
+rotation = 137.5
+gravity = 0.08
+curve = -18.0
+curve_variance = 20.0
+segments = 6
+
+[crown]
+shape = "flame"
+offset = 0.1
+density = 1.0
+width_ratio = 1.0
+
+[leaves]
+count = 1100
+min_level = 1
+size = 0.24
+size_variance = 0.22
+distribution = "along_branch"
+geometry = "cross_billboard"
+shape = "needle"
+up_influence = 0.35
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Dune shrub stems, pale grey"
+leaf_prompt = "Olearia axillaris leaves, tiny, narrow, silver-grey woolly"
+resolution = 1024
+bark_style = "smooth"
+leaf_shape = "needle"
+leaf_card = "cluster"
+bark_color = [0.46, 0.42, 0.36]
+leaf_color = [0.56, 0.62, 0.56]
+
+[materials]
+bark = "olearia_bark"
+foliage = "olearia_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 0.2
+max = 4.0
+step = 0.05
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.5
+step = 0.05
+
+[lod]
+preset = "balanced"
+
+[platform]
+target = "modern_pc"

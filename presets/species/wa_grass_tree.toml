@@ -1,0 +1,129 @@
+# Grass tree / balga (Xanthorrhoea preissii)
+# Fire-blackened trunk, a skirt of dead leaves, a sphere of long needle leaves and, after fire,
+# a flower spike that can double the plant's height.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "Grass Tree"
+scientific = "Xanthorrhoea preissii"
+latin = "Xanthorrhoea preissii"
+biome = "mediterranean"
+tags = ["wa_native", "rosette", "understorey", "banksia_woodland", "jarrah_forest", "fire_adapted"]
+
+[generator]
+family = "rosette"
+notes = "Rosette generator: blackened caudex, dead-leaf skirt, tuft-card blades, cylindrical spike."
+
+[trunk]
+height = 1.5
+height_variance = 0.35
+radius = 0.17
+taper = 0.1
+curve = 10.0
+curve_variance = 9.0
+segments = 8
+buttress = 0.0
+
+[rosette]
+crowns = 1
+blades = 460
+blade_length = 1.05
+blade_length_variance = 0.14
+blade_width = 0.055
+blade_card = "tuft"
+spread_min = 4.0
+spread_max = 152.0
+droop = 0.2
+stiffness = 0.8
+keel = 0.0
+color_base = [0.24, 0.33, 0.17]
+color_tip = [0.46, 0.53, 0.3]
+skirt = 0.55
+skirt_blades = 240
+skirt_color = [0.44, 0.35, 0.23]
+
+[rosette.spike]
+chance = 0.55
+count = 1
+style = "cylinder"
+scape_length = 0.8
+scape_radius = 0.016
+length = 1.8
+radius = 0.032
+lean = 7.0
+color = [0.33, 0.24, 0.15]
+tip_color = [0.82, 0.78, 0.6]
+scape_color = [0.34, 0.29, 0.18]
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.55
+up_bias = 0.3
+clump_weight = 0.3
+clump_level = 1
+crown_fill = 0
+shell = 0.0
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.1
+hue_variation = 0.08
+ao_strength = 0.46
+roughness = 0.78
+
+[textures]
+bark_prompt = "Grass tree caudex, charcoal-black packed leaf bases, fire blackened"
+leaf_prompt = "Xanthorrhoea needle leaves, grey-green, fine and stiff"
+resolution = 1024
+bark_style = "plated"
+bark_color = [0.085, 0.08, 0.075]
+leaf_color = [0.36, 0.45, 0.24]
+
+[materials]
+bark = "grass_tree_bark"
+foliage = "grass_tree_foliage"
+notes = "2x2 foliage atlas: live blade tuft, spike wrap, dead skirt tuft."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "trunk_height"
+label = "Trunk Height"
+parameter = "trunk.height"
+min = 0.2
+max = 4.0
+step = 0.05
+
+[[control_groups.controls]]
+key = "blade_length"
+label = "Leaf Length"
+parameter = "rosette.blade_length"
+min = 0.5
+max = 1.5
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
+
+# State: old plant: taller trunk forked into two or three crowns
+[states.forked]
+species.name = "Grass Tree (forked)"
+trunk.height = 2.8
+rosette.crowns = 3
+rosette.fork_height = 0.55
+rosette.fork_angle = 34.0
+rosette.blades = 320
+rosette.skirt_blades = 150
+
+# State: the season after fire: skirt burnt away, fresh green crown, spike certain
+[states.burnt]
+species.name = "Grass Tree (burnt)"
+rosette.skirt_blades = 0
+rosette.blade_length = 0.75
+rosette.color_base = [0.26, 0.42, 0.16]
+rosette.color_tip = [0.44, 0.6, 0.26]
+rosette.spike.chance = 1.0

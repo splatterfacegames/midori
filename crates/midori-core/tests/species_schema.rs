@@ -58,6 +58,64 @@ fn every_serialized_field_is_in_the_schema() {
 }
 
 #[test]
+fn rosette_inflorescence_and_state_fields_are_in_the_schema() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/species");
+    for (preset, state) in [
+        ("wa_grass_tree.toml", Some("forked")),
+        ("wa_kangaroo_paw.toml", None),
+        ("wa_marri.toml", None),
+        ("wa_karri.toml", None),
+        ("perth_jacaranda.toml", Some("flowering")),
+        ("wa_firewood_banksia.toml", None),
+    ] {
+        let species = Species::from_file_with_state(&dir.join(preset), state).unwrap();
+        let value = serde_json::to_value(&species).unwrap();
+        assert_fields_covered(&schema(), &value, "species");
+    }
+}
+
+/// Every bundled preset, in every state it declares, must validate, fit the
+/// default generation budget, and generate a tree with valid bounds.
+#[test]
+fn every_state_of_every_preset_generates_within_the_default_budget() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/species");
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|e| e.map(|e| e.path()).ok())
+        .filter(|p| p.extension().is_some_and(|e| e == "toml"))
+        .collect();
+    files.sort();
+    let budget = midori_core::GenerationBudget::default();
+    let mut states_seen = 0;
+    for path in files {
+        let base = Species::from_file(&path).unwrap();
+        let mut variants: Vec<Option<String>> = vec![None];
+        variants.extend(base.state_names().into_iter().map(|s| Some(s.to_string())));
+        states_seen += variants.len() - 1;
+        for state in variants {
+            let label = format!(
+                "{} [{}]",
+                path.display(),
+                state.as_deref().unwrap_or("default")
+            );
+            let species = Species::from_file_with_state(&path, state.as_deref())
+                .unwrap_or_else(|e| panic!("{label} failed to load: {e}"));
+            budget
+                .check_estimate(&midori_core::estimate_tree(&species))
+                .unwrap_or_else(|e| panic!("{label}: {e}"));
+            let tree = midori_core::generate_tree(&species, 42)
+                .unwrap_or_else(|e| panic!("{label} failed to generate: {e}"));
+            assert!(tree.bounds.is_valid(), "{label}: invalid bounds");
+            assert!(tree.stem_count() >= 1, "{label}: no stems");
+        }
+    }
+    assert!(
+        states_seen >= 10,
+        "expected the bundled presets to declare states"
+    );
+}
+
+#[test]
 fn all_presets_parse_and_serialize() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/species");
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir)

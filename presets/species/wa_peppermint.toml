@@ -1,0 +1,149 @@
+# WA peppermint (Agonis flexuosa)
+# Weeping small tree of coastal and near-coastal sands: fibrous brown bark on a short, often twisted
+# trunk, and a dense dome of pendulous branchlets with narrow willow-like leaves.
+# Botanical notes and sources: docs/wa-flora.md
+
+[species]
+name = "WA Peppermint"
+scientific = "Agonis flexuosa"
+latin = "Agonis flexuosa"
+biome = "mediterranean"
+tags = ["wa_native", "myrtle_family", "coastal", "swan_coastal_plain", "evergreen", "weeping", "street_tree"]
+
+[generator]
+family = "weber_penn"
+notes = "Typical 9 m tree, 8 m across. Also Perth's commonest native street tree."
+
+[trunk]
+height = 9.0
+height_variance = 0.14
+radius = 0.4
+taper = 0.74
+taper_profile = "exponential"
+curve = 26.0
+curve_variance = 12.0
+curve_back = 24.0
+segments = 18
+
+[branches.level1]
+count = 9
+count_variance = 2
+length = 3.9
+length_variance = 0.22
+radius_ratio = 0.58
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "exponential"
+angle = 48.0
+angle_variance = 14.0
+rotation = 137.5
+gravity = -0.06
+curve = 38.0
+curve_variance = 22.0
+segments = 15
+
+[branches.level2]
+count = 5
+count_variance = 1
+length = 2.7
+length_variance = 0.22
+radius_ratio = 0.46
+radius_model = "ratio"
+taper = 0.78
+taper_profile = "smooth"
+angle = 44.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.5
+curve = 42.0
+curve_variance = 18.0
+segments = 12
+
+[branches.level3]
+count = 6
+count_variance = 2
+length = 2.5
+length_variance = 0.22
+radius_ratio = 0.26
+radius_model = "ratio"
+taper = 0.84
+taper_profile = "compound"
+angle = 26.0
+angle_variance = 16.0
+rotation = 137.5
+gravity = -0.92
+curve = 22.0
+curve_variance = 18.0
+segments = 12
+
+[crown]
+shape = "hemispherical"
+offset = 0.3
+density = 1.0
+width_ratio = 1.15
+
+[leaves]
+count = 3200
+min_level = 2
+size = 0.55
+size_variance = 0.22
+distribution = "along_branch"
+geometry = "cross_billboard"
+shape = "willow"
+up_influence = -0.6
+
+[canopy]
+normals = "canopy"
+normal_blend = 0.84
+up_bias = 0.28
+clump_weight = 0.7
+clump_level = 1
+crown_fill = 0
+shell = 0.2
+single_sided = true
+vertex_color = "tint_ao"
+tint_variation = 0.18
+hue_variation = 0.12
+ao_strength = 0.5
+roughness = 0.72
+
+[textures]
+bark_prompt = "Agonis flexuosa bark, brown, fibrous, deeply furrowed"
+leaf_prompt = "WA peppermint leaves, narrow lanceolate 8-13 cm, dull green, hanging"
+resolution = 1024
+bark_style = "stringy"
+leaf_shape = "willow"
+leaf_card = "cluster"
+bark_color = [0.4, 0.32, 0.25]
+leaf_color = [0.29, 0.43, 0.2]
+
+[materials]
+bark = "peppermint_bark"
+foliage = "peppermint_foliage"
+notes = "1024px procedural bark and leaf card."
+
+[[control_groups]]
+key = "shape"
+label = "Shape"
+
+[[control_groups.controls]]
+key = "height"
+label = "Height"
+parameter = "trunk.height"
+min = 2.0
+max = 14.0
+step = 0.1
+
+[[control_groups.controls]]
+key = "crown_width"
+label = "Crown Width"
+parameter = "crown.width_ratio"
+min = 0.5
+max = 2.0
+step = 0.05
+
+[lod]
+preset = "high_quality"
+
+[platform]
+target = "modern_pc"
