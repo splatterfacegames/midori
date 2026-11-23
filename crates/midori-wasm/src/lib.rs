@@ -12,12 +12,16 @@
 //! - glTF 2.0 export as single-file GLB or `.gltf` + `.bin` parts
 
 use midori_core::{
-    ExportConfig, ExportMetadata, GenerationBudget, GenerationError, GeneratorFamily,
-    GroundcoverKind, Mesh, NatureExportManifest, NaturePatch, RgbaTexture, ScatterSet, Species,
-    SpeciesError, SpeciesFieldError, TextureSet, estimate_tree, export_lod_meshes_to_bytes,
-    export_lod_meshes_to_parts, generate_tree as core_generate_tree,
-    lod::{LodGenerationConfig, generate_lod_meshes_with_config},
+    ExportConfig, ExportMetadata, FoliageRenderMode, GenerationBudget, GenerationError,
+    GeneratorFamily, GroundcoverKind, Mesh, NatureExportManifest, NaturePatch, NatureStand,
+    RgbaTexture, ScatterSet, Species, SpeciesError, SpeciesFieldError, StandTileStats, TextureSet,
+    estimate_tree, export_lod_meshes_to_bytes, export_lod_meshes_to_parts,
+    generate_stand_preview_in_memory, generate_tree as core_generate_tree,
+    lod::{
+        LodGenerationConfig, generate_lod_meshes_with_config, generate_lod_meshes_with_foliage_mode,
+    },
 };
+use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
 
 /// Structured error thrown to JS callers.
@@ -143,6 +147,52 @@ impl MidoriGenerator {
         let result = MeshOutput::from_lods(&lods);
         serde_wasm_bindgen::to_value(&result)
             .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
+    }
+
+    /// Generate a tree in closed opaque low-poly foliage mode (zero alpha cutout).
+    #[wasm_bindgen(js_name = generateOpaque)]
+    pub fn generate_opaque(&self, seed: u64) -> Result<JsValue, JsValue> {
+        let tree = self.generate_tree(seed)?;
+        let lod_config = LodGenerationConfig::from_species(&self.species);
+        let lods = generate_lod_meshes_with_foliage_mode(
+            &tree,
+            &self.species,
+            &lod_config,
+            FoliageRenderMode::Opaque,
+        );
+        let result = MeshOutput::from_lods(&lods);
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
+    }
+
+    /// Export tree as GLB binary data in opaque foliage mode (zero alpha materials).
+    #[wasm_bindgen(js_name = exportGlbOpaque)]
+    pub fn export_glb_opaque(
+        &self,
+        seed: u64,
+        embed_textures: bool,
+    ) -> Result<js_sys::Uint8Array, JsValue> {
+        let tree = self.generate_tree(seed)?;
+        let lod_config = LodGenerationConfig::from_species(&self.species);
+        let lods = generate_lod_meshes_with_foliage_mode(
+            &tree,
+            &self.species,
+            &lod_config,
+            FoliageRenderMode::Opaque,
+        );
+        let mut config = self.export_config(embed_textures);
+        config.opaque_foliage = true;
+        config.metadata = Some(ExportMetadata {
+            species_name: self.species.species.name.clone(),
+            scientific_name: self.species.latin_name().to_string(),
+            seed: Some(seed),
+            lod_screen_heights: lods.meshes.iter().map(|m| m.screen_height).collect(),
+        });
+        let glb_bytes = export_lod_meshes_to_bytes(&lods, &config)
+            .map_err(|e| js_error("export", format_args!("Export error: {e}")))?;
+        let array = js_sys::Uint8Array::new_with_length(glb_bytes.len() as u32);
+        array.copy_from(&glb_bytes);
+        Ok(array)
     }
 
     /// Generate only a specific LOD level.
@@ -470,6 +520,86 @@ pub fn generate_nature_preview_from_toml(
 ) -> Result<JsValue, JsValue> {
     let generator = MidoriNatureGenerator::new(toml)?;
     generator.preview(preview_resolution, scatter_chunk_size)
+}
+
+/// Generate an in-memory volumetric nature stand preview (ground + Stand LOD 0/1/2 + stats).
+///
+/// `species_tomls_json` is a JSON object mapping species preset paths
+/// (e.g. `"presets/species/wa_slender_banksia.toml"`) to their raw TOML strings.
+#[wasm_bindgen]
+pub fn generate_stand_preview_from_toml(
+    stand_toml: &str,
+    species_tomls_json: &str,
+    tile_size_m: f32,
+    include_track: bool,
+    ground_r: f32,
+    ground_g: f32,
+    ground_b: f32,
+) -> Result<JsValue, JsValue> {
+    let stand = NatureStand::from_toml(stand_toml)
+        .map_err(|e| js_error("input", format_args!("Stand parse error: {e}")))?;
+    let parsed_js = js_sys::JSON::parse(species_tomls_json)
+        .map_err(|e| js_error("input", format_args!("Species map JSON parse error: {e:?}")))?;
+    let raw_map: BTreeMap<String, String> = serde_wasm_bindgen::from_value(parsed_js)
+        .map_err(|e| js_error("input", format_args!("Species map JSON error: {e}")))?;
+
+    let mut species_map = BTreeMap::new();
+    for stratum in &stand.strata {
+        for sp_entry in &stratum.species {
+            if species_map.contains_key(&sp_entry.preset) {
+                continue;
+            }
+            let Some(raw_toml) = raw_map.get(&sp_entry.preset) else {
+                return Err(js_error(
+                    "input",
+                    format_args!("Missing bundled species preset {:?}", sp_entry.preset),
+                ));
+            };
+            let parsed = Species::from_toml_with_state(raw_toml, sp_entry.state.as_deref())
+                .map_err(|e| {
+                    js_error(
+                        "input",
+                        format_args!("Species {:?} parse error: {e}", sp_entry.preset),
+                    )
+                })?;
+            species_map.insert(sp_entry.preset.clone(), parsed);
+        }
+    }
+
+    let preview = generate_stand_preview_in_memory(
+        &stand,
+        &species_map,
+        tile_size_m.clamp(16.0, 128.0),
+        include_track,
+        [ground_r, ground_g, ground_b],
+    )
+    .map_err(|e| js_error("generation", format_args!("Stand generation error: {e}")))?;
+
+    let out = StandPreviewOutput {
+        name: preview.name,
+        biome: preview.biome,
+        tile_size_m: preview.tile_size_m,
+        ground: MeshPreviewOutput::from_mesh(&preview.ground_mesh, "stand_ground"),
+        lod0: MeshPreviewOutput::from_mesh(&preview.lod0_mesh, "stand_lod0"),
+        lod1: MeshPreviewOutput::from_mesh(&preview.lod1_mesh, "stand_lod1"),
+        lod2: MeshPreviewOutput::from_mesh(&preview.lod2_mesh, "stand_lod2"),
+        stats: preview.stats,
+    };
+    serde_wasm_bindgen::to_value(&out)
+        .map_err(|e| js_error("internal", format_args!("Serialization error: {e}")))
+}
+
+/// Browser preview output for a volumetric NatureStand.
+#[derive(serde::Serialize)]
+struct StandPreviewOutput {
+    name: String,
+    biome: String,
+    tile_size_m: f32,
+    ground: MeshPreviewOutput,
+    lod0: MeshPreviewOutput,
+    lod1: MeshPreviewOutput,
+    lod2: MeshPreviewOutput,
+    stats: StandTileStats,
 }
 
 // Serializable output structures

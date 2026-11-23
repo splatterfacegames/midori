@@ -28,11 +28,14 @@
 
 use clap::{Parser, Subcommand, ValueEnum};
 use midori_core::{
-    ExportConfig, ExportFormat, ExportMetadata, GenerationBudget, GenerationError,
-    LodGenerationConfig, NaturePackageConfig, NaturePatch, NaturePatchError, Species, SpeciesError,
-    TextureSet, estimate_tree, export_lod_meshes, export_mesh, generate_lod_meshes_with_config,
-    generate_tree_with_budget, validate_nature_package,
+    ExportConfig, ExportFormat, ExportMetadata, FoliageRenderMode, GenerationBudget,
+    GenerationError, LodGenerationConfig, NaturePackageConfig, NaturePatch, NaturePatchError,
+    NatureStand, Species, SpeciesError, StandBudget, StandError, StandExportOptions, StandRaster,
+    StandTileInputs, TextureSet, estimate_tree, export_lod_meshes, export_mesh,
+    generate_lod_meshes_with_foliage_mode, generate_stand_tiles, generate_tree_with_budget,
+    validate_nature_package, validate_stand_package,
 };
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -89,6 +92,11 @@ enum Commands {
         /// LOD preset to use
         #[arg(long, default_value = "balanced")]
         lod_preset: LodPreset,
+
+        /// Foliage rendering mode: alpha-cutout leaf cards (`cutout`) or closed
+        /// opaque low-poly leaf-cluster geometry (`opaque`, zero alpha)
+        #[arg(long, default_value = "cutout")]
+        foliage: FoliageModeArg,
 
         /// Embed material maps (procedural or file-slot overrides) into the export
         #[arg(long)]
@@ -205,6 +213,100 @@ enum Commands {
         verbose: bool,
     },
 
+    /// Generate a volumetric nature stand (plant library + seamless tile packages)
+    Stand {
+        /// NatureStand TOML preset (`[asset] kind = "nature_stand"`)
+        #[arg(short, long)]
+        preset: PathBuf,
+
+        /// Output stand package directory
+        #[arg(short, long, default_value = "stand_midori")]
+        output: PathBuf,
+
+        /// Square tile side length in metres
+        #[arg(long, default_value_t = 128.0)]
+        tile_size: f32,
+
+        /// Single world tile coordinate `x,z` (may be negative, e.g. `12,-7`)
+        #[arg(long, allow_hyphen_values = true, default_value = "0,0")]
+        tile: String,
+
+        /// Inclusive tile coordinate box `x0,z0,x1,z1` (overrides `--tile`)
+        #[arg(long, allow_hyphen_values = true)]
+        region: Option<String>,
+
+        /// Optional tile-space greyscale PNG mask (0 = no stand, 255 = full stand)
+        #[arg(long)]
+        mask: Option<PathBuf>,
+
+        /// Optional tile-space hard-exclusion PNG (roads, paths, water, buildings)
+        #[arg(long)]
+        exclude: Option<PathBuf>,
+
+        /// Optional tile-space greyscale heightmap PNG
+        #[arg(long)]
+        height: Option<PathBuf>,
+
+        /// World elevation (metres) corresponding to heightmap pixel value 0
+        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+        height_min: f32,
+
+        /// World elevation (metres) corresponding to heightmap pixel value 1
+        #[arg(long, allow_hyphen_values = true, default_value_t = 32.0)]
+        height_max: f32,
+
+        /// Per-stratum density multipliers, e.g. `canopy=1.2,understory=0.8`
+        #[arg(long)]
+        density: Option<String>,
+
+        /// Maximum individual plant instances per tile (remainder merged into Stand LOD 0)
+        #[arg(long, default_value_t = 300)]
+        max_instances_per_tile: usize,
+
+        /// Maximum total triangles across Stand LOD 0 stratum meshes per tile
+        #[arg(long, default_value_t = 40_000)]
+        max_triangles_lod0: u32,
+
+        /// Maximum triangles for Stand LOD 1 canopy mesh per tile
+        #[arg(long, default_value_t = 4_000)]
+        max_triangles_lod1: u32,
+
+        /// Maximum triangles for Stand LOD 2 far canopy mesh per tile
+        #[arg(long, default_value_t = 200)]
+        max_triangles_lod2: u32,
+
+        /// Foliage rendering mode (`cutout` or `opaque`)
+        #[arg(long, default_value = "cutout")]
+        foliage: FoliageModeArg,
+
+        /// Tile raster resolution in pixels (for canopy_height/cover/density/color PNGs)
+        #[arg(long, default_value_t = 64)]
+        raster_resolution: u32,
+
+        /// Skip writing `library/*.glb` files (useful when reusing an existing library)
+        #[arg(long)]
+        skip_library: bool,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
+    /// Validate an exported volumetric nature stand package
+    ValidateStand {
+        /// Stand package directory containing midori_stand.json
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Optional JSON validation report path
+        #[arg(long)]
+        report: Option<PathBuf>,
+
+        /// Verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
     /// Verify profile-note completeness only; not full engine evidence
     VerifyProfileNotes {
         #[arg(
@@ -264,6 +366,23 @@ enum LodPreset {
     Species,
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum FoliageModeArg {
+    /// Alpha-cutout leaf cards (default)
+    Cutout,
+    /// Closed low-poly opaque leaf-cluster volumes (zero alpha)
+    Opaque,
+}
+
+impl From<FoliageModeArg> for FoliageRenderMode {
+    fn from(value: FoliageModeArg) -> Self {
+        match value {
+            FoliageModeArg::Cutout => FoliageRenderMode::Cutout,
+            FoliageModeArg::Opaque => FoliageRenderMode::Opaque,
+        }
+    }
+}
+
 fn exit_code(err: &(dyn std::error::Error + 'static)) -> i32 {
     // 3: input — invalid user documents and resource-limit rejections.
     // 4: IO.  1: anything else. (2 is clap's usage-error exit before main runs.)
@@ -276,6 +395,12 @@ fn exit_code(err: &(dyn std::error::Error + 'static)) -> i32 {
     if let Some(e) = err.downcast_ref::<NaturePatchError>() {
         return match e {
             NaturePatchError::Io(_) => 4,
+            _ => 3,
+        };
+    }
+    if let Some(e) = err.downcast_ref::<StandError>() {
+        return match e {
+            StandError::Io(_) => 4,
             _ => 3,
         };
     }
@@ -307,6 +432,7 @@ fn main() {
             lod,
             format,
             lod_preset,
+            foliage,
             textures,
             max_stems,
             max_leaves,
@@ -322,6 +448,7 @@ fn main() {
             lod,
             format,
             lod_preset,
+            foliage: foliage.into(),
             textures,
             budget: budget_arg(max_stems, max_leaves, max_vertices, max_triangles),
             quiet,
@@ -363,6 +490,57 @@ fn main() {
             report,
             verbose,
         } => run_validate_nature(&input, report.as_ref(), verbose),
+        Commands::Stand {
+            preset,
+            output,
+            tile_size,
+            tile,
+            region,
+            mask,
+            exclude,
+            height,
+            height_min,
+            height_max,
+            density,
+            max_instances_per_tile,
+            max_triangles_lod0,
+            max_triangles_lod1,
+            max_triangles_lod2,
+            foliage,
+            raster_resolution,
+            skip_library,
+            verbose,
+        } => run_stand(&StandCliOptions {
+            preset_path: &preset,
+            output_path: &output,
+            tile_size,
+            tile: &tile,
+            region: region.as_deref(),
+            mask: mask.as_deref(),
+            exclude: exclude.as_deref(),
+            height: height.as_deref(),
+            height_min,
+            height_max,
+            density: density.as_deref(),
+            budget: StandBudget {
+                max_instances_per_tile,
+                max_triangles_lod0,
+                max_triangles_lod1,
+                max_triangles_lod2,
+                max_materials: 4,
+            },
+            foliage: foliage.into(),
+            raster_resolution,
+            skip_library,
+            quiet,
+            json,
+            verbose,
+        }),
+        Commands::ValidateStand {
+            input,
+            report,
+            verbose,
+        } => run_validate_stand(&input, report.as_deref(), quiet, json, verbose),
         Commands::VerifyProfileNotes {
             profile_notes,
             output,
@@ -410,6 +588,7 @@ fn budget_arg(
 fn error_kind(err: &(dyn std::error::Error + 'static)) -> &'static str {
     if err.downcast_ref::<SpeciesError>().is_some()
         || err.downcast_ref::<NaturePatchError>().is_some()
+        || err.downcast_ref::<StandError>().is_some()
     {
         "input"
     } else if err.downcast_ref::<GenerationError>().is_some() {
@@ -430,6 +609,7 @@ struct GenerateOptions<'a> {
     lod: LodOption,
     format: OutputFormat,
     lod_preset: LodPreset,
+    foliage: FoliageRenderMode,
     textures: bool,
     budget: GenerationBudget,
     quiet: bool,
@@ -499,6 +679,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         pivot_painter_extras: true,
         leaf_roughness: species.canopy.roughness,
         organ_roughness: species.inflorescence.as_ref().and_then(|i| i.roughness),
+        opaque_foliage: options.foliage == FoliageRenderMode::Opaque,
         metadata: None,
     };
 
@@ -546,7 +727,8 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
 
         // Generate LOD meshes
         let mesh_start = Instant::now();
-        let lod_meshes = generate_lod_meshes_with_config(&tree, &species, &lod_config);
+        let lod_meshes =
+            generate_lod_meshes_with_foliage_mode(&tree, &species, &lod_config, options.foliage);
         let lod_stats = lod_meshes.total_stats();
         options
             .budget
@@ -976,6 +1158,256 @@ fn run_validate_nature(
     Ok(())
 }
 
+struct StandCliOptions<'a> {
+    preset_path: &'a Path,
+    output_path: &'a Path,
+    tile_size: f32,
+    tile: &'a str,
+    region: Option<&'a str>,
+    mask: Option<&'a Path>,
+    exclude: Option<&'a Path>,
+    height: Option<&'a Path>,
+    height_min: f32,
+    height_max: f32,
+    density: Option<&'a str>,
+    budget: StandBudget,
+    foliage: FoliageRenderMode,
+    raster_resolution: u32,
+    skip_library: bool,
+    quiet: bool,
+    json: bool,
+    verbose: bool,
+}
+
+fn parse_tile_coord(raw: &str) -> Result<[i32; 2], StandError> {
+    let parts: Vec<&str> = raw.split(',').map(str::trim).collect();
+    if parts.len() != 2 {
+        return Err(StandError::Validation(format!(
+            "invalid --tile {:?}: expected `x,z` (e.g. `12,-7`)",
+            raw
+        )));
+    }
+    let x = parts[0]
+        .parse::<i32>()
+        .map_err(|_| StandError::Validation(format!("invalid tile x {:?}", parts[0])))?;
+    let z = parts[1]
+        .parse::<i32>()
+        .map_err(|_| StandError::Validation(format!("invalid tile z {:?}", parts[1])))?;
+    Ok([x, z])
+}
+
+fn parse_tile_region(raw: &str) -> Result<Vec<[i32; 2]>, StandError> {
+    let parts: Vec<&str> = raw.split(',').map(str::trim).collect();
+    if parts.len() != 4 {
+        return Err(StandError::Validation(format!(
+            "invalid --region {:?}: expected `x0,z0,x1,z1`",
+            raw
+        )));
+    }
+    let x0 = parts[0]
+        .parse::<i32>()
+        .map_err(|_| StandError::Validation(format!("invalid region x0 {:?}", parts[0])))?;
+    let z0 = parts[1]
+        .parse::<i32>()
+        .map_err(|_| StandError::Validation(format!("invalid region z0 {:?}", parts[1])))?;
+    let x1 = parts[2]
+        .parse::<i32>()
+        .map_err(|_| StandError::Validation(format!("invalid region x1 {:?}", parts[2])))?;
+    let z1 = parts[3]
+        .parse::<i32>()
+        .map_err(|_| StandError::Validation(format!("invalid region z1 {:?}", parts[3])))?;
+    let (lo_x, hi_x) = if x0 <= x1 { (x0, x1) } else { (x1, x0) };
+    let (lo_z, hi_z) = if z0 <= z1 { (z0, z1) } else { (z1, z0) };
+    let count = (hi_x - lo_x + 1) as i64 * (hi_z - lo_z + 1) as i64;
+    if count > 256 {
+        return Err(StandError::Validation(format!(
+            "--region spans {} tiles (maximum 256 per invocation)",
+            count
+        )));
+    }
+    let mut out = Vec::with_capacity(count as usize);
+    for z in lo_z..=hi_z {
+        for x in lo_x..=hi_x {
+            out.push([x, z]);
+        }
+    }
+    Ok(out)
+}
+
+fn parse_density_overrides(raw: &str) -> Result<BTreeMap<String, f32>, StandError> {
+    let mut map = BTreeMap::new();
+    for item in raw.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        let Some((k, v)) = item.split_once('=') else {
+            return Err(StandError::Validation(format!(
+                "invalid --density entry {:?}: expected `stratum=multiplier`",
+                item
+            )));
+        };
+        let mul = v.trim().parse::<f32>().map_err(|_| {
+            StandError::Validation(format!("invalid density multiplier {:?} for {:?}", v, k))
+        })?;
+        if !mul.is_finite() || mul < 0.0 {
+            return Err(StandError::Validation(format!(
+                "density multiplier for {:?} must be finite and >= 0",
+                k
+            )));
+        }
+        map.insert(k.trim().to_string(), mul);
+    }
+    Ok(map)
+}
+
+fn run_stand(options: &StandCliOptions) -> Result<(), Box<dyn std::error::Error>> {
+    let start = Instant::now();
+    let verbose = options.verbose && !options.quiet && !options.json;
+
+    if verbose {
+        println!(
+            "Loading volumetric stand preset {:?}...",
+            options.preset_path
+        );
+    }
+    let stand = NatureStand::from_file(options.preset_path)?;
+    let base_dir = options
+        .preset_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."));
+
+    let tiles = if let Some(region_str) = options.region {
+        parse_tile_region(region_str)?
+    } else {
+        vec![parse_tile_coord(options.tile)?]
+    };
+
+    let mut inputs = StandTileInputs::default();
+    if let Some(p) = options.mask {
+        inputs.mask = Some(StandRaster::from_png_normalized(p)?);
+    }
+    if let Some(p) = options.exclude {
+        inputs.exclude = Some(StandRaster::from_png_normalized(p)?);
+    }
+    if let Some(p) = options.height {
+        inputs.height = Some(StandRaster::from_png_height(
+            p,
+            options.height_min,
+            options.height_max,
+        )?);
+    }
+    if let Some(d) = options.density {
+        inputs.density_overrides = parse_density_overrides(d)?;
+    }
+
+    let export_opts = StandExportOptions {
+        tile_size_m: options.tile_size,
+        foliage_mode: options.foliage,
+        budget: options.budget,
+        write_library: !options.skip_library,
+        raster_resolution: options.raster_resolution,
+    };
+
+    let (manifest, library, tile_stats) = generate_stand_tiles(
+        &stand,
+        base_dir,
+        options.output_path,
+        &tiles,
+        &inputs,
+        &export_opts,
+    )?;
+
+    let elapsed_ms = start.elapsed().as_millis() as u64;
+    if options.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "command": "stand",
+                "name": manifest.name,
+                "biome": manifest.biome,
+                "output": options.output_path,
+                "tile_size_m": manifest.tile_size_m,
+                "foliage_mode": manifest.foliage_mode,
+                "library_variants": library.variants.len(),
+                "library_build_ms": library.build_ms,
+                "elapsed_ms": elapsed_ms,
+                "tiles": tile_stats,
+            })
+        );
+    } else if !options.quiet {
+        println!(
+            "Generated volumetric stand: {} ({})",
+            manifest.name, manifest.biome
+        );
+        println!("  Output: {:?}", options.output_path);
+        println!(
+            "  Plant library: {} variant(s) built in {} ms",
+            library.variants.len(),
+            library.build_ms
+        );
+        for st in &tile_stats {
+            println!(
+                "  Tile [{}, {}] ({:.0} m): {} stems ({} instanced, {} merged), cover {:.0}% (target {:.0}%), tris LOD0={} LOD1={} LOD2={}, {} ms",
+                st.tile[0],
+                st.tile[1],
+                st.tile_size_m,
+                st.total_stems,
+                st.instanced_count,
+                st.merged_count,
+                st.achieved_total_cover * 100.0,
+                st.requested_total_cover * 100.0,
+                st.triangles_lod0,
+                st.triangles_lod1,
+                st.triangles_lod2,
+                st.generation_ms
+            );
+        }
+        println!("Completed in {:?}", start.elapsed());
+    }
+
+    Ok(())
+}
+
+fn run_validate_stand(
+    package_path: &Path,
+    report_path: Option<&Path>,
+    quiet: bool,
+    json: bool,
+    verbose: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let start = Instant::now();
+    if verbose && !quiet && !json {
+        println!(
+            "Validating volumetric stand package at {:?}...",
+            package_path
+        );
+    }
+
+    let report = validate_stand_package(package_path)?;
+
+    if let Some(path) = report_path {
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)?;
+        }
+        let file = std::fs::File::create(path)?;
+        serde_json::to_writer_pretty(file, &report)?;
+    }
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else if !quiet {
+        println!("Validated volumetric stand package: {:?}", package_path);
+        println!("  Stand: {}", report.name);
+        println!("  Library variants: {}", report.library_variants);
+        println!("  Tiles checked: {}", report.tile_count);
+        println!("  Total instances: {}", report.total_instances);
+        println!("  Max materials seen: {}", report.max_materials_seen);
+        println!("  Opaque foliage verified: {}", report.opaque_verified);
+        println!("Validation completed in {:?}", start.elapsed());
+    }
+
+    Ok(())
+}
+
 fn run_verify_profile_notes(
     path: &std::path::Path,
     output: Option<&std::path::Path>,
@@ -1099,6 +1531,96 @@ mod tests {
                 assert!(verbose);
             }
             _ => panic!("expected validate-nature command"),
+        }
+    }
+
+    #[test]
+    fn parses_stand_and_validate_stand_and_opaque_generate() {
+        let cli = Cli::parse_from([
+            "midori",
+            "stand",
+            "-p",
+            "presets/stands/wa_banksia_woodland.toml",
+            "-o",
+            "out/banksia",
+            "--tile-size",
+            "128",
+            "--tile",
+            "12,-7",
+            "--foliage",
+            "opaque",
+            "--max-instances-per-tile",
+            "300",
+            "--max-triangles-lod0",
+            "40000",
+            "--max-triangles-lod1",
+            "4000",
+            "--max-triangles-lod2",
+            "200",
+            "--density",
+            "canopy=1.1,understory=0.9",
+        ]);
+        match cli.command {
+            Commands::Stand {
+                preset,
+                tile,
+                tile_size,
+                max_instances_per_tile,
+                max_triangles_lod0,
+                max_triangles_lod1,
+                max_triangles_lod2,
+                foliage,
+                density,
+                ..
+            } => {
+                assert_eq!(
+                    preset,
+                    PathBuf::from("presets/stands/wa_banksia_woodland.toml")
+                );
+                assert_eq!(tile, "12,-7");
+                assert_eq!(parse_tile_coord(&tile).unwrap(), [12, -7]);
+                assert_eq!(tile_size, 128.0);
+                assert_eq!(max_instances_per_tile, 300);
+                assert_eq!(max_triangles_lod0, 40_000);
+                assert_eq!(max_triangles_lod1, 4_000);
+                assert_eq!(max_triangles_lod2, 200);
+                assert_eq!(FoliageRenderMode::from(foliage), FoliageRenderMode::Opaque);
+                let dm = parse_density_overrides(density.as_deref().unwrap()).unwrap();
+                assert!((dm["canopy"] - 1.1).abs() < 1e-5);
+                assert!((dm["understory"] - 0.9).abs() < 1e-5);
+            }
+            _ => panic!("expected stand command"),
+        }
+
+        let cli = Cli::parse_from([
+            "midori",
+            "validate-stand",
+            "-i",
+            "out/banksia",
+            "--report",
+            "out/report.json",
+        ]);
+        match cli.command {
+            Commands::ValidateStand { input, report, .. } => {
+                assert_eq!(input, PathBuf::from("out/banksia"));
+                assert_eq!(report, Some(PathBuf::from("out/report.json")));
+            }
+            _ => panic!("expected validate-stand command"),
+        }
+
+        let cli = Cli::parse_from([
+            "midori",
+            "generate",
+            "-s",
+            "presets/species/wa_jarrah.toml",
+            "--foliage",
+            "opaque",
+        ]);
+        match cli.command {
+            Commands::Generate { foliage, .. } => {
+                assert_eq!(FoliageRenderMode::from(foliage), FoliageRenderMode::Opaque);
+            }
+            _ => panic!("expected generate command"),
         }
     }
 }

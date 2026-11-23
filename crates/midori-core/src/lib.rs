@@ -42,11 +42,14 @@ pub mod mesh;
 pub mod mesh_builder;
 pub mod nature;
 pub mod nature_cards;
+pub mod opaque_foliage;
 pub mod organs;
 pub mod ornamental;
 pub mod rng;
 pub mod rosette;
 pub mod species;
+pub mod stand;
+pub mod stand_gen;
 pub mod textures;
 pub mod tree;
 
@@ -64,7 +67,7 @@ pub use impostor::{Impostor, bake_impostor};
 pub use leaves::{LeafConfig, add_leaves_to_tree, generate_leaf_mesh, place_leaves};
 pub use lod::{
     LodGenerationConfig, LodLevelConfig, LodMesh, LodMeshSet, LodStats, generate_lod_meshes,
-    generate_lod_meshes_with_config,
+    generate_lod_meshes_with_config, generate_lod_meshes_with_foliage_mode,
 };
 pub use mesh::{MaterialType, Mesh, Submesh, Vertex};
 pub use mesh_builder::{MeshBuilder, MeshConfig, build_mesh, build_mesh_with_config};
@@ -79,6 +82,7 @@ pub use nature::{
     TerrainSample, UnityImportHints, UnrealImportHints, WindPackingManifest, WindParams,
     validate_nature_package,
 };
+pub use opaque_foliage::FoliageRenderMode;
 pub use organs::{Organ, OrganKind};
 pub use rng::Rng;
 pub use species::{
@@ -91,6 +95,20 @@ pub use species::{
     PruningMode, PruningParams, RosetteParams, RosetteSpikeParams, SpikeStyle,
 };
 pub use species::{Species, SpeciesError, SpeciesFieldError};
+pub use stand::{
+    MoistureZone, NatureStand, STAND_INSTANCE_RECORD_BYTES, STAND_INSTANCES_MAGIC,
+    STAND_INSTANCES_VERSION, STAND_MANIFEST_SCHEMA_VERSION, SizeClass, StandAssetInfo, StandBudget,
+    StandCanopyHeightfield, StandCollisionCapsule, StandCollisionFile, StandCondition, StandError,
+    StandInstanceRecord, StandLibrary, StandManifest, StandMaterialSlot, StandParams, StandPattern,
+    StandSpeciesEntry, StandTier, StandTileManifest, StandTileRastersManifest, StandTileStats,
+    StandValidationReport, StandVariantProfile, StratumParams, StratumStats, UnderstoryTolerance,
+    build_stand_library, encode_stand_instances_bin, scale_species_for_size_class,
+    validate_stand_package,
+};
+pub use stand_gen::{
+    StandExportOptions, StandPreviewData, StandRaster, StandTileInputs,
+    generate_stand_preview_in_memory, generate_stand_tiles,
+};
 pub use textures::{RgbaTexture, TextureError, TextureSet, species_texture_seed};
 pub use tree::{BoundingBox, Leaf, Segment, Stem, Tree};
 

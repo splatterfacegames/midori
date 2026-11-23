@@ -30,6 +30,10 @@ pub struct ExportConfig {
     /// Dedicated organ material roughness override when `MaterialType::Organ`
     /// is used (default 0.72).
     pub organ_roughness: Option<f32>,
+    /// Opt-in opaque foliage mode (`--foliage opaque`): no exported material uses
+    /// `alphaMode: "MASK"` or `"BLEND"`; foliage and organs render as closed
+    /// vertex-coloured opaque PBR meshes.
+    pub opaque_foliage: bool,
     /// Optional asset metadata for node naming and glTF extras.
     pub metadata: Option<ExportMetadata>,
 }
@@ -65,6 +69,7 @@ impl Default for ExportConfig {
             pivot_painter_extras: true,
             leaf_roughness: None,
             organ_roughness: None,
+            opaque_foliage: false,
             metadata: None,
         }
     }
@@ -860,7 +865,30 @@ fn build_gltf_json(
 
     // Build materials
     let mut materials = vec![
-        if textured {
+        if config.opaque_foliage {
+            if textured {
+                json!({
+                    "name": "bark",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.85
+                    },
+                    "normalTexture": { "index": 1 },
+                    "doubleSided": false
+                })
+            } else {
+                json!({
+                    "name": "bark",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.85
+                    },
+                    "doubleSided": false
+                })
+            }
+        } else if textured {
             json!({
                 "name": "bark",
                 "pbrMetallicRoughness": {
@@ -882,7 +910,17 @@ fn build_gltf_json(
                 "doubleSided": false
             })
         },
-        if textured {
+        if config.opaque_foliage {
+            json!({
+                "name": "leaves",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": leaf_roughness
+                },
+                "doubleSided": false
+            })
+        } else if textured {
             json!({
                 "name": "leaves",
                 "pbrMetallicRoughness": {
@@ -954,31 +992,65 @@ fn build_gltf_json(
         let u_nrm_idx = images
             .iter()
             .position(|img| img.name == "upper_bark_normal");
-        materials.push(match (u_alb_idx, u_nrm_idx) {
-            (Some(alb), Some(nrm)) => json!({
-                "name": "upper_bark",
-                "pbrMetallicRoughness": {
-                    "baseColorTexture": { "index": alb },
-                    "metallicFactor": 0.0,
-                    "roughnessFactor": 0.72
-                },
-                "normalTexture": { "index": nrm },
-                "doubleSided": false
-            }),
-            _ => json!({
-                "name": "upper_bark",
-                "pbrMetallicRoughness": {
-                    "baseColorFactor": [0.75, 0.73, 0.68, 1.0],
-                    "metallicFactor": 0.0,
-                    "roughnessFactor": 0.72
-                },
-                "doubleSided": false
-            }),
+        materials.push(if config.opaque_foliage {
+            match u_nrm_idx {
+                Some(nrm) => json!({
+                    "name": "upper_bark",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.72
+                    },
+                    "normalTexture": { "index": nrm },
+                    "doubleSided": false
+                }),
+                None => json!({
+                    "name": "upper_bark",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.72
+                    },
+                    "doubleSided": false
+                }),
+            }
+        } else {
+            match (u_alb_idx, u_nrm_idx) {
+                (Some(alb), Some(nrm)) => json!({
+                    "name": "upper_bark",
+                    "pbrMetallicRoughness": {
+                        "baseColorTexture": { "index": alb },
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.72
+                    },
+                    "normalTexture": { "index": nrm },
+                    "doubleSided": false
+                }),
+                _ => json!({
+                    "name": "upper_bark",
+                    "pbrMetallicRoughness": {
+                        "baseColorFactor": [0.75, 0.73, 0.68, 1.0],
+                        "metallicFactor": 0.0,
+                        "roughnessFactor": 0.72
+                    },
+                    "doubleSided": false
+                }),
+            }
         });
     }
     if organ_material.is_some() {
         let organ_idx = images.iter().position(|img| img.name == "organ_albedo");
-        materials.push(if let Some(idx) = organ_idx {
+        materials.push(if config.opaque_foliage {
+            json!({
+                "name": "organ",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": organ_roughness
+                },
+                "doubleSided": false
+            })
+        } else if let Some(idx) = organ_idx {
             json!({
                 "name": "organ",
                 "pbrMetallicRoughness": {

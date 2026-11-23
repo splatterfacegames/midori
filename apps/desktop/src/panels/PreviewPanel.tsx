@@ -29,12 +29,15 @@ export function PreviewPanel({
       maps={state.maps}
       layers={state.layers}
       isTopdown={isTopdown}
+      opaqueFoliage={state.foliageMode === 'opaque'}
       grid={grid}
       onReady={onReady}
       onError={onError}
     >
       <div className="midori-view-badge">
-        {lod ? `${lod.name.toUpperCase()} · ${lod.triangle_count.toLocaleString()} TRIS` : 'NO MESH'}
+        {lod
+          ? `${lod.name.toUpperCase()} · ${lod.triangle_count.toLocaleString()} TRIS${state.foliageMode === 'opaque' ? ' · OPAQUE' : ''}`
+          : 'NO MESH'}
       </div>
       {state.availableStates.length > 0 && (
         <div className="midori-state-hud" role="group" aria-label="Species state">

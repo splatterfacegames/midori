@@ -1,0 +1,101 @@
+# Swan Coastal Plain Paperbark Swamp & Seasonal Dampland (Herdsman, Bibra, Beeliar Wetlands).
+#
+# Ecological notes:
+# - Closed to open wetland paperbark groves (Melaleuca preissiana, M. rhaphiophylla) with
+#   Banksia littoralis and Casuarina obesa over dense Baumea articulata jointed rush beds,
+#   informed by Keighery (1994) Swan Coastal Plain wetland floristic surveys.
+# - Clump scales and spacing parameters are game-scale estimates.
+
+[asset]
+kind = "nature_stand"
+name = "WA Paperbark Swamp"
+
+[stand]
+biome = "wa_paperbark_swamp"
+floor = "presets/nature/wa_paperbark_wetland_edge.toml"
+seed = 4004
+tile_size = 128.0
+edge_width = 6.0
+exclude_trunk_clearance = 1.4
+variants_per_species_size = 3
+collision_min_diameter = 0.15
+
+[stand.condition]
+years_since_fire = 18.0
+dieback = 0.0
+
+[[strata]]
+name = "canopy"
+cover = 0.68
+min_spacing = 3.4
+clump_radius = 16.0
+pattern = "clumped"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_modong.toml"
+  share = 0.36
+  size_classes = { pole = 0.25, mature = 0.55, veteran = 0.20 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_swamp_paperbark.toml"
+  share = 0.32
+  size_classes = { pole = 0.30, mature = 0.50, veteran = 0.20 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_swamp_banksia.toml"
+  share = 0.18
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_swamp_sheoak.toml"
+  share = 0.14
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+[[strata]]
+name = "midstory"
+cover = 0.36
+min_spacing = 2.4
+clump_radius = 11.0
+pattern = "clumped"
+under_tolerance = "neutral"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_saltwater_paperbark.toml"
+  share = 0.44
+  size_classes = { pole = 0.40, mature = 0.60 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_peppermint.toml"
+  share = 0.30
+  size_classes = { sapling = 0.30, pole = 0.70 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_coojong.toml"
+  share = 0.26
+  size_classes = { pole = 0.45, mature = 0.55 }
+
+[[strata]]
+name = "rush_sedge"
+cover = 0.62
+min_spacing = 1.0
+clump_radius = 7.0
+pattern = "clumped"
+under_tolerance = "neutral"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_jointed_rush.toml"
+  share = 0.54
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_sword_sedge.toml"
+  share = 0.32
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_grass_tree.toml"
+  share = 0.14
+  size_classes = { mature = 0.75, veteran = 0.25 }

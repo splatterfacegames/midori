@@ -10,6 +10,7 @@
 import init, {
   MidoriGenerator,
   generate_nature_preview_from_toml,
+  generate_stand_preview_from_toml,
 } from './wasm/midori_wasm.js';
 
 export interface VertexData {
@@ -146,8 +147,10 @@ export class Generator {
   }
 
   /** Generate all LOD levels for `seed`. */
-  generate(seed: number): LodMesh[] {
-    const out = this.inner.generate(BigInt(seed)) as { lods: LodMesh[] };
+  generate(seed: number, opaque = false): LodMesh[] {
+    const out = (
+      opaque ? this.inner.generateOpaque(BigInt(seed)) : this.inner.generate(BigInt(seed))
+    ) as { lods: LodMesh[] };
     for (const lod of out.lods) {
       if (lod.impostor_atlas) normalizeMap(lod.impostor_atlas);
     }
@@ -172,8 +175,10 @@ export class Generator {
   /** Single-file binary glTF for `seed`. `embedTextures` embeds the species'
    *  generated material maps (bark albedo+normal, leaf card). Impostor
    *  atlases are embedded whenever a LOD bakes one. */
-  exportGlb(seed: number, embedTextures: boolean): Uint8Array {
-    return this.inner.export_glb(BigInt(seed), embedTextures);
+  exportGlb(seed: number, embedTextures: boolean, opaque = false): Uint8Array {
+    return opaque
+      ? this.inner.exportGlbOpaque(BigInt(seed), embedTextures)
+      : this.inner.export_glb(BigInt(seed), embedTextures);
   }
 
   /** Separate .gltf JSON + .bin parts. `binName` becomes the buffer URI;
@@ -288,4 +293,63 @@ export function generateNaturePreview(
   if (out.terrain_albedo) out.terrain_albedo.data = asBytes(out.terrain_albedo.data);
   if (out.terrain_normal) out.terrain_normal.data = asBytes(out.terrain_normal.data);
   return out;
+}
+
+/* ── Volumetric nature stand preview ──────────────────────────────────── */
+
+export interface StandStratumStats {
+  name: string;
+  stems: number;
+  instanced: number;
+  merged: number;
+  requested_cover: number;
+  achieved_cover: number;
+  lod0_triangles: number;
+}
+
+export interface StandTileStats {
+  tile: [number, number];
+  tile_size_m: number;
+  total_stems: number;
+  instanced_count: number;
+  merged_count: number;
+  requested_total_cover: number;
+  achieved_total_cover: number;
+  triangles_lod0: number;
+  triangles_lod1: number;
+  triangles_lod2: number;
+  material_count: number;
+  foliage_mode: 'cutout' | 'opaque';
+  generation_ms: number;
+  strata: StandStratumStats[];
+}
+
+export interface StandPreview {
+  name: string;
+  biome: string;
+  tile_size_m: number;
+  ground: NatureMesh;
+  lod0: NatureMesh;
+  lod1: NatureMesh;
+  lod2: NatureMesh;
+  stats: StandTileStats;
+}
+
+/** Preview a volumetric NatureStand TOML in-memory (ground + Stand LOD 0/1/2 + stats). */
+export function generateStandPreview(
+  standToml: string,
+  speciesMapJson: string,
+  tileSizeM = 64,
+  includeTrack = true,
+  groundRgb: [number, number, number] = [0.68, 0.64, 0.56],
+): StandPreview {
+  return generate_stand_preview_from_toml(
+    standToml,
+    speciesMapJson,
+    tileSizeM,
+    includeTrack,
+    groundRgb[0],
+    groundRgb[1],
+    groundRgb[2],
+  ) as StandPreview;
 }

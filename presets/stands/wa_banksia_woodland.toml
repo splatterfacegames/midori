@@ -1,0 +1,127 @@
+# Swan Coastal Plain Banksia Woodland (Perth metropolitan & Bassendean sands).
+#
+# Ecological notes:
+# - Dominant canopy & cover targets (30-60% low woodland canopy, 4-8 m) informed by
+#   Commonwealth EPBC Approved Conservation Advice for Banksia Woodlands of the Swan
+#   Coastal Plain (2016) and DBCA Swan Coastal Plain community surveys.
+# - Species weights, edge width, clump scales, and size-class mixes are practical
+#   game-scale estimates tuned for believable eye-level & aerial WA bushland.
+
+[asset]
+kind = "nature_stand"
+name = "WA Banksia Woodland"
+
+[stand]
+biome = "wa_banksia_woodland"
+floor = "presets/nature/wa_banksia_woodland_floor.toml"
+seed = 4001
+tile_size = 128.0
+edge_width = 7.0
+exclude_trunk_clearance = 1.4
+variants_per_species_size = 3
+collision_min_diameter = 0.16
+
+[stand.condition]
+years_since_fire = 10.0
+dieback = 0.08
+
+[[strata]]
+name = "emergent"
+cover = 0.16
+min_spacing = 12.0
+clump_radius = 26.0
+pattern = "clumped"
+edge_response = "normal"
+
+  [[strata.species]]
+  preset = "presets/species/wa_jarrah.toml"
+  state = "coastal"
+  share = 0.44
+  size_classes = { mature = 0.65, veteran = 0.35 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_marri.toml"
+  share = 0.24
+  size_classes = { mature = 0.70, veteran = 0.30 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_sheoak.toml"
+  share = 0.20
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_christmas_tree.toml"
+  share = 0.12
+  size_classes = { mature = 0.80, veteran = 0.20 }
+
+[[strata]]
+name = "canopy"
+cover = 0.50
+min_spacing = 3.2
+clump_radius = 14.0
+pattern = "clumped"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_slender_banksia.toml"
+  share = 0.48
+  size_classes = { sapling = 0.15, pole = 0.30, mature = 0.45, veteran = 0.10 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_firewood_banksia.toml"
+  share = 0.38
+  size_classes = { sapling = 0.15, pole = 0.28, mature = 0.47, veteran = 0.10 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_bull_banksia.toml"
+  share = 0.14
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+[[strata]]
+name = "shrub"
+cover = 0.52
+min_spacing = 1.6
+clump_radius = 8.0
+pattern = "clumped"
+under_tolerance = "neutral"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_grass_tree.toml"
+  share = 0.36
+  size_classes = { sapling = 0.15, pole = 0.30, mature = 0.40, veteran = 0.15 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_zamia.toml"
+  share = 0.22
+  size_classes = { pole = 0.40, mature = 0.60 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_harsh_hakea.toml"
+  share = 0.22
+  size_classes = { sapling = 0.25, mature = 0.75 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_coojong.toml"
+  state = "flowering"
+  share = 0.20
+  size_classes = { pole = 0.40, mature = 0.60 }
+
+[[strata]]
+name = "ground"
+cover = 0.34
+min_spacing = 1.1
+clump_radius = 6.0
+pattern = "clumped"
+under_tolerance = "prefer"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_sword_sedge.toml"
+  share = 0.66
+  size_classes = { pole = 0.40, mature = 0.60 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_kangaroo_paw.toml"
+  share = 0.34
+  size_classes = { mature = 1.0 }

@@ -1,0 +1,64 @@
+# Perth Maritime Pine Plantation (Gnangara, Pinjar & Yanchep forestry compartments).
+#
+# Silvicultural notes:
+# - Regular grid rows (3.6 m inter-row x 3.0 m along-row spacing, low positional jitter)
+#   reflecting WA Forest Products Commission Pinus pinaster plantations on the Gnangara Mound.
+# - Dense even-aged canopy strongly shades out interior understory; pioneer native scrub
+#   (Acacia saligna, Xanthorrhoea preissii, Lepidosperma gladiatum) only persists along
+#   firebreaks, tracks, and compartment edges (`under_tolerance = "avoid"`).
+
+[asset]
+kind = "nature_stand"
+name = "Perth Pine Plantation"
+
+[stand]
+biome = "perth_pine_plantation"
+floor = "presets/nature/temperate_forest_floor.toml"
+seed = 4007
+tile_size = 128.0
+edge_width = 6.0
+exclude_trunk_clearance = 1.6
+variants_per_species_size = 3
+collision_min_diameter = 0.16
+
+[stand.condition]
+years_since_fire = 20.0
+dieback = 0.0
+
+[[strata]]
+name = "canopy"
+cover = 0.82
+min_spacing = 3.0
+row_spacing = 3.6
+jitter = 0.08
+pattern = "regular"
+edge_response = "normal"
+
+  [[strata.species]]
+  preset = "presets/species/pine.toml"
+  share = 1.0
+  size_classes = { pole = 0.25, mature = 0.75 }
+
+[[strata]]
+name = "edge_scrub"
+cover = 0.22
+min_spacing = 1.8
+clump_radius = 7.0
+pattern = "clumped"
+under_tolerance = "avoid"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_coojong.toml"
+  share = 0.42
+  size_classes = { sapling = 0.30, pole = 0.40, mature = 0.30 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_grass_tree.toml"
+  share = 0.34
+  size_classes = { pole = 0.45, mature = 0.55 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_sword_sedge.toml"
+  share = 0.24
+  size_classes = { mature = 1.0 }

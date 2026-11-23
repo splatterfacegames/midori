@@ -6,7 +6,7 @@
 //! Rust.
 
 use crate::Rng;
-use crate::export::{ExportConfig, ExportError, ExportFormat, export_mesh};
+use crate::export::{ExportConfig, ExportError, export_mesh};
 use crate::math::lerp;
 use crate::mesh::{MaterialType, Mesh, Submesh, Vertex};
 use crate::nature_cards::{
@@ -5935,15 +5935,7 @@ fn required_surface_targets_for_kind(kind: GroundcoverKind) -> &'static [&'stati
 }
 
 fn nature_mesh_export_config() -> ExportConfig {
-    ExportConfig {
-        format: ExportFormat::Glb,
-        draco: false,
-        textures: None,
-        pivot_painter_extras: true,
-        leaf_roughness: None,
-        organ_roughness: None,
-        metadata: None,
-    }
+    ExportConfig::default()
 }
 
 fn prototype_lod_filename(name: &str, index: u32) -> String {

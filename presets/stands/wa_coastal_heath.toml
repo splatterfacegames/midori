@@ -1,0 +1,92 @@
+# WA Coastal Dune Heath (Quindalup coastal strip: Trigg, Cottesloe, Burns Beach, Lancelin).
+#
+# Ecological notes:
+# - Intentionally has NO canopy tree stratum (zero trees): wind-sheared calcareous coastal
+#   heath dominated by Olearia axillaris, Scaevola crassifolia, coastal Acacia saligna,
+#   Lepidosperma gladiatum sword sedge, and Spinifex longifolius dune grass (Beard 1990;
+#   Trudgen 1991).
+# - Shrub clump radii and groundcover ratios are game-scale estimates.
+
+[asset]
+kind = "nature_stand"
+name = "WA Coastal Heath"
+
+[stand]
+biome = "wa_coastal_heath"
+floor = "presets/nature/wa_coastal_dune.toml"
+seed = 4006
+tile_size = 128.0
+edge_width = 5.0
+exclude_trunk_clearance = 1.0
+variants_per_species_size = 3
+collision_min_diameter = 0.22
+
+[stand.condition]
+years_since_fire = 12.0
+dieback = 0.0
+
+[[strata]]
+name = "tall_shrub"
+cover = 0.42
+min_spacing = 2.0
+clump_radius = 11.0
+pattern = "clumped"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_olearia.toml"
+  share = 0.46
+  size_classes = { sapling = 0.20, pole = 0.35, mature = 0.45 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_coojong.toml"
+  share = 0.32
+  size_classes = { sapling = 0.35, pole = 0.45, mature = 0.20 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_harsh_hakea.toml"
+  share = 0.22
+  size_classes = { sapling = 0.30, mature = 0.70 }
+
+[[strata]]
+name = "low_shrub"
+cover = 0.48
+min_spacing = 1.3
+clump_radius = 7.5
+pattern = "clumped"
+under_tolerance = "avoid"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_scaevola.toml"
+  share = 0.52
+  size_classes = { pole = 0.40, mature = 0.60 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_olearia.toml"
+  share = 0.26
+  size_classes = { sapling = 0.60, pole = 0.40 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_sword_sedge.toml"
+  share = 0.22
+  size_classes = { pole = 0.40, mature = 0.60 }
+
+[[strata]]
+name = "dune_grass"
+cover = 0.46
+min_spacing = 1.0
+clump_radius = 6.5
+pattern = "clumped"
+under_tolerance = "avoid"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_spinifex.toml"
+  share = 0.62
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_sword_sedge.toml"
+  share = 0.38
+  size_classes = { pole = 0.40, mature = 0.60 }

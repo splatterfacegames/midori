@@ -501,18 +501,32 @@ pub fn generate_lod_meshes(tree: &Tree, species: &Species) -> LodMeshSet {
     generate_lod_meshes_with_config(tree, species, &config)
 }
 
-/// Generate LOD meshes with custom configuration
+/// Generate LOD meshes with custom configuration (default alpha-tested cutout foliage).
 pub fn generate_lod_meshes_with_config(
     tree: &Tree,
     species: &Species,
     config: &LodGenerationConfig,
 ) -> LodMeshSet {
+    generate_lod_meshes_with_foliage_mode(
+        tree,
+        species,
+        config,
+        crate::opaque_foliage::FoliageRenderMode::Cutout,
+    )
+}
+
+/// Generate LOD meshes with custom configuration and explicit foliage rendering mode
+/// (`Cutout` = default alpha-tested cards; `Opaque` = closed low-poly cluster volumes).
+pub fn generate_lod_meshes_with_foliage_mode(
+    tree: &Tree,
+    species: &Species,
+    config: &LodGenerationConfig,
+    foliage_mode: crate::opaque_foliage::FoliageRenderMode,
+) -> LodMeshSet {
+    let is_opaque = foliage_mode == crate::opaque_foliage::FoliageRenderMode::Opaque;
     // Impostor bakes rasterize into a compact distant atlas; cap temporary texture
     // resolution at 256 so 1024x1024 hero species stay instantaneous during mesh generation.
-    let impostor_textures = config
-        .levels
-        .iter()
-        .any(|level| level.crown_impostor)
+    let impostor_textures = (!is_opaque && config.levels.iter().any(|level| level.crown_impostor))
         .then(|| {
             let mut imp_species = species.clone();
             imp_species.textures.resolution = imp_species.textures.resolution.min(256);
@@ -521,7 +535,13 @@ pub fn generate_lod_meshes_with_config(
 
     let mut meshes = Vec::with_capacity(config.levels.len());
     for level_config in &config.levels {
-        let lod_mesh = generate_single_lod(tree, species, level_config, impostor_textures.as_ref());
+        let lod_mesh = generate_single_lod(
+            tree,
+            species,
+            level_config,
+            impostor_textures.as_ref(),
+            foliage_mode,
+        );
         meshes.push(lod_mesh);
     }
 
@@ -534,6 +554,7 @@ fn generate_single_lod(
     species: &Species,
     level: &LodLevelConfig,
     impostor_textures: Option<&TextureSet>,
+    foliage_mode: crate::opaque_foliage::FoliageRenderMode,
 ) -> LodMesh {
     // Count branches that will be included
     let branch_count = tree
@@ -591,7 +612,28 @@ fn generate_single_lod(
     // Generate leaf mesh based on LOD settings
     let leaf_count;
     let mut impostor_atlas = None;
-    let (leaf_mesh, separate_organ_mesh) = if level.crown_impostor {
+    let is_opaque = foliage_mode == crate::opaque_foliage::FoliageRenderMode::Opaque;
+    let (leaf_mesh, separate_organ_mesh) = if is_opaque {
+        if level.crown_impostor
+            || (level.leaf_geometry != LeafGeometry::None && level.leaf_reduction > 0.0)
+        {
+            let (fmesh, omesh) = crate::opaque_foliage::generate_opaque_foliage_mesh(
+                tree,
+                species,
+                level.leaf_reduction.max(0.25),
+                level.crown_impostor,
+            );
+            leaf_count = if fmesh.is_empty() {
+                0
+            } else {
+                (fmesh.indices.len() / 3) as u32
+            };
+            (fmesh, omesh)
+        } else {
+            leaf_count = 0;
+            (Mesh::new(), None)
+        }
+    } else if level.crown_impostor {
         // Bake the crown (leaves + cut branches) into a two-view atlas when the
         // species ships a [textures] section; otherwise fall back to the
         // geometric two-quad crown impostor.
@@ -810,8 +852,52 @@ fn generate_single_lod(
         }
     }
 
+    // In opaque foliage mode, bake linear species bark colour (and half-bark
+    // transitions) into branch vertex colours AFTER TintAo so crotch/root AO
+    // and fire-char multiply cleanly onto the true species bark albedo.
+    if is_opaque {
+        let bark_lin = crate::opaque_foliage::srgb3_to_linear(
+            crate::opaque_foliage::species_bark_color(species),
+        );
+        let upper_lin = species
+            .textures
+            .upper_bark_color
+            .map(crate::opaque_foliage::srgb3_to_linear)
+            .unwrap_or(bark_lin);
+        let has_tint_ao = species.canopy.vertex_color == crate::species::FoliageVertexColor::TintAo;
+        let char_h = species.trunk.char_height;
+        let char_s = species.trunk.char_strength;
+        let trans_h = species.textures.bark_transition_height;
+        let trans_span = species.textures.bark_transition_span.max(0.25);
+        for v in &mut branch_mesh.vertices {
+            let mut c = if species.uses_upper_bark() && v.position.y > trans_h {
+                let t = ((v.position.y - trans_h) / trans_span).clamp(0.0, 1.0);
+                [
+                    bark_lin[0] + (upper_lin[0] - bark_lin[0]) * t,
+                    bark_lin[1] + (upper_lin[1] - bark_lin[1]) * t,
+                    bark_lin[2] + (upper_lin[2] - bark_lin[2]) * t,
+                ]
+            } else {
+                bark_lin
+            };
+            if has_tint_ao {
+                c = [c[0] * v.color.x, c[1] * v.color.y, c[2] * v.color.z];
+            } else {
+                if char_h > 0.0 && char_s > 0.0 && v.position.y < char_h {
+                    let ck = (1.0 - (v.position.y / char_h).clamp(0.0, 1.0)) * char_s;
+                    let mult = (1.0 - 0.84 * ck).clamp(0.12, 1.0);
+                    c = [c[0] * mult, c[1] * mult, c[2] * mult];
+                }
+                let h_ao =
+                    0.78 + 0.22 * (v.position.y / species.trunk.height.max(1.0)).clamp(0.0, 1.0);
+                c = [c[0] * h_ao, c[1] * h_ao, c[2] * h_ao];
+            }
+            v.color = Vec4::new(c[0], c[1], c[2], 1.0);
+        }
+    }
+
     // Merge leaf/impostor geometry with its material.
-    let merge_material = if level.crown_impostor {
+    let merge_material = if level.crown_impostor && !is_opaque {
         MaterialType::Impostor
     } else {
         MaterialType::Leaves
