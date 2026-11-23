@@ -19,6 +19,7 @@ import { ObjectsPanel } from './panels/ObjectsPanel';
 import { ParamsPanel } from './panels/ParamsPanel';
 import { PreviewPanel } from './panels/PreviewPanel';
 import { NaturePanel } from './panels/NaturePanel';
+import { StandPanel } from './panels/StandPanel';
 import { SourcePanel } from './panels/SourcePanel';
 import { ActivityPanel } from './panels/ActivityPanel';
 import './app.css';
@@ -197,17 +198,53 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
 
   const viewToolbar = (
     <div className="midori-view-tools">
-      {state.lods?.map((lod, index) => (
-        <button
-          key={lod.name}
-          type="button"
-          aria-pressed={state.selectedLod === index}
-          onClick={() => model.selectLod(index)}
-          title={`${lod.triangle_count.toLocaleString()} triangles`}
-        >
-          {lod.name}
-        </button>
-      ))}
+      {state.mode === 'stand' && state.standPreview ? (
+        <>
+          {([0, 1, 2] as const).map((level) => (
+            <button
+              key={`stand-lod-${level}`}
+              type="button"
+              aria-pressed={state.standLod === level}
+              onClick={() => model.selectStandLod(level)}
+            >
+              LOD {level}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-pressed={state.standTrack}
+            onClick={() => model.toggleStandTrack()}
+          >
+            Track
+          </button>
+        </>
+      ) : (
+        <>
+          {state.lods?.map((lod, index) => (
+            <button
+              key={lod.name}
+              type="button"
+              aria-pressed={state.selectedLod === index}
+              onClick={() => model.selectLod(index)}
+              title={`${lod.triangle_count.toLocaleString()} triangles`}
+            >
+              {lod.name}
+            </button>
+          ))}
+          {state.mode === 'species' && (
+            <button
+              type="button"
+              aria-pressed={state.foliageMode === 'opaque'}
+              onClick={() =>
+                model.setFoliageMode(state.foliageMode === 'opaque' ? 'cutout' : 'opaque')
+              }
+              title="Switch between alpha-cutout leaf cards and closed opaque low-poly foliage"
+            >
+              {state.foliageMode === 'opaque' ? 'Opaque' : 'Cutout'}
+            </button>
+          )}
+        </>
+      )}
       <button type="button" onClick={() => viewport.current?.fitAll()}>
         Fit
       </button>
@@ -225,7 +262,15 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
         docking={docking}
         onDockLayoutChange={onDockLayoutChange}
         initialLayout={{ libraryWidth: 220, rightDockWidth: 300, bottomHeight: 150 }}
-        library={<SpeciesLibrary state={state} onLoadPreset={(id) => model.loadPreset(id)} onLoadNaturePreset={(id) => model.loadNaturePreset(id)} onImport={() => void runImport()} />}
+        library={
+          <SpeciesLibrary
+            state={state}
+            onLoadPreset={(id) => model.loadPreset(id)}
+            onLoadNaturePreset={(id) => model.loadNaturePreset(id)}
+            onLoadStandPreset={(id) => model.loadStandPreset(id)}
+            onImport={() => void runImport()}
+          />
+        }
         objects={
           <ObjectsPanel
             state={state}
@@ -253,6 +298,17 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
               }}
               onError={(error) => setViewportError(error.message)}
             />
+          ) : state.mode === 'stand' ? (
+            <StandPanel
+              state={state}
+              grid={grid}
+              onSelectStandLod={(l) => model.selectStandLod(l)}
+              onToggleTrack={() => model.toggleStandTrack()}
+              onReady={(controller) => {
+                viewport.current = controller;
+              }}
+              onError={(error) => setViewportError(error.message)}
+            />
           ) : (
             <PreviewPanel
               state={state}
@@ -275,18 +331,23 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
         }
         panelLabels={{
           library: 'Species',
-          objects: state.mode === 'nature' ? 'Patch' : 'Tree',
+          objects: state.mode === 'nature' ? 'Patch' : state.mode === 'stand' ? 'Stand' : 'Tree',
           inspector: 'Parameters',
           bottom: 'Activity',
         }}
         viewLabels={{
-          primary: state.mode === 'nature' ? 'Patch preview' : 'LOD preview',
+          primary:
+            state.mode === 'nature'
+              ? 'Patch preview'
+              : state.mode === 'stand'
+                ? 'Volumetric stand'
+                : 'LOD preview',
           secondary: 'TOML source',
         }}
         viewToolbars={{ primary: viewToolbar }}
         headerTools={
           <span className="midori-header-species" title={state.label}>
-            {state.json?.species.name ?? (state.mode === 'nature' ? state.label : 'Midori')}
+            {state.json?.species.name ?? (state.mode !== 'species' ? state.label : 'Midori')}
             {viewportError ? <em className="midori-error-inline"> · viewport: {viewportError}</em> : null}
           </span>
         }
@@ -295,13 +356,15 @@ export function MidoriApp({ model, fileHost, windowHost, onDockLayoutChange }: M
             <span className={`midori-status-dot${state.generating ? ' midori-status-busy' : ''}`} />
             {state.generating
               ? 'Generating…'
-              : state.mode === 'nature'
+              : state.mode !== 'species'
                 ? state.label
                 : `${state.label} · seed ${state.seed}`}
             <span className="midori-status-right">
               {state.mode === 'nature'
                 ? `${state.naturePreview?.stats.prototype_count ?? 0} prototypes · Nature engine · WASM`
-                : `${state.lods ? `${state.lods.length} LODs · ` : ''}${
+                : state.mode === 'stand'
+                  ? `${state.standPreview?.stats.total_stems ?? 0} stems · LOD ${state.standLod} · Stand engine · WASM`
+                  : `${state.lods ? `${state.lods.length} LODs · ` : ''}${
                     state.json?.generator?.family === 'rosette'
                       ? 'Rosette'
                       : state.json?.generator?.family === 'topiary'

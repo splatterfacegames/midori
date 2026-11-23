@@ -16,6 +16,13 @@ The script imports package files, reads Midori scatter binaries, writes an
 import report under Saved/MidoriImportReports, and attempts to create foliage
 type assets for LOD0 prototype meshes when the Unreal foliage Python classes
 are available in the installed engine version.
+
+Note on volumetric nature stands (`midori stand`):
+    Stand packages (`midori_stand.json`, shared `library/*.glb` plants, per-tile
+    `instances.bin`, and Stand LOD 0/1/2 meshes) use a separate manifest and tile
+    schema (`docs/schema/midori_stand.schema.json`). Stand import is separate from
+    this single-patch floor importer; see `docs/volumetric-stands.md` for engine
+    integration recipes (HISM/ISM + HLOD canopy swap + trunk capsule collision).
 """
 
 from __future__ import annotations

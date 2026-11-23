@@ -11,6 +11,7 @@ A procedural nature asset generator for real-time game engines. Midori generates
 - **glTF 2.0 export** - Binary (.glb) or JSON (.gltf) output with split bark/foliage material slots and Midori metadata
 - **Procedural textures** - Deterministic bark albedo/normal and leaf albedo+alpha card generation from `[textures]` params; `midori maps` writes PNGs, glTF export can embed them; file-override slots for host-provided maps
 - **Nature patches** - Deterministic soil height fields, baked procedural `maps/ground_albedo.png` (opt-in), grass density, moss/wetness/crack masks, and low-cost groundcover prototype LODs across 11 presets (5 classic + 6 WA/Perth biomes)
+- **Volumetric nature stands (`midori stand`)** - Multi-stratum dense bushland stands combining a ground patch with interacting canopy/midstorey/shrub/ground strata, seamless world-space tiling (`--tile`, `--region`), mask/exclusion edge response, Stand LOD 0/1/2 volumes, 4 tile rasters, collision capsules, `--foliage opaque` zero-alpha mode (also available on `midori generate`), and 7 Perth/WA stand presets; see `docs/volumetric-stands.md`
 - **Rosette plants** - Grass trees, cycads, strap-leaf clumps, coastal spinifex (with creeping runners & plumes), and feather/fan palms: crowns of blade ribbons on an optional (forked, fire-blackened, diamond-scarred) trunk, with a dead-leaf skirt, pineapple boss, and flower spikes
 - **Inflorescences, fruit & multi-material bark** - Flower spikes, woody nuts, crown-colouring flower clusters, berries, optional `[secondary_inflorescence]` dual organs, dedicated `Organ` & half-barked `UpperBark` material slots, and pruning/fire-recovery operators (`lopped`, `pollard`, `crown_lift`, epicormic shoots)
 - **Seasonal states & interactive workbench** - `[states.<name>]` overlays in a species file (`--state flowering` in CLI, plus live state switcher in the desktop/WebGL workbench) for in-flower, bare, burnt, pruned, or site-form variants
@@ -54,6 +55,16 @@ midori nature -p presets/nature/temperate_forest_floor.toml -o forest_floor_mido
 
 This writes `midori_nature.json`, baked maps, a preview tile GLB, prototype groundcover GLBs, and scatter data into the output directory.
 
+### Generate a volumetric nature stand
+
+```bash
+midori stand -p presets/stands/wa_banksia_woodland.toml -o out/banksia_woodland \
+  --tile-size 128 --tile 0,0 --foliage opaque --max-instances-per-tile 300
+midori validate-stand -i out/banksia_woodland
+```
+
+This builds a bounded reusable plant library (`library/*.glb`) and deterministic, seamless world-space tiles with binary instances (`instances.bin`), Stand LOD 0/1/2 volumetric canopy meshes, 4 canopy rasters, trunk collision capsules (`collision.json`), and stats. See `docs/volumetric-stands.md`.
+
 ### Generate a seasonal or site state
 
 ```bash
@@ -81,6 +92,7 @@ midori info -s presets/species/willow.toml
 | `--lod <all\|0\|1\|2\|3>` | LOD level(s) to export | `all` |
 | `--format <glb\|gltf>` | Output format | `glb` |
 | `--lod-preset <PRESET>` | LOD quality preset | `balanced` |
+| `--foliage <cutout\|opaque>` | Alpha-cutout leaf cards or closed opaque low-poly leaf volumes | `cutout` |
 | `--max-stems <N>` | Stem budget (0 = unbounded) | `50000` |
 | `--max-leaves <N>` | Leaf budget (0 = unbounded) | `250000` |
 | `--max-vertices <N>` | Vertex budget across all LODs (0 = unbounded) | `500000` |

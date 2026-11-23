@@ -1,16 +1,18 @@
-import { FileUp, Leaf } from 'lucide-react';
-import { NATURE_PRESETS, PRESETS } from '../presets';
+import { FileUp, Leaf, Trees } from 'lucide-react';
+import { NATURE_PRESETS, PRESETS, STAND_PRESETS } from '../presets';
 import type { WorkbenchState } from '../model';
 
 export function SpeciesLibrary({
   state,
   onLoadPreset,
   onLoadNaturePreset,
+  onLoadStandPreset,
   onImport,
 }: {
   state: WorkbenchState;
   onLoadPreset: (id: string) => void;
   onLoadNaturePreset: (id: string) => void;
+  onLoadStandPreset: (id: string) => void;
   onImport: () => void;
 }) {
   const active = state.label.startsWith('Preset · ') ? state.label.slice(9) : null;
@@ -95,6 +97,22 @@ export function SpeciesLibrary({
             onClick={() => onLoadNaturePreset(preset.id)}
           >
             <Leaf size={14} aria-hidden="true" />
+            <span>{preset.label}</span>
+            <small>{preset.id}.toml</small>
+          </button>
+        ))}
+      </div>
+      <div className="midori-eyebrow">VOLUMETRIC STANDS</div>
+      <div className="midori-preset-list">
+        {STAND_PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="midori-preset"
+            aria-pressed={state.mode === 'stand' && active === preset.label}
+            onClick={() => onLoadStandPreset(preset.id)}
+          >
+            <Trees size={14} aria-hidden="true" />
             <span>{preset.label}</span>
             <small>{preset.id}.toml</small>
           </button>

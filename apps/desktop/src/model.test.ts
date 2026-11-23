@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, beforeAll } from 'vitest';
 import { MidoriModel } from './model';
-import { NATURE_PRESETS, PRESETS } from './presets';
+import { NATURE_PRESETS, PRESETS, STAND_PRESETS } from './presets';
 import { getParam, setParam } from './species';
 import type { SpeciesJson } from './species';
 
@@ -258,6 +258,32 @@ describe('MidoriModel', () => {
       expect(preview!.terrain_normal?.width).toBeGreaterThan(0);
       expect(preview!.prototypes.some((p) => p.uses_card_atlas)).toBe(true);
     }
+  });
+
+  it('generates opaque single-tree foliage with zero alpha materials and previews all 7 volumetric stands', () => {
+    model.loadPreset('wa_jarrah');
+    model.setFoliageMode('opaque');
+    expect(model.getState().foliageMode).toBe('opaque');
+    expect(model.getState().lods?.[0]?.triangle_count).toBeGreaterThan(200);
+    const glb = model.exportFiles(42, 'glb', 'wa_jarrah_opaque', false);
+    expect([...glb[0].data.slice(0, 4)]).toEqual([0x67, 0x6c, 0x54, 0x46]);
+    model.setFoliageMode('cutout');
+
+    expect(STAND_PRESETS.length).toBe(7);
+    for (const preset of STAND_PRESETS) {
+      model.loadStandPreset(preset.id);
+      const st = model.getState();
+      expect(st.mode).toBe('stand');
+      expect(st.standPreview).not.toBeNull();
+      expect(st.standPreview!.stats.total_stems).toBeGreaterThan(10);
+      expect(st.standPreview!.lod0.triangle_count).toBeGreaterThan(200);
+      expect(st.standPreview!.lod1.triangle_count).toBeGreaterThan(20);
+      expect(st.standPreview!.lod2.triangle_count).toBeGreaterThan(4);
+    }
+    model.selectStandLod(1);
+    expect(model.getState().standLod).toBe(1);
+    model.toggleStandTrack();
+    expect(model.getState().standTrack).toBe(false);
   });
 });
 

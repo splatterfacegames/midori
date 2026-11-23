@@ -1,3 +1,8 @@
+// Midori Nature Patch Importer (midori_nature.json).
+// Note: Volumetric nature stands produced by `midori stand` (`midori_stand.json`,
+// shared `library/*.glb` plants, per-tile `instances.bin`, and Stand LOD 0/1/2
+// canopy meshes) use a separate package schema (`docs/schema/midori_stand.schema.json`);
+// stand import is separate from this single-patch floor importer (see `docs/volumetric-stands.md`).
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;

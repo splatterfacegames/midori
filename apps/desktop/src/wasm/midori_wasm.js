@@ -36,6 +36,19 @@ export class MidoriGenerator {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * Export tree as GLB binary data in opaque foliage mode (zero alpha materials).
+     * @param {bigint} seed
+     * @param {boolean} embed_textures
+     * @returns {Uint8Array}
+     */
+    exportGlbOpaque(seed, embed_textures) {
+        const ret = wasm.midorigenerator_exportGlbOpaque(this.__wbg_ptr, seed, embed_textures);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Export tree as separate `.gltf` JSON + `.bin` parts.
      *
      * `bin_name` is written into the glTF buffer URI. Returns an object with
@@ -50,6 +63,22 @@ export class MidoriGenerator {
         const ptr0 = passStringToWasm0(bin_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.midorigenerator_exportGltf(this.__wbg_ptr, seed, ptr0, len0, embed_textures);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Export tree as separate `.gltf` JSON + `.bin` parts in opaque foliage mode.
+     * @param {bigint} seed
+     * @param {string} bin_name
+     * @param {boolean} embed_textures
+     * @returns {any}
+     */
+    exportGltfOpaque(seed, bin_name, embed_textures) {
+        const ptr0 = passStringToWasm0(bin_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.midorigenerator_exportGltfOpaque(this.__wbg_ptr, seed, ptr0, len0, embed_textures);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -136,6 +165,18 @@ export class MidoriGenerator {
      */
     generateMaps() {
         const ret = wasm.midorigenerator_generateMaps(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Generate a tree in closed opaque low-poly foliage mode (zero alpha cutout).
+     * @param {bigint} seed
+     * @returns {any}
+     */
+    generateOpaque(seed) {
+        const ret = wasm.midorigenerator_generateOpaque(this.__wbg_ptr, seed);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -332,6 +373,32 @@ export function generate_nature_preview_from_toml(toml, preview_resolution, scat
     const ptr0 = passStringToWasm0(toml, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.generate_nature_preview_from_toml(ptr0, len0, preview_resolution, scatter_chunk_size);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Generate an in-memory volumetric nature stand preview (ground + Stand LOD 0/1/2 + stats).
+ *
+ * `species_tomls_json` is a JSON object mapping species preset paths
+ * (e.g. `"presets/species/wa_slender_banksia.toml"`) to their raw TOML strings.
+ * @param {string} stand_toml
+ * @param {string} species_tomls_json
+ * @param {number} tile_size_m
+ * @param {boolean} include_track
+ * @param {number} ground_r
+ * @param {number} ground_g
+ * @param {number} ground_b
+ * @returns {any}
+ */
+export function generate_stand_preview_from_toml(stand_toml, species_tomls_json, tile_size_m, include_track, ground_r, ground_g, ground_b) {
+    const ptr0 = passStringToWasm0(stand_toml, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(species_tomls_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.generate_stand_preview_from_toml(ptr0, len0, ptr1, len1, tile_size_m, include_track, ground_r, ground_g, ground_b);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -575,6 +642,10 @@ function __wbg_get_imports() {
         },
         __wbg_next_6429a146bf756f93: function() { return handleError(function (arg0) {
             const ret = arg0.next();
+            return ret;
+        }, arguments); },
+        __wbg_parse_2c1cad6215e84999: function() { return handleError(function (arg0, arg1) {
+            const ret = JSON.parse(getStringFromWasm0(arg0, arg1));
             return ret;
         }, arguments); },
         __wbg_prototypesetcall_5f9bdc8d75e07276: function(arg0, arg1, arg2) {

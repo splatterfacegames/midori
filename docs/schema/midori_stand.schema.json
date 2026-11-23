@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jethac/midori/schema/midori_stand.schema.json",
+  "title": "Midori Volumetric Nature Stand Package Manifest",
+  "description": "Schema for midori_stand.json plus tile sub-file structures (instances.json, collision.json, stand_stats.json) produced by `midori stand`.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "name",
+    "biome",
+    "seed",
+    "tile_size_m",
+    "foliage_mode",
+    "floor_preset",
+    "cross_lod_stitch_rule",
+    "shared_materials",
+    "library",
+    "tiles"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "nature_stand" },
+    "name": { "type": "string", "minLength": 1 },
+    "biome": { "type": "string", "minLength": 1 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "tile_size_m": { "type": "number", "exclusiveMinimum": 0 },
+    "foliage_mode": { "enum": ["cutout", "opaque"] },
+    "floor_preset": { "type": "string", "minLength": 1 },
+    "cross_lod_stitch_rule": { "type": "string", "minLength": 1 },
+    "shared_materials": {
+      "type": "array",
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/materialSlot" }
+    },
+    "library": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/variantProfile" }
+    },
+    "tiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/tileManifest" }
+    }
+  },
+  "$defs": {
+    "vec2i": {
+      "type": "array",
+      "prefixItems": [{ "type": "integer" }, { "type": "integer" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "vec2": {
+      "type": "array",
+      "prefixItems": [{ "type": "number" }, { "type": "number" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "vec3": {
+      "type": "array",
+      "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number" }],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "materialSlot": {
+      "type": "object",
+      "required": ["name", "alpha_mode", "role"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "alpha_mode": { "enum": ["OPAQUE", "MASK"] },
+        "role": { "type": "string", "minLength": 1 }
+      }
+    },
+    "variantProfile": {
+      "type": "object",
+      "required": [
+        "variant_id",
+        "variant_index",
+        "stratum",
+        "preset",
+        "size_class",
+        "is_dead",
+        "seed",
+        "glb_file",
+        "height_m",
+        "crown_radius_m",
+        "crown_base_y_m",
+        "crown_top_y_m",
+        "trunk_radius_m",
+        "foliage_top_srgb",
+        "foliage_bot_srgb",
+        "bark_srgb",
+        "is_rosette",
+        "lod0_triangles"
+      ],
+      "properties": {
+        "variant_id": { "type": "string", "minLength": 1 },
+        "variant_index": { "type": "integer", "minimum": 0 },
+        "stratum": { "type": "string", "minLength": 1 },
+        "preset": { "type": "string", "minLength": 1 },
+        "state": { "type": "string" },
+        "size_class": { "enum": ["sapling", "pole", "mature", "veteran"] },
+        "is_dead": { "type": "boolean" },
+        "seed": { "type": "integer", "minimum": 0 },
+        "glb_file": { "type": "string", "pattern": "^library/[a-z0-9_\\-]+\\.glb$" },
+        "height_m": { "type": "number", "exclusiveMinimum": 0 },
+        "crown_radius_m": { "type": "number", "exclusiveMinimum": 0 },
+        "crown_base_y_m": { "type": "number", "minimum": 0 },
+        "crown_top_y_m": { "type": "number", "exclusiveMinimum": 0 },
+        "trunk_radius_m": { "type": "number", "exclusiveMinimum": 0 },
+        "foliage_top_srgb": { "$ref": "#/$defs/vec3" },
+        "foliage_bot_srgb": { "$ref": "#/$defs/vec3" },
+        "bark_srgb": { "$ref": "#/$defs/vec3" },
+        "organ_srgb": { "$ref": "#/$defs/vec3" },
+        "is_rosette": { "type": "boolean" },
+        "lod0_triangles": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "tileManifest": {
+      "type": "object",
+      "required": [
+        "tile",
+        "origin_xz",
+        "instances_json",
+        "instances_bin",
+        "lod0_meshes",
+        "lod1_mesh",
+        "lod2_mesh",
+        "rasters",
+        "collision",
+        "stats"
+      ],
+      "properties": {
+        "tile": { "$ref": "#/$defs/vec2i" },
+        "origin_xz": { "$ref": "#/$defs/vec2" },
+        "instances_json": { "type": "string", "minLength": 1 },
+        "instances_bin": { "type": "string", "minLength": 1 },
+        "lod0_meshes": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "lod1_mesh": { "type": "string", "minLength": 1 },
+        "lod2_mesh": { "type": "string", "minLength": 1 },
+        "rasters": { "$ref": "#/$defs/tileRasters" },
+        "collision": { "type": "string", "minLength": 1 },
+        "stats": { "type": "string", "minLength": 1 }
+      }
+    },
+    "tileRasters": {
+      "type": "object",
+      "required": [
+        "resolution",
+        "canopy_height",
+        "canopy_height_max_m",
+        "canopy_cover",
+        "stem_density",
+        "stem_density_max_per_ha",
+        "dominant_color"
+      ],
+      "properties": {
+        "resolution": { "type": "integer", "minimum": 2 },
+        "canopy_height": { "type": "string", "minLength": 1 },
+        "canopy_height_max_m": { "type": "number", "exclusiveMinimum": 0 },
+        "canopy_cover": { "type": "string", "minLength": 1 },
+        "stem_density": { "type": "string", "minLength": 1 },
+        "stem_density_max_per_ha": { "type": "number", "exclusiveMinimum": 0 },
+        "dominant_color": { "type": "string", "minLength": 1 }
+      }
+    },
+    "instanceRecord": {
+      "type": "object",
+      "required": [
+        "variant_id",
+        "variant_index",
+        "stratum",
+        "stratum_index",
+        "tier",
+        "position",
+        "yaw",
+        "scale",
+        "color_tint",
+        "near_edge"
+      ],
+      "properties": {
+        "variant_id": { "type": "string", "minLength": 1 },
+        "variant_index": { "type": "integer", "minimum": 0 },
+        "stratum": { "type": "string", "minLength": 1 },
+        "stratum_index": { "type": "integer", "minimum": 0 },
+        "tier": { "enum": ["instance", "merged"] },
+        "position": { "$ref": "#/$defs/vec3" },
+        "yaw": { "type": "number" },
+        "scale": { "type": "number", "exclusiveMinimum": 0 },
+        "color_tint": { "$ref": "#/$defs/vec3" },
+        "near_edge": { "type": "boolean" }
+      }
+    },
+    "collisionFile": {
+      "type": "object",
+      "required": ["tile", "min_diameter_m", "capsules"],
+      "properties": {
+        "tile": { "$ref": "#/$defs/vec2i" },
+        "min_diameter_m": { "type": "number", "minimum": 0 },
+        "capsules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["position", "radius", "height", "stratum", "variant_id"],
+            "properties": {
+              "position": { "$ref": "#/$defs/vec3" },
+              "radius": { "type": "number", "exclusiveMinimum": 0 },
+              "height": { "type": "number", "exclusiveMinimum": 0 },
+              "stratum": { "type": "string" },
+              "variant_id": { "type": "string" }
+            }
+          }
+        },
+        "canopy_heightfield": {
+          "type": "object",
+          "required": ["resolution", "tile_size_m", "origin_xz", "heights_m"],
+          "properties": {
+            "resolution": { "type": "integer", "minimum": 2 },
+            "tile_size_m": { "type": "number", "exclusiveMinimum": 0 },
+            "origin_xz": { "$ref": "#/$defs/vec2" },
+            "heights_m": { "type": "array", "items": { "type": "number" } }
+          }
+        }
+      }
+    },
+    "tileStats": {
+      "type": "object",
+      "required": [
+        "tile",
+        "tile_size_m",
+        "total_stems",
+        "instanced_count",
+        "merged_count",
+        "requested_total_cover",
+        "achieved_total_cover",
+        "triangles_lod0",
+        "triangles_lod1",
+        "triangles_lod2",
+        "material_count",
+        "foliage_mode",
+        "generation_ms",
+        "strata"
+      ],
+      "properties": {
+        "tile": { "$ref": "#/$defs/vec2i" },
+        "tile_size_m": { "type": "number", "exclusiveMinimum": 0 },
+        "total_stems": { "type": "integer", "minimum": 0 },
+        "instanced_count": { "type": "integer", "minimum": 0 },
+        "merged_count": { "type": "integer", "minimum": 0 },
+        "requested_total_cover": { "type": "number", "minimum": 0, "maximum": 1 },
+        "achieved_total_cover": { "type": "number", "minimum": 0, "maximum": 1 },
+        "triangles_lod0": { "type": "integer", "minimum": 0 },
+        "triangles_lod1": { "type": "integer", "minimum": 0 },
+        "triangles_lod2": { "type": "integer", "minimum": 0 },
+        "material_count": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "foliage_mode": { "enum": ["cutout", "opaque"] },
+        "generation_ms": { "type": "integer", "minimum": 0 },
+        "strata": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "stems",
+              "instanced",
+              "merged",
+              "requested_cover",
+              "achieved_cover",
+              "lod0_triangles"
+            ],
+            "properties": {
+              "name": { "type": "string" },
+              "stems": { "type": "integer", "minimum": 0 },
+              "instanced": { "type": "integer", "minimum": 0 },
+              "merged": { "type": "integer", "minimum": 0 },
+              "requested_cover": { "type": "number", "minimum": 0, "maximum": 1 },
+              "achieved_cover": { "type": "number", "minimum": 0, "maximum": 1 },
+              "lod0_triangles": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

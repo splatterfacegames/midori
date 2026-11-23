@@ -1,0 +1,98 @@
+# WA Flooded Gum Riparian Fringe (Swan, Canning, Helena & Murray River banks).
+#
+# Ecological notes:
+# - Fringing woodland of Eucalyptus rudis (Flooded Gum) and Melaleuca rhaphiophylla
+#   with Casuarina obesa along brackish river edges, weeping Agonis flexuosa and
+#   Jacksonia sternbergiana on upper levees, and Baumea articulata sedge banks
+#   (Swan River Trust / DBCA riparian restoration guidelines).
+# - Density and spacing numbers are game-scale estimates.
+
+[asset]
+kind = "nature_stand"
+name = "WA Flooded Gum Fringe"
+
+[stand]
+biome = "wa_flooded_gum_fringe"
+floor = "presets/nature/wa_paperbark_wetland_edge.toml"
+seed = 4005
+tile_size = 128.0
+edge_width = 6.5
+exclude_trunk_clearance = 1.6
+variants_per_species_size = 3
+collision_min_diameter = 0.16
+
+[stand.condition]
+years_since_fire = 15.0
+dieback = 0.0
+
+[[strata]]
+name = "canopy"
+cover = 0.60
+min_spacing = 4.6
+clump_radius = 18.0
+pattern = "clumped"
+edge_response = "normal"
+
+  [[strata.species]]
+  preset = "presets/species/wa_flooded_gum.toml"
+  share = 0.52
+  size_classes = { pole = 0.20, mature = 0.52, veteran = 0.28 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_swamp_paperbark.toml"
+  share = 0.30
+  size_classes = { pole = 0.30, mature = 0.50, veteran = 0.20 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_swamp_sheoak.toml"
+  share = 0.18
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+[[strata]]
+name = "subcanopy"
+cover = 0.40
+min_spacing = 2.6
+clump_radius = 11.0
+pattern = "clumped"
+under_tolerance = "neutral"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_peppermint.toml"
+  share = 0.42
+  size_classes = { sapling = 0.20, pole = 0.35, mature = 0.45 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_saltwater_paperbark.toml"
+  share = 0.32
+  size_classes = { pole = 0.40, mature = 0.60 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_stinkwood.toml"
+  share = 0.26
+  size_classes = { pole = 0.40, mature = 0.60 }
+
+[[strata]]
+name = "bank_sedge"
+cover = 0.58
+min_spacing = 1.1
+clump_radius = 7.0
+pattern = "clumped"
+under_tolerance = "prefer"
+edge_response = "thicken"
+
+  [[strata.species]]
+  preset = "presets/species/wa_jointed_rush.toml"
+  share = 0.48
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_sword_sedge.toml"
+  share = 0.34
+  size_classes = { pole = 0.35, mature = 0.65 }
+
+  [[strata.species]]
+  preset = "presets/species/wa_coojong.toml"
+  state = "flowering"
+  share = 0.18
+  size_classes = { sapling = 0.30, pole = 0.70 }

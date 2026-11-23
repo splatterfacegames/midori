@@ -11,6 +11,25 @@ compatibility policy.
 
 ### Added
 
+- **Volumetric nature stands & opaque foliage mode (`midori stand`, `midori validate-stand`, `--foliage opaque`)**:
+  - New `nature_stand` asset kind (`[asset] kind = "nature_stand"`, `[stand]`, `[stand.condition]`, `[[strata]]`,
+    `[[strata.species]]`) combining an existing floor patch with interacting vertical strata (`avoid` / `neutral` /
+    `prefer` against projected upper canopy cover), non-uniform botanical size-class scaling (`sapling`, `pole`,
+    `mature`, `veteran`), ecological condition modulation (`years_since_fire`, `dieback`), and a bounded reusable
+    plant variant library (`variants_per_species_size`).
+  - Seamless world-space tiling (`--tile x,z`, `--region x0,z0,x1,z1`), optional tile-space `--mask`, `--exclude`,
+    `--height`, and `--density` inputs with bush-edge response (`edge_width`) and hard exclusion clearance.
+  - Per-tile outputs: `instances.json` + binary `instances.bin` (`MDSI` v1, 40-byte records), volumetric Stand
+    LOD 0/1/2 canopy meshes with real gaps, closed edge skirts, and stride-4 cross-LOD stitching, 4 canopy rasters
+    (`canopy_height.png` 16-bit, `canopy_cover.png`, `stem_density.png`, `dominant_color.png`), `collision.json`
+    trunk capsules + optional canopy heightfield, and `stand_stats.json`.
+  - `--foliage opaque` on both `midori stand` and `midori generate`: zero `MASK`/`BLEND` glTF materials, closed
+    low-poly foliage sculpted from actual leaf clusters, and `<= 4` shared materials.
+  - 7 Perth / South-West WA volumetric stand presets (`presets/stands/*.toml`: `wa_banksia_woodland`,
+    `wa_jarrah_marri_forest`, `wa_tuart_woodland`, `wa_paperbark_swamp`, `wa_flooded_gum_fringe`,
+    `wa_coastal_heath` with zero canopy trees, and `perth_pine_plantation` in regular forestry rows).
+  - JSON Schema (`docs/schema/midori_stand.schema.json`), `midori validate-stand`, interactive volumetric stands &
+    opaque foliage mode in `midori-wasm` and `/demo/` workbench, and full documentation (`docs/volumetric-stands.md`).
 - **Rosette generator** (`generator.family = "rosette"`, `[rosette]`, `midori-core::rosette`): crowns of
   curved blade ribbons on an optional trunk that may fork into arms, a skirt of dead blades, optional
   `crown_boss` ("pineapple" palm crownshaft), creeping `runners` with daughter tufts, and

@@ -16,6 +16,10 @@ export class MidoriGenerator {
      */
     estimateGeneration(): any;
     /**
+     * Export tree as GLB binary data in opaque foliage mode (zero alpha materials).
+     */
+    exportGlbOpaque(seed: bigint, embed_textures: boolean): Uint8Array;
+    /**
      * Export tree as separate `.gltf` JSON + `.bin` parts.
      *
      * `bin_name` is written into the glTF buffer URI. Returns an object with
@@ -23,6 +27,10 @@ export class MidoriGenerator {
      * via bufferView references.
      */
     exportGltf(seed: bigint, bin_name: string, embed_textures: boolean): any;
+    /**
+     * Export tree as separate `.gltf` JSON + `.bin` parts in opaque foliage mode.
+     */
+    exportGltfOpaque(seed: bigint, bin_name: string, embed_textures: boolean): any;
     /**
      * Export tree as GLB binary data.
      *
@@ -62,6 +70,10 @@ export class MidoriGenerator {
      */
     generate(seed: bigint): any;
     generateMaps(): any;
+    /**
+     * Generate a tree in closed opaque low-poly foliage mode (zero alpha cutout).
+     */
+    generateOpaque(seed: bigint): any;
     /**
      * Generate only a specific LOD level.
      */
@@ -127,6 +139,14 @@ export class MidoriNatureGenerator {
 export function generate_nature_preview_from_toml(toml: string, preview_resolution: number, scatter_chunk_size: number): any;
 
 /**
+ * Generate an in-memory volumetric nature stand preview (ground + Stand LOD 0/1/2 + stats).
+ *
+ * `species_tomls_json` is a JSON object mapping species preset paths
+ * (e.g. `"presets/species/wa_slender_banksia.toml"`) to their raw TOML strings.
+ */
+export function generate_stand_preview_from_toml(stand_toml: string, species_tomls_json: string, tile_size_m: number, include_track: boolean, ground_r: number, ground_g: number, ground_b: number): any;
+
+/**
  * Quick generation without creating a generator instance.
  *
  * Convenience function for one-off tree generation.
@@ -145,14 +165,18 @@ export interface InitOutput {
     readonly __wbg_midorigenerator_free: (a: number, b: number) => void;
     readonly __wbg_midorinaturegenerator_free: (a: number, b: number) => void;
     readonly generate_nature_preview_from_toml: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly generate_stand_preview_from_toml: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly generate_tree_from_toml: (a: number, b: number, c: bigint) => [number, number, number];
     readonly midorigenerator_estimateGeneration: (a: number) => [number, number, number];
+    readonly midorigenerator_exportGlbOpaque: (a: number, b: bigint, c: number) => [number, number, number];
     readonly midorigenerator_exportGltf: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
+    readonly midorigenerator_exportGltfOpaque: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
     readonly midorigenerator_export_glb: (a: number, b: bigint, c: number) => [number, number, number];
     readonly midorigenerator_fromJson: (a: any) => [number, number, number];
     readonly midorigenerator_fromTomlWithState: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly midorigenerator_generate: (a: number, b: bigint) => [number, number, number];
     readonly midorigenerator_generateMaps: (a: number) => [number, number, number];
+    readonly midorigenerator_generateOpaque: (a: number, b: bigint) => [number, number, number];
     readonly midorigenerator_generate_lod: (a: number, b: bigint, c: number) => [number, number, number];
     readonly midorigenerator_get_stats: (a: number, b: bigint) => [number, number, number];
     readonly midorigenerator_metadata: (a: number) => [number, number, number];

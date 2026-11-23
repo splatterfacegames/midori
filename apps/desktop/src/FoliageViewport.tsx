@@ -2,7 +2,15 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Viewport3DController } from '@jethac/tools-frontend-stack/viewports';
-import type { LodMesh, MaterialMaps, NaturePreview, RgbaMap, ScatterInstance } from './engine';
+import type {
+  LodMesh,
+  MaterialMaps,
+  NatureMesh,
+  NaturePreview,
+  RgbaMap,
+  ScatterInstance,
+  StandPreview,
+} from './engine';
 
 export type LightingMood = 'golden' | 'day' | 'mist';
 export type CameraAnglePreset = 'hero' | 'overview';
@@ -92,12 +100,15 @@ const MOODS: Record<LightingMood, MoodConfig> = {
 };
 
 export interface FoliageViewportProps {
-  mode: 'tree' | 'nature';
+  mode: 'tree' | 'nature' | 'stand';
   lod?: LodMesh | null;
   maps?: MaterialMaps | null;
   layers?: { bark: boolean; leaves: boolean };
   isTopdown?: boolean;
+  opaqueFoliage?: boolean;
   naturePreview?: NaturePreview | null;
+  standPreview?: StandPreview | null;
+  standLod?: 0 | 1 | 2;
   grid: boolean;
   onReady: (controller: Viewport3DController) => void;
   onError: (error: Error) => void;
@@ -297,7 +308,10 @@ export function FoliageViewport({
   maps,
   layers = { bark: true, leaves: true },
   isTopdown = false,
+  opaqueFoliage = false,
   naturePreview,
+  standPreview,
+  standLod = 0,
   grid,
   onReady,
   onError,
@@ -345,14 +359,22 @@ export function FoliageViewport({
     if (isNature) {
       const half = Math.max(4, tileSize * 0.5);
       if (preset === 'hero') {
-        // Immersive Ghost of Tsushima rider-height vista gazing across swaying plumes toward the horizon
-        const target = new THREE.Vector3(0, center.y + 0.64, -half * 0.16);
-        const camPos = new THREE.Vector3(-half * 0.42, center.y + 1.94, half * 0.68);
-        camera.position.copy(camPos);
-        controls.target.copy(target);
+        if (tileSize >= 40) {
+          // Volumetric stand: sweeping low-oblique bushland vista gazing along the edge into multi-stratum canopy
+          const target = new THREE.Vector3(0, center.y + Math.min(4.5, size.y * 0.25), -half * 0.14);
+          const camPos = new THREE.Vector3(half * 0.42, center.y + Math.max(4.5, size.y * 0.32), half * 0.96);
+          camera.position.copy(camPos);
+          controls.target.copy(target);
+        } else {
+          // Immersive Ghost of Tsushima rider-height vista gazing across swaying plumes toward the horizon
+          const target = new THREE.Vector3(0, center.y + 0.64, -half * 0.16);
+          const camPos = new THREE.Vector3(-half * 0.42, center.y + 1.94, half * 0.68);
+          camera.position.copy(camPos);
+          controls.target.copy(target);
+        }
       } else {
-        const dist = tileSize * 0.92;
-        camera.position.set(-dist * 0.58, center.y + dist * 0.56, dist * 0.72);
+        const dist = tileSize * 0.98;
+        camera.position.set(-dist * 0.58, center.y + dist * 0.64, dist * 0.72);
         controls.target.set(0, center.y + 0.2, 0);
       }
     } else {
@@ -916,9 +938,10 @@ export function FoliageViewport({
         if (isBark) {
           const lastIdx = subIndices.length > 0 ? subIndices[subIndices.length - 1] : 0;
           const hasBarkTintAo =
-            rawColors.length === vCount * 4 &&
-            rawColors[lastIdx * 4 + 3] > 0.95 &&
-            rawColors[lastIdx * 4 + 1] > 0.35;
+            opaqueFoliage ||
+            (rawColors.length === vCount * 4 &&
+              rawColors[lastIdx * 4 + 3] > 0.95 &&
+              rawColors[lastIdx * 4 + 1] > 0.35);
           if (hasBarkTintAo) {
             const rgb = new Float32Array(vCount * 3);
             for (let v = 0; v < vCount; v++) {
@@ -936,11 +959,15 @@ export function FoliageViewport({
               : new Float32Array(vCount * 2);
           geo.setAttribute('aBarkUv2', new THREE.BufferAttribute(barkUv2, 2));
 
-          const barkAlbedoMap = isUpperBark ? maps?.upper_bark_albedo ?? maps?.bark_albedo : maps?.bark_albedo;
+          const barkAlbedoMap = opaqueFoliage
+            ? undefined
+            : isUpperBark
+              ? maps?.upper_bark_albedo ?? maps?.bark_albedo
+              : maps?.bark_albedo;
           const barkNormalMap = isUpperBark ? maps?.upper_bark_normal ?? maps?.bark_normal : maps?.bark_normal;
           const barkMat = new THREE.MeshStandardMaterial({
-            color: barkAlbedoMap ? '#ffffff' : isUpperBark ? '#b8b0a2' : '#6c5138',
-            vertexColors: hasBarkTintAo,
+            color: opaqueFoliage || barkAlbedoMap ? '#ffffff' : isUpperBark ? '#b8b0a2' : '#6c5138',
+            vertexColors: opaqueFoliage || hasBarkTintAo,
             roughness: isUpperBark ? 0.78 : 0.88,
             metalness: 0.0,
           });
@@ -1043,9 +1070,10 @@ export function FoliageViewport({
         } else {
           const sampleIdx = subIndices[0] ?? 0;
           const hasTintAo =
-            (sub.material === 'leaves' || sub.material === 'organ') &&
-            rawColors.length === vCount * 4 &&
-            rawColors[sampleIdx * 4 + 3] > 0.5;
+            opaqueFoliage ||
+            ((sub.material === 'leaves' || sub.material === 'organ') &&
+              rawColors.length === vCount * 4 &&
+              rawColors[sampleIdx * 4 + 3] > 0.5);
 
           if (hasTintAo) {
             const rgb = new Float32Array(vCount * 3);
@@ -1059,17 +1087,19 @@ export function FoliageViewport({
 
           const isImpostor = sub.material === 'impostor';
           const isOrgan = sub.material === 'organ';
-          const mapSource = isImpostor
-            ? lod.impostor_atlas?.rgba
-            : isOrgan
-              ? maps?.organ_albedo?.rgba ?? maps?.leaf_card.rgba
-              : maps?.leaf_card.rgba;
+          const mapSource = opaqueFoliage
+            ? undefined
+            : isImpostor
+              ? lod.impostor_atlas?.rgba
+              : isOrgan
+                ? maps?.organ_albedo?.rgba ?? maps?.leaf_card.rgba
+                : maps?.leaf_card.rgba;
           const leafMat = new THREE.MeshStandardMaterial({
-            color: mapSource ? '#ffffff' : isOrgan ? '#d48b3b' : '#4c8a3d',
-            vertexColors: hasTintAo,
-            alphaTest: mapSource ? 0.28 : 0.0,
-            alphaToCoverage: Boolean(mapSource),
-            side: THREE.DoubleSide,
+            color: opaqueFoliage || mapSource ? '#ffffff' : isOrgan ? '#d48b3b' : '#4c8a3d',
+            vertexColors: opaqueFoliage || hasTintAo,
+            alphaTest: !opaqueFoliage && mapSource ? 0.28 : 0.0,
+            alphaToCoverage: !opaqueFoliage && Boolean(mapSource),
+            side: opaqueFoliage ? THREE.FrontSide : THREE.DoubleSide,
             roughness: isOrgan ? 0.66 : 0.84,
             metalness: 0.0,
           });
@@ -1167,6 +1197,104 @@ export function FoliageViewport({
         isTopdown,
       };
       if (prevWasNature || prevTopdown !== isTopdown) {
+        applyCameraPreset(cameraPreset);
+      }
+      return;
+    }
+
+    // VOLUMETRIC STAND MODE
+    if (mode === 'stand') {
+      if (!standPreview) return;
+      const tileSize = Math.max(16, standPreview.tile_size_m);
+      const activeMesh: NatureMesh =
+        standLod === 0 ? standPreview.lod0 : standLod === 1 ? standPreview.lod1 : standPreview.lod2;
+
+      const buildOpaqueMesh = (src: NatureMesh, roughness: number, castShadow: boolean): THREE.Mesh => {
+        const pos = Float32Array.from(src.vertices.positions);
+        const nrm = Float32Array.from(src.vertices.normals);
+        const rawCols = src.vertices.colors;
+        const vCnt = pos.length / 3;
+        const rgb = new Float32Array(vCnt * 3);
+        for (let v = 0; v < vCnt; v++) {
+          rgb[v * 3] = rawCols[v * 4] ?? 0.4;
+          rgb[v * 3 + 1] = rawCols[v * 4 + 1] ?? 0.45;
+          rgb[v * 3 + 2] = rawCols[v * 4 + 2] ?? 0.35;
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
+        geo.setIndex(new THREE.BufferAttribute(Uint32Array.from(src.indices), 1));
+
+        const mat = new THREE.MeshStandardMaterial({
+          color: '#ffffff',
+          vertexColors: true,
+          roughness,
+          metalness: 0.0,
+          side: THREE.FrontSide,
+        });
+        const m = new THREE.Mesh(geo, mat);
+        m.castShadow = castShadow;
+        m.receiveShadow = true;
+        return m;
+      };
+
+      const groundObj = buildOpaqueMesh(standPreview.ground, 0.95, false);
+      ctx.contentGroup.add(groundObj);
+
+      if (activeMesh.indices.length > 0) {
+        const standObj = buildOpaqueMesh(activeMesh, 0.86, true);
+        ctx.contentGroup.add(standObj);
+      }
+
+      // Compute full stand bounds for shadow frustum & camera framing
+      const sBox = new THREE.Box3().setFromObject(ctx.contentGroup);
+      const center = sBox.getCenter(new THREE.Vector3());
+      const size = sBox.getSize(new THREE.Vector3());
+
+      const shadowHalf = tileSize * 0.72;
+      ctx.sunLight.shadow.camera.left = -shadowHalf;
+      ctx.sunLight.shadow.camera.right = shadowHalf;
+      ctx.sunLight.shadow.camera.top = shadowHalf;
+      ctx.sunLight.shadow.camera.bottom = -shadowHalf;
+      ctx.sunLight.shadow.camera.near = 1.0;
+      ctx.sunLight.shadow.camera.far = tileSize * 4.5;
+      ctx.sunLight.shadow.camera.updateProjectionMatrix();
+      ctx.sunLight.position.copy(center).addScaledVector(shared.uSunDir.value, tileSize * 1.75);
+      ctx.sunLight.target.position.copy(center);
+      ctx.sunLight.target.updateMatrixWorld();
+
+      // Distant horizon skirt matching biome soil
+      const b = standPreview.biome.toLowerCase();
+      const vistaCol = b.includes('heath')
+        ? '#c8be9f'
+        : b.includes('banksia') || b.includes('tuart')
+          ? '#a8a08d'
+          : b.includes('jarrah') || b.includes('pine')
+            ? '#664a34'
+            : '#3d392e';
+      const vistaGeo = new THREE.PlaneGeometry(1800, 1800);
+      vistaGeo.rotateX(-Math.PI / 2);
+      const vistaMat = new THREE.MeshStandardMaterial({
+        color: vistaCol,
+        roughness: 0.98,
+        metalness: 0.0,
+      });
+      const vista = new THREE.Mesh(vistaGeo, vistaMat);
+      vista.position.set(0, -0.06, 0);
+      vista.receiveShadow = true;
+      ctx.contentGroup.add(vista);
+
+      const prevTile = ctx.sceneBounds.tileSize;
+      const prevWasNature = ctx.sceneBounds.isNature;
+      ctx.sceneBounds = {
+        center,
+        size,
+        isNature: true,
+        tileSize,
+        isTopdown: false,
+      };
+      if (!prevWasNature || Math.abs(prevTile - tileSize) > 2) {
         applyCameraPreset(cameraPreset);
       }
       return;
@@ -1484,7 +1612,7 @@ export function FoliageViewport({
     if (!prevWasNature) {
       applyCameraPreset(cameraPreset);
     }
-  }, [mode, lod, maps, layers.bark, layers.leaves, isTopdown, naturePreview, applyCameraPreset, cameraPreset]);
+  }, [mode, lod, maps, layers.bark, layers.leaves, isTopdown, opaqueFoliage, naturePreview, standPreview, standLod, applyCameraPreset, cameraPreset]);
 
   return (
     <div ref={hostRef} className="midori-foliage-viewport">

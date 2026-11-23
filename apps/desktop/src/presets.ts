@@ -185,3 +185,72 @@ export const NATURE_PRESETS: SpeciesPreset[] = [
   { id: 'perth_jacaranda_carpet', label: 'Perth jacaranda carpet', toml: perthJacarandaCarpetNatureToml },
   { id: 'perth_verge_lawn', label: 'Perth verge lawn', toml: perthVergeLawnNatureToml },
 ];
+
+/**
+ * Built-in volumetric NatureStand presets, bundled straight from `presets/stands/`.
+ */
+import waBanksiaWoodlandStandToml from '../../../presets/stands/wa_banksia_woodland.toml?raw';
+import waJarrahMarriForestStandToml from '../../../presets/stands/wa_jarrah_marri_forest.toml?raw';
+import waTuartWoodlandStandToml from '../../../presets/stands/wa_tuart_woodland.toml?raw';
+import waPaperbarkSwampStandToml from '../../../presets/stands/wa_paperbark_swamp.toml?raw';
+import waFloodedGumFringeStandToml from '../../../presets/stands/wa_flooded_gum_fringe.toml?raw';
+import waCoastalHeathStandToml from '../../../presets/stands/wa_coastal_heath.toml?raw';
+import perthPinePlantationStandToml from '../../../presets/stands/perth_pine_plantation.toml?raw';
+
+export interface StandPreset {
+  id: string;
+  label: string;
+  toml: string;
+  /** Representative floor soil sRGB colour for the interactive stand preview ground tile. */
+  groundRgb: [number, number, number];
+}
+
+export const STAND_PRESETS: StandPreset[] = [
+  {
+    id: 'wa_banksia_woodland',
+    label: 'WA Banksia woodland',
+    toml: waBanksiaWoodlandStandToml,
+    groundRgb: [0.72, 0.69, 0.61],
+  },
+  {
+    id: 'wa_jarrah_marri_forest',
+    label: 'WA Jarrah-Marri forest',
+    toml: waJarrahMarriForestStandToml,
+    groundRgb: [0.38, 0.27, 0.19],
+  },
+  {
+    id: 'wa_tuart_woodland',
+    label: 'WA Tuart woodland',
+    toml: waTuartWoodlandStandToml,
+    groundRgb: [0.66, 0.62, 0.52],
+  },
+  {
+    id: 'wa_paperbark_swamp',
+    label: 'WA Paperbark swamp',
+    toml: waPaperbarkSwampStandToml,
+    groundRgb: [0.26, 0.24, 0.19],
+  },
+  {
+    id: 'wa_flooded_gum_fringe',
+    label: 'WA Flooded gum fringe',
+    toml: waFloodedGumFringeStandToml,
+    groundRgb: [0.32, 0.28, 0.22],
+  },
+  {
+    id: 'wa_coastal_heath',
+    label: 'WA Coastal heath (no trees)',
+    toml: waCoastalHeathStandToml,
+    groundRgb: [0.80, 0.76, 0.66],
+  },
+  {
+    id: 'perth_pine_plantation',
+    label: 'Perth pine plantation',
+    toml: perthPinePlantationStandToml,
+    groundRgb: [0.35, 0.27, 0.19],
+  },
+];
+
+/** Map from repository preset path (`presets/species/<id>.toml`) to raw TOML source. */
+export const SPECIES_TOML_MAP_JSON: string = JSON.stringify(
+  Object.fromEntries(PRESETS.map((p) => [`presets/species/${p.id}.toml`, p.toml])),
+);

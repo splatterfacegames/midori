@@ -10,13 +10,15 @@
 import {
   Generator,
   generateNaturePreview,
+  generateStandPreview,
   loadEngine,
   type LodMesh,
   type MaterialMaps,
   type NaturePreview,
+  type StandPreview,
   type TreeStats,
 } from './engine';
-import { NATURE_PRESETS, PRESETS } from './presets';
+import { NATURE_PRESETS, PRESETS, SPECIES_TOML_MAP_JSON, STAND_PRESETS } from './presets';
 import { setParam, type BranchLevelId, type SpeciesJson, DEFAULT_BRANCH_PARAMS } from './species';
 
 export interface ExportFile {
@@ -27,11 +29,19 @@ export interface ExportFile {
 export interface WorkbenchState {
   ready: boolean;
   generating: boolean;
-  /** 'species' edits a Species document; 'nature' previews a NaturePatch. */
-  mode: 'species' | 'nature';
+  /** 'species' edits a Species document; 'nature' previews a NaturePatch; 'stand' previews a NatureStand. */
+  mode: 'species' | 'nature' | 'stand';
+  /** Single-tree foliage mode ('cutout' leaf cards or 'opaque' closed leaf volumes). */
+  foliageMode: 'cutout' | 'opaque';
   /** NaturePatch TOML + preview output while in nature mode. */
   natureToml: string | null;
   naturePreview: NaturePreview | null;
+  /** NatureStand TOML + preview output while in stand mode. */
+  standToml: string | null;
+  standPreview: StandPreview | null;
+  standLod: 0 | 1 | 2;
+  standTrack: boolean;
+  standGroundRgb: [number, number, number];
   /** Display label for the loaded species document. */
   label: string;
   /** Committed species TOML source (resolved for active state). */
@@ -85,8 +95,14 @@ export class MidoriModel {
       ready: true,
       generating: false,
       mode: 'species',
+      foliageMode: 'cutout',
       natureToml: null,
       naturePreview: null,
+      standToml: null,
+      standPreview: null,
+      standLod: 0,
+      standTrack: true,
+      standGroundRgb: [0.72, 0.69, 0.61],
       label: 'Untitled',
       toml: '',
       baseToml: '',
@@ -141,9 +157,80 @@ export class MidoriModel {
     this.loadNatureToml(preset.toml, `Preset · ${preset.label}`);
   }
 
+  loadStandPreset(id: string): void {
+    const preset = STAND_PRESETS.find((entry) => entry.id === id);
+    if (!preset) return;
+    this.loadStandToml(preset.toml, `Preset · ${preset.label}`, preset.groundRgb);
+  }
+
   importToml(text: string, label: string): boolean {
+    if (text.includes('kind = "nature_stand"') || text.includes("kind = 'nature_stand'")) {
+      return this.loadStandToml(text, `Custom · ${label}`);
+    }
     if (this.commitToml(text, `Custom · ${label}`)) return true;
     return this.loadNatureToml(text, `Custom · ${label}`);
+  }
+
+  /** Parse + preview a volumetric NatureStand document; returns false on failure. */
+  loadStandToml(
+    toml: string,
+    label: string,
+    groundRgb: [number, number, number] = this.state.standGroundRgb,
+    includeTrack: boolean = this.state.standTrack,
+    preserveDraft = false,
+  ): boolean {
+    try {
+      const preview = generateStandPreview(toml, SPECIES_TOML_MAP_JSON, 64, includeTrack, groundRgb);
+      this.emit({
+        mode: 'stand',
+        label,
+        standToml: toml,
+        standPreview: preview,
+        standGroundRgb: groundRgb,
+        standTrack: includeTrack,
+        natureToml: null,
+        naturePreview: null,
+        toml,
+        baseToml: toml,
+        availableStates: [],
+        selectedState: null,
+        json: null,
+        sourceDraft: preserveDraft && this.state.sourceDirty ? this.state.sourceDraft : toml,
+        sourceDirty: preserveDraft ? this.state.sourceDirty : false,
+        sourceError: null,
+        paramError: null,
+        lods: null,
+        stats: null,
+        maps: null,
+      });
+      this.pushLog(
+        `Loaded stand · ${preview.stats.total_stems} stems, ${Math.round(preview.stats.achieved_total_cover * 100)}% cover, LOD0=${preview.stats.triangles_lod0} LOD1=${preview.stats.triangles_lod1} LOD2=${preview.stats.triangles_lod2} tris`,
+      );
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.emit({ sourceError: message });
+      this.pushLog(`Stand load failed: ${message}`);
+      return false;
+    }
+  }
+
+  selectStandLod(lod: 0 | 1 | 2): void {
+    this.emit({ standLod: lod });
+  }
+
+  toggleStandTrack(): void {
+    if (this.state.mode !== 'stand' || !this.state.standToml) return;
+    const next = !this.state.standTrack;
+    this.loadStandToml(this.state.standToml, this.state.label, this.state.standGroundRgb, next, true);
+  }
+
+  setFoliageMode(mode: 'cutout' | 'opaque'): void {
+    if (mode === this.state.foliageMode) return;
+    this.emit({ foliageMode: mode });
+    if (this.state.mode === 'species') {
+      this.regenerate();
+    }
   }
 
   /** Parse + preview a NaturePatch document; returns false on failure. */
@@ -155,6 +242,8 @@ export class MidoriModel {
         label,
         natureToml: toml,
         naturePreview: preview,
+        standToml: null,
+        standPreview: null,
         toml,
         baseToml: toml,
         availableStates: [],
@@ -203,6 +292,8 @@ export class MidoriModel {
         mode: 'species',
         natureToml: null,
         naturePreview: null,
+        standToml: null,
+        standPreview: null,
         label,
         toml: resolvedToml,
         baseToml: toml,
@@ -259,10 +350,16 @@ export class MidoriModel {
       if (this.state.natureToml) this.loadNatureToml(this.state.natureToml, this.state.label);
       return;
     }
+    if (this.state.mode === 'stand') {
+      if (this.state.standToml) {
+        this.loadStandToml(this.state.standToml, this.state.label, this.state.standGroundRgb, this.state.standTrack);
+      }
+      return;
+    }
     if (!this.generator) return;
     this.emit({ generating: true });
     try {
-      const lods = this.generator.generate(this.state.seed);
+      const lods = this.generator.generate(this.state.seed, this.state.foliageMode === 'opaque');
       const stats = this.generator.stats(this.state.seed);
       const selectedLod = Math.min(this.state.selectedLod, Math.max(0, lods.length - 1));
       this.emit({ lods, stats, selectedLod, generating: false });
@@ -353,6 +450,9 @@ export class MidoriModel {
     if (this.state.mode === 'nature') {
       return this.loadNatureToml(draft, this.state.label);
     }
+    if (this.state.mode === 'stand') {
+      return this.loadStandToml(draft, this.state.label, this.state.standGroundRgb, this.state.standTrack);
+    }
     try {
       const generator = Generator.fromToml(draft);
       this.generator?.free();
@@ -393,9 +493,19 @@ export class MidoriModel {
     if (!this.generator) throw new Error('No species loaded');
     const stem = baseName.replace(/\.(glb|gltf)$/i, '') || 'tree';
     if (format === 'glb') {
-      return [{ name: `${stem}.glb`, data: this.generator.exportGlb(seed, embedTextures) }];
+      return [
+        {
+          name: `${stem}.glb`,
+          data: this.generator.exportGlb(seed, embedTextures, this.state.foliageMode === 'opaque'),
+        },
+      ];
     }
-    const parts = this.generator.exportGltf(seed, `${stem}.bin`, embedTextures);
+    const parts = this.generator.exportGltf(
+      seed,
+      `${stem}.bin`,
+      embedTextures,
+      this.state.foliageMode === 'opaque',
+    );
     return [
       { name: `${stem}.gltf`, data: parts.gltf },
       { name: `${stem}.bin`, data: parts.bin },

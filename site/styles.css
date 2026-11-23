@@ -713,6 +713,10 @@ h2 {
   background: var(--bg-soft);
 }
 
+.specimen-wide {
+  grid-column: 1 / -1;
+}
+
 .specimen img {
   display: block;
   width: 100%;
