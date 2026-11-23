@@ -423,35 +423,41 @@ pub fn append_opaque_rosette_tuft(
             });
         }
 
-        // Closed 3-sided prism (base -> mid) + 3-sided pyramid (mid -> tip) = 9 tris per blade
+        // Closed outward-wound 3-sided prism (base -> mid) + 3-sided pyramid (mid -> tip) + base cap = 10 tris/blade
         mesh.indices.extend_from_slice(&[
+            // Base cap (outward normal = -dir)
             base_idx,
             base_idx + 1,
-            base_idx + 4,
+            base_idx + 2,
+            // Side faces (base -> mid, reversed for outward CCW winding)
             base_idx,
             base_idx + 4,
-            base_idx + 3,
             base_idx + 1,
-            base_idx + 2,
-            base_idx + 5,
-            base_idx + 1,
-            base_idx + 5,
-            base_idx + 4,
-            base_idx + 2,
             base_idx,
             base_idx + 3,
+            base_idx + 4,
+            base_idx + 1,
+            base_idx + 5,
+            base_idx + 2,
+            base_idx + 1,
+            base_idx + 4,
+            base_idx + 5,
             base_idx + 2,
             base_idx + 3,
+            base_idx,
+            base_idx + 2,
             base_idx + 5,
             base_idx + 3,
-            base_idx + 4,
-            base_idx + 6,
-            base_idx + 4,
-            base_idx + 5,
-            base_idx + 6,
-            base_idx + 5,
+            // Tip pyramid faces (mid -> tip, outward CCW winding)
             base_idx + 3,
             base_idx + 6,
+            base_idx + 4,
+            base_idx + 4,
+            base_idx + 6,
+            base_idx + 5,
+            base_idx + 5,
+            base_idx + 6,
+            base_idx + 3,
         ]);
     }
 }

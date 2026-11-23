@@ -28,6 +28,10 @@ export class MidoriGenerator {
      */
     exportGltf(seed: bigint, bin_name: string, embed_textures: boolean): any;
     /**
+     * Export tree as separate `.gltf` JSON + `.bin` parts in opaque foliage mode.
+     */
+    exportGltfOpaque(seed: bigint, bin_name: string, embed_textures: boolean): any;
+    /**
      * Export tree as GLB binary data.
      *
      * Returns a Uint8Array containing the complete GLB file. When
@@ -166,6 +170,7 @@ export interface InitOutput {
     readonly midorigenerator_estimateGeneration: (a: number) => [number, number, number];
     readonly midorigenerator_exportGlbOpaque: (a: number, b: bigint, c: number) => [number, number, number];
     readonly midorigenerator_exportGltf: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
+    readonly midorigenerator_exportGltfOpaque: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
     readonly midorigenerator_export_glb: (a: number, b: bigint, c: number) => [number, number, number];
     readonly midorigenerator_fromJson: (a: any) => [number, number, number];
     readonly midorigenerator_fromTomlWithState: (a: number, b: number, c: number, d: number) => [number, number, number];

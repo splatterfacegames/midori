@@ -69,6 +69,22 @@ export class MidoriGenerator {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * Export tree as separate `.gltf` JSON + `.bin` parts in opaque foliage mode.
+     * @param {bigint} seed
+     * @param {string} bin_name
+     * @param {boolean} embed_textures
+     * @returns {any}
+     */
+    exportGltfOpaque(seed, bin_name, embed_textures) {
+        const ptr0 = passStringToWasm0(bin_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.midorigenerator_exportGltfOpaque(this.__wbg_ptr, seed, ptr0, len0, embed_textures);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Export tree as GLB binary data.
      *
      * Returns a Uint8Array containing the complete GLB file. When

@@ -183,8 +183,12 @@ export class Generator {
 
   /** Separate .gltf JSON + .bin parts. `binName` becomes the buffer URI;
    *  embedded images ride inside the .bin via bufferView references. */
-  exportGltf(seed: number, binName: string, embedTextures: boolean): GltfParts {
-    return this.inner.exportGltf(BigInt(seed), binName, embedTextures) as GltfParts;
+  exportGltf(seed: number, binName: string, embedTextures: boolean, opaque = false): GltfParts {
+    return (
+      opaque
+        ? this.inner.exportGltfOpaque(BigInt(seed), binName, embedTextures)
+        : this.inner.exportGltf(BigInt(seed), binName, embedTextures)
+    ) as GltfParts;
   }
 
   /** The species' procedural material maps — `png` + `rgba` encodings from

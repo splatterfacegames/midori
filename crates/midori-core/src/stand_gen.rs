@@ -395,6 +395,7 @@ struct PlacedStem {
     bark_srgb: [f32; 3],
     organ_srgb: Option<[f32; 3]>,
     is_rosette: bool,
+    is_dead: bool,
     near_edge: bool,
     cover_above: f32,
     in_tile: bool,
@@ -450,6 +451,9 @@ fn cover_at_point(wx: f32, wz: f32, stems: &[PlacedStem], grid: &SpatialGrid, ma
     let mut sum = 0.0_f32;
     grid.for_each_within(wx, wz, max_r, |idx| {
         let s = &stems[idx];
+        if s.is_dead {
+            return;
+        }
         let dx = wx - s.wx;
         let dz = wz - s.wz;
         let r = s.crown_radius.max(0.2);
@@ -919,6 +923,7 @@ fn place_stand_stems(
                 bark_srgb: variant.bark_srgb,
                 organ_srgb: variant.organ_srgb,
                 is_rosette: variant.is_rosette,
+                is_dead: variant.is_dead || stratum.is_dead,
                 near_edge,
                 cover_above,
                 in_tile,
@@ -1023,7 +1028,7 @@ fn build_lod0_stratum_meshes(
         {
             let s_mass = mass_by_stratum.get(&s_idx).copied().unwrap_or(1.0);
             let share_budget = ((s_mass / total_mass.max(1e-4)) * max_tris as f32).ceil() as u32;
-            let stratum_budget = share_budget.clamp(60, remaining_tris);
+            let stratum_budget = share_budget.max(60).min(remaining_tris);
             let tris_per_stem = stratum_budget as f32 / list.len().max(1) as f32;
 
             // Choose multi-tuft detail dynamically; tall trees always keep detail >= 1 (20-tri organic
@@ -1075,11 +1080,11 @@ fn build_lod0_stratum_meshes(
                     (s.foliage_bot_srgb[2] * s.color_tint[2]).clamp(0.0, 1.0),
                 ];
 
-                let show_trunk = stratum.is_dead
+                let show_trunk = s.is_dead
                     || (include_trunks
                         && (s.near_edge || s.cover_above < 0.45 || s.crown_base_y > 1.8));
                 if show_trunk {
-                    let trunk_h = if stratum.is_dead {
+                    let trunk_h = if s.is_dead {
                         s.height * 0.85
                     } else {
                         (s.crown_base_y + (s.crown_top_y - s.crown_base_y) * 0.28).max(0.35)
@@ -1103,7 +1108,7 @@ fn build_lod0_stratum_meshes(
                     used_tris += (bark_mesh.indices.len() / 3 - before) as u32;
                 }
 
-                if !stratum.is_dead {
+                if !s.is_dead {
                     let crown_h = (s.crown_top_y - s.crown_base_y).max(0.36);
                     let crown_mid_y = s.wy + s.crown_base_y + crown_h * 0.5;
                     // Never inflate single sub-lobe radii into giant smooth pillows or flat UFO discs
@@ -1119,7 +1124,7 @@ fn build_lod0_stratum_meshes(
                     } else {
                         5
                     };
-                    let rosette_tris = rosette_blades * 9;
+                    let rosette_tris = rosette_blades * 10;
                     if s.is_rosette && used_tris + rosette_tris <= stratum_budget {
                         // Crisp 3D spiky rosette tuft (grass tree, zamia, sedge, spinifex)
                         let before = foliage_mesh.indices.len() / 3;
@@ -1300,6 +1305,9 @@ fn sample_canopy_field(
 
     grid.for_each_within(wx, wz, max_r, |idx| {
         let s = &stems[idx];
+        if s.is_dead {
+            return;
+        }
         let dx = wx - s.wx;
         let dz = wz - s.wz;
         // Tight crown footprint keeps emergent trees crisp instead of inflating into solid gumdrop hills
@@ -1395,6 +1403,37 @@ fn build_canopy_surface_lod(
         for i in 0..verts_per_side {
             let wx = origin_x + i as f32 * step;
             samples.push(sample_canopy_field(wx, wz, stems, grid, max_r, eval, seed));
+        }
+    }
+
+    // Cross-LOD seam constraint: on fine grids (LOD1, divisible by 4), linearly interpolate
+    // intermediate tile-border vertex heights & cover between their stride-4 coarse anchor
+    // vertices so mixed LOD1/LOD2 neighbors meet along exact collinear segments with zero cracks.
+    if grid_n >= 16 && grid_n.is_multiple_of(4) {
+        for coarse in (0..grid_n).step_by(4) {
+            let c0 = coarse;
+            let c1 = coarse + 4;
+            for sub in 1..4 {
+                let t = sub as f32 / 4.0;
+                // Bottom (j=0) and top (j=grid_n) horizontal tile borders
+                for j in [0, grid_n] {
+                    let a = samples[j * verts_per_side + c0];
+                    let b = samples[j * verts_per_side + c1];
+                    let slot = &mut samples[j * verts_per_side + (c0 + sub)];
+                    slot.canopy_top_y = a.canopy_top_y + (b.canopy_top_y - a.canopy_top_y) * t;
+                    slot.ground_y = a.ground_y + (b.ground_y - a.ground_y) * t;
+                    slot.cover = a.cover + (b.cover - a.cover) * t;
+                }
+                // Left (i=0) and right (i=grid_n) vertical tile borders
+                for i in [0, grid_n] {
+                    let a = samples[c0 * verts_per_side + i];
+                    let b = samples[c1 * verts_per_side + i];
+                    let slot = &mut samples[(c0 + sub) * verts_per_side + i];
+                    slot.canopy_top_y = a.canopy_top_y + (b.canopy_top_y - a.canopy_top_y) * t;
+                    slot.ground_y = a.ground_y + (b.ground_y - a.ground_y) * t;
+                    slot.cover = a.cover + (b.cover - a.cover) * t;
+                }
+            }
         }
     }
 
@@ -2099,6 +2138,7 @@ fn write_single_stand_tile(
     let mut total_lod0_tris = 0u32;
     for (stratum_name, mesh) in &lod0_map {
         let rel = format!("{tile_rel}/stand_lod0_{stratum_name}.glb");
+        crate::stand::validate_stand_relative_path(&rel, "tile.lod0_meshes")?;
         export_mesh(mesh, &out_dir.join(&rel), &stand_export_cfg)
             .map_err(|e| StandError::Export(format!("{rel}: {e}")))?;
         let tris = (mesh.indices.len() / 3) as u32;
@@ -2107,11 +2147,17 @@ fn write_single_stand_tile(
         lod0_manifest.insert(stratum_name.clone(), rel);
     }
 
-    // Export Stand LOD 1 (32x32 grid = stride 1, <= max_triangles_lod1)
-    let lod1_grid = if options.budget.max_triangles_lod1 >= 3_200 {
-        32
+    // Export Stand LOD 1 & LOD 2 as strictly nested stride-4 grids (32/8, 24/6, or 16/4)
+    // so adjacent mixed-LOD tiles always match along collinear border segments with zero cracks.
+    let (lod1_grid, lod2_grid) = if options.budget.max_triangles_lod1 >= 3_200
+        && options.budget.max_triangles_lod2 >= 180
+    {
+        (32usize, 8usize)
+    } else if options.budget.max_triangles_lod1 >= 1_800 && options.budget.max_triangles_lod2 >= 120
+    {
+        (24usize, 6usize)
     } else {
-        24
+        (16usize, 4usize)
     };
     let lod1_mesh = build_canopy_surface_lod(
         lod1_grid,
@@ -2131,14 +2177,6 @@ fn write_single_stand_tile(
         .map_err(|e| StandError::Export(format!("{lod1_rel}: {e}")))?;
     let total_lod1_tris = (lod1_mesh.indices.len() / 3) as u32;
 
-    // Export Stand LOD 2 (8x8 coarse grid = exact stride-4 match with 32x32 LOD1, <= max_triangles_lod2)
-    let lod2_grid = if lod1_grid == 32 && options.budget.max_triangles_lod2 >= 180 {
-        8
-    } else if options.budget.max_triangles_lod2 >= 140 {
-        6
-    } else {
-        4
-    };
     let lod2_mesh = build_canopy_surface_lod(
         lod2_grid,
         origin_x,
@@ -2347,7 +2385,7 @@ pub struct StandPreviewData {
 /// 100% WASM-compatible!).
 pub fn generate_stand_preview_in_memory(
     stand: &NatureStand,
-    species_map: &BTreeMap<String, Species>,
+    species_map: &BTreeMap<(String, Option<String>), Species>,
     tile_size_m: f32,
     include_demo_track: bool,
     ground_srgb: [f32; 3],
@@ -2359,10 +2397,11 @@ pub fn generate_stand_preview_in_memory(
     let v_count = stand.stand.variants_per_species_size.clamp(1, 3);
     for (s_idx, stratum) in stand.strata.iter().enumerate() {
         for sp_entry in &stratum.species {
-            let Some(raw) = species_map.get(&sp_entry.preset) else {
+            let key = (sp_entry.preset.clone(), sp_entry.state.clone());
+            let Some(raw) = species_map.get(&key) else {
                 return Err(StandError::Species(format!(
-                    "missing preloaded species {:?}",
-                    sp_entry.preset
+                    "missing preloaded species {:?} (state={:?})",
+                    sp_entry.preset, sp_entry.state
                 )));
             };
             let mut dead_modes = vec![stratum.is_dead];

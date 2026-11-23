@@ -195,6 +195,36 @@ impl MidoriGenerator {
         Ok(array)
     }
 
+    /// Export tree as separate `.gltf` JSON + `.bin` parts in opaque foliage mode.
+    #[wasm_bindgen(js_name = exportGltfOpaque)]
+    pub fn export_gltf_opaque(
+        &self,
+        seed: u64,
+        bin_name: &str,
+        embed_textures: bool,
+    ) -> Result<JsValue, JsValue> {
+        let tree = self.generate_tree(seed)?;
+        let lod_config = LodGenerationConfig::from_species(&self.species);
+        let lods = generate_lod_meshes_with_foliage_mode(
+            &tree,
+            &self.species,
+            &lod_config,
+            FoliageRenderMode::Opaque,
+        );
+        let mut config = self.export_config(embed_textures);
+        config.opaque_foliage = true;
+        let (gltf, bin) = export_lod_meshes_to_parts(&lods, bin_name, &config)
+            .map_err(|e| js_error("export", format_args!("Export error: {e}")))?;
+        let result = js_sys::Object::new();
+        let gltf_array = js_sys::Uint8Array::new_with_length(gltf.len() as u32);
+        gltf_array.copy_from(&gltf);
+        let bin_array = js_sys::Uint8Array::new_with_length(bin.len() as u32);
+        bin_array.copy_from(&bin);
+        js_sys::Reflect::set(&result, &"gltf".into(), &gltf_array)?;
+        js_sys::Reflect::set(&result, &"bin".into(), &bin_array)?;
+        Ok(result.into())
+    }
+
     /// Generate only a specific LOD level.
     #[wasm_bindgen]
     pub fn generate_lod(&self, seed: u64, lod_level: u32) -> Result<JsValue, JsValue> {
@@ -543,10 +573,11 @@ pub fn generate_stand_preview_from_toml(
     let raw_map: BTreeMap<String, String> = serde_wasm_bindgen::from_value(parsed_js)
         .map_err(|e| js_error("input", format_args!("Species map JSON error: {e}")))?;
 
-    let mut species_map = BTreeMap::new();
+    let mut species_map: BTreeMap<(String, Option<String>), Species> = BTreeMap::new();
     for stratum in &stand.strata {
         for sp_entry in &stratum.species {
-            if species_map.contains_key(&sp_entry.preset) {
+            let key = (sp_entry.preset.clone(), sp_entry.state.clone());
+            if species_map.contains_key(&key) {
                 continue;
             }
             let Some(raw_toml) = raw_map.get(&sp_entry.preset) else {
@@ -562,7 +593,7 @@ pub fn generate_stand_preview_from_toml(
                         format_args!("Species {:?} parse error: {e}", sp_entry.preset),
                     )
                 })?;
-            species_map.insert(sp_entry.preset.clone(), parsed);
+            species_map.insert(key, parsed);
         }
     }
 

@@ -9,6 +9,7 @@ export const generate_tree_from_toml: (a: number, b: number, c: bigint) => [numb
 export const midorigenerator_estimateGeneration: (a: number) => [number, number, number];
 export const midorigenerator_exportGlbOpaque: (a: number, b: bigint, c: number) => [number, number, number];
 export const midorigenerator_exportGltf: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
+export const midorigenerator_exportGltfOpaque: (a: number, b: bigint, c: number, d: number, e: number) => [number, number, number];
 export const midorigenerator_export_glb: (a: number, b: bigint, c: number) => [number, number, number];
 export const midorigenerator_fromJson: (a: any) => [number, number, number];
 export const midorigenerator_fromTomlWithState: (a: number, b: number, c: number, d: number) => [number, number, number];

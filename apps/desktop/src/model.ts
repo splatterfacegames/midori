@@ -177,6 +177,7 @@ export class MidoriModel {
     label: string,
     groundRgb: [number, number, number] = this.state.standGroundRgb,
     includeTrack: boolean = this.state.standTrack,
+    preserveDraft = false,
   ): boolean {
     try {
       const preview = generateStandPreview(toml, SPECIES_TOML_MAP_JSON, 64, includeTrack, groundRgb);
@@ -194,8 +195,8 @@ export class MidoriModel {
         availableStates: [],
         selectedState: null,
         json: null,
-        sourceDraft: toml,
-        sourceDirty: false,
+        sourceDraft: preserveDraft && this.state.sourceDirty ? this.state.sourceDraft : toml,
+        sourceDirty: preserveDraft ? this.state.sourceDirty : false,
         sourceError: null,
         paramError: null,
         lods: null,
@@ -221,7 +222,7 @@ export class MidoriModel {
   toggleStandTrack(): void {
     if (this.state.mode !== 'stand' || !this.state.standToml) return;
     const next = !this.state.standTrack;
-    this.loadStandToml(this.state.standToml, this.state.label, this.state.standGroundRgb, next);
+    this.loadStandToml(this.state.standToml, this.state.label, this.state.standGroundRgb, next, true);
   }
 
   setFoliageMode(mode: 'cutout' | 'opaque'): void {
@@ -499,7 +500,12 @@ export class MidoriModel {
         },
       ];
     }
-    const parts = this.generator.exportGltf(seed, `${stem}.bin`, embedTextures);
+    const parts = this.generator.exportGltf(
+      seed,
+      `${stem}.bin`,
+      embedTextures,
+      this.state.foliageMode === 'opaque',
+    );
     return [
       { name: `${stem}.gltf`, data: parts.gltf },
       { name: `${stem}.bin`, data: parts.bin },

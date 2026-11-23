@@ -530,3 +530,50 @@ fn validate_stand_rejects_path_traversal() {
         "expected path-traversal error, got: {err}"
     );
 }
+
+#[test]
+fn stratum_name_rejects_path_traversal_and_opaque_rosette_is_outward_wound() {
+    let evil_toml = r#"
+[asset]
+kind = "nature_stand"
+name = "Evil"
+[stand]
+seed = 1
+[[strata]]
+name = "../../escape"
+cover = 0.5
+[[strata.species]]
+preset = "presets/species/oak.toml"
+"#;
+    assert!(NatureStand::from_toml(evil_toml).is_err());
+
+    // Verify closed outward-facing winding on opaque rosette blade darts (10 tris per blade)
+    let mut m = midori_core::Mesh::new();
+    midori_core::opaque_foliage::append_opaque_rosette_tuft(
+        &mut m,
+        glam::Vec3::ZERO,
+        1.0,
+        1.0,
+        8,
+        42,
+        [0.4, 0.5, 0.3],
+        [0.2, 0.3, 0.15],
+        1.0,
+    );
+    assert_eq!(m.indices.len() / 3, 8 * 10);
+    // Compute signed volume of each closed 7-vertex blade dart -> must be strictly positive (outward CCW)
+    for blade in 0..8 {
+        let mut vol6 = 0.0_f32;
+        for tri in 0..10 {
+            let base = (blade * 10 + tri) * 3;
+            let a = m.vertices[m.indices[base] as usize].position;
+            let b = m.vertices[m.indices[base + 1] as usize].position;
+            let c = m.vertices[m.indices[base + 2] as usize].position;
+            vol6 += a.dot(b.cross(c));
+        }
+        assert!(
+            vol6 > 0.0,
+            "blade {blade} signed volume {vol6} must be > 0 (outward CCW winding)"
+        );
+    }
+}

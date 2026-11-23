@@ -425,9 +425,15 @@ impl NatureStand {
         }
         let mut seen_names = std::collections::BTreeSet::new();
         for (i, stratum) in self.strata.iter().enumerate() {
-            if stratum.name.trim().is_empty() {
+            if stratum.name.trim().is_empty()
+                || !stratum
+                    .name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            {
                 return Err(StandError::Validation(format!(
-                    "strata[{i}].name must not be empty"
+                    "strata[{i}].name {:?} must contain only ASCII letters, digits, '_' or '-'",
+                    stratum.name
                 )));
             }
             if !seen_names.insert(stratum.name.clone()) {
@@ -657,6 +663,8 @@ pub fn build_stand_library(
     let mut variants = Vec::new();
     let mut seen_keys: BTreeMap<(String, Option<String>, SizeClass, bool), Vec<u32>> =
         BTreeMap::new();
+    let mut used_variant_ids: std::collections::BTreeSet<String> =
+        std::collections::BTreeSet::new();
     let v_count = stand.stand.variants_per_species_size.max(1);
 
     for (s_idx, stratum) in stand.strata.iter().enumerate() {
@@ -775,7 +783,7 @@ pub fn build_stand_library(
                             .map(|s| format!("_{}", sanitize_id(s)))
                             .unwrap_or_default();
                         let dead_slug = if is_dead { "_dead" } else { "" };
-                        let variant_id = format!(
+                        let base_id = format!(
                             "{}{}{}_{}_v{}",
                             sanitize_id(stem_name),
                             state_slug,
@@ -783,6 +791,28 @@ pub fn build_stand_library(
                             size_class.as_str(),
                             v_i
                         );
+                        // Disambiguate deterministically if two different directories share a basename
+                        let variant_id = if used_variant_ids.contains(&base_id) {
+                            let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+                            for b in sp_entry.preset.as_bytes() {
+                                h ^= u64::from(*b);
+                                h = h.wrapping_mul(0x0100_0000_01b3);
+                            }
+                            let disambig = format!(
+                                "{}_{:06x}{}{}_{}_v{}",
+                                sanitize_id(stem_name),
+                                (h & 0x00ff_ffff) as u32,
+                                state_slug,
+                                dead_slug,
+                                size_class.as_str(),
+                                v_i
+                            );
+                            used_variant_ids.insert(disambig.clone());
+                            disambig
+                        } else {
+                            used_variant_ids.insert(base_id.clone());
+                            base_id
+                        };
                         let glb_file = format!("library/{variant_id}.glb");
 
                         let mut lod0_tris = 0u32;
