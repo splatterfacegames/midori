@@ -428,16 +428,17 @@ impl LodGenerationConfig {
     }
 
     /// Generate 2-LOD Nanite/meshlet-ready 100% opaque 3D geometric flora chain:
-    /// - LOD0 ("Hero3D", near < 85 m): 25k–55k tris of 100% opaque 3D curved leaves, twigs, blossoms & 3D displaced bark/roots.
-    /// - LOD1 ("Mid3D", mid-field 85–420 m): 6k–14k tris of 100% opaque 3D leaf clusters & limbs (zero alpha-scissor).
+    /// - LOD0 ("Hero3D", near < 85 m): 80k–110k tris packing 10k–18k+ 100% opaque 3D curved leaves,
+    ///   petite 3D blossoms, twigs & 3D displaced bark/branching root claws.
+    /// - LOD1 ("Mid3D", mid-field 85–420 m): 20k–32k tris packing 3.5k–6k+ 100% opaque 3D leaf clusters & limbs.
     pub fn nanite_2lod() -> Self {
         Self {
             levels: vec![
                 LodLevelConfig {
                     index: 0,
                     name: "Hero3D".to_string(),
-                    target_triangles: 40_000,
-                    max_triangles: 52_000,
+                    target_triangles: 94_000,
+                    max_triangles: 110_000,
                     branch_levels: 4,
                     leaf_geometry: LeafGeometry::Polygon,
                     leaf_reduction: 1.0,
@@ -448,11 +449,11 @@ impl LodGenerationConfig {
                 LodLevelConfig {
                     index: 1,
                     name: "Mid3D".to_string(),
-                    target_triangles: 10_200,
-                    max_triangles: 13_600,
+                    target_triangles: 26_000,
+                    max_triangles: 32_000,
                     branch_levels: 2,
                     leaf_geometry: LeafGeometry::Polygon,
-                    leaf_reduction: 0.35,
+                    leaf_reduction: 0.38,
                     ring_resolution: [12, 7, 4, 3],
                     screen_height: 0.03,
                     crown_impostor: false,
@@ -687,13 +688,13 @@ fn generate_single_lod(
         {
             let branch_tris = (branch_mesh.indices.len() / 3) as u32;
             let min_foliage = if level.leaf_reduction >= 0.60 {
-                12_000
+                48_000
             } else {
-                3_000
+                12_000
             };
             let desired = level.target_triangles.saturating_sub(branch_tris);
             let cap = level.max_triangles.saturating_sub(branch_tris);
-            let foliage_budget = desired.clamp(min_foliage.min(cap.max(1_800)), cap.max(1_800));
+            let foliage_budget = desired.clamp(min_foliage.min(cap.max(4_000)), cap.max(4_000));
 
             let res = crate::geo3d_foliage::generate_geo3d_foliage_mesh(
                 tree,
