@@ -540,6 +540,8 @@ pub struct CanopyContext {
     crown_radii: Vec3,
     crown_min_y: f32,
     crown_max_y: f32,
+    tree_min_y: f32,
+    tree_span_y: f32,
     leaf_clump: Vec<usize>,
     clump_center: Vec<Vec3>,
     clump_radius: Vec<f32>,
@@ -603,12 +605,26 @@ impl CanopyContext {
             })
             .collect();
 
+        let tree_min_y = if tree.bounds.is_valid() {
+            tree.bounds.min.y.min(0.0)
+        } else {
+            lo.y.min(0.0)
+        };
+        let tree_max_y = if tree.bounds.is_valid() {
+            tree.bounds.max.y.max(hi.y)
+        } else {
+            hi.y
+        };
+        let tree_span_y = (tree_max_y - tree_min_y).max(0.5);
+
         Self {
             params: params.clone(),
             crown_center,
             crown_radii,
             crown_min_y: lo.y,
             crown_max_y: hi.y,
+            tree_min_y,
+            tree_span_y,
             leaf_clump,
             clump_center,
             clump_radius,
@@ -711,9 +727,10 @@ impl CanopyContext {
                     raw
                 }
             });
+            let use_vertex_outward = per_vertex_pos || per_leaf >= 9;
             for v in &mut mesh.vertices[start..end] {
                 if bend {
-                    let out = if per_vertex_pos {
+                    let out = if use_vertex_outward {
                         self.outward(i, v.position)
                     } else {
                         leaf_out
@@ -733,6 +750,13 @@ impl CanopyContext {
                         v.normal
                     };
                     v.normal = geom.lerp(local, blend).try_normalize().unwrap_or(local);
+                }
+                if tint {
+                    // Bake smooth crown-depth interior AO and root-to-crown height into TEXCOORD_1
+                    // so foliage shaders can drive subsurface translucency, rim glow, and height wind.
+                    let crown_ao = self.crown_ao_at(i, v.position);
+                    let height_norm = self.height_norm_at(v.position);
+                    v.uv2 = Vec2::new(crown_ao, height_norm);
                 }
                 if per_vertex_pos && tint {
                     v.color = self.tint_ao(i, v.position);
@@ -756,6 +780,31 @@ impl CanopyContext {
         }
     }
 
+    /// Smooth crown-depth interior ambient occlusion in `[0.18, 1.0]`
+    /// (deep interior canopy dark, outer sunlit tips bright).
+    pub fn crown_ao_at(&self, i: usize, pos: Vec3) -> f32 {
+        let c = self.leaf_clump.get(i).copied().unwrap_or(0);
+        let crown_depth = 1.0
+            - ((pos - self.crown_center) / self.crown_radii)
+                .length()
+                .clamp(0.0, 1.0);
+        let clump_depth = self
+            .clump_center
+            .get(c)
+            .map(|cc| 1.0 - ((pos - *cc).length() / self.clump_radius[c]).clamp(0.0, 1.0))
+            .unwrap_or(0.0);
+        let span = (self.crown_max_y - self.crown_min_y).max(1e-3);
+        let height_frac = ((pos.y - self.crown_min_y) / span).clamp(0.0, 1.0);
+        let low = 1.0 - height_frac;
+        let occl = (0.44 * crown_depth + 0.32 * clump_depth + 0.34 * low).clamp(0.0, 1.0);
+        (1.0 - self.params.ao_strength.clamp(0.0, 1.0) * occl).clamp(0.18, 1.0)
+    }
+
+    /// Normalized height from tree root (`0.0`) to crown apex (`1.0`).
+    pub fn height_norm_at(&self, pos: Vec3) -> f32 {
+        ((pos.y - self.tree_min_y) / self.tree_span_y).clamp(0.0, 1.0)
+    }
+
     /// Linear-RGB tint x ambient occlusion for leaf `i` at `pos`.
     pub fn tint_ao(&self, i: usize, pos: Vec3) -> Vec4 {
         let c = self.leaf_clump.get(i).copied().unwrap_or(0);
@@ -772,16 +821,25 @@ impl CanopyContext {
         let height_frac = ((pos.y - self.crown_min_y) / span).clamp(0.0, 1.0);
         let low = 1.0 - height_frac;
         let occl = (0.44 * crown_depth + 0.32 * clump_depth + 0.34 * low).clamp(0.0, 1.0);
-        let ao = (1.0 - self.params.ao_strength.clamp(0.0, 1.0) * occl).clamp(0.14, 1.0);
+        let ao = (1.0 - self.params.ao_strength.clamp(0.0, 1.0) * occl).clamp(0.18, 1.0);
         // Subtle cool-sky shadow shift in deep interior vs warm sunlit radiance at outer tips.
         let sun_rim = ((1.0 - occl).powf(1.3) * (0.45 + 0.55 * height_frac)).clamp(0.0, 1.0);
         let sky_cool = Vec3::new(0.86, 0.96, 1.05);
         let sun_warm = Vec3::new(1.06, 1.03, 0.92);
         let atmos_grade = sky_cool.lerp(sun_warm, sun_rim);
+        // Deterministic per-sprig botanical variation: ~12% subtle sun-baked ochre/bronze
+        // sclerophyll accent on sunlit outer sprigs when hue variation is active.
+        let h_sprig = (i as f32 * 0.618_034 + c as f32 * 0.381_966).fract();
+        let dry_accent = if self.params.hue_variation >= 0.08 && h_sprig > 0.87 && sun_rim > 0.28 {
+            let dry_k = (((h_sprig - 0.87) / 0.13) * sun_rim).clamp(0.0, 1.0) * 0.65;
+            Vec3::ONE.lerp(Vec3::new(1.16, 0.97, 0.76), dry_k)
+        } else {
+            Vec3::ONE
+        };
         // Small per-leaf jitter keeps clumps from looking flat-filled.
         let jitter = 1.0 - 0.09 * (i as f32 * 0.754_877_7).fract();
         let base_tint = self.clump_tint.get(c).copied().unwrap_or(Vec3::ONE);
-        let t = (base_tint * atmos_grade * ao * jitter).clamp(Vec3::ZERO, Vec3::ONE);
+        let t = (base_tint * atmos_grade * dry_accent * ao * jitter).clamp(Vec3::ZERO, Vec3::ONE);
         Vec4::new(t.x, t.y, t.z, 1.0)
     }
 }
@@ -960,10 +1018,12 @@ fn generate_cross_billboards(leaves: &[Leaf], config: &LeafConfig, tree: &Tree) 
     let mut mesh = Mesh::new();
 
     for (idx, leaf) in leaves.iter().enumerate() {
-        // Vary dihedral wing splay per spray so crossed cards never read as rigid X-planes
-        let jitter = ((idx as f32 * 0.618_034).fract() - 0.5) * 0.22;
-        let wing_a = Vec3::new(0.54 + jitter, 0.08, 0.838).normalize();
-        let wing_b = Vec3::new(-0.54 + jitter, -0.06, 0.838).normalize();
+        // Vary dihedral wing splay and pitch asymmetrically per sprig so crossed 3D curved
+        // branchlets interlock as botanical volumes and never read as rigid planar X-cards.
+        let jitter_a = ((idx as f32 * 0.618_034).fract() - 0.5) * 0.28;
+        let jitter_b = ((idx as f32 * 0.754_877_7).fract() - 0.5) * 0.24;
+        let wing_a = Vec3::new(0.56 + jitter_a, 0.14 + jitter_b * 0.45, 0.816).normalize();
+        let wing_b = Vec3::new(-0.52 + jitter_b, -0.10 + jitter_a * 0.40, 0.848).normalize();
         add_billboard_quad(&mut mesh, leaf, wing_a, config, tree);
         add_billboard_quad(&mut mesh, leaf, wing_b, config, tree);
     }
@@ -1399,25 +1459,58 @@ fn add_billboard_quad(
     let final_rotation = leaf.rotation * quad_rotation;
 
     if config.canopy.single_sided {
-        // Emit a 3x3 (9-vertex, 8-triangle) 3D-curved botanical spray wing with longitudinal
-        // arch and lateral V-keel camber so zoomed-in foliage never reads as flat postcards.
+        // Emit a 3x3 (9-vertex, 8-triangle) curved & V-folded 3D branchlet sub-mesh with
+        // longitudinal arch, lateral V-cupping/camber, subtle per-sprig roll/twist, and
+        // graceful world-space pendulous gravity droop on weeping/hanging species!
         let base_idx = mesh.vertices.len() as u32;
         let half_w = leaf.scale * 0.5;
         let xs = [-1.0_f32, 0.0, 1.0];
         let ys = [0.0_f32, 0.52, 1.0];
 
-        for &yn in &ys {
-            // Rise gently out from petiole, crest near mid-spray, then droop at tip
-            let z_arch = leaf.scale * (0.16 * yn - 0.30 * yn * yn);
-            let dz_dy = 0.16 - 0.60 * yn;
-            for &xn in &xs {
-                // Raised central rachis keel (+z) with gently swept lateral margins (-z)
-                let z_keel = leaf.scale * (0.032 * (1.0 - xn.abs()) - 0.068 * xn * xn);
-                let dz_dx = -0.272 * xn;
-                let local_pos = Vec3::new(xn * half_w, yn * leaf.scale, z_arch + z_keel);
-                let local_nrm = Vec3::new(-dz_dx, -dz_dy * 0.55, 1.0).normalize();
+        // Deterministic per-sprig organic variation from stem_id and position
+        let h_a = ((leaf.stem_id as f32 * 0.618_034
+            + leaf.position.x * 1.37
+            + leaf.position.z * 2.19)
+            .fract())
+        .abs();
+        let h_b = ((leaf.stem_id as f32 * 0.381_966 + leaf.position.y * 1.73).fract()).abs();
+        let twist_rad = (h_a - 0.5) * 0.42; // subtle +-12 deg organic roll along sprig
+        let arch_gain = 0.86 + 0.32 * h_b;
+        let cup_gain = 0.88 + 0.30 * h_a;
+        // Pendulous species (WA Peppermint, weeping eucalypts) cascade smoothly toward world -Y
+        let pendulous = ((-config.up_influence - 0.22) / 0.78).clamp(0.0, 1.0);
+        let gravity_droop_m = leaf.scale * (0.04 + 0.34 * pendulous * pendulous);
 
-                let world_pos = leaf.position + final_rotation * local_pos;
+        for &yn in &ys {
+            // Rise gently out from petiole, crest near mid-spray, then droop organically at tip
+            let z_arch = leaf.scale * arch_gain * (0.19 * yn - 0.36 * yn * yn);
+            let dz_dy = arch_gain * (0.19 - 0.72 * yn);
+            let local_twist = twist_rad * yn;
+            let (st, ct) = local_twist.sin_cos();
+
+            for &xn in &xs {
+                // Pronounced V-folded central twig keel (+z) cupping softly back at lateral margins (-z)
+                let ax = xn.abs();
+                let z_keel = leaf.scale * cup_gain * (0.058 * (1.0 - ax) - 0.105 * xn * xn);
+                let dz_dx = cup_gain * (-0.058 * xn.signum() - 0.210 * xn);
+
+                let lx = xn * half_w;
+                let lz = z_arch + z_keel;
+                // Apply subtle progressive twist around sprig axis (+Y)
+                let rx = lx * ct - lz * st;
+                let rz = lx * st + lz * ct;
+                let local_pos = Vec3::new(rx, yn * leaf.scale, rz);
+
+                let local_nrm_raw = Vec3::new(-dz_dx * 0.85, -dz_dy * 0.60, 1.0).normalize();
+                let local_nrm = Vec3::new(
+                    local_nrm_raw.x * ct - local_nrm_raw.z * st,
+                    local_nrm_raw.y,
+                    local_nrm_raw.x * st + local_nrm_raw.z * ct,
+                )
+                .normalize_or_zero();
+
+                let droop_world = Vec3::NEG_Y * (gravity_droop_m * yn * yn);
+                let world_pos = leaf.position + final_rotation * local_pos + droop_world;
                 let world_nrm = (final_rotation * local_nrm).normalize_or_zero();
                 let uv = remap_floral_uv(
                     Vec2::new(xn * 0.5 + 0.5, 1.0 - yn),

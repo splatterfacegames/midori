@@ -907,12 +907,12 @@ fn bark_albedo_from_height(
 fn normal_from_height(height: &[f32], res: u32) -> RgbaTexture {
     let mut tex = RgbaTexture::new(res, res);
     let n = res as i32;
-    let scale = (res as f32 / 256.0).clamp(0.5, 4.5);
-    let fine_strength = 2.8 * scale;
+    let scale = (res as f32 / 256.0).clamp(0.5, 5.0);
+    let fine_strength = 3.2 * scale;
     let mid_step = 2_i32;
-    let mid_strength = 2.4 * (scale * 0.5).clamp(0.5, 2.2);
+    let mid_strength = 2.8 * (scale * 0.5).clamp(0.5, 2.4);
     let macro_step = (res / 200).max(4) as i32;
-    let macro_strength = 1.6;
+    let macro_strength = 1.85;
     let sample = |x: i32, y: i32| -> f32 {
         let wx = wrap_period(x, n) as usize;
         let wy = wrap_period(y, n) as usize;
@@ -947,8 +947,8 @@ fn normal_from_height(height: &[f32], res: u32) -> RgbaTexture {
             let mut dx = gx_fine * 0.66 + gx_mid * 0.24 + gx_macro * 0.10;
             let mut dy = gy_fine * 0.66 + gy_mid * 0.24 + gy_macro * 0.10;
             let slope_len = (dx * dx + dy * dy).sqrt();
-            if slope_len > 1.42 {
-                let inv_s = 1.42 / slope_len;
+            if slope_len > 1.62 {
+                let inv_s = 1.62 / slope_len;
                 dx *= inv_s;
                 dy *= inv_s;
             }
@@ -1233,6 +1233,30 @@ fn card_leaves_and_twigs(
                     jitter: rng.range(1.02, 1.16),
                     hue: rng.range(0.10, 0.50),
                 });
+            }
+            // Subtle woody axillary gumnut capsule clusters on Australian eucalypt sprays
+            if matches!(shape, LeafShape::Sickle | LeafShape::BroadEucalypt) {
+                for &(gt, gside) in &[(0.32_f32, -1.0_f32), (0.62, 1.0), (0.78, -1.0)] {
+                    let node = quad_bezier(p0, p1, p2, gt);
+                    for cup_i in 0..3 {
+                        let off_a = gside * (0.45 + 0.34 * cup_i as f32) + rng.range(-0.08, 0.08);
+                        let dir = Vec2::new(off_a.sin(), -off_a.cos());
+                        let cup_pos = node + dir * (0.032 + 0.010 * cup_i as f32);
+                        twigs.push(TwigStroke {
+                            a: node,
+                            b: cup_pos,
+                            w_a: 0.0028,
+                            w_b: 0.0022,
+                        });
+                        // Rounded woody gumnut cupule
+                        twigs.push(TwigStroke {
+                            a: cup_pos,
+                            b: cup_pos + dir * 0.016,
+                            w_a: 0.0082,
+                            w_b: 0.0095,
+                        });
+                    }
+                }
             }
             (leaves, twigs)
         }
@@ -1612,27 +1636,34 @@ fn leaf_card_with_palette(
                                 }
                             }
                             _ => {
-                                // Razor-crisp tapered midrib + herringbone secondary + reticulate net
-                                let midrib_w = lerp(0.011, 0.0022, along) * (1.0 - along * 0.22);
-                                if local.y < 0.45 && local.x.abs() < midrib_w {
+                                // Razor-crisp tapered midrib + herringbone secondary + reticulate micro-net
+                                let midrib_w = lerp(0.013, 0.0025, along) * (1.0 - along * 0.22);
+                                if local.y < 0.46 && local.x.abs() < midrib_w {
                                     let k = 1.0 - local.x.abs() / midrib_w.max(1e-4);
-                                    shade *= 1.0 + 0.18 * k;
-                                    vein_tint = [1.0 + 0.14 * k, 1.0 + 0.09 * k, 1.0 - 0.12 * k];
+                                    shade *= 1.0 + 0.22 * k;
+                                    vein_tint = [1.0 + 0.16 * k, 1.0 + 0.11 * k, 1.0 - 0.12 * k];
                                 } else if shape != LeafShape::Needle {
-                                    let sec = ((local.y - local.x.abs() * 0.62) * 14.0).fract();
-                                    let sec_line = (1.0 - (sec - 0.5).abs() * 11.0).clamp(0.0, 1.0)
-                                        * (1.0 - (local.x.abs() * 2.5).clamp(0.0, 1.0));
+                                    let sec = ((local.y - local.x.abs() * 0.65) * 16.0).fract();
+                                    let sec_line = (1.0 - (sec - 0.5).abs() * 11.5).clamp(0.0, 1.0)
+                                        * (1.0 - (local.x.abs() * 2.4).clamp(0.0, 1.0));
                                     let cell = value_noise(
                                         seed ^ 0xCE11,
-                                        (local.x + 1.0) * 64.0,
-                                        (local.y + 1.0) * 64.0,
+                                        (local.x + 1.0) * 80.0,
+                                        (local.y + 1.0) * 80.0,
                                         128,
                                         128,
                                     );
-                                    let retic = (1.0 - (cell - 0.5).abs() * 9.0).clamp(0.0, 1.0);
-                                    shade *= 1.0 + 0.09 * sec_line + 0.035 * retic;
-                                    vein_tint[0] += 0.05 * sec_line;
-                                    vein_tint[1] += 0.04 * sec_line;
+                                    let retic = (1.0 - (cell - 0.5).abs() * 9.5).clamp(0.0, 1.0);
+                                    let fleck = value_noise(
+                                        seed ^ 0xF1EC,
+                                        (local.x + 1.0) * 160.0,
+                                        (local.y + 1.0) * 160.0,
+                                        256,
+                                        256,
+                                    );
+                                    shade *= 1.0 + 0.12 * sec_line + 0.045 * retic + (fleck - 0.5) * 0.07;
+                                    vein_tint[0] += 0.065 * sec_line;
+                                    vein_tint[1] += 0.050 * sec_line;
                                 }
                             }
                         }

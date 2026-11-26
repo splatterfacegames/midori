@@ -17,30 +17,30 @@ notes = "Taller upright wavy trunk with tall bright yellow cylindrical flower ca
 [trunk]
 height = 6.2
 height_variance = 0.18
-radius = 0.27
+radius = 0.29
 taper = 0.72
 taper_profile = "exponential"
-curve = 18.0
-curve_variance = 12.0
-curve_back = 24.0
+curve = 24.0
+curve_variance = 16.0
+curve_back = 26.0
 segments = 18
-buttress = 0.6
+buttress = 1.15
 
 [branches.level1]
-count = 7
+count = 8
 count_variance = 2
-length = 3.4
+length = 3.5
 length_variance = 0.22
-radius_ratio = 0.56
+radius_ratio = 0.58
 radius_model = "ratio"
 taper = 0.76
 taper_profile = "exponential"
-angle = 44.0
+angle = 46.0
 angle_variance = 16.0
 rotation = 137.5
-gravity = 0.06
-curve = 28.0
-curve_variance = 24.0
+gravity = 0.05
+curve = 30.0
+curve_variance = 26.0
 segments = 12
 
 [branches.level2]
@@ -84,14 +84,14 @@ density = 0.90
 width_ratio = 0.92
 
 [leaves]
-count = 1550
+count = 2000
 min_level = 2
-size = 0.44
+size = 0.48
 size_variance = 0.20
 distribution = "whorl"
 geometry = "cross_billboard"
 shape = "banksia"
-up_influence = 0.26
+up_influence = 0.24
 
 [inflorescence]
 kind = "spike"

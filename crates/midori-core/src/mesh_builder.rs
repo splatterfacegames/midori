@@ -342,12 +342,12 @@ impl<'a> MeshBuilder<'a> {
         let tip_r = stem.segments.last().unwrap().end_radius;
         let explicit_roots = self.config.surface_root_reach > 0.0 && ring_res >= 10;
         if stem.level == 0
-            && self.config.trunk_buttress > 0.0
+            && self.config.trunk_buttress >= 0.50
             && (explicit_roots
-                || (ring_res >= 16
-                    && stem.segments.len() >= 10
-                    && base_r >= 0.25
-                    && tip_r < base_r * 0.44))
+                || (ring_res >= 12
+                    && stem.segments.len() >= 8
+                    && base_r >= 0.22
+                    && tip_r < base_r * 0.56))
         {
             self.build_trunk_roots(stem, ring_res);
         }
@@ -566,6 +566,12 @@ impl<'a> MeshBuilder<'a> {
 
         let weld_info = self.child_weld_info(stem, total_length);
         if smooth_subdiv {
+            // Extra lower-trunk rings so concave basal root buttress flutes sweep smoothly into the soil.
+            if stem.level == 0 && self.config.trunk_buttress > 0.0 {
+                t_values.push(0.025);
+                t_values.push(0.065);
+                t_values.push(0.125);
+            }
             if let Some((_, t_exit, _, is_term)) = weld_info {
                 if is_term {
                     t_values.push(0.042);
@@ -645,9 +651,9 @@ impl<'a> MeshBuilder<'a> {
                 let radius = if smooth_subdiv && let Some((_, t_exit, p_r, false)) = weld_info {
                     // Lateral branch exit fillet: pinch buried centerline root (t=0) so it never
                     // pokes out the opposite/side trunk wall, and flare collar smoothly across
-                    // the oblique bark exit ellipse (out to ~1.35 * t_exit + 0.09).
-                    let peak = (raw_r * 1.16).min((p_r * 0.70).max(raw_r * 1.01));
-                    let collar_end = (t_exit * 1.35 + 0.09).min(0.65);
+                    // the oblique bark exit ellipse (out to ~1.40 * t_exit + 0.11).
+                    let peak = (raw_r * 1.24).min((p_r * 0.78).max(raw_r * 1.04));
+                    let collar_end = (t_exit * 1.40 + 0.11).min(0.68);
                     let collar_r = if t < t_exit * 0.92 {
                         let u = (t / (t_exit * 0.92).max(0.01)).clamp(0.0, 1.0);
                         let s = u * u * (3.0 - 2.0 * u);
@@ -690,9 +696,10 @@ impl<'a> MeshBuilder<'a> {
             })
             .collect();
 
-        // Sink high-detail trunk base well below y = 0 so spreading buttresses & roots anchor cleanly into soil
-        if stem.level == 0 && ring_res >= 16 && !samples.is_empty() {
-            samples[0].position.y -= 0.085;
+        // Sink trunk base 0.15 m below y = 0 so flared root buttresses & surface roots
+        // stay cleanly grounded on sloped dunes, riverbanks, and hills without floating gaps.
+        if stem.level == 0 && ring_res >= 12 && stem.segments.len() >= 4 && !samples.is_empty() {
+            samples[0].position.y -= 0.15;
         }
 
         // Seamless union for dichotomous / terminal multi-branch Y-forks (e.g. Joshua Tree):
@@ -886,33 +893,42 @@ impl<'a> MeshBuilder<'a> {
             let crotch_bracket = if let Some((_, t_exit, p_r, false)) = parent_weld_info
                 && resolution >= 12
                 && t_norm > t_exit * 0.55
-                && t_norm < t_exit * 1.35 + 0.085
+                && t_norm < t_exit * 1.40 + 0.105
             {
                 let center_t = t_exit * 1.06;
-                let span = (t_exit * 0.45 + 0.085).max(0.04);
+                let span = (t_exit * 0.48 + 0.105).max(0.045);
                 let dist = ((t_norm - center_t).abs() / span).clamp(0.0, 1.0);
                 let bell = (1.0 - dist).powi(2);
                 let under = (-offset.y).clamp(0.0, 1.0);
-                let raw_mul = 1.0 + 0.16 * bell * (0.20 + 0.80 * under);
-                let max_mul = (p_r * 0.74 / radius.max(0.005)).max(1.0);
+                let raw_mul = 1.0 + 0.22 * bell * (0.24 + 0.76 * under);
+                let max_mul = (p_r * 0.80 / radius.max(0.005)).max(1.0);
                 raw_mul.min(max_mul)
             } else {
                 1.0
             };
 
+            let h_above_ground = (center.y - stem.base().y).max(0.0);
+            let buttress_zone_m = if self.config.trunk_base_flare_height > 0.0 {
+                (trunk_len * self.config.trunk_base_flare_height).clamp(1.15, 3.6)
+            } else {
+                (trunk_len * 0.24).clamp(1.15, 2.4)
+            };
+            let buttress_u = (h_above_ground / buttress_zone_m).clamp(0.0, 1.0);
+
             let (buttress_mul, normal_twist) =
-                if stem.level == 0 && resolution >= 16 && h_frac < 0.36 {
-                    // 5-lobed organic asymmetric root buttress flutes aligned directly with the 5 nebari surface roots
-                    let falloff = (1.0 - h_frac / 0.36).powi(2);
+                if stem.level == 0 && resolution >= 12 && buttress_u < 1.0 && self.config.trunk_buttress > 0.0 {
+                    // 5-lobed organic asymmetric root buttress flutes aligned directly with the 5 nebari surface roots,
+                    // widening trunk radius smoothly over the lower ~1.2–2.4 m and anchoring down to y = -0.15 m.
+                    let falloff = (1.0 - buttress_u).powf(2.15);
                     let root_base_az = seed_phase * 0.20;
-                    let spiral = h_frac * 0.95;
+                    let spiral = buttress_u * 0.85;
                     let a5 = (angle - root_base_az) * 5.0 - spiral;
-                    let a3 = angle * 3.0 + seed_phase + spiral * 0.6;
+                    let a3 = angle * 3.0 + seed_phase + spiral * 0.55;
                     let asym = 0.78 + 0.22 * (angle * 2.0 - seed_phase).cos();
                     let raw = 0.68 * asym * a5.cos() + 0.32 * a3.cos();
                     let raw_d = -0.68 * asym * 5.0 * a5.sin() - 0.32 * 3.0 * a3.sin();
-                    let toe = raw.max(0.0).powf(1.35) * 0.74 - (-raw).max(0.0) * 0.16;
-                    let flute_ridge = if resolution >= 20 {
+                    let toe = 0.14 + raw.max(0.0).powf(1.30) * 0.66 - (-raw).max(0.0) * 0.14;
+                    let flute_ridge = if resolution >= 16 {
                         let m1 = angle * 4.0 + v_coord * 0.72 + stem_phase;
                         let r1 = angle * 13.0 + v_coord * 2.2 + stem_phase;
                         let r2 = angle * 21.0 - v_coord * 3.5 + seed_phase;
@@ -921,14 +937,10 @@ impl<'a> MeshBuilder<'a> {
                         0.0
                     };
                     let k = self.config.trunk_buttress;
-                    if k == 1.0 {
-                        (1.0 + falloff * toe + flute_ridge, -raw_d * 0.15 * falloff)
-                    } else {
-                        (
-                            1.0 + (falloff * toe + flute_ridge) * k,
-                            -raw_d * 0.15 * falloff * k,
-                        )
-                    }
+                    (
+                        1.0 + (falloff * toe + flute_ridge) * k,
+                        -raw_d * 0.16 * falloff * k,
+                    )
                 } else if stem.level == 0 && resolution >= 8 && h_frac < 0.28 {
                     let falloff = (1.0 - h_frac / 0.28).powi(2);
                     let phase = angle * 5.0 + seed_phase + 0.38 * (angle * 2.0 - seed_phase).sin();
@@ -1228,17 +1240,24 @@ impl<'a> MeshBuilder<'a> {
             let rad_dir = Vec3::new(az.cos(), 0.0, az.sin());
             let side_dir = Vec3::new(-az.sin(), 0.0, az.cos());
 
+            let buttress_scale = self.config.trunk_buttress.clamp(0.55, 2.2);
             let reach = if explicit_reach {
                 self.config.surface_root_reach * (0.78 + 0.44 * h2)
             } else {
-                base_r * (2.15 + 0.95 * h2)
+                base_r * (1.85 + 0.85 * h2) * buttress_scale.sqrt()
             };
             let start_h = if explicit_reach {
                 base_r * (1.55 + 0.35 * h3) * self.config.trunk_buttress.clamp(1.0, 2.2)
             } else {
-                base_r * (1.28 + 0.18 * h3)
+                base_r * (1.15 + 0.22 * h3) * buttress_scale.powf(0.45)
             };
-            let r_peak = base_r * (0.29 + 0.06 * h1) * if explicit_reach { 1.18 } else { 1.0 };
+            let r_peak = base_r
+                * (0.27 + 0.06 * h1)
+                * if explicit_reach {
+                    1.18
+                } else {
+                    buttress_scale.powf(0.35)
+                };
             let s_sign = if r_idx % 2 == 0 { 1.0 } else { -1.0 };
             let wave_phase = h2 * TAU;
 

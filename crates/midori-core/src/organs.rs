@@ -281,6 +281,32 @@ pub fn generate_organ_mesh(
 ) -> Mesh {
     let mut mesh = Mesh::new();
     let tint = vertex_color == FoliageVertexColor::TintAo;
+    // Compute crown envelope from organs (or tree bounds) for smooth bent normals & crown-depth AO
+    let mut lo = Vec3::splat(f32::MAX);
+    let mut hi = Vec3::splat(f32::MIN);
+    for o in organs {
+        lo = lo.min(o.position);
+        hi = hi.max(o.position);
+    }
+    if organs.is_empty() {
+        lo = Vec3::ZERO;
+        hi = Vec3::ONE;
+    }
+    let crown_center = (lo + hi) * 0.5;
+    let crown_radii = ((hi - lo) * 0.5).max(Vec3::splat(0.25));
+    let tree_min_y = if tree.bounds.is_valid() {
+        tree.bounds.min.y.min(0.0)
+    } else {
+        lo.y.min(0.0)
+    };
+    let tree_max_y = if tree.bounds.is_valid() {
+        tree.bounds.max.y.max(hi.y)
+    } else {
+        hi.y
+    };
+    let tree_span_y = (tree_max_y - tree_min_y).max(0.5);
+    let crown_span_y = (hi.y - lo.y).max(0.25);
+
     for (idx, organ) in organs.iter().enumerate() {
         let start = mesh.vertices.len();
         match organ.kind {
@@ -290,8 +316,11 @@ pub fn generate_organ_mesh(
             OrganKind::Card => add_cards(&mut mesh, organ, idx, detail),
             OrganKind::Blade => add_blade(&mut mesh, organ, idx, detail),
         }
-        // Per-organ shade keeps a crown of flowers from looking flat-filled.
-        let jitter = 1.0 - 0.14 * (idx as f32 * 0.754_877_7).fract();
+        // Per-organ shade & subtle hue variation keep flower clouds from looking flat-filled.
+        let h_a = (idx as f32 * 0.754_877_7).fract();
+        let h_b = (idx as f32 * 0.618_034 + organ.stem_id as f32 * 0.317).fract();
+        let jitter = 1.0 - 0.14 * h_a;
+        let hue_shift = (h_b - 0.5) * 0.12;
         let leaf = Leaf {
             position: organ.position,
             rotation: organ.rotation,
@@ -300,7 +329,33 @@ pub fn generate_organ_mesh(
         };
         for v in &mut mesh.vertices[start..] {
             if tint {
-                v.color = Vec4::new(jitter, jitter, jitter, 1.0);
+                let crown_rel = (v.position - crown_center) / crown_radii;
+                let crown_depth = 1.0 - crown_rel.length().clamp(0.0, 1.0);
+                let height_crown = ((v.position.y - lo.y) / crown_span_y).clamp(0.0, 1.0);
+                let height_norm = ((v.position.y - tree_min_y) / tree_span_y).clamp(0.0, 1.0);
+                let occl = (0.55 * crown_depth + 0.45 * (1.0 - height_crown)).clamp(0.0, 1.0);
+                let crown_ao = (1.0 - 0.36 * occl).clamp(0.45, 1.0);
+
+                if organ.kind == OrganKind::Card {
+                    // Blend curved blossom cluster normals ~72% toward smooth crown outward normals
+                    let out = (crown_rel + Vec3::Y * 0.32).try_normalize().unwrap_or(Vec3::Y);
+                    let geom = if v.normal.dot(out) < 0.0 {
+                        -v.normal
+                    } else {
+                        v.normal
+                    };
+                    v.normal = geom.lerp(out, 0.72).try_normalize().unwrap_or(out);
+                    // Luminous blossom shading: slightly warmer/brighter sunlit tips, cool shaded interior
+                    let lum = (crown_ao * (0.90 + 0.14 * height_crown) * jitter).clamp(0.55, 1.0);
+                    let r = (lum * (1.0 + hue_shift * 0.60)).clamp(0.0, 1.0);
+                    let g = (lum * (1.0 - hue_shift * 0.25)).clamp(0.0, 1.0);
+                    let b = (lum * (1.0 + hue_shift * 0.35)).clamp(0.0, 1.0);
+                    v.color = Vec4::new(r, g, b, 1.0);
+                } else {
+                    let shade = (jitter * (0.86 + 0.14 * crown_ao)).clamp(0.50, 1.0);
+                    v.color = Vec4::new(shade, shade, shade, 1.0);
+                }
+                v.uv2 = Vec2::new(crown_ao, height_norm);
             } else if pivot_painter {
                 crate::leaves::encode_leaf_pivot_painter(v, &leaf, tree);
                 // Woody organs are stiff; ribbons and cards flutter like leaves.
@@ -321,13 +376,14 @@ pub fn generate_organ_mesh(
 }
 
 fn add_lathe(mesh: &mut Mesh, organ: &Organ, detail: u32) {
-    let sides: u32 = match detail {
-        0 => 8,
-        1 => 6,
+    let sides: u32 = match (organ.kind, detail) {
+        (OrganKind::Cylinder, 0) => 12,
+        (_, 0) => 10,
+        (_, 1) => 6,
         _ => 4,
     };
     let rings: &[f32] = match (organ.kind, detail) {
-        (OrganKind::Cylinder, 0) => &[0.0, 0.08, 0.5, 0.88, 1.0],
+        (OrganKind::Cylinder, 0) => &[0.0, 0.08, 0.28, 0.52, 0.76, 0.90, 1.0],
         (OrganKind::Cylinder, _) => &[0.0, 0.5, 1.0],
         (OrganKind::Urn, 0) => &[0.0, 0.2, 0.5, 0.82, 1.0],
         (OrganKind::Urn, _) => &[0.0, 0.5, 1.0],
@@ -377,26 +433,64 @@ fn add_lathe(mesh: &mut Mesh, organ: &Organ, detail: u32) {
 fn add_cards(mesh: &mut Mesh, organ: &Organ, idx: usize, detail: u32) {
     let axis = organ.rotation * Vec3::Y;
     let half = organ.length * 0.5;
+    // Non-orthogonal dihedral splay prevents harsh 90-deg X-plane seams on blossom clusters.
     let planes: &[f32] = if detail >= 2 {
         &[0.0]
     } else {
-        &[0.0, PI * 0.5]
+        &[0.0, 1.28]
     };
-    // Per-organ splay so crossed cards never line up into a visible grid.
-    let splay = ((idx as f32 * 0.618_034).fract() - 0.5) * 0.5;
-    for &turn in planes {
+    let splay = ((idx as f32 * 0.618_034).fract() - 0.5) * 0.65;
+    let cup_sign = if idx.is_multiple_of(2) {
+        1.0_f32
+    } else {
+        -1.0_f32
+    };
+
+    // Use curved 3D domed panicle sub-meshes at LOD0 (3x3 = 8 tris/wing) and LOD1 (3x2 = 4 tris/wing)
+    // so Jacaranda & Marri blossom clusters read as soft 3D clouds instead of flat planar cards.
+    let (xs, ys): (&[f32], &[f32]) = match detail {
+        0 => (&[-1.0, 0.0, 1.0], &[0.0, 0.52, 1.0]),
+        1 => (&[-1.0, 0.0, 1.0], &[0.0, 1.0]),
+        _ => (&[-1.0, 1.0], &[0.0, 1.0]),
+    };
+    let cols = xs.len() as u32;
+    let rows = ys.len() as u32;
+
+    for (p_i, &turn) in planes.iter().enumerate() {
         let q = Quat::from_axis_angle(axis, turn + splay) * organ.rotation;
         let side = q * Vec3::X;
         let normal = q * Vec3::Z;
+        let bend_sign = if p_i == 0 { cup_sign } else { -cup_sign };
         let base = mesh.vertices.len() as u32;
-        for (cx, cy) in [(-1.0f32, 0.0f32), (1.0, 0.0), (1.0, 1.0), (-1.0, 1.0)] {
-            let pos = organ.position + side * (cx * half) + axis * (cy * organ.length);
-            let v = lerp(organ.v_range[0], organ.v_range[1], cy);
-            let uv = atlas_uv(organ.cell, Vec2::new(cx * 0.5 + 0.5, v));
-            mesh.vertices.push(Vertex::new(pos, normal, uv));
+
+        for &cy in ys {
+            // Subtle dome arch along blossom panicle height
+            let arch = bend_sign * organ.length * (0.16 * cy - 0.24 * cy * cy);
+            let dz_dy = bend_sign * (0.16 - 0.48 * cy);
+            for &cx in xs {
+                // Soft convex V-cupping across width
+                let cup = bend_sign * half * (0.22 * (1.0 - cx * cx) - 0.14 * cx.abs());
+                let dz_dx = bend_sign * (-0.44 * cx);
+                let pos =
+                    organ.position + side * (cx * half) + axis * (cy * organ.length) + normal * (arch + cup);
+                let v = lerp(organ.v_range[0], organ.v_range[1], cy);
+                let uv = atlas_uv(organ.cell, Vec2::new(cx * 0.5 + 0.5, v));
+                let nrm = (normal - side * (dz_dx * 0.55) - axis * (dz_dy * 0.55))
+                    .try_normalize()
+                    .unwrap_or(normal);
+                mesh.vertices.push(Vertex::new(pos, nrm, uv));
+            }
         }
-        mesh.indices
-            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        for ry in 0..(rows - 1) {
+            for rx in 0..(cols - 1) {
+                let i00 = base + ry * cols + rx;
+                let i10 = i00 + 1;
+                let i01 = i00 + cols;
+                let i11 = i01 + 1;
+                mesh.indices
+                    .extend_from_slice(&[i00, i10, i11, i00, i11, i01]);
+            }
+        }
     }
 }
 

@@ -28,7 +28,7 @@ stems = 3
 stem_spread = 24.0
 stem_offset = 0.28
 stem_height_variation = 0.22
-buttress = 0.7
+buttress = 1.15
 
 [branches.level1]
 count = 6

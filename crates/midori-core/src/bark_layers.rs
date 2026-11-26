@@ -68,75 +68,88 @@ pub(crate) fn height_at(style: BarkStyle, u: f32, v: f32, seed: u64) -> f32 {
     let v = v.rem_euclid(1.0);
     match style {
         BarkStyle::Stringy => {
-            // Jarrah: long fibrous strands that part in shallow, interlacing
-            // vertical furrows; the strands dominate, not corky ridges.
-            let warp = (fbm(seed ^ 0x51, u * 5.0, v * 2.0, 5, 2, 3) - 0.5) * 0.05;
-            let (f1, f2, cell) = voronoi_f1_f2(seed ^ 0x52, (u + warp) * 30.0, v * 2.0, 30, 2);
-            let furrow = smooth(((f2 - f1) / 0.16).clamp(0.0, 1.0));
-            let strand = fbm(seed ^ 0x53, (u + warp) * 96.0, v * 2.0, 96, 2, 3);
-            let strand_ridge = (1.0 - (2.0 * strand - 1.0).abs()).powf(1.3);
-            let fibre = fbm(seed ^ 0x54, (u + warp * 0.5) * 240.0, v * 6.0, 240, 6, 3);
-            let fibre_ridge = 1.0 - (2.0 * fibre - 1.0).abs();
-            let fray = value_noise(seed ^ 0x55, u * 256.0, v * 48.0, 256, 48);
-            // Strips sit at slightly different levels; furrows between them are shallow.
-            let slab = 0.74 + 0.26 * cell;
+            // Jarrah / WA Peppermint: deep long fibrous strands that part in interlacing
+            // vertical canyons with shredded outer wood-fibre contrast.
+            let warp = (fbm(seed ^ 0x51, u * 5.0, v * 2.0, 5, 2, 3) - 0.5) * 0.065;
+            let (f1, f2, cell) = voronoi_f1_f2(seed ^ 0x52, (u + warp) * 32.0, v * 2.0, 32, 2);
+            let furrow = smooth(((f2 - f1) / 0.19).clamp(0.0, 1.0));
+            let strand = fbm(seed ^ 0x53, (u + warp) * 112.0, v * 2.0, 112, 2, 3);
+            let strand_ridge = (1.0 - (2.0 * strand - 1.0).abs()).powf(1.45);
+            let fibre = fbm(seed ^ 0x54, (u + warp * 0.5) * 256.0, v * 8.0, 256, 8, 3);
+            let fibre_ridge = (1.0 - (2.0 * fibre - 1.0).abs()).powf(1.2);
+            let fray = value_noise(seed ^ 0x55, u * 320.0, v * 64.0, 320, 64);
+            let slab = 0.68 + 0.32 * cell;
             let h =
-                (0.30 + 0.70 * furrow) * slab * (0.42 + 0.34 * strand_ridge + 0.22 * fibre_ridge)
-                    + (fray - 0.5) * 0.06;
+                (0.20 + 0.80 * furrow) * slab * (0.36 + 0.38 * strand_ridge + 0.26 * fibre_ridge)
+                    + (fray - 0.5) * 0.085;
             h.clamp(0.0, 1.0)
         }
         BarkStyle::Tessellated => {
-            // Marri / tuart box bark: small squarish plates, deep cracks,
-            // some plates split again.
-            let warp_u = (fbm(seed ^ 0x61, u * 8.0, v * 6.0, 8, 6, 3) - 0.5) * 0.030;
-            let warp_v = (fbm(seed ^ 0x62, u * 8.0, v * 6.0, 8, 6, 3) - 0.5) * 0.030;
+            // Marri / Tuart / Banksia box bark: crisp interlocking squarish plates, deep dark
+            // fissure cracks, secondary sub-splits, and weathered rough cork micro-pitting.
+            let warp_u = (fbm(seed ^ 0x61, u * 8.0, v * 6.0, 8, 6, 3) - 0.5) * 0.032;
+            let warp_v = (fbm(seed ^ 0x62, u * 8.0, v * 6.0, 8, 6, 3) - 0.5) * 0.032;
             let uw = u + warp_u;
             let vw = v + warp_v;
             let (f1, f2, cell) = voronoi_f1_f2(seed ^ 0x63, uw * 22.0, vw * 15.0, 22, 15);
-            let crack = smooth(((f2 - f1) / 0.14).clamp(0.0, 1.0));
+            let crack = smooth(((f2 - f1) / 0.16).clamp(0.0, 1.0));
             let (g1, g2, sub) = voronoi_f1_f2(seed ^ 0x64, uw * 44.0, vw * 30.0, 44, 30);
-            let sub_crack = if cell > 0.45 {
-                0.70 + 0.30 * smooth(((g2 - g1) / 0.10).clamp(0.0, 1.0))
+            let sub_crack = if cell > 0.40 {
+                0.64 + 0.36 * smooth(((g2 - g1) / 0.11).clamp(0.0, 1.0))
             } else {
                 1.0
             };
-            let plate = 0.58 + 0.30 * cell + 0.10 * sub;
-            let dome = 1.0 - 0.22 * f1.clamp(0.0, 1.0);
-            let grain = fbm(seed ^ 0x65, u * 160.0, v * 96.0, 160, 96, 3);
-            let pit = value_noise(seed ^ 0x66, u * 256.0, v * 192.0, 256, 192);
-            let h = crack * sub_crack * plate * dome * (0.80 + 0.24 * grain) + (pit - 0.5) * 0.06;
+            let plate = 0.54 + 0.32 * cell + 0.14 * sub;
+            let dome = 1.0 - 0.25 * f1.clamp(0.0, 1.0);
+            let grain = fbm(seed ^ 0x65, u * 192.0, v * 112.0, 192, 112, 3);
+            let pit = value_noise(seed ^ 0x66, u * 320.0, v * 224.0, 320, 224);
+            let h = crack * sub_crack * plate * dome * (0.77 + 0.27 * grain) + (pit - 0.5) * 0.075;
             h.clamp(0.0, 1.0)
         }
         BarkStyle::Patchy => {
-            // Gum bark: smooth, shed in flakes. Each zone sits at its own
-            // level and the border of a flake curls up slightly.
+            // Smooth Australian gum bark: exfoliating flakes with curled peeling ribbon edges,
+            // subtle recessed scribbly-gum tracks, and silky living epidermis porosity.
             let field = patch_field(u, v, seed);
             let (zone, edge) = patch_zone(field, 4);
-            let level = 0.56 - 0.07 * zone as f32;
-            let lip = (-(edge / 0.012).powi(2)).exp() * 0.16;
+            let level = 0.58 - 0.085 * zone as f32;
+            let lip = (-(edge / 0.013).powi(2)).exp() * 0.22;
+            let lip_under = (-((edge - 0.018) / 0.008).powi(2)).exp() * 0.09;
             let swell = fbm(seed ^ 0x75, u * 6.0, v * 3.0, 6, 3, 3);
-            let stria = fbm(seed ^ 0x76, u * 96.0, v * 8.0, 96, 8, 3);
+            let stria = fbm(seed ^ 0x76, u * 112.0, v * 10.0, 112, 10, 3);
             let stria_line = (1.0 - (2.0 * stria - 1.0).abs()).powf(2.2);
-            let skin = value_noise(seed ^ 0x77, u * 256.0, v * 128.0, 256, 128);
-            let h = level + lip + 0.10 * (swell - 0.5) + 0.05 * stria_line + 0.04 * (skin - 0.5);
-            h.clamp(0.0, 1.0)
-        }
-        BarkStyle::Papery => {
-            // Paperbark: thin sheets overlapping like loose shingles, each
-            // with a ragged free lower edge standing off the trunk.
-            let band = paper_band(u, v, seed);
-            let fr = band.rem_euclid(1.0);
-            let sheet = 0.34 + 0.46 * fr.powf(0.65);
-            let lip_shadow = (-(fr / 0.05).powi(2)).exp() * 0.30;
-            let wrinkle = fbm(seed ^ 0x83, u * 18.0, v * 150.0, 18, 150, 3);
-            let split = fbm(seed ^ 0x84, u * 34.0, v * 5.0, 34, 5, 3);
-            let split_cut = if (split - 0.5).abs() < 0.012 {
-                0.22
+            // Subtle winding scribbly-gum moth tracks etched into smooth pale gum plates
+            let scrib_a = fbm(seed ^ 0x78, u * 20.0, v * 12.0, 20, 12, 3);
+            let scrib_mask = fbm(seed ^ 0x79, u * 6.0, v * 4.0, 6, 4, 2);
+            let scrib = if scrib_mask > 0.58 && (scrib_a - 0.50).abs() < 0.011 {
+                0.08 * (1.0 - (scrib_a - 0.50).abs() / 0.011)
             } else {
                 0.0
             };
-            let fuzz = value_noise(seed ^ 0x85, u * 256.0, v * 256.0, 256, 256);
-            let h = sheet - lip_shadow + 0.10 * (wrinkle - 0.5) - split_cut + 0.05 * (fuzz - 0.5);
+            let skin = value_noise(seed ^ 0x77, u * 288.0, v * 144.0, 288, 144);
+            let h = level + lip - lip_under - scrib
+                + 0.11 * (swell - 0.5)
+                + 0.06 * stria_line
+                + 0.05 * (skin - 0.5);
+            h.clamp(0.0, 1.0)
+        }
+        BarkStyle::Papery => {
+            // Paperbark (Melaleuca): thick multi-layered overlapping parchment sheets, each
+            // with a ragged curled free edge, deep shadow crease, and fibrous torn vertical splits.
+            let band = paper_band(u, v, seed);
+            let fr = band.rem_euclid(1.0);
+            let sheet = 0.30 + 0.52 * fr.powf(0.62);
+            let lip_curl = (-((fr - 0.07) / 0.035).powi(2)).exp() * 0.14;
+            let lip_shadow = (-(fr / 0.055).powi(2)).exp() * 0.36;
+            let wrinkle = fbm(seed ^ 0x83, u * 22.0, v * 168.0, 22, 168, 3);
+            let split = fbm(seed ^ 0x84, u * 38.0, v * 6.0, 38, 6, 3);
+            let split_cut = if (split - 0.5).abs() < 0.016 {
+                0.28 * (1.0 - (split - 0.5).abs() / 0.016)
+            } else {
+                0.0
+            };
+            let fuzz = value_noise(seed ^ 0x85, u * 320.0, v * 320.0, 320, 320);
+            let h = sheet + lip_curl - lip_shadow + 0.12 * (wrinkle - 0.5) - split_cut
+                + 0.06 * (fuzz - 0.5);
             h.clamp(0.0, 1.0)
         }
         BarkStyle::PalmDiamond => {

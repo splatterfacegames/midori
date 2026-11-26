@@ -26,7 +26,7 @@ curve = 9.0
 curve_variance = 5.0
 curve_back = 9.0
 segments = 18
-buttress = 0.8
+buttress = 1.25
 
 [branches.level1]
 count = 9

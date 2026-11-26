@@ -19,14 +19,14 @@ notes = "Default summer leafy umbrella; flowering (Oct-Nov lilac cloud on dedica
 [trunk]
 height = 5.6
 height_variance = 0.14
-radius = 0.36
+radius = 0.39
 taper = 0.72
 taper_profile = "exponential"
-curve = 18.0
-curve_variance = 10.0
-curve_back = 18.0
+curve = 22.0
+curve_variance = 14.0
+curve_back = 20.0
 segments = 18
-buttress = 0.8
+buttress = 1.25
 
 [branches.level1]
 count = 8
@@ -185,7 +185,7 @@ target = "modern_pc"
 # State: October-November: blazing Perth purple-lilac blossom cloud on near-bare branches
 [states.flowering]
 species.name = "Jacaranda (flowering)"
-leaves.count = 220
+leaves.count = 420
 inflorescence.count = 3200
 
 # State: late winter: leafless crooked branches hung with dark woody clam-shaped seed pods

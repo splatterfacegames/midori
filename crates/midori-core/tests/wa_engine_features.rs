@@ -399,6 +399,68 @@ leaf_color = [0.46, 0.51, 0.40]
 }
 
 #[test]
+fn aaa_root_flare_curved_branchlets_bent_normals_and_uv2_baking() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../presets/species");
+    for (preset, state) in [
+        ("wa_flooded_gum.toml", None),
+        ("wa_peppermint.toml", None),
+        ("perth_norfolk_island_pine.toml", None),
+        ("perth_jacaranda.toml", Some("flowering")),
+        ("wa_slender_banksia.toml", None),
+    ] {
+        let species = Species::from_file_with_state(&dir.join(preset), state).unwrap();
+        let tree = generate_tree(&species, 42).unwrap();
+        let lods =
+            generate_lod_meshes_with_config(&tree, &species, &LodGenerationConfig::high_quality());
+        let lod0 = &lods.meshes[0].mesh;
+
+        // 1. Trunk base extends below y = 0 for clean slope grounding (-0.15 m skirt).
+        let min_y = lod0
+            .vertices
+            .iter()
+            .map(|v| v.position.y)
+            .fold(f32::MAX, f32::min);
+        assert!(
+            min_y <= -0.10,
+            "{preset}: expected slope-grounded root flare below y=0, got min_y={min_y}"
+        );
+
+        // 2. Curved 3D branchlets + TintAo bake smooth (crown_ao, height_norm) into TEXCOORD_1.
+        let mut ao_min = f32::MAX;
+        let mut ao_max = f32::MIN;
+        let mut h_min = f32::MAX;
+        let mut h_max = f32::MIN;
+        for sub in &lod0.submeshes {
+            if matches!(sub.material, MaterialType::Leaves | MaterialType::Organ) {
+                let start = sub.index_start as usize;
+                let end = start + sub.index_count as usize;
+                for &idx in &lod0.indices[start..end] {
+                    let v = &lod0.vertices[idx as usize];
+                    assert!(v.normal.is_finite() && (v.normal.length() - 1.0).abs() < 0.02);
+                    assert!(
+                        (0.0..=1.0).contains(&v.uv2.x) && (0.0..=1.0).contains(&v.uv2.y),
+                        "{preset}: uv2 out of [0,1]: {:?}",
+                        v.uv2
+                    );
+                    ao_min = ao_min.min(v.uv2.x);
+                    ao_max = ao_max.max(v.uv2.x);
+                    h_min = h_min.min(v.uv2.y);
+                    h_max = h_max.max(v.uv2.y);
+                }
+            }
+        }
+        assert!(
+            ao_max - ao_min > 0.08,
+            "{preset}: expected baked crown-depth AO gradient in TEXCOORD_1.x ({ao_min:.3}..{ao_max:.3})"
+        );
+        assert!(
+            h_max - h_min > 0.15,
+            "{preset}: expected root-to-crown height gradient in TEXCOORD_1.y ({h_min:.3}..{h_max:.3})"
+        );
+    }
+}
+
+#[test]
 fn wa_nature_patch_exports_ground_albedo_and_validates() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../presets/nature/wa_banksia_woodland_floor.toml");

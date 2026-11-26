@@ -505,21 +505,31 @@ fn raceme_flower_cell(rosette: &RosetteParams, rng: &mut Rng, res: u32) -> RgbaT
 // Inflorescence cells
 // ---------------------------------------------------------------------------
 
-/// Opaque wrap for a banksia-style spike: spiralled floret pairs; `color`
-/// where the flowers have opened (they open from the base), `color_tip`
-/// where they are still in bud.
+/// Opaque wrap for a banksia-style spike: dense spiralled floret pairs with crisp
+/// protruding silky styles/bristles; `color` where the flowers have opened (from base),
+/// `color_tip` where buds remain tight.
 fn flower_spike_cell(inf: &InflorescenceParams, seed: u64, res: u32) -> RgbaTexture {
     let tip = inf.color_tip.unwrap_or(inf.color);
     let mut canvas = Canvas::new(res);
     canvas.fill(|u, v| {
         let h = 1.0 - v;
-        let lattice = (TAU * (u * 13.0 + v * 9.0)).cos() * (TAU * (u * 13.0 - v * 9.0)).cos();
-        let rows = (TAU * v * 26.0).cos() * 0.5 + 0.5;
-        let ragged = fbm(seed ^ 0xC1, u * 12.0, v * 6.0, 12, 6, 3);
-        let front = ((h - 0.55 + (ragged - 0.5) * 0.35) / 0.18).clamp(0.0, 1.0);
-        let fuzz = value_noise(seed ^ 0xC2, u * 128.0, v * 128.0, 128, 128);
-        let open = scale(inf.color, 0.78 + 0.22 * lattice + 0.14 * (fuzz - 0.5));
-        let bud = scale(tip, 0.74 + 0.20 * lattice * rows);
+        let lattice = (TAU * (u * 18.0 + v * 12.0)).cos() * (TAU * (u * 18.0 - v * 12.0)).cos();
+        let rows = (TAU * v * 34.0).cos() * 0.5 + 0.5;
+        let style_bristle = (TAU * (u * 42.0 + v * 6.0)).sin().abs().powf(0.55);
+        let ragged = fbm(seed ^ 0xC1, u * 14.0, v * 8.0, 14, 8, 3);
+        let front = ((h - 0.56 + (ragged - 0.5) * 0.34) / 0.16).clamp(0.0, 1.0);
+        let fuzz = value_noise(seed ^ 0xC2, u * 192.0, v * 192.0, 192, 192);
+        let pollen_glow = (style_bristle * (0.5 + 0.5 * rows)).powi(2) * 0.18;
+        let open_base = scale(
+            inf.color,
+            0.72 + 0.24 * lattice + 0.12 * style_bristle + 0.18 * (fuzz - 0.5),
+        );
+        let open = [
+            (open_base[0] + pollen_glow * 0.95).min(1.0),
+            (open_base[1] + pollen_glow * 0.88).min(1.0),
+            (open_base[2] + pollen_glow * 0.42).min(1.0),
+        ];
+        let bud = scale(tip, 0.70 + 0.24 * lattice * rows + 0.10 * (fuzz - 0.5));
         mix(open, bud, front)
     });
     canvas.finish()
@@ -578,28 +588,32 @@ fn cluster_cell(petal: Rgb, throat: Rgb, pod: Option<Rgb>, rng: &mut Rng, res: u
         ca: stalk,
         cb: stalk,
     }];
-    let flowers = if pod.is_some() { 26 } else { 78 };
+    let flowers = if pod.is_some() { 28 } else { 104 };
     let mut heads = Vec::with_capacity(flowers);
     for i in 0..flowers {
-        // Jittered sunflower packing gives an even, rounded head.
-        let r = 0.43 * ((i as f32 + 0.5) / flowers as f32).sqrt() * rng.range(0.9, 1.05);
-        let a = i as f32 * 2.399_963 + rng.range(-0.2, 0.2);
-        let c = (hub + Vec2::new(a.cos() * r, a.sin() * r * 0.92 - 0.05))
+        // Jittered sunflower packing with scalloped panicle sub-lobes (not a uniform circle).
+        let base_r = 0.44 * ((i as f32 + 0.5) / flowers as f32).sqrt();
+        let a = i as f32 * 2.399_963 + rng.range(-0.22, 0.22);
+        let lobe = 0.88 + 0.16 * (a * 3.0 + 0.4).cos();
+        let r = base_r * lobe * rng.range(0.88, 1.06);
+        let c = (hub + Vec2::new(a.cos() * r, a.sin() * r * 0.90 - 0.04))
             .clamp(Vec2::splat(0.05), Vec2::splat(0.95));
-        heads.push(c);
+        heads.push((c, r));
         if i % 3 == 0 {
             strokes.push(Stroke {
                 a: hub,
                 b: c,
-                wa: 0.004,
-                wb: 0.0025,
+                wa: 0.0042,
+                wb: 0.0022,
                 ca: stalk,
                 cb: stalk,
             });
         }
     }
-    for (i, &c) in heads.iter().enumerate() {
-        let shade = rng.range(0.80, 1.16);
+    for (i, &(c, r_dist)) in heads.iter().enumerate() {
+        // Depth-layered panicle shading: deeper inner blossoms richer/darker, outer sunlit petals bright
+        let depth_shade = lerp(0.76, 1.16, (r_dist / 0.45).clamp(0.0, 1.0));
+        let shade = depth_shade * rng.range(0.88, 1.10);
         if let Some(pod) = pod
             && i % 3 == 0
         {
@@ -607,26 +621,27 @@ fn cluster_cell(petal: Rgb, throat: Rgb, pod: Option<Rgb>, rng: &mut Rng, res: u
             strokes.push(disc(c, rng.range(0.045, 0.062), scale(pod, shade)));
             continue;
         }
-        // Trumpet seen from the side/front: a short tube and a flared mouth.
+        // Tubular bell blossom seen at organic angles: deeper calyx tube flaring into 5 delicate petal lobes
         let out = (c - hub).try_normalize().unwrap_or(Vec2::NEG_Y);
-        let size = rng.range(0.034, 0.050);
+        let size = rng.range(0.032, 0.048);
+        let deep_tube = scale(petal, shade * 0.72);
         strokes.push(Stroke {
-            a: c - out * size * 1.3,
+            a: c - out * size * 1.45,
             b: c,
-            wa: size * 0.45,
-            wb: size * 0.95,
-            ca: scale(mix(petal, throat, 0.5), shade * 0.9),
+            wa: size * 0.38,
+            wb: size * 0.92,
+            ca: deep_tube,
             cb: scale(petal, shade),
         });
         for k in 0..5 {
-            let pa = k as f32 / 5.0 * TAU + rng.range(-0.3, 0.3);
+            let pa = k as f32 / 5.0 * TAU + rng.range(-0.28, 0.28);
             strokes.push(disc(
                 c + Vec2::new(pa.cos(), pa.sin()) * size * 0.62,
-                size * 0.56,
-                scale(petal, shade * rng.range(0.94, 1.08)),
+                size * 0.54,
+                scale(mix(petal, throat, 0.22), shade * rng.range(0.94, 1.12)),
             ));
         }
-        strokes.push(disc(c, size * 0.34, scale(throat, shade)));
+        strokes.push(disc(c, size * 0.34, scale(throat, shade * 1.08)));
     }
     canvas.paint(&strokes);
     canvas.finish()

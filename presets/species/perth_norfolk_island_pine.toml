@@ -18,83 +18,83 @@ notes = "Massart's architectural model: 5-spoke whorls with organic internode sp
 [trunk]
 height = 26.0
 height_variance = 0.10
-radius = 0.50
-taper = 0.86
+radius = 0.54
+taper = 0.85
 taper_profile = "exponential"
-curve = 0.0
-curve_variance = 1.0
-curve_back = 0.0
+curve = 4.2
+curve_variance = 3.0
+curve_back = 3.6
 segments = 24
-buttress = 0.65
+buttress = 1.15
 
 [branches.level1]
-count = 68
-count_variance = 0
-length = 4.9
-length_variance = 0.08
-radius_ratio = 0.18
+count = 64
+count_variance = 4
+length = 5.6
+length_variance = 0.16
+radius_ratio = 0.20
 radius_model = "ratio"
-taper = 0.86
+taper = 0.85
 taper_profile = "exponential"
-angle = 88.0
-angle_variance = 3.0
+angle = 86.0
+angle_variance = 7.5
 rotation = 72.0
-gravity = 0.02
-curve = -6.0
-curve_variance = 2.0
+gravity = -0.06
+curve = 18.0
+curve_variance = 6.5
 segments = 8
-tip_upturn = 32.0
-whorl_spacing_variance = 0.22
+tip_upturn = 46.0
+whorl_spacing_variance = 0.34
 
 [branches.level2]
-count = 12
-count_variance = 1
-length = 1.22
-length_variance = 0.16
-radius_ratio = 0.42
+count = 10
+count_variance = 2
+length = 1.62
+length_variance = 0.20
+radius_ratio = 0.44
 radius_model = "ratio"
 taper = 0.78
 taper_profile = "smooth"
-angle = 56.0
-angle_variance = 6.0
+angle = 52.0
+angle_variance = 12.0
 rotation = 180.0
-gravity = 0.16
-curve = -14.0
-curve_variance = 4.0
+gravity = 0.12
+curve = -18.0
+curve_variance = 7.0
 segments = 4
-tip_upturn = 32.0
+tip_upturn = 38.0
 
 [crown]
 shape = "conical"
-offset = 0.14
+offset = 0.13
 density = 1.0
-width_ratio = 1.04
+width_ratio = 1.12
 
 [leaves]
-count = 4200
+count = 4400
 min_level = 2
-size = 0.62
-size_variance = 0.15
+size = 0.84
+size_variance = 0.18
 distribution = "along_branch"
 geometry = "cross_billboard"
 shape = "needle"
-up_influence = 0.56
+up_influence = 0.62
 
 [canopy]
 normals = "canopy"
 normal_blend = 0.78
-up_bias = 0.30
-clump_weight = 0.82
+up_bias = 0.32
+clump_weight = 0.78
 clump_level = 1
 crown_fill = 0
 shell = 0.0
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.14
-hue_variation = 0.08
-ao_strength = 0.34
+tint_variation = 0.16
+hue_variation = 0.10
+ao_strength = 0.42
 billboard_lod_compensation = true
-roughness = 0.70
+roughness = 0.72
 
 [textures]
 bark_prompt = "Norfolk Island pine grey-brown bark peeling in crisp horizontal ring-scarred scales"
@@ -102,9 +102,9 @@ leaf_prompt = "Araucaria heterophylla upturned braided cord-like bright sea-pine
 resolution = 1024
 bark_style = "plated"
 leaf_shape = "needle"
-leaf_card = "cluster"
+leaf_card = "frond"
 bark_color = [0.42, 0.36, 0.31]
-leaf_color = [0.24, 0.44, 0.22]
+leaf_color = [0.22, 0.41, 0.20]
 
 [materials]
 bark = "norfolk_island_pine_bark"

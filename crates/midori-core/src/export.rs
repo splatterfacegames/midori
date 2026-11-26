@@ -872,7 +872,7 @@ fn build_gltf_json(
                     "pbrMetallicRoughness": {
                         "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
                         "metallicFactor": 0.0,
-                        "roughnessFactor": 0.85
+                        "roughnessFactor": 0.90
                     },
                     "normalTexture": { "index": 1 },
                     "doubleSided": false
@@ -883,7 +883,7 @@ fn build_gltf_json(
                     "pbrMetallicRoughness": {
                         "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
                         "metallicFactor": 0.0,
-                        "roughnessFactor": 0.85
+                        "roughnessFactor": 0.90
                     },
                     "doubleSided": false
                 })
@@ -894,7 +894,7 @@ fn build_gltf_json(
                 "pbrMetallicRoughness": {
                     "baseColorTexture": { "index": 0 },
                     "metallicFactor": 0.0,
-                    "roughnessFactor": 0.85
+                    "roughnessFactor": 0.90
                 },
                 "normalTexture": { "index": 1 },
                 "doubleSided": false
@@ -905,7 +905,7 @@ fn build_gltf_json(
                 "pbrMetallicRoughness": {
                     "baseColorFactor": [0.4, 0.3, 0.2, 1.0],
                     "metallicFactor": 0.0,
-                    "roughnessFactor": 0.85
+                    "roughnessFactor": 0.90
                 },
                 "doubleSided": false
             })
@@ -999,7 +999,7 @@ fn build_gltf_json(
                     "pbrMetallicRoughness": {
                         "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
                         "metallicFactor": 0.0,
-                        "roughnessFactor": 0.72
+                        "roughnessFactor": 0.80
                     },
                     "normalTexture": { "index": nrm },
                     "doubleSided": false
@@ -1009,7 +1009,7 @@ fn build_gltf_json(
                     "pbrMetallicRoughness": {
                         "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
                         "metallicFactor": 0.0,
-                        "roughnessFactor": 0.72
+                        "roughnessFactor": 0.80
                     },
                     "doubleSided": false
                 }),
@@ -1021,7 +1021,7 @@ fn build_gltf_json(
                     "pbrMetallicRoughness": {
                         "baseColorTexture": { "index": alb },
                         "metallicFactor": 0.0,
-                        "roughnessFactor": 0.72
+                        "roughnessFactor": 0.80
                     },
                     "normalTexture": { "index": nrm },
                     "doubleSided": false
@@ -1031,7 +1031,7 @@ fn build_gltf_json(
                     "pbrMetallicRoughness": {
                         "baseColorFactor": [0.75, 0.73, 0.68, 1.0],
                         "metallicFactor": 0.0,
-                        "roughnessFactor": 0.72
+                        "roughnessFactor": 0.80
                     },
                     "doubleSided": false
                 }),
@@ -1181,6 +1181,10 @@ fn build_gltf_json(
             "scientific_name": metadata.scientific_name,
             "seed": metadata.seed,
             "lod_screen_heights": metadata.lod_screen_heights,
+            "foliage_attributes": {
+                "texcoord_1": ["crown_ao", "height_norm"],
+                "color_0": "linear_tint_ao_rgba_when_tint_ao"
+            }
         });
     }
 

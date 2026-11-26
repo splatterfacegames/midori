@@ -112,17 +112,17 @@ up_influence = -0.46
 
 [canopy]
 normals = "canopy"
-normal_blend = 0.68
-up_bias = 0.22
-clump_weight = 0.62
+normal_blend = 0.74
+up_bias = 0.24
+clump_weight = 0.64
 clump_level = 1
 crown_fill = 0
 shell = 0.12
 single_sided = true
 vertex_color = "tint_ao"
-tint_variation = 0.18
-hue_variation = 0.10
-ao_strength = 0.38
+tint_variation = 0.19
+hue_variation = 0.12
+ao_strength = 0.44
 billboard_lod_compensation = true
 roughness = 0.76
 

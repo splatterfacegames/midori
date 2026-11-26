@@ -37,7 +37,7 @@ fn oak_preset_seed_42_snapshot() {
     assert_eq!(
         stats,
         vec![
-            (0, 62090, 70775, 2183),
+            (0, 62107, 70807, 2183),
             (1, 23912, 30146, 873),
             (2, 4171, 6203, 1)
         ]
@@ -126,7 +126,7 @@ fn grass_tree_preset_seed_42_snapshot() {
     assert_eq!(
         stats,
         vec![
-            (0, 14910, 16360, 540),
+            (0, 15002, 16528, 540),
             (1, 3376, 3262, 216),
             (2, 108, 176, 1)
         ]
@@ -140,7 +140,7 @@ fn grass_tree_forked_state_seed_42_snapshot() {
     assert_eq!(
         stats,
         vec![
-            (0, 29618, 32772, 1080),
+            (0, 29894, 33276, 1080),
             (1, 6737, 6558, 432),
             (2, 219, 341, 1)
         ]
@@ -154,7 +154,7 @@ fn firewood_banksia_preset_seed_42_snapshot() {
     assert_eq!(
         stats,
         vec![
-            (0, 41980, 50103, 1320),
+            (0, 49480, 63714, 1320),
             (1, 13188, 16314, 528),
             (2, 2834, 4140, 1)
         ]
@@ -164,13 +164,13 @@ fn firewood_banksia_preset_seed_42_snapshot() {
 #[test]
 fn jacaranda_flowering_state_seed_42_snapshot() {
     let (stems, leaves, organs, stats) = preset_snapshot("perth_jacaranda", Some("flowering"), 42);
-    assert_eq!((stems, leaves, organs), (157, 128, 3200));
+    assert_eq!((stems, leaves, organs), (131, 348, 3200));
     assert_eq!(
         stats,
         vec![
-            (0, 38459, 31501, 128),
-            (1, 12670, 13189, 51),
-            (2, 2155, 3151, 1)
+            (0, 72730, 70751, 348),
+            (1, 12304, 12227, 139),
+            (2, 1815, 2655, 1)
         ]
     );
 }

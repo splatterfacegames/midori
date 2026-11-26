@@ -420,7 +420,7 @@ impl<'a> TreeGenerator<'a> {
         let mut position = Vec3::ZERO;
         let mut direction = Vec3::Y; // Start pointing up
         let rich_trunk =
-            segment_count >= 10 && self.species.crown.offset < 0.88 && trunk.curve_variance >= 4.0;
+            segment_count >= 10 && self.species.crown.offset < 0.88 && trunk.curve_variance >= 2.5;
         let init_az = if rich_trunk {
             (self.seed as f32 * 1.618_034) % TAU
         } else {
@@ -591,20 +591,38 @@ impl<'a> TreeGenerator<'a> {
                     (w_idx as f32 + 0.30) / (num_whorls as f32 - 0.35)
                 };
                 let tier_var = if branch_params.whorl_spacing_variance > 0.0 {
-                    // Coherent per-tier offset so an entire whorl shifts up/down naturally
+                    // Coherent per-tier offset plus subtle per-branch stagger so whorls read as
+                    // grown coastal boughs instead of a rigid mechanical ladder.
                     let h =
                         ((w_idx as f32 * 0.618_034 + self.seed as f32 * 0.137).fract() - 0.5) * 2.0;
-                    h * (branch_params.whorl_spacing_variance / num_whorls.max(1) as f32)
+                    let spoke_stagger = (((in_whorl as f32 * 0.754_877
+                        + w_idx as f32 * 0.317
+                        + self.seed as f32 * 0.271)
+                        .fract())
+                        - 0.5)
+                        * 0.24;
+                    (h + spoke_stagger)
+                        * (branch_params.whorl_spacing_variance / num_whorls.max(1) as f32)
                 } else {
                     0.0
                 };
                 let jitter = self.rng.variance_add(0.06 / num_whorls.max(1) as f32) + tier_var;
                 let ct = (base_frac + jitter).clamp(0.0, 0.985);
                 let spoke_step = crate::constants::TAU / this_whorl_n as f32;
-                // Alternate adjacent whorls by half a spoke so tiers interlock naturally
-                let whorl_phase = (w_idx as f32) * spoke_step * 0.5;
+                // Alternate adjacent whorls by half a spoke + slight organic twist so tiers interlock naturally
+                let whorl_phase = (w_idx as f32) * spoke_step * 0.5
+                    + if branch_params.whorl_spacing_variance > 0.0 {
+                        (w_idx as f32 * 0.414_213).sin() * 0.22
+                    } else {
+                        0.0
+                    };
                 let spoke = spoke_step * (in_whorl as f32);
-                let rot = whorl_phase + spoke + self.rng.variance_add(radians(9.0));
+                let rot_jitter = if branch_params.whorl_spacing_variance > 0.0 {
+                    radians(14.0)
+                } else {
+                    radians(9.0)
+                };
+                let rot = whorl_phase + spoke + self.rng.variance_add(rot_jitter);
                 (ct, rot)
             } else {
                 // Lateral branches span smoothly up to ~0.95, leaving the apex for the leader
@@ -684,12 +702,20 @@ impl<'a> TreeGenerator<'a> {
             let branch_dir =
                 self.calculate_branch_direction(parent_dir, branch_angle, rotation_angle);
 
-            // Apply crown envelope modifier at level 1; taper sub-branches gently along parent
+            // Apply crown envelope modifier at level 1; taper sub-branches gently along parent.
+            // Coastal-sculpted whorled conifers get subtle azimuthal wind asymmetry + tier fullness.
+            let wind_asym = if level == 1 && whorl_size > 1 && branch_params.whorl_spacing_variance > 0.0 {
+                let wind_dir = (self.seed as f32 * 0.618_034).fract() * TAU;
+                1.0 + 0.12 * (rotation_angle - wind_dir).cos()
+                    + 0.08 * (crown_t * TAU * 2.3 + wind_dir).sin()
+            } else {
+                1.0
+            };
             let length_mod = if is_palm_rosette {
                 // Mature mid-crown fronds are longest; youngest central spear fronds slightly shorter
                 0.86 + 0.22 * (crown_t * PI * 0.86 + 0.18).sin().max(0.0)
             } else if level == 1 {
-                self.crown_length_modifier(crown_t)
+                self.crown_length_modifier(crown_t) * wind_asym
             } else {
                 lerp(1.06, 0.54, crown_t)
             };
@@ -832,7 +858,7 @@ impl<'a> TreeGenerator<'a> {
                 + d_yaw_gnarl;
 
             // Apply gravity sag through mid-bough + apical phototropic skyward lift + ground clearance
-            let is_weeping = spec.params.gravity <= -0.60;
+            let is_weeping = spec.params.gravity <= -0.45;
             let mut photo_lift = if segment_count >= 6 && !is_weeping && t > 0.38 && dir.y < 0.38 {
                 (t - 0.38).powf(1.22) * 0.62 * (0.38 - dir.y).clamp(0.0, 1.1) * segment_length
             } else {
@@ -845,7 +871,9 @@ impl<'a> TreeGenerator<'a> {
                     photo_lift += urgency * 0.58 * segment_length;
                 }
             }
-            let mut gravity_influence = spec.params.gravity * segment_length + photo_lift;
+            // Progressive weeping gravity cascade: stronger pull toward flexible branchlet tips
+            let weep_scale = if is_weeping { 0.65 + 0.85 * t } else { 1.0 };
+            let mut gravity_influence = spec.params.gravity * weep_scale * segment_length + photo_lift;
             // Opt-in upward cord-like tip sweep (e.g., Norfolk Island pine upturned branch tips)
             if spec.params.tip_upturn != 0.0 && t > 0.45 {
                 let k = ((t - 0.45) / 0.55).powf(1.35);
