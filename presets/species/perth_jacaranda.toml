@@ -140,7 +140,7 @@ bark_style = "smooth"
 leaf_shape = "bipinnate"
 leaf_card = "cluster"
 seed = 1954
-bark_color = [0.48, 0.43, 0.38]
+bark_color = [0.32, 0.28, 0.25]
 leaf_color = [0.34, 0.52, 0.23]
 
 [materials]
@@ -182,7 +182,7 @@ preset = "high_quality"
 [platform]
 target = "modern_pc"
 
-# State: October-November: blazing Perth purple-lilac blossom cloud on near-bare branches
+# State: October-November: lush billowing Perth purple-lilac blossom cloud over weathered dark limbs
 [states.flowering]
 species.name = "Jacaranda (flowering)"
 leaves.count = 420

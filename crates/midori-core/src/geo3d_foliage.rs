@@ -13,10 +13,14 @@
 //!   and 3D Zamia pinnate cycad fronds.
 //!
 //! Vertex attributes (all 100% `OPAQUE`, zero alpha-scissor):
-//! - `NORMAL`: ~58% smooth sub-cluster spherical bent normal + ~42% actual 3D curved leaf normal.
+//! - `TEXCOORD_0`: clean normalized botanical `(0..1, 0..1)` UV on every 3D leaf, leaflet,
+//!   trumpet-bell petal, and Araucaria needle shoot (`v=0` petiole base -> `v=1` tip,
+//!   `u=0` left margin -> `u=0.5` midrib -> `u=1` right margin).
+//! - `NORMAL`: ~60% smooth spherical bent normal + ~40% curved 3D leaf normal at LOD0,
+//!   stepping up to ~80% spherical bent normal at LOD1 (`Mid3D`) for zero mid-field shimmer.
 //! - `TEXCOORD_1`: `(crown_ao, height_norm)` with strong interior crown occlusion (`0.22..1.0`).
-//! - `COLOR_0`: `(linear_r, linear_g, linear_b, thickness)` with per-leaf hue/value variation
-//!   and ~12% dry ochre/rust-bronze/copper WA leaves.
+//! - `COLOR_0`: `(linear_r, linear_g, linear_b, thickness)` with per-leaf hue/value variation,
+//!   interior dark-olive occlusion vs sunlit outer tips, and ~12% dry ochre/rust-bronze WA leaves.
 
 use crate::constants::{GOLDEN_ANGLE, PI, TAU};
 use crate::math::create_basis;
@@ -96,7 +100,7 @@ struct CrownField {
 }
 
 impl CrownField {
-    fn from_tree(tree: &Tree, species: &Species) -> Self {
+    fn from_tree(tree: &Tree, species: &Species, high_detail: bool) -> Self {
         let mut lo = Vec3::splat(f32::MAX);
         let mut hi = Vec3::splat(f32::MIN);
         for l in &tree.leaves {
@@ -204,12 +208,15 @@ impl CrownField {
             })
             .collect();
 
-        // Keep bent-normal blend in the 55-65% sweet spot so cohesive crown lighting
-        // coexists with crisp per-leaf 3D geometric specular glints.
+        // LOD0 (~60% spherical canopy + ~40% curved 3D leaf normal) preserves crisp macro leaf
+        // modeling & specular highlights; LOD1 (~80% spherical canopy + ~20% geometric normal)
+        // dramatically suppresses mid-field (65–450 m) normal-derivative shimmer!
         let bent_weight = if species.generator.family == GeneratorFamily::Rosette {
-            0.35
+            if high_detail { 0.35 } else { 0.58 }
+        } else if high_detail {
+            species.canopy.normal_blend.clamp(0.56, 0.62)
         } else {
-            species.canopy.normal_blend.clamp(0.54, 0.64)
+            0.80
         };
 
         Self {
@@ -288,10 +295,12 @@ struct BladeShapeSpec {
     max_width: f32,
     /// Lateral sickle/falcate sweep (positive = curves to +side, characteristic of eucalypts).
     sickle: f32,
-    /// Longitudinal downward arch/droop along blade length.
+    /// Longitudinal downward arch/droop along blade length (negative = upturned conifer shoot).
     arch: f32,
     /// Central V-crease midrib depth relative to half-width.
     keel: f32,
+    /// Upper-blade shoulder fullness at `v = 0.70` (`0.66..0.88`; fuller = softer rounded silhouette).
+    upper_shoulder: f32,
     /// Slight notched tooth offset on Banksia leaves.
     serrated: bool,
     /// Linear base & tip RGB colours.
@@ -299,12 +308,13 @@ struct BladeShapeSpec {
     col_tip: [f32; 3],
     /// Leaf translucency thickness encoded in `COLOR_0.a` (`0.25..0.85`).
     thickness: f32,
-    /// `true` = 8-tri curved blade (LOD0), `false` = 4-tri curved blade (LOD1).
+    /// `true` = 6-tri curved botanical blade with rounded shoulders (LOD0), `false` = 4-tri blade (LOD1).
     high_detail: bool,
 }
 
-/// Emit one 100% opaque 3D curved leaf blade with pointed base, pointed tip, V-creased midrib,
-/// falcate/sickle bend, and blended bent+geometric normals.
+/// Emit one 100% opaque 3D curved leaf blade with clean normalized botanical `TEXCOORD_0`
+/// `(u=0 left margin -> u=0.5 midrib -> u=1 right margin, v=0 petiole base -> v=1 pointed tip)`,
+/// V-creased midrib, falcate/sickle bend, and blended bent+geometric normals.
 fn append_curved_3d_leaf(
     mesh: &mut Mesh,
     origin: Vec3,
@@ -327,7 +337,7 @@ fn append_curved_3d_leaf(
 
     let make_vert = |u_along: f32, x_lat: f32, w_scale: f32, uv: Vec2| -> Vertex {
         let sickle_off = spec.sickle * len * (u_along * u_along);
-        // Gentle upward lift near base then graceful gravity arch toward tip
+        // Gentle upward lift near base then graceful gravity arch toward tip (or upturned curve if arch < 0)
         let arch_off = len * (spec.arch * (0.35 * u_along - 1.15 * u_along * u_along));
         // V-crease: midrib (x_lat=0) dips slightly, margins lift
         let keel_off = spec.keel * hw * w_scale * x_lat.abs();
@@ -350,9 +360,21 @@ fn append_curved_3d_leaf(
 
         let crown_ao = field.crown_ao(stem_id, pos);
         let height_norm = field.height_norm(pos);
-        // Subtle midrib crease darkening + bright sunlit leaf tip gradient
-        let midrib_shade = 0.90 + 0.10 * x_lat.abs();
-        let rgb = mul_rgb(lerp_rgb(spec.col_base, spec.col_tip, u_along), midrib_shade);
+        // Subtle midrib crease darkening + rich dark-olive interior occlusion vs warm sunlit outer tips
+        let midrib_shade = 0.91 + 0.09 * x_lat.abs();
+        let interior_depth = 0.78 + 0.24 * crown_ao;
+        let sunlit_tip = ((crown_ao - 0.68) * 2.5).clamp(0.0, 1.0) * u_along;
+        let mut rgb = mul_rgb(
+            lerp_rgb(spec.col_base, spec.col_tip, u_along),
+            midrib_shade * interior_depth,
+        );
+        if sunlit_tip > 0.01 {
+            rgb = [
+                (rgb[0] * (1.0 + 0.07 * sunlit_tip)).clamp(0.0, 1.0),
+                (rgb[1] * (1.0 + 0.05 * sunlit_tip)).clamp(0.0, 1.0),
+                (rgb[2] * (1.0 - 0.03 * sunlit_tip)).clamp(0.0, 1.0),
+            ];
+        }
 
         Vertex {
             position: pos,
@@ -364,24 +386,20 @@ fn append_curved_3d_leaf(
     };
 
     if spec.high_detail {
-        // 7 vertices, 6 triangles: pointed base -> lower-mid V-creased row (L,M,R)
-        // -> upper arched blade pair (L,R) -> pointed apex tip!
-        // Saves 25% tris over 8-tri blades while preserving full curved 3D midrib crease & graceful arch,
-        // enabling 3,500-5,000+ lush individual 3D curved leaves per hero tree!
-        let (w1, w2) = if spec.serrated {
-            (0.96, 0.72)
-        } else {
-            (1.0, 0.70)
-        };
+        // 7 vertices, 6 triangles: pointed petiole base (v=0) -> lower-mid V-creased shoulder (v=0.32)
+        // -> upper rounded botanical shoulder (v=0.70) -> pointed apex tip (v=1.0).
+        // Zero harsh geometric diamond corners even at 0.5 m macro!
+        let w1 = if spec.serrated { 0.96 } else { 1.0 };
+        let w2 = spec.upper_shoulder.clamp(0.62, 0.90);
         let s1 = if spec.serrated { 1.12 } else { 1.0 };
         let s2 = if spec.serrated { 0.86 } else { 1.0 };
 
         mesh.vertices.push(make_vert(0.0, 0.0, 0.0, Vec2::new(0.5, 0.0)));
-        mesh.vertices.push(make_vert(0.36, -1.0, w1 * s1, Vec2::new(0.0, 0.36)));
-        mesh.vertices.push(make_vert(0.36, 0.0, w1, Vec2::new(0.5, 0.36)));
-        mesh.vertices.push(make_vert(0.36, 1.0, w1 * s2, Vec2::new(1.0, 0.36)));
-        mesh.vertices.push(make_vert(0.72, -1.0, w2 * s2, Vec2::new(0.0, 0.72)));
-        mesh.vertices.push(make_vert(0.72, 1.0, w2 * s1, Vec2::new(1.0, 0.72)));
+        mesh.vertices.push(make_vert(0.32, -1.0, w1 * s1, Vec2::new(0.0, 0.32)));
+        mesh.vertices.push(make_vert(0.32, 0.0, w1, Vec2::new(0.5, 0.32)));
+        mesh.vertices.push(make_vert(0.32, 1.0, w1 * s2, Vec2::new(1.0, 0.32)));
+        mesh.vertices.push(make_vert(0.70, -1.0, w2 * s2, Vec2::new(0.0, 0.70)));
+        mesh.vertices.push(make_vert(0.70, 1.0, w2 * s1, Vec2::new(1.0, 0.70)));
         mesh.vertices.push(make_vert(1.0, 0.0, 0.0, Vec2::new(0.5, 1.0)));
 
         mesh.indices.extend_from_slice(&[
@@ -408,7 +426,7 @@ fn append_curved_3d_leaf(
             v_base + 5,
         ]);
     } else {
-        // 5 vertices, 4 triangles: pointed base -> mid V-crease row (L,M,R) -> pointed tip
+        // 5 vertices, 4 triangles: pointed base -> mid V-crease row (L,M,R) -> pointed tip (LOD1)
         mesh.vertices.push(make_vert(0.0, 0.0, 0.0, Vec2::new(0.5, 0.0)));
         mesh.vertices.push(make_vert(0.45, -1.0, 1.0, Vec2::new(0.0, 0.45)));
         mesh.vertices.push(make_vert(0.45, 0.0, 1.0, Vec2::new(0.5, 0.45)));
@@ -459,7 +477,7 @@ fn append_woody_twiglet(
     let ao1 = field.crown_ao(stem_id, end);
     let h0 = field.height_norm(start);
     let h1 = field.height_norm(end);
-    let v_repeat = (len / 1.25).max(0.08);
+    let v_repeat = (len / 1.25).clamp(0.08, 1.0);
 
     for k in 0..3u32 {
         let ang = (k as f32 / 3.0) * TAU;
@@ -577,7 +595,9 @@ impl LeafPalette {
                 | LeafShape::BullBanksia
                 | LeafShape::Paperbark
         );
-        let dead_frac = if species.textures.leaf_dead_fraction > 0.0 {
+        let dead_frac = if species.leaves.shape == LeafShape::Needle {
+            0.02
+        } else if species.textures.leaf_dead_fraction > 0.0 {
             species.textures.leaf_dead_fraction.max(0.11)
         } else if is_eucalypt_or_wa {
             0.12
@@ -656,10 +676,10 @@ fn append_jacaranda_bipinnate_frond(
     field: &CrownField,
     high_detail: bool,
 ) -> u32 {
-    let rachis_len = (leaf.scale * 0.62).clamp(0.32, 0.62);
+    let rachis_len = (leaf.scale * 0.72).clamp(0.38, 0.72);
     let raw_fwd = (leaf.rotation * Vec3::Y).try_normalize().unwrap_or(Vec3::Y);
     // Keep bipinnate fronds arching gracefully outward/horizontally like real fern feathers
-    let fwd = (Vec3::new(raw_fwd.x, raw_fwd.y * 0.45 + 0.12, raw_fwd.z))
+    let fwd = (Vec3::new(raw_fwd.x, raw_fwd.y * 0.45 + 0.10, raw_fwd.z))
         .try_normalize()
         .unwrap_or(raw_fwd);
     let side_base = fwd
@@ -669,25 +689,29 @@ fn append_jacaranda_bipinnate_frond(
     let up_base = side_base.cross(fwd).try_normalize().unwrap_or(Vec3::Y);
 
     let tip_pos = leaf.position + fwd * rachis_len - Vec3::Y * (rachis_len * 0.22);
-    append_woody_twiglet(
-        twigs,
-        leaf.position,
-        tip_pos,
-        0.0045,
-        0.002,
-        bark_lin,
-        leaf.stem_id,
-        field,
-    );
+    if high_detail {
+        append_woody_twiglet(
+            twigs,
+            leaf.position,
+            tip_pos,
+            0.0045,
+            0.002,
+            bark_lin,
+            leaf.stem_id,
+            field,
+        );
+    }
 
-    let pairs: usize = if high_detail { 7 } else { 4 };
+    let pairs: usize = if high_detail { 6 } else { 3 };
+    let lod_w_boost = if high_detail { 1.0 } else { 1.52 };
+    let lod_l_boost = if high_detail { 1.0 } else { 1.32 };
     let mut emitted = 0u32;
     for p in 0..pairs {
         let u = (p as f32 + 0.55) / (pairs as f32 + 0.35);
         let anchor = leaf.position + fwd * (rachis_len * u) - Vec3::Y * (rachis_len * 0.22 * u * u);
-        let env = (u * PI).sin().max(0.28).powf(0.45);
-        let pinna_len = rachis_len * 0.44 * env;
-        let pinna_w = (pinna_len * 0.34).clamp(0.028, 0.068);
+        let env = (u * PI).sin().max(0.30).powf(0.45);
+        let pinna_len = rachis_len * 0.48 * env * lod_l_boost;
+        let pinna_w = (pinna_len * 0.38 * lod_w_boost).clamp(0.036, 0.115);
 
         for sign in [-1.0_f32, 1.0_f32] {
             let p_seed = seed ^ ((p as u64) * 31 + if sign > 0.0 { 7 } else { 19 });
@@ -701,11 +725,12 @@ fn append_jacaranda_bipinnate_frond(
                 sickle: 0.04 * sign,
                 arch: 0.20,
                 keel: 0.28,
+                upper_shoulder: 0.76,
                 serrated: false,
                 col_base,
                 col_tip,
                 thickness: thick,
-                high_detail: false, // 4-tri curved leaflet
+                high_detail, // 6-tri curved rounded leaflet at LOD0, 4-tri broader leaflet at LOD1
             };
             append_curved_3d_leaf(foliage, anchor, p_dir, Vec3::Y, leaf.stem_id, field, &spec);
             emitted += 1;
@@ -714,11 +739,8 @@ fn append_jacaranda_bipinnate_frond(
     emitted
 }
 
-/// Emit one petite 3D tubular flared Jacaranda lavender-violet trumpet-bell floret (`4–6.5 cm` long).
-///
-/// Built as a sleek 4-tri curved 3D flared funnel (LOD0) or 3-tri bell cone (LOD1) so we can pack
-/// 22–28 petite florets per panicle (= 9,000–13,000+ individual 3D trumpet bells per tree!) with
-/// deep royal-violet throats grading to bright luminous lilac-lavender petal rims!
+/// Emit one 3D tubular flared Jacaranda lavender-violet trumpet-bell floret with clean seam-free
+/// `(0..1, 0..1)` petal UVs (`v=0` royal-violet throat base -> `v=1` luminous lilac petal rim).
 #[allow(clippy::too_many_arguments)]
 fn append_jacaranda_trumpet_bell(
     mesh: &mut Mesh,
@@ -739,21 +761,27 @@ fn append_jacaranda_trumpet_bell(
     let sides: u32 = if high_detail { 4 } else { 3 };
     let v0 = mesh.vertices.len() as u32;
 
-    // Gentle trumpet droop along the petite tubular bell
+    // Gentle trumpet droop along the tubular bell
     let bend_vec = (Vec3::NEG_Y - fwd * Vec3::NEG_Y.dot(fwd))
         .try_normalize()
         .unwrap_or(tan);
     let mouth_pos = origin + fwd * length + bend_vec * (length * 0.20);
-    let r_rim = mouth_radius.max(0.012);
+    let r_rim = mouth_radius.max(0.018);
 
     let crown_ao = field.crown_ao(stem_id, mouth_pos);
     let h_norm = field.height_norm(mouth_pos);
     let hue_jit = 0.86 + 0.26 * hash_unit(seed ^ 0x771);
-    let c_throat = mul_rgb(throat_lin, hue_jit * (0.68 + 0.32 * crown_ao));
-    let c_rim = mul_rgb(rim_lin, hue_jit * 1.08);
+    let warm_shift = hash_signed(seed ^ 0x883) * 0.08;
+    let c_throat = mul_rgb(throat_lin, hue_jit * (0.64 + 0.36 * crown_ao));
+    let c_rim_raw = mul_rgb(rim_lin, hue_jit * (0.86 + 0.22 * crown_ao));
+    let c_rim = [
+        (c_rim_raw[0] * (1.0 + warm_shift)).clamp(0.0, 1.0),
+        (c_rim_raw[1] * (1.0 - warm_shift * 0.35)).clamp(0.0, 1.0),
+        (c_rim_raw[2] * (1.0 + warm_shift * 0.25)).clamp(0.0, 1.0),
+    ];
 
-    // Sleek closed-apex flared 4-sided (4 tris at LOD0) or 3-sided (3 tris at LOD1) trumpet bell:
-    // narrow royal-violet tube apex flaring smoothly into scalloped lilac petal rim!
+    // Closed-apex flared 4-sided (LOD0) or 3-sided (LOD1) trumpet bell with duplicated seam vertex
+    // so `TEXCOORD_0.x` sweeps cleanly `0.0..=1.0` without wrap-back distortion!
     let n_apex = field.blend_normal(stem_id, origin, -fwd);
     mesh.vertices.push(Vertex {
         position: origin,
@@ -763,10 +791,11 @@ fn append_jacaranda_trumpet_bell(
         color: Vec4::new(c_throat[0], c_throat[1], c_throat[2], 0.34),
     });
 
-    for k in 0..sides {
-        let a = spin + (k as f32 / sides as f32) * TAU;
+    for k in 0..=sides {
+        let wrap_k = k % sides;
+        let a = spin + (wrap_k as f32 / sides as f32) * TAU;
         let rad = tan * a.cos() + bit * a.sin();
-        let scallop = 1.0 + 0.16 * (k as f32 * 1.9 + spin).sin();
+        let scallop = 1.0 + 0.16 * (wrap_k as f32 * 1.9 + spin).sin();
         let p_rim = mouth_pos + rad * (r_rim * scallop);
         let n_rim = field.blend_normal(
             stem_id,
@@ -783,14 +812,14 @@ fn append_jacaranda_trumpet_bell(
     }
 
     for k in 0..sides {
-        let next = (k + 1) % sides;
         mesh.indices
-            .extend_from_slice(&[v0, v0 + 1 + k, v0 + 1 + next]);
+            .extend_from_slice(&[v0, v0 + 1 + k, v0 + 2 + k]);
     }
 }
 
-/// Emit a lush 3D sweeping horizontal-to-upturned feathery Araucaria (Norfolk Island Pine)
-/// herringbone needle-frond spray clothing each L1/L2 coastal bough!
+/// Emit soft feathery coastal Araucaria (Norfolk Island Pine) layered curved 3D needle-shoot tufts
+/// clothing each sweeping coastal bough — compact, narrow, upturned rounded-shoulder pine cords
+/// (ZERO giant sharp flat paper origami diamonds even at 0.5 m macro!).
 #[allow(clippy::too_many_arguments)]
 fn append_araucaria_needle_shoot(
     foliage: &mut Mesh,
@@ -803,9 +832,8 @@ fn append_araucaria_needle_shoot(
     high_detail: bool,
 ) -> u32 {
     let raw_dir = (leaf.rotation * Vec3::Y).try_normalize().unwrap_or(Vec3::X);
-    // Real Araucaria boughs sweep horizontally outward with lush upturned feathery frond tips
-    // (NOT bare vertical poles!). Flatten excessive vertical component so tiers fill horizontally!
-    let horiz_dir = Vec3::new(raw_dir.x, raw_dir.y * 0.30 + 0.12, raw_dir.z)
+    // Real Cottesloe Araucaria boughs sweep horizontally outward with lush upturned feathery cord tips
+    let horiz_dir = Vec3::new(raw_dir.x, raw_dir.y * 0.26 + 0.10, raw_dir.z)
         .try_normalize()
         .unwrap_or(Vec3::X);
     let side_dir = horiz_dir
@@ -814,64 +842,83 @@ fn append_araucaria_needle_shoot(
         .unwrap_or_else(|| create_basis(horiz_dir).0);
     let up_dir = side_dir.cross(horiz_dir).try_normalize().unwrap_or(Vec3::Y);
 
-    let frond_len = (leaf.scale * 0.92).clamp(0.45, 0.95);
-    let lod_boost = if high_detail { 1.0 } else { 1.55 };
+    let frond_len = (leaf.scale * 0.86).clamp(0.42, 0.86);
+    // Deep coastal emerald interior -> warm sunlit sea-pine tip gradient
+    let emerald_base = srgb3_to_linear([0.13, 0.27, 0.13]);
+    let pine_tip = srgb3_to_linear([0.28, 0.47, 0.22]);
 
-    // Dense paired herringbone chevron needle-sprig fans sweeping left, right & upturned along the shoot!
-    let pairs: usize = if high_detail { 5 } else { 3 };
+    // Compact layered feathery upturned curved needle-cords clothing the bough from base to tip!
+    // At LOD0: 4 paired side-swept upturned cords + 2 upturned dorsal crest cords (10 compact 6-tri
+    // rounded-shoulder shoots = 60 tris/branchlet).
+    // At LOD1: 3 broader temporally-stable clustered shoots (6 × 4 = 24 tris/branchlet).
+    let pairs: usize = if high_detail { 4 } else { 2 };
+    let lod_len_boost = if high_detail { 1.0 } else { 1.46 };
+    let lod_w_boost = if high_detail { 1.0 } else { 1.54 };
     let mut emitted = 0u32;
 
     for p in 0..pairs {
-        let u = (p as f32 + 0.25) / (pairs as f32 + 0.15);
-        // Arch gently outward then curve gracefully upward at the Araucaria shoot tip
+        // Start slightly back over the limb junction (`u = -0.08..0.88`) so feathery cords wrap limbs softly!
+        let u = -0.08 + 0.96 * ((p as f32 + 0.25) / (pairs as f32 + 0.10));
+        let u_pos = u.clamp(0.0, 1.0);
         let anchor = leaf.position
             + horiz_dir * (frond_len * u)
-            + up_dir * (frond_len * 0.24 * u * u);
-        let env = (1.0 - 0.38 * u).clamp(0.50, 1.05);
-        let sprig_len = frond_len * 0.56 * env * lod_boost;
-        let sprig_w = (sprig_len * 0.42).clamp(0.085, 0.22);
+            + up_dir * (frond_len * 0.22 * u_pos * u_pos);
+        let env = (1.0 - 0.26 * u_pos).clamp(0.68, 1.04);
+        // Compact soft feathery needle cord dimensions (16-28 cm long, 4.4-7.6 cm wide at LOD0 — NEVER giant origami diamonds!)
+        let cord_len = (0.19 + 0.08 * env) * (0.88 + 0.24 * hash_unit(seed ^ (p as u64 * 29))) * lod_len_boost;
+        let cord_w = (cord_len * 0.265 * lod_w_boost).clamp(0.044, if high_detail { 0.076 } else { 0.125 });
 
         for sign in [-1.0_f32, 1.0_f32] {
             let n_seed = seed ^ ((p as u64) * 97 + if sign > 0.0 { 13 } else { 37 });
-            let (col_base, col_tip, thick) = palette.pick_colors(n_seed, false);
-            // Sweeping horizontal herringbone V-fan with slight upturned coastal tip!
-            let n_dir = (horiz_dir * 0.58 + side_dir * (sign * 0.72) + up_dir * (0.28 + 0.24 * u))
+            let (p_base, p_tip, thick) = palette.pick_colors(n_seed, false);
+            let col_base = lerp_rgb(p_base, emerald_base, 0.55);
+            let col_tip = lerp_rgb(p_tip, pine_tip, 0.55);
+            let jit_up = 0.26 + 0.30 * u_pos + 0.10 * hash_signed(n_seed ^ 0x41);
+            // Swept gently forward & upturned in tight overlapping feathery coastal plumes
+            let n_dir = (horiz_dir * 0.76 + side_dir * (sign * 0.50) + up_dir * jit_up)
                 .try_normalize()
                 .unwrap_or(horiz_dir);
+            let roll_up = (up_dir + side_dir * (sign * 0.32))
+                .try_normalize()
+                .unwrap_or(up_dir);
             let spec = BladeShapeSpec {
-                length: sprig_len,
-                max_width: sprig_w,
-                sickle: 0.05 * sign,
-                arch: -0.18, // iconic upturned Araucaria cord tip
-                keel: 0.36,
+                length: cord_len,
+                max_width: cord_w,
+                sickle: 0.03 * sign,
+                arch: -0.26, // soft upturned Araucaria cord curve
+                keel: 0.50,  // rounded 3D tubular-V needle plume depth
+                upper_shoulder: 0.86, // soft rounded feathery shoot silhouette (kills sharp origami corners!)
                 serrated: false,
                 col_base,
                 col_tip,
                 thickness: thick,
-                high_detail: false, // 4-tri chevron needle-frond blade
+                high_detail, // 6-tri curved rounded shoot at LOD0, 4-tri stable shoot at LOD1
             };
-            append_curved_3d_leaf(foliage, anchor, n_dir, Vec3::Y, leaf.stem_id, field, &spec);
+            append_curved_3d_leaf(foliage, anchor, n_dir, roll_up, leaf.stem_id, field, &spec);
             emitted += 1;
         }
 
-        // Upturned dorsal crest needle-sprig every 2nd pair so tiers have lush 3D volume from all angles
-        if high_detail && p % 2 == 0 {
+        // Upturned dorsal feathery plume cords filling the top of each Araucaria bough tier
+        if p % 2 == 0 {
             let c_seed = seed ^ ((p as u64) * 131 + 71);
-            let (col_base, col_tip, thick) = palette.pick_colors(c_seed, false);
-            let crest_dir = (horiz_dir * 0.68 + up_dir * 0.72)
+            let (p_base, p_tip, thick) = palette.pick_colors(c_seed, false);
+            let col_base = lerp_rgb(p_base, emerald_base, 0.45);
+            let col_tip = lerp_rgb(p_tip, pine_tip, 0.65);
+            let crest_dir = (horiz_dir * 0.64 + up_dir * 0.76 + side_dir * (0.14 * hash_signed(c_seed ^ 0x17)))
                 .try_normalize()
                 .unwrap_or(Vec3::Y);
             let spec = BladeShapeSpec {
-                length: sprig_len * 0.85,
-                max_width: sprig_w * 0.85,
+                length: cord_len * 0.92,
+                max_width: cord_w * 0.94,
                 sickle: 0.0,
-                arch: -0.15,
-                keel: 0.40,
+                arch: -0.22,
+                keel: 0.52,
+                upper_shoulder: 0.86,
                 serrated: false,
                 col_base,
                 col_tip,
                 thickness: thick,
-                high_detail: false,
+                high_detail,
             };
             append_curved_3d_leaf(foliage, anchor, crest_dir, side_dir, leaf.stem_id, field, &spec);
             emitted += 1;
@@ -912,6 +959,7 @@ fn append_banksia_candle(
     let bit = axis.cross(tan).try_normalize().unwrap_or(Vec3::Z);
 
     let sides: u32 = if high_detail { 8 } else { 5 };
+    let cols = sides + 1;
     let rings: usize = if high_detail { 9 } else { 5 };
     let half_w = (organ.width * 0.5).max(0.022);
     let v0 = mesh.vertices.len() as u32;
@@ -937,13 +985,14 @@ fn append_banksia_candle(
         let center = organ.position + axis * (organ.length * t);
         let base_c = lerp_rgb(base_lin, tip_lin, t);
 
-        for s in 0..sides {
+        for s in 0..cols {
+            let wrap_s = s % sides;
             let spiral = (r_idx as f32) * 0.45;
-            let a = (s as f32 / sides as f32) * TAU + spiral;
+            let a = (wrap_s as f32 / sides as f32) * TAU + spiral;
             let radial = tan * a.cos() + bit * a.sin();
             // Subtle spiral floret bump around circumference
             let floret_bump = if high_detail {
-                1.0 + 0.10 * ((s as f32 * 2.0 + r_idx as f32) * 1.5).sin()
+                1.0 + 0.10 * ((wrap_s as f32 * 2.0 + r_idx as f32) * 1.5).sin()
             } else {
                 1.0
             };
@@ -967,11 +1016,10 @@ fn append_banksia_candle(
 
     for r_idx in 0..(rings as u32 - 1) {
         for s in 0..sides {
-            let next = (s + 1) % sides;
-            let i00 = v0 + r_idx * sides + s;
-            let i10 = v0 + r_idx * sides + next;
-            let i01 = v0 + (r_idx + 1) * sides + s;
-            let i11 = v0 + (r_idx + 1) * sides + next;
+            let i00 = v0 + r_idx * cols + s;
+            let i10 = i00 + 1;
+            let i01 = i00 + cols;
+            let i11 = i01 + 1;
             mesh.indices
                 .extend_from_slice(&[i00, i01, i11, i00, i11, i10]);
         }
@@ -989,11 +1037,10 @@ fn append_banksia_candle(
         uv2: Vec2::new(tip_ao, field.height_norm(tip)),
         color: Vec4::new(tip_c[0], tip_c[1], tip_c[2], 0.45),
     });
-    let top_row = v0 + (rings as u32 - 1) * sides;
+    let top_row = v0 + (rings as u32 - 1) * cols;
     for s in 0..sides {
-        let next = (s + 1) % sides;
         mesh.indices
-            .extend_from_slice(&[cap_idx, top_row + next, top_row + s]);
+            .extend_from_slice(&[cap_idx, top_row + s + 1, top_row + s]);
     }
 }
 
@@ -1012,6 +1059,7 @@ fn append_3d_nut_or_cone(
     let axis = (organ.rotation * Vec3::Y).try_normalize().unwrap_or(Vec3::Y);
     let (tan, bit) = create_basis(axis);
     let sides: u32 = if high_detail { 7 } else { 4 };
+    let cols = sides + 1;
     let rings: &[f32] = if high_detail {
         &[0.0, 0.22, 0.52, 0.80, 1.0]
     } else {
@@ -1041,8 +1089,9 @@ fn append_3d_nut_or_cone(
         };
         let center = organ.position + axis * (organ.length * t);
         let col = lerp_rgb(base_lin, tip_lin, t);
-        for s in 0..sides {
-            let a = (s as f32 / sides as f32) * TAU + (ri as f32 * 0.4);
+        for s in 0..cols {
+            let wrap_s = s % sides;
+            let a = (wrap_s as f32 / sides as f32) * TAU + (ri as f32 * 0.4);
             let rad = tan * a.cos() + bit * a.sin();
             let pos = center + rad * (half_w * profile * scale_bump);
             let ao = field.crown_ao(organ.stem_id, pos);
@@ -1059,11 +1108,10 @@ fn append_3d_nut_or_cone(
 
     for ri in 0..(rings.len() as u32 - 1) {
         for s in 0..sides {
-            let next = (s + 1) % sides;
-            let i00 = v0 + ri * sides + s;
-            let i10 = v0 + ri * sides + next;
-            let i01 = v0 + (ri + 1) * sides + s;
-            let i11 = v0 + (ri + 1) * sides + next;
+            let i00 = v0 + ri * cols + s;
+            let i10 = i00 + 1;
+            let i01 = i00 + cols;
+            let i11 = i01 + 1;
             mesh.indices
                 .extend_from_slice(&[i00, i01, i11, i00, i11, i10]);
         }
@@ -1077,11 +1125,10 @@ fn append_3d_nut_or_cone(
         uv2: Vec2::new(field.crown_ao(organ.stem_id, tip), field.height_norm(tip)),
         color: Vec4::new(tip_lin[0], tip_lin[1], tip_lin[2], 0.90),
     });
-    let top_row = v0 + (rings.len() as u32 - 1) * sides;
+    let top_row = v0 + (rings.len() as u32 - 1) * cols;
     for s in 0..sides {
-        let next = (s + 1) % sides;
         mesh.indices
-            .extend_from_slice(&[cap_idx, top_row + next, top_row + s]);
+            .extend_from_slice(&[cap_idx, top_row + s + 1, top_row + s]);
     }
 }
 
@@ -1108,6 +1155,7 @@ fn append_kangaroo_paw_flower(
     let up = side.cross(fwd).try_normalize().unwrap_or(Vec3::Y);
 
     let sides: u32 = if high_detail { 6 } else { 4 };
+    let cols = sides + 1;
     let rings: usize = if high_detail { 5 } else { 3 };
     let tube_r = (length * 0.145).clamp(0.008, 0.018);
     let v0 = mesh.vertices.len() as u32;
@@ -1139,8 +1187,9 @@ fn append_kangaroo_paw_flower(
         let color_t = ((t - 0.24) / 0.22).clamp(0.0, 1.0);
         let col = lerp_rgb(red_lin, green_lin, color_t);
 
-        for s in 0..sides {
-            let a = (s as f32 / sides as f32) * TAU;
+        for s in 0..cols {
+            let wrap_s = s % sides;
+            let a = (wrap_s as f32 / sides as f32) * TAU;
             let rad = side * a.cos() + local_up * a.sin();
             let pos = center + rad * r;
             let ao = field.crown_ao(stem_id, pos);
@@ -1159,11 +1208,10 @@ fn append_kangaroo_paw_flower(
 
     for ri in 0..(rings as u32 - 1) {
         for s in 0..sides {
-            let next = (s + 1) % sides;
-            let i00 = v0 + ri * sides + s;
-            let i10 = v0 + ri * sides + next;
-            let i01 = v0 + (ri + 1) * sides + s;
-            let i11 = v0 + (ri + 1) * sides + next;
+            let i00 = v0 + ri * cols + s;
+            let i10 = i00 + 1;
+            let i01 = i00 + cols;
+            let i11 = i01 + 1;
             mesh.indices
                 .extend_from_slice(&[i00, i01, i11, i00, i11, i10]);
         }
@@ -1186,6 +1234,7 @@ fn append_kangaroo_paw_flower(
             sickle: 0.0,
             arch: 0.35, // curled outward claw tip
             keel: 0.25,
+            upper_shoulder: 0.72,
             serrated: false,
             col_base: green_lin,
             col_tip: tip_col,
@@ -1296,6 +1345,7 @@ fn generate_geo3d_rosette(
                         sickle: 0.02 * sign,
                         arch: 0.10,
                         keel: 0.42,
+                        upper_shoulder: 0.72,
                         serrated: false,
                         col_base: mul_rgb(base_lin, jit),
                         col_tip: mul_rgb(tip_lin, jit),
@@ -1597,6 +1647,7 @@ fn generate_geo3d_rosette(
                                 sickle: 0.0,
                                 arch: 0.25,
                                 keel: 0.35,
+                                upper_shoulder: 0.70,
                                 serrated: false,
                                 col_base: c_base,
                                 col_tip: c_tip,
@@ -1628,6 +1679,7 @@ fn generate_geo3d_rosette(
                             sickle: 0.04 * hash_signed(seed ^ 0x66),
                             arch: 0.20,
                             keel: 0.28,
+                            upper_shoulder: 0.70,
                             serrated: false,
                             col_base: mul_rgb(skirt_lin, jit * 0.75),
                             col_tip: mul_rgb(skirt_lin, jit * 1.05),
@@ -1684,8 +1736,8 @@ pub fn generate_geo3d_foliage_mesh(
     leaf_reduction: f32,
     foliage_tri_budget: u32,
 ) -> Geo3dResult {
-    let field = CrownField::from_tree(tree, species);
     let high_detail = leaf_reduction >= 0.60;
+    let field = CrownField::from_tree(tree, species, high_detail);
 
     if species.generator.family == GeneratorFamily::Rosette {
         return generate_geo3d_rosette(tree, species, leaf_reduction, &field, high_detail);
@@ -1706,7 +1758,7 @@ pub fn generate_geo3d_foliage_mesh(
     let twig_bark_lin = if species.uses_upper_bark() {
         lerp_rgb(bark_lin, upper_bark_lin, 0.72)
     } else {
-        mul_rgb(bark_lin, 0.86)
+        mul_rgb(bark_lin, 0.80)
     };
 
     let is_jacaranda = species.leaves.shape == LeafShape::Bipinnate;
@@ -1721,6 +1773,7 @@ pub fn generate_geo3d_foliage_mesh(
     let is_moreton_fig = species.leaves.shape == LeafShape::Oval
         && species.trunk.aerial_roots > 0;
     let is_qbox = species.leaves.shape == LeafShape::Pointed;
+    let is_flooded_gum = species.leaves.shape == LeafShape::Sickle && species.uses_upper_bark();
 
     // Split triangle budget between foliage leaves/twigs and dedicated floral/fruiting organs
     let has_blossom_clusters = species
@@ -1733,8 +1786,8 @@ pub fn generate_geo3d_foliage_mesh(
         .is_some_and(|i| i.kind == InflorescenceKind::Spike && !tree.organs.is_empty());
 
     let (leaf_tri_budget, organ_tri_budget) = if has_blossom_clusters {
-        // Flowering Jacaranda / Marri: rich 3D trumpet-bell blossom clusters + airy bipinnate fronds & dark twigs!
-        let leaf_share = if is_jacaranda { 0.24 } else { 0.60 };
+        // Flowering Jacaranda / Marri: lush billowing 3D trumpet-bell domes + soft-green bipinnate sprays tucked beneath!
+        let leaf_share = if is_jacaranda { 0.22 } else { 0.60 };
         let lb = (foliage_tri_budget as f32 * leaf_share) as u32;
         (lb, foliage_tri_budget.saturating_sub(lb))
     } else if has_banksia_candles {
@@ -1751,9 +1804,11 @@ pub fn generate_geo3d_foliage_mesh(
         let total_leaves = tree.leaves.len();
 
         if is_jacaranda {
-            // Dense lacy 3D curved bipinnate fern-frond sprays inside & beneath the purple canopy
-            let tris_per_frond = if high_detail { 62u32 } else { 38u32 };
-            let target_fronds = ((leaf_tri_budget / tris_per_frond).max(80) as usize).min(total_leaves);
+            // Lush curved 3D bipinnate fern-frond sprays tucked beneath & inside the billowing purple canopy:
+            // emit paired twin-spray fern fronds per leaf anchor so soft green foliage peeks warmly under
+            // the November lavender cloud!
+            let tris_per_spray = if high_detail { 156u32 } else { 48u32 };
+            let target_fronds = ((leaf_tri_budget / tris_per_spray).max(90) as usize).min(total_leaves);
             for i in 0..target_fronds {
                 let leaf = &tree.leaves[i * total_leaves / target_fronds.max(1)];
                 let seed = tree.seed ^ ((i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
@@ -1767,12 +1822,32 @@ pub fn generate_geo3d_foliage_mesh(
                     &field,
                     high_detail,
                 );
+                // Paired sister frond fanned ~55° sideways and slightly tucked below for lush layered green fill
+                let sister_rot = glam::Quat::from_rotation_y(
+                    if i % 2 == 0 { 0.95 } else { -0.95 } + 0.25 * hash_signed(seed ^ 0x41B),
+                ) * leaf.rotation;
+                let sister_leaf = Leaf {
+                    position: leaf.position - Vec3::Y * 0.08,
+                    rotation: sister_rot,
+                    scale: leaf.scale * (0.86 + 0.22 * hash_unit(seed ^ 0x71E)),
+                    stem_id: leaf.stem_id,
+                };
+                unit_count += append_jacaranda_bipinnate_frond(
+                    &mut foliage,
+                    &mut twigs,
+                    &sister_leaf,
+                    seed ^ 0xD1B5_4A32,
+                    &palette,
+                    twig_bark_lin,
+                    &field,
+                    high_detail,
+                );
             }
         } else if is_araucaria {
-            // Norfolk Island Pine: lush sweeping horizontal-to-upturned 3D feathery chevron fronds
-            // clothing ALL 64 coastal whorls so the pine reads as a full iconic Cottesloe conifer!
-            let tris_per_shoot = if high_detail { 52u32 } else { 24u32 };
-            let target_shoots = ((leaf_tri_budget / tris_per_shoot).max(400) as usize).min(total_leaves);
+            // Norfolk Island Pine: dense, compact, softly rounded 3D curved upturned needle-shoot tufts
+            // clothing ALL 64 coastal whorls (ZERO sharp origami diamonds!).
+            let tris_per_shoot = if high_detail { 60u32 } else { 20u32 };
+            let target_shoots = ((leaf_tri_budget / tris_per_shoot).max(480) as usize).min(total_leaves);
             for i in 0..target_shoots {
                 let leaf = &tree.leaves[i * total_leaves / target_shoots.max(1)];
                 let seed = tree.seed ^ ((i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
@@ -1790,57 +1865,62 @@ pub fn generate_geo3d_foliage_mesh(
         } else {
             // Eucalypts (Flooded Gum, Jarrah, Marri, Tuart), WA Peppermint, Slender Banksia,
             // Swamp Paperbark, Queensland Box, Moreton Bay Fig:
-            // Pack 12,000-18,000+ sleek 4-tri curved V-creased 3D leaves per hero tree (LOD0)
-            // and 3,500-5,500+ at LOD1 so canopies are LUSH & FULL with zero bald winter skeletons!
+            // - LOD0: 10k-14k rounded-shoulder 6-tri curved botanical leaves (zero flat diamond corners!)
+            // - LOD1: broader, temporally-stable clustered 4-tri shoots (~1.48x width, ~80% spherical normals)
+            //   killing mid-field (65-450 m) sub-pixel shimmer while preserving lush crown silhouettes!
             let leaves_per_shoot: usize = if high_detail {
                 if is_paperbark {
-                    14
-                } else if is_peppermint {
-                    12
-                } else if is_moreton_fig {
-                    9
-                } else {
                     11
+                } else if is_peppermint {
+                    10
+                } else if is_moreton_fig {
+                    8
+                } else {
+                    9
                 }
             } else if is_paperbark {
-                7
+                5
             } else {
-                6
+                4
             };
-            let tris_per_leaf = 4u32; // sleek 4-tri curved V-creased 3D leaf blade (5 verts, 4 tris)
-            let avg_twig_tris = if high_detail { 3u32 } else { 0u32 }; // woody petiole on every 2nd/3rd shoot
+            let tris_per_leaf: u32 = if high_detail { 6 } else { 4 };
+            let avg_twig_tris = if high_detail { 3u32 } else { 0u32 };
             let tris_per_shoot = avg_twig_tris + leaves_per_shoot as u32 * tris_per_leaf;
-            let target_shoots = ((leaf_tri_budget / tris_per_shoot.max(1)).max(160) as usize)
+            let target_shoots = ((leaf_tri_budget / tris_per_shoot.max(1)).max(180) as usize)
                 .min(total_leaves);
 
-            // Species-tuned lush 3D leaf blade dimensions so both 1-3 m macro AND 40-150 m street
-            // vistas show rich, dense, authentic WA evergreen canopies!
-            let crown_scale_boost = (species.leaves.size / 0.85).clamp(0.92, 1.55);
-            let (base_len, aspect_w, sickle, arch, keel, hang_pull) = if is_peppermint {
-                // Lush weeping curtains of Agonis flexuosa willow-lance leaves
-                (0.42_f32, 0.24_f32, 0.08_f32, 0.36_f32, 0.24_f32, 0.72_f32)
+            // Species-tuned lush 3D leaf dimensions & botanical shoulder curvature
+            let crown_scale_boost = (species.leaves.size / 0.85).clamp(0.94, 1.55);
+            let (base_len, aspect_w, sickle, arch, keel, hang_pull, upper_shoulder) = if is_peppermint {
+                // Lush weeping drapes of Agonis flexuosa willow-lance leaves
+                (0.46_f32, 0.28_f32, 0.08_f32, 0.42_f32, 0.24_f32, 0.82_f32, 0.72_f32)
             } else if is_paperbark {
-                // Soft billowing Melaleuca grey-sage linear needle-sprig clouds
-                (0.32, 0.26, 0.04, 0.22, 0.22, 0.16)
+                // Soft billowing Melaleuca grey-sage foliage pillows
+                (0.36, 0.33, 0.04, 0.24, 0.24, 0.18, 0.78)
             } else if is_banksia {
                 // Dense radial whorls of serrated Banksia attenuata lance leaves
-                (0.34, 0.28, 0.03, 0.18, 0.32, 0.06)
+                (0.36, 0.30, 0.03, 0.19, 0.32, 0.06, 0.74)
             } else if is_moreton_fig {
                 // Large glossy leathery elliptic Ficus macrophylla leaves
-                (0.64, 0.52, 0.02, 0.28, 0.34, 0.22)
+                (0.66, 0.54, 0.02, 0.28, 0.34, 0.22, 0.84)
             } else if is_qbox {
-                // Dense glossy whorled Lophostemon confertus dome leaves
-                (0.40, 0.48, 0.02, 0.22, 0.30, 0.12)
+                // Dense glossy whorled Lophostemon confertus cohesive dome leaves
+                (0.44, 0.52, 0.02, 0.24, 0.30, 0.14, 0.84)
             } else if species.leaves.shape == LeafShape::BroadEucalypt {
-                // Marri (Corymbia calophylla): broad glossy eucalypt foliage
-                (0.50 * crown_scale_boost.min(1.25), 0.42, 0.11, 0.26, 0.28, 0.34)
+                // Marri (Corymbia calophylla): lush broad glossy eucalypt foliage
+                (0.53 * crown_scale_boost.min(1.26), 0.45, 0.11, 0.28, 0.28, 0.36, 0.80)
+            } else if is_flooded_gum {
+                // Flooded Gum (Eucalyptus rudis): soft drooping silvery-olive sickle drapes
+                (0.51 * crown_scale_boost.min(1.30), 0.36, 0.16, 0.35, 0.28, 0.58, 0.74)
             } else {
-                // Classic WA Eucalypts (Flooded Gum, Jarrah, Tuart): curved falcate sickle blades!
-                (0.48 * crown_scale_boost.min(1.30), 0.32, 0.16, 0.30, 0.28, 0.46)
+                // WA Eucalypts (Jarrah, Tuart): fuller cohesive curved falcate sickle crowns
+                (0.51 * crown_scale_boost.min(1.32), 0.35, 0.16, 0.32, 0.28, 0.48, 0.74)
             };
 
-            // Enlarge blades at LOD1 so mid-field crown volume holds seamlessly across LOD transition
-            let lod_size_boost = if high_detail { 1.0 } else { 1.48 };
+            // Temporal-stability area compensation at LOD1: broaden & slightly lengthen shoots
+            // (~1.42x len, ~1.52x width) with fewer tiny sub-pixel shards to kill mid-field glitter!
+            let lod_len_boost = if high_detail { 1.0 } else { 1.42 };
+            let lod_width_boost = if high_detail { 1.0 } else { 1.52 };
             let scale_ref = species.leaves.size.max(0.45);
 
             for s_idx in 0..target_shoots {
@@ -1850,7 +1930,7 @@ pub fn generate_geo3d_foliage_mesh(
                 let shoot_dir = (anchor_leaf.rotation * Vec3::Y)
                     .try_normalize()
                     .unwrap_or(Vec3::Y);
-                let size_ratio = (anchor_leaf.scale / scale_ref).clamp(0.78, 1.38);
+                let size_ratio = (anchor_leaf.scale / scale_ref).clamp(0.80, 1.38);
 
                 let twig_len = (base_len * 0.96 * size_ratio).clamp(0.22, 0.56);
                 let twig_r = if is_moreton_fig { 0.009 } else { 0.0055 };
@@ -1907,9 +1987,12 @@ pub fn generate_geo3d_foliage_mesh(
 
                     let len = base_len
                         * size_ratio
-                        * lod_size_boost
-                        * (0.78 + 0.46 * hash_unit(l_seed ^ 0x5));
-                    let width = len * aspect_w * (0.88 + 0.28 * hash_unit(l_seed ^ 0x6));
+                        * lod_len_boost
+                        * (0.80 + 0.42 * hash_unit(l_seed ^ 0x5));
+                    let width = len
+                        * aspect_w
+                        * (lod_width_boost / lod_len_boost)
+                        * (0.90 + 0.26 * hash_unit(l_seed ^ 0x6));
                     let sickle_sign = if (k & 1) == 0 { 1.0 } else { -1.0 };
                     let (col_base, col_tip, thickness) =
                         palette.pick_colors(l_seed, is_moreton_fig);
@@ -1921,11 +2004,12 @@ pub fn generate_geo3d_foliage_mesh(
                         sickle: sickle * sickle_sign * (0.75 + 0.5 * hash_unit(l_seed ^ 0x7)),
                         arch: arch * (0.80 + 0.45 * hash_unit(l_seed ^ 0x8)),
                         keel,
+                        upper_shoulder,
                         serrated: is_banksia,
                         col_base,
                         col_tip,
                         thickness,
-                        high_detail: false, // 4-tri curved V-creased 3D blade -> packs 12k-18k+ leaves!
+                        high_detail, // 6-tri curved botanical leaf at LOD0, 4-tri broader cluster blade at LOD1
                     };
                     append_curved_3d_leaf(
                         &mut foliage,
@@ -1953,34 +2037,120 @@ pub fn generate_geo3d_foliage_mesh(
 
         if has_blossom_clusters && organ_tri_budget > 0 {
             // PERTH JACARANDA (and flowering Marri):
-            // 350-450 dense conical panicles × 22-28 petite 3D tubular lavender-violet trumpet-bell
-            // florets (`4.5-6.8 cm` long, `2.2-3.4 cm` mouth) = 9,000-13,000+ petite 3D bells
-            // forming lush billowing Perth purple clouds over visible crooked dark-brown twigs!
+            // ~950-1,100 wide overlapping billowing dome panicles × 15-16 lush 3D flared lavender-violet
+            // trumpet bells (`8.2-12.8 cm` long) = 14,000-17,000+ 3D bells providing ~2.4x canopy fill
+            // so weathered dark-brown limbs peek organically through dense billowing purple domes!
             let throat_srgb = if is_jacaranda {
-                // Deep royal violet-indigo inside tubular Jacaranda bell throat
-                [0.26, 0.15, 0.60]
+                // Deep rich royal violet-indigo inside tubular Jacaranda bell throat
+                [0.24, 0.13, 0.58]
             } else {
                 [inf_col[0] * 0.80, inf_col[1] * 0.76, inf_col[2] * 0.65]
             };
             let rim_srgb = if is_jacaranda {
-                // Luminous lilac-lavender flared bell rim
-                [0.74, 0.58, 0.98]
+                // Luminous sunlit lilac-lavender flared bell rim
+                [0.76, 0.60, 0.99]
             } else {
                 inf_tip
             };
             let throat_lin = srgb3_to_linear(throat_srgb);
             let rim_lin = srgb3_to_linear(rim_srgb);
-            let dark_twig_lin = mul_rgb(bark_lin, 0.65);
+            let dark_twig_lin = mul_rgb(bark_lin, 0.56);
 
-            let bells_per_panicle: usize = if high_detail { 26 } else { 11 };
+            let bells_per_panicle: usize = if high_detail { 15 } else { 7 };
             let tris_per_bell: u32 = if high_detail { 4 } else { 3 };
-            let twig_tris_per_panicle: u32 = if high_detail { 9 } else { 0 };
+            let twig_tris_per_panicle: u32 = if high_detail { 4 } else { 0 };
             let tris_per_panicle = twig_tris_per_panicle + bells_per_panicle as u32 * tris_per_bell;
             let total_organs = tree.organs.len();
-            let target_panicles = ((organ_tri_budget / tris_per_panicle.max(1)).max(120) as usize)
+            let total_target_panicles = ((organ_tri_budget / tris_per_panicle.max(1)).max(220) as usize)
                 .min(total_organs);
 
-            let bell_size_boost = if high_detail { 1.0 } else { 1.65 };
+            // On flowering Perth Jacaranda, reserve ~22% of panicles to drape billowing dome puffs
+            // across upper L1/L2 inner-crown limb spans so crooked dark limbs peek organically
+            // through a lush continuous lavender dome (ZERO bare-stick sky gaps!).
+            let dome_fill_panicles = if is_jacaranda {
+                (total_target_panicles * 22 / 100).max(40)
+            } else {
+                0
+            };
+            let target_panicles = total_target_panicles.saturating_sub(dome_fill_panicles);
+
+            let bell_size_boost = if high_detail { 1.0 } else { 1.56 };
+
+            let mut emit_panicle = |pos: Vec3,
+                                    panicle_axis: Vec3,
+                                    organ_len: f32,
+                                    stem_id: u32,
+                                    p_seed: u64,
+                                    emit_twig: bool| {
+                // Wider, fuller billowing panicle dome (`0.46..0.72 m` span, ~2.5x coverage vs v2!)
+                let panicle_len = (organ_len * 0.72).clamp(0.46, 0.72);
+
+                let (twig_tip, side_tip) = if emit_twig {
+                    append_crooked_twig_fork(
+                        &mut twigs,
+                        pos - panicle_axis * 0.10,
+                        panicle_axis,
+                        panicle_len * 0.68,
+                        0.0055,
+                        p_seed,
+                        dark_twig_lin,
+                        stem_id,
+                        &field,
+                    )
+                } else {
+                    let tip = pos + panicle_axis * panicle_len;
+                    let (t_b, _) = create_basis(panicle_axis);
+                    (
+                        tip,
+                        pos + panicle_axis * (panicle_len * 0.5) + t_b * (panicle_len * 0.38),
+                    )
+                };
+
+                let (tan, bit) = create_basis(panicle_axis);
+                let az0 = hash_unit(p_seed ^ 0x55) * TAU;
+                let panicle_r = panicle_len * 0.82;
+
+                for b_i in 0..bells_per_panicle {
+                    let b_seed = p_seed ^ ((b_i as u64 + 1).wrapping_mul(0x517C_C1B7));
+                    let u = (b_i as f32 + 0.5) / bells_per_panicle as f32;
+                    // Full billowing dome-panicle envelope overlapping neighbouring branches
+                    let dome_profile = (1.0 - 0.42 * u * u).clamp(0.48, 1.0);
+                    let cone_r =
+                        panicle_r * dome_profile * (0.42 + 0.74 * hash_unit(b_seed ^ 0x19));
+                    let az = az0 + b_i as f32 * GOLDEN_ANGLE + hash_signed(b_seed ^ 0x11) * 0.28;
+                    let radial = tan * az.cos() + bit * az.sin();
+                    let spine_pt = if b_i % 3 == 2 {
+                        pos.lerp(side_tip, 0.18 + 0.78 * u)
+                    } else {
+                        pos.lerp(twig_tip, 0.06 + 0.92 * u)
+                    };
+                    let base_pt = spine_pt + radial * cone_r;
+
+                    let spread = 0.48 + 0.52 * (1.0 - u * 0.45);
+                    let bell_axis = (panicle_axis * (0.72 - 0.32 * spread) + radial * spread)
+                        .try_normalize()
+                        .unwrap_or(radial);
+
+                    // Lush, temporally-stable 3D Jacaranda trumpet bells (`8.8-13.6 cm` long at LOD0,
+                    // broadened at LOD1 for continuous billowing purple domes with zero sub-pixel shimmer!)
+                    let bell_len = (0.088 + 0.048 * hash_unit(b_seed ^ 0x33)) * bell_size_boost;
+                    let bell_rad = bell_len * (0.52 + 0.12 * hash_unit(b_seed ^ 0x44));
+                    append_jacaranda_trumpet_bell(
+                        &mut organ_mesh,
+                        base_pt,
+                        bell_axis,
+                        bell_len,
+                        bell_rad,
+                        b_seed,
+                        throat_lin,
+                        rim_lin,
+                        stem_id,
+                        &field,
+                        high_detail,
+                    );
+                    unit_count += 1;
+                }
+            };
 
             for p_i in 0..target_panicles {
                 let organ = &tree.organs[p_i * total_organs / target_panicles.max(1)];
@@ -1991,68 +2161,47 @@ pub fn generate_geo3d_foliage_mesh(
                 let panicle_axis = (organ.rotation * Vec3::Y)
                     .try_normalize()
                     .unwrap_or(Vec3::Y);
-                let panicle_len = (organ.length * 0.34).clamp(0.18, 0.34);
+                emit_panicle(
+                    organ.position,
+                    panicle_axis,
+                    organ.length,
+                    organ.stem_id,
+                    p_seed,
+                    high_detail && p_i % 4 == 0,
+                );
+            }
 
-                // Emit crisp dark-brown crooked twiglet on every 2nd panicle so woody structure
-                // threads visibly through the lush purple canopy without eating bell budget!
-                let (twig_tip, side_tip) = if high_detail && p_i % 2 == 0 {
-                    append_crooked_twig_fork(
-                        &mut twigs,
-                        organ.position - panicle_axis * 0.08,
-                        panicle_axis,
-                        panicle_len,
-                        0.006,
-                        p_seed,
-                        dark_twig_lin,
-                        organ.stem_id,
-                        &field,
-                    )
-                } else {
-                    let tip = organ.position + panicle_axis * panicle_len;
-                    let (t_b, _) = create_basis(panicle_axis);
-                    (tip, organ.position + panicle_axis * (panicle_len * 0.5) + t_b * (panicle_len * 0.32))
-                };
-
-                let (tan, bit) = create_basis(panicle_axis);
-                let az0 = hash_unit(p_seed ^ 0x55) * TAU;
-                let panicle_r = panicle_len * 0.55;
-
-                for b_i in 0..bells_per_panicle {
-                    let b_seed = p_seed ^ ((b_i as u64 + 1).wrapping_mul(0x517C_C1B7));
-                    let u = (b_i as f32 + 0.5) / bells_per_panicle as f32;
-                    // Conical/pyramidal Jacaranda panicle envelope: wider at base, tapering to tip
-                    let cone_r = panicle_r * (1.0 - 0.62 * u) * (0.45 + 0.70 * hash_unit(b_seed ^ 0x19));
-                    let az = az0 + b_i as f32 * GOLDEN_ANGLE + hash_signed(b_seed ^ 0x11) * 0.28;
-                    let radial = tan * az.cos() + bit * az.sin();
-                    let spine_pt = if b_i % 4 == 3 {
-                        organ.position.lerp(side_tip, 0.25 + 0.72 * u)
-                    } else {
-                        organ.position.lerp(twig_tip, 0.10 + 0.90 * u)
-                    };
-                    let base_pt = spine_pt + radial * cone_r;
-
-                    let spread = 0.45 + 0.55 * (1.0 - u * 0.5);
-                    let bell_axis = (panicle_axis * (0.75 - 0.35 * spread) + radial * spread)
-                        .try_normalize()
-                        .unwrap_or(radial);
-
-                    // Petite botanical Jacaranda trumpet bell: 4.8-7.2 cm long, 2.2-3.4 cm flared mouth!
-                    let bell_len = (0.048 + 0.024 * hash_unit(b_seed ^ 0x33)) * bell_size_boost;
-                    let bell_rad = bell_len * (0.44 + 0.10 * hash_unit(b_seed ^ 0x44));
-                    append_jacaranda_trumpet_bell(
-                        &mut organ_mesh,
-                        base_pt,
-                        bell_axis,
-                        bell_len,
-                        bell_rad,
-                        b_seed,
-                        throat_lin,
-                        rim_lin,
-                        organ.stem_id,
-                        &field,
-                        high_detail,
-                    );
-                    unit_count += 1;
+            if dome_fill_panicles > 0 {
+                let dome_stems: Vec<&Stem> = tree
+                    .stems
+                    .iter()
+                    .filter(|s| (s.level == 1 || s.level == 2) && !s.segments.is_empty())
+                    .collect();
+                if !dome_stems.is_empty() {
+                    for d_i in 0..dome_fill_panicles {
+                        let d_seed =
+                            tree.seed ^ ((d_i as u64 + 1).wrapping_mul(0xD6E8_FEB8_6659_FD93));
+                        let stem = dome_stems[d_i % dome_stems.len()];
+                        let t = 0.42 + 0.56 * hash_unit(d_seed ^ 0x21);
+                        let base = stem.point_at(t);
+                        let s_dir = stem.direction_at(t).try_normalize().unwrap_or(Vec3::Y);
+                        let (tan, bit) = create_basis(s_dir);
+                        let az = hash_unit(d_seed ^ 0x37) * TAU;
+                        let side_off = (tan * az.cos() + bit * az.sin())
+                            * (0.28 + 0.46 * hash_unit(d_seed ^ 0x49));
+                        let lift = Vec3::Y * (0.22 + 0.34 * hash_unit(d_seed ^ 0x5B));
+                        let axis = (Vec3::Y * 0.72 + side_off.normalize_or_zero() * 0.42)
+                            .try_normalize()
+                            .unwrap_or(Vec3::Y);
+                        emit_panicle(
+                            base + side_off + lift,
+                            axis,
+                            0.92,
+                            stem.id,
+                            d_seed,
+                            high_detail && d_i % 3 == 0,
+                        );
+                    }
                 }
             }
         } else {
@@ -2106,6 +2255,7 @@ pub fn generate_geo3d_foliage_mesh(
                             sickle: 0.0,
                             arch: 0.22,
                             keel: 0.28,
+                            upper_shoulder: 0.76,
                             serrated: false,
                             col_base: srgb3_to_linear(inf_col),
                             col_tip: srgb3_to_linear(inf_tip),

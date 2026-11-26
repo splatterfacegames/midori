@@ -120,9 +120,102 @@ fn geo3d_emits_100_percent_opaque_3d_curved_leaves_root_claws_and_attributes() {
                 && sub.index_count > 0
             {
                 has_leaf_submesh = true;
+                // Verify every single 3D leaf / needle / petal vertex carries clean normalized
+                // botanical TEXCOORD_0 in [0..1, 0..1] spanning base-to-tip & left-to-right!
+                let start = sub.index_start as usize;
+                let end = start + sub.index_count as usize;
+                let mut u_min = f32::MAX;
+                let mut u_max = f32::MIN;
+                let mut v_min = f32::MAX;
+                let mut v_max = f32::MIN;
+                for &idx in &m0.indices[start..end] {
+                    let uv = m0.vertices[idx as usize].uv;
+                    assert!(
+                        (-0.001..=1.001).contains(&uv.x) && (-0.001..=1.001).contains(&uv.y),
+                        "{rel} ({:?}): botanical leaf/organ TEXCOORD_0 out of [0,1]: {:?}",
+                        sub.material,
+                        uv
+                    );
+                    u_min = u_min.min(uv.x);
+                    u_max = u_max.max(uv.x);
+                    v_min = v_min.min(uv.y);
+                    v_max = v_max.max(uv.y);
+                }
+                assert!(
+                    u_min <= 0.05 && u_max >= 0.95 && v_min <= 0.05 && v_max >= 0.95,
+                    "{rel} ({:?}): expected full normalized (0..1, 0..1) botanical UVs, got u=[{u_min:.3}..{u_max:.3}], v=[{v_min:.3}..{v_max:.3}]",
+                    sub.material
+                );
             }
         }
         assert!(has_leaf_submesh, "{rel}: missing Leaves/Organ submesh");
+
+        // Verify Norfolk Island Pine has ZERO giant origami diamond triangles (> 0.35 m edge)
+        if rel.contains("norfolk_island_pine") {
+            let mut max_edge = 0.0_f32;
+            for sub in &m0.submeshes {
+                if sub.material == MaterialType::Leaves {
+                    let start = sub.index_start as usize;
+                    let end = start + sub.index_count as usize;
+                    for tri in m0.indices[start..end].as_chunks::<3>().0 {
+                        let a = m0.vertices[tri[0] as usize].position;
+                        let b = m0.vertices[tri[1] as usize].position;
+                        let c = m0.vertices[tri[2] as usize].position;
+                        max_edge = max_edge
+                            .max(a.distance(b))
+                            .max(b.distance(c))
+                            .max(c.distance(a));
+                    }
+                }
+            }
+            assert!(
+                max_edge <= 0.35,
+                "Norfolk Island Pine LOD0 foliage max triangle edge {max_edge:.3} m exceeds compact feathery shoot limit 0.35 m"
+            );
+        }
+
+        // Verify LOD1 (Mid3D) normals are smoother / more canopy-outward than LOD0 (Hero3D)
+        // on branching trees (~80% bent normal blend at LOD1 vs ~60% at LOD0).
+        if expect_roots {
+            let mean_outward_alignment = |mesh: &midori_core::Mesh| -> f32 {
+                let mut sum_pos = glam::Vec3::ZERO;
+                let mut cnt = 0usize;
+                for sub in &mesh.submeshes {
+                    if matches!(sub.material, MaterialType::Leaves | MaterialType::Organ) {
+                        let start = sub.index_start as usize;
+                        let end = start + sub.index_count as usize;
+                        for &idx in &mesh.indices[start..end] {
+                            sum_pos += mesh.vertices[idx as usize].position;
+                            cnt += 1;
+                        }
+                    }
+                }
+                let center = sum_pos / cnt.max(1) as f32;
+                let mut dot_sum = 0.0_f32;
+                let mut n_cnt = 0usize;
+                for sub in &mesh.submeshes {
+                    if matches!(sub.material, MaterialType::Leaves | MaterialType::Organ) {
+                        let start = sub.index_start as usize;
+                        let end = start + sub.index_count as usize;
+                        for &idx in &mesh.indices[start..end] {
+                            let v = &mesh.vertices[idx as usize];
+                            let out = ((v.position - center) + glam::Vec3::Y * 0.8)
+                                .try_normalize()
+                                .unwrap_or(glam::Vec3::Y);
+                            dot_sum += v.normal.dot(out);
+                            n_cnt += 1;
+                        }
+                    }
+                }
+                dot_sum / n_cnt.max(1) as f32
+            };
+            let align0 = mean_outward_alignment(&lod0.mesh);
+            let align1 = mean_outward_alignment(&lod1.mesh);
+            assert!(
+                align1 > align0,
+                "{rel}: expected LOD1 canopy-outward normal alignment ({align1:.4}) > LOD0 ({align0:.4})"
+            );
+        }
 
         for v in &m0.vertices {
             assert!(v.position.is_finite() && v.normal.is_finite());
