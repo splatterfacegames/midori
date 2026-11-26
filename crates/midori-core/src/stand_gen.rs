@@ -1998,7 +1998,7 @@ pub fn generate_stand_tiles(
     }
 
     let alpha_mode = match options.foliage_mode {
-        FoliageRenderMode::Opaque => "OPAQUE",
+        FoliageRenderMode::Opaque | FoliageRenderMode::Geo3d => "OPAQUE",
         FoliageRenderMode::Cutout => "MASK",
     };
     let shared_materials = vec![
@@ -2015,7 +2015,7 @@ pub fn generate_stand_tiles(
         StandMaterialSlot {
             name: "stand_foliage".to_string(),
             alpha_mode: alpha_mode.to_string(),
-            role: if options.foliage_mode == FoliageRenderMode::Opaque {
+            role: if options.foliage_mode.is_opaque() {
                 "opaque_vertex_color_canopy".to_string()
             } else {
                 "shared_foliage_atlas".to_string()

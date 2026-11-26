@@ -30,10 +30,12 @@ pub struct ExportConfig {
     /// Dedicated organ material roughness override when `MaterialType::Organ`
     /// is used (default 0.72).
     pub organ_roughness: Option<f32>,
-    /// Opt-in opaque foliage mode (`--foliage opaque`): no exported material uses
-    /// `alphaMode: "MASK"` or `"BLEND"`; foliage and organs render as closed
-    /// vertex-coloured opaque PBR meshes.
+    /// Opt-in opaque foliage mode (`--foliage opaque` / `--foliage geo3d`): no exported material
+    /// uses `alphaMode: "MASK"` or `"BLEND"`; foliage and organs render as opaque PBR meshes.
     pub opaque_foliage: bool,
+    /// When `opaque_foliage` is true, emit `doubleSided: true` on `leaves` and `organ` materials
+    /// so thin curved 3D geometric leaf blades and trumpet petals render cleanly from both sides.
+    pub double_sided_opaque_foliage: bool,
     /// Optional asset metadata for node naming and glTF extras.
     pub metadata: Option<ExportMetadata>,
 }
@@ -70,6 +72,7 @@ impl Default for ExportConfig {
             leaf_roughness: None,
             organ_roughness: None,
             opaque_foliage: false,
+            double_sided_opaque_foliage: false,
             metadata: None,
         }
     }
@@ -918,7 +921,8 @@ fn build_gltf_json(
                     "metallicFactor": 0.0,
                     "roughnessFactor": leaf_roughness
                 },
-                "doubleSided": false
+                "alphaMode": "OPAQUE",
+                "doubleSided": config.double_sided_opaque_foliage
             })
         } else if textured {
             json!({
@@ -1048,7 +1052,8 @@ fn build_gltf_json(
                     "metallicFactor": 0.0,
                     "roughnessFactor": organ_roughness
                 },
-                "doubleSided": false
+                "alphaMode": "OPAQUE",
+                "doubleSided": config.double_sided_opaque_foliage
             })
         } else if let Some(idx) = organ_idx {
             json!({

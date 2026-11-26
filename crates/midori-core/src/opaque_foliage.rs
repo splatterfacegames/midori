@@ -22,6 +22,17 @@ pub enum FoliageRenderMode {
     Cutout,
     /// Closed low-polygon opaque geometry shaped from actual leaf clusters (`ALPHA_MODE = OPAQUE`).
     Opaque,
+    /// 2026/2027 Nanite-era 100% opaque 3D individual geometric leaves, twigs, and blossoms
+    /// (`ALPHA_MODE = OPAQUE`, zero alpha-scissor cards).
+    Geo3d,
+}
+
+impl FoliageRenderMode {
+    /// True when the foliage mode exports 100% opaque geometry with zero alpha-cutout materials.
+    #[inline]
+    pub fn is_opaque(self) -> bool {
+        matches!(self, Self::Opaque | Self::Geo3d)
+    }
 }
 
 /// Exact sRGB to linear transfer for glTF 2.0 `COLOR_0`.

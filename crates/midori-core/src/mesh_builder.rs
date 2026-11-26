@@ -50,6 +50,11 @@ pub struct MeshConfig {
     /// Optional `(transition_height_m, jagged_span_m)` splitting bark triangles into
     /// `MaterialType::Bark` (lower) and `MaterialType::UpperBark` (upper).
     pub upper_bark_transition: Option<(f32, f32)>,
+    /// Use continuous world-meter bark UVs (`~1.25 m` per tile) with integer circumferential
+    /// repeats so 4K photogrammetry bark maps wrap at 1:1 physical scale with zero seam stretch.
+    pub world_scale_uv: bool,
+    /// Multiplier for 3D radial bark furrow & knot displacement (`1.0` = standard, `1.5+` = deep Nanite-era relief).
+    pub bark_relief_strength: f32,
 }
 
 impl Default for MeshConfig {
@@ -73,6 +78,8 @@ impl Default for MeshConfig {
             hollow_width: 1.15,
             crown_boss: 0.0,
             upper_bark_transition: None,
+            world_scale_uv: false,
+            bark_relief_strength: 1.0,
         }
     }
 }
@@ -153,6 +160,9 @@ impl<'a> MeshBuilder<'a> {
             self.build_aerial_roots();
         }
 
+        if self.config.bark_relief_strength > 1.05 {
+            self.recompute_displaced_bark_normals();
+        }
         self.smooth_coincident_normals();
         self.finalize_bark_submeshes();
         self.mesh
@@ -178,6 +188,9 @@ impl<'a> MeshBuilder<'a> {
             self.build_aerial_roots();
         }
 
+        if self.config.bark_relief_strength > 1.05 {
+            self.recompute_displaced_bark_normals();
+        }
         self.smooth_coincident_normals();
         self.finalize_bark_submeshes();
         self.mesh
@@ -337,13 +350,16 @@ impl<'a> MeshBuilder<'a> {
             self.cap_ring(rings.last().unwrap(), tip_normal, stem);
         }
 
-        // Sculptural 3D exposed surface roots (nebari) flowing out of trunk buttress flutes
+        // Sculptural 3D exposed branching surface root claws flowing out of trunk buttress flutes
         let base_r = stem.segments[0].start_radius;
         let tip_r = stem.segments.last().unwrap().end_radius;
         let explicit_roots = self.config.surface_root_reach > 0.0 && ring_res >= 10;
+        let geo3d_roots =
+            self.config.bark_relief_strength > 1.05 && ring_res >= 10 && stem.segments.len() >= 6 && base_r >= 0.16;
         if stem.level == 0
-            && self.config.trunk_buttress >= 0.50
+            && self.config.trunk_buttress >= 0.45
             && (explicit_roots
+                || geo3d_roots
                 || (ring_res >= 12
                     && stem.segments.len() >= 8
                     && base_r >= 0.22
@@ -602,9 +618,14 @@ impl<'a> MeshBuilder<'a> {
             .first()
             .map(|s| s.start_radius)
             .unwrap_or(0.15);
-        // Scale axial V coordinate by stem circumference so bark texels stay sharp and 1:1 square.
-        let circ = (TAU * base_radius).clamp(0.20, 1.85);
-        let axial_v_repeats = total_length / circ;
+        // Scale axial V coordinate: in world_scale_uv mode use exact 1.25 m world-meter tiling
+        // so 4K photogrammetry bark textures wrap at 1:1 physical scale across trunk, limbs & roots.
+        let axial_v_repeats = if self.config.world_scale_uv {
+            total_length / 1.25
+        } else {
+            let circ = (TAU * base_radius).clamp(0.20, 1.85);
+            total_length / circ
+        };
 
         // Lock child branch start to parent's smoothed spline centerline when parent is subdivided
         let parent_anchor_delta = if smooth_subdiv && stem.level > 0 && stem.parent_offset <= 0.94 {
@@ -696,10 +717,14 @@ impl<'a> MeshBuilder<'a> {
             })
             .collect();
 
-        // Sink trunk base 0.15 m below y = 0 so flared root buttresses & surface roots
-        // stay cleanly grounded on sloped dunes, riverbanks, and hills without floating gaps.
-        if stem.level == 0 && ring_res >= 12 && stem.segments.len() >= 4 && !samples.is_empty() {
-            samples[0].position.y -= 0.15;
+        // Sink trunk base below y = 0 (-0.22 m in Nanite/relief mode, -0.15 m default) so flared
+        // root buttresses & surface root claws grip sloped dunes, riverbanks, and hills cleanly.
+        if stem.level == 0 && ring_res >= 10 && stem.segments.len() >= 4 && !samples.is_empty() {
+            samples[0].position.y -= if self.config.bark_relief_strength > 1.05 {
+                0.22
+            } else {
+                0.15
+            };
         }
 
         // Seamless union for dichotomous / terminal multi-branch Y-forks (e.g. Joshua Tree):
@@ -948,22 +973,36 @@ impl<'a> MeshBuilder<'a> {
                     let deriv = -phase.sin() * 0.30 * falloff;
                     let k = self.config.trunk_buttress;
                     (1.0 + 0.28 * falloff * lobe * k, deriv * k)
-                } else if resolution >= 12 && stem.level <= 2 {
-                    // Twisting 3D sapwood muscle cords + craggy bark furrow relief across trunks & boughs
+                } else if resolution >= 10 && stem.level <= 2 {
+                    // Twisting 3D sapwood muscle cords + sharp-crested craggy bark furrow relief
+                    // + subtle organic cross-section asymmetry (killing smooth traffic-cone trunks!).
+                    let relief = self.config.bark_relief_strength.clamp(0.5, 2.2);
                     let (muscle_amp, bark_amp) = match stem.level {
-                        0 => (0.056, 0.034),
-                        1 => (0.040, 0.022),
-                        _ => (0.024, 0.012),
+                        0 => (0.062 * relief, 0.042 * relief),
+                        1 => (0.044 * relief, 0.026 * relief),
+                        _ => (0.026 * relief, 0.014 * relief),
                     };
-                    let m1 = angle * 3.0 + v_coord * 0.68 + stem_phase;
-                    let m2 = angle * 5.0 - v_coord * 0.96 + seed_phase;
-                    let muscle = muscle_amp * (0.62 * m1.cos() + 0.38 * m2.sin());
-                    let (ridge, ridge_d) = if resolution >= 18 {
-                        let p1 = angle * 11.0 + v_coord * 1.9 + stem_phase;
-                        let p2 = angle * 19.0 - v_coord * 3.1 + seed_phase;
+                    let m1 = angle * 3.0 + v_coord * 0.72 + stem_phase;
+                    let m2 = angle * 5.0 - v_coord * 1.04 + seed_phase;
+                    // Asymmetric non-circular trunk eccentricity slowly twisting up the bole
+                    let asym_oval = if stem.level == 0 && relief > 1.05 {
+                        0.055 * (angle * 2.0 + v_coord * 0.42 + seed_phase).cos()
+                    } else {
+                        0.0
+                    };
+                    let muscle = muscle_amp * (0.62 * m1.cos() + 0.38 * m2.sin()) + asym_oval;
+                    let (ridge, ridge_d) = if resolution >= 14 {
+                        let p1 = angle * 9.0 + v_coord * 1.7 + stem_phase;
+                        let p2 = angle * 17.0 - v_coord * 2.8 + seed_phase;
+                        // Sharp-crested longitudinal bark furrow ridges (1 - |sin|) carve genuine 3D bark fissures!
+                        let furrow = if relief > 1.05 {
+                            (1.0 - (angle * 7.0 + v_coord * 1.15 + stem_phase).sin().abs()) - 0.5
+                        } else {
+                            0.0
+                        };
                         (
-                            bark_amp * (0.66 * p1.cos() + 0.34 * p2.sin()),
-                            bark_amp * (-0.66 * 11.0 * p1.sin() + 0.34 * 19.0 * p2.cos()),
+                            bark_amp * (0.52 * p1.cos() + 0.28 * p2.sin() + 0.48 * furrow),
+                            bark_amp * (-0.52 * 9.0 * p1.sin() + 0.28 * 17.0 * p2.cos()),
                         )
                     } else {
                         (0.0, 0.0)
@@ -985,17 +1024,25 @@ impl<'a> MeshBuilder<'a> {
                 1.0
             };
 
-            // Localized asymmetric 3D callus burls / healed branch knuckles on ancient trunks & primary limbs
-            let burl_mul = if stem.level <= 1 && resolution >= 16 && stem.segments.len() >= 8 {
-                let b1_t = 0.24 + 0.24 * ((stem_phase * 0.37).sin() * 0.5 + 0.5);
-                let b2_t = 0.58 + 0.22 * ((stem_phase * 0.73 + seed_phase).cos() * 0.5 + 0.5);
+            // Localized asymmetric 3D callus burls / healed branch knuckles on trunks & primary limbs
+            let burl_mul = if stem.level <= 1 && resolution >= 12 && stem.segments.len() >= 6 {
+                let relief = self.config.bark_relief_strength.clamp(0.5, 2.2);
+                let b1_t = 0.22 + 0.22 * ((stem_phase * 0.37).sin() * 0.5 + 0.5);
+                let b2_t = 0.52 + 0.20 * ((stem_phase * 0.73 + seed_phase).cos() * 0.5 + 0.5);
+                let b3_t = 0.76 + 0.14 * ((stem_phase * 1.11 - seed_phase).sin() * 0.5 + 0.5);
                 let b1_ang = stem_phase * 1.3 + seed_phase * 0.5;
                 let b2_ang = stem_phase * 2.4 - seed_phase * 0.8;
-                let d1 = (t_norm - b1_t) / 0.065;
-                let d2 = (t_norm - b2_t) / 0.058;
+                let b3_ang = stem_phase * 3.7 + seed_phase * 1.2;
+                let d1 = (t_norm - b1_t) / 0.062;
+                let d2 = (t_norm - b2_t) / 0.055;
+                let d3 = (t_norm - b3_t) / 0.050;
                 let a1 = (angle - b1_ang).cos().max(0.0).powi(3);
                 let a2 = (angle - b2_ang).cos().max(0.0).powi(3);
-                let swell = 0.16 * (-0.5 * d1 * d1).exp() * a1 + 0.14 * (-0.5 * d2 * d2).exp() * a2;
+                let a3 = (angle - b3_ang).cos().max(0.0).powi(3);
+                let swell = relief
+                    * (0.17 * (-0.5 * d1 * d1).exp() * a1
+                        + 0.15 * (-0.5 * d2 * d2).exp() * a2
+                        + 0.12 * (-0.5 * d3 * d3).exp() * a3);
                 1.0 + swell
             } else {
                 1.0
@@ -1062,8 +1109,15 @@ impl<'a> MeshBuilder<'a> {
                 }
             }
 
-            // U goes from 0.0 to 1.0 (inclusive) for seamless texture wrap
-            let uv = Vec2::new(i as f32 / resolution as f32, v_coord);
+            // World-scale continuous circumferential U wrap (~1.25 m per tile, integer repeats
+            // so the seam at i == resolution wraps cleanly with zero stretch) in world_scale_uv mode.
+            let u_repeats = if self.config.world_scale_uv {
+                let stem_r0 = stem.segments.first().map(|s| s.start_radius).unwrap_or(radius);
+                (TAU * stem_r0 / 1.25).round().max(1.0)
+            } else {
+                1.0
+            };
+            let uv = Vec2::new((i as f32 / resolution as f32) * u_repeats, v_coord);
 
             let mut vertex = Vertex::new(position, normal, uv);
 
@@ -1215,20 +1269,39 @@ impl<'a> MeshBuilder<'a> {
         let seed_f = self.tree.seed as f32;
         let seed_phase = (seed_f * 0.618_034).fract() * TAU;
         let root_base_az = seed_phase * 0.20;
-        let root_res = (trunk_ring_res / 2).clamp(12, 16);
-        let fork_res = (root_res * 3 / 4).clamp(8, 12);
+        let root_res = if self.config.bark_relief_strength > 1.05 && trunk_ring_res <= 14 {
+            (trunk_ring_res / 2).clamp(6, 8)
+        } else {
+            (trunk_ring_res / 2).clamp(12, 16)
+        };
+        let fork_res = if self.config.bark_relief_strength > 1.05 && trunk_ring_res <= 14 {
+            6
+        } else {
+            (root_res * 3 / 4).clamp(8, 12)
+        };
 
-        // Five primary 3D snaking buttress roots aligned directly with the 5 trunk buttress flute peaks
-        // (or 7 long sinuous surface roots when `surface_root_reach > 0.0`, e.g., Moreton Bay Fig).
+        // 4–7 genuine branching 3D surface root claws separating cleanly from trunk base
+        // (~0.6–0.9 m), snaking outward irregularly 0.55–1.35 m (or `surface_root_reach`),
+        // with knobby dorsal ridges, forked secondary toes, and plunging -0.22 m below y = 0.
         let explicit_reach = self.config.surface_root_reach > 0.0;
-        let root_count = if explicit_reach { 7usize } else { 5usize };
+        let is_multistem = self.tree.stems_at_level(0).count() > 1;
+        let relief_mode = self.config.bark_relief_strength > 1.05;
+        let root_count = if explicit_reach {
+            7usize
+        } else if relief_mode && is_multistem {
+            4usize
+        } else if relief_mode && (self.tree.seed & 1) == 1 {
+            6usize
+        } else {
+            5usize
+        };
         for r_idx in 0..root_count {
             let h1 = ((seed_f * 0.317 + r_idx as f32 * 0.754_877).fract()).abs();
             let h2 = ((seed_f * 0.519 + r_idx as f32 * 0.414_213).fract()).abs();
             let h3 = ((seed_f * 0.793 + r_idx as f32 * 0.618_034).fract()).abs();
 
             let az =
-                root_base_az + (r_idx as f32 / root_count as f32) * TAU + 0.05 + (h1 - 0.5) * 0.14;
+                root_base_az + (r_idx as f32 / root_count as f32) * TAU + 0.05 + (h1 - 0.5) * 0.24;
             if self.config.hollow_height > 0.0 {
                 let hollow_az = seed_phase * 0.35 + 0.4;
                 let d_ang =
@@ -1243,16 +1316,20 @@ impl<'a> MeshBuilder<'a> {
             let buttress_scale = self.config.trunk_buttress.clamp(0.55, 2.2);
             let reach = if explicit_reach {
                 self.config.surface_root_reach * (0.78 + 0.44 * h2)
+            } else if relief_mode {
+                (base_r * (2.15 + 1.05 * h2) * buttress_scale.sqrt()).clamp(0.55, 1.35)
             } else {
                 base_r * (1.85 + 0.85 * h2) * buttress_scale.sqrt()
             };
             let start_h = if explicit_reach {
                 base_r * (1.55 + 0.35 * h3) * self.config.trunk_buttress.clamp(1.0, 2.2)
+            } else if relief_mode {
+                (base_r * (1.35 + 0.35 * h3) * buttress_scale.powf(0.42)).clamp(0.52, 0.92)
             } else {
                 base_r * (1.15 + 0.22 * h3) * buttress_scale.powf(0.45)
             };
             let r_peak = base_r
-                * (0.27 + 0.06 * h1)
+                * (0.29 + 0.07 * h1)
                 * if explicit_reach {
                     1.18
                 } else {
@@ -1261,42 +1338,60 @@ impl<'a> MeshBuilder<'a> {
             let s_sign = if r_idx % 2 == 0 { 1.0 } else { -1.0 };
             let wave_phase = h2 * TAU;
 
-            let steps = if explicit_reach { 18usize } else { 13usize };
+            let steps = if relief_mode && trunk_ring_res <= 14 {
+                if explicit_reach { 10usize } else { 8usize }
+            } else if explicit_reach {
+                18usize
+            } else {
+                13usize
+            };
             let mut spine = Vec::with_capacity(steps + 1);
             let mut radii = Vec::with_capacity(steps + 1);
 
             for k in 0..=steps {
                 let u = k as f32 / steps as f32;
-                // Start deep inside upper-base sapwood so there is zero bulbous shoulder on the trunk wall,
-                // then sweep outward along the trunk buttress flute and snake across the ground.
-                let radial_dist = base_r * 0.20 + (base_r * 0.34 + reach) * u.powf(0.96);
-                let out_u = ((u - 0.20) / 0.80).clamp(0.0, 1.0);
+                // Start tucked inside upper-base sapwood, then sweep cleanly outward from y~0.7m
+                // and snake irregularly across the soil with knobby ridges before plunging -0.22 m.
+                let radial_dist = base_r * 0.20 + (base_r * 0.34 + reach) * u.powf(0.95);
+                let out_u = ((u - 0.18) / 0.82).clamp(0.0, 1.0);
                 let s_bend = reach
                     * s_sign
-                    * (0.19
-                        * (out_u * std::f32::consts::PI * 1.75 + wave_phase * 0.30).sin()
-                        * out_u.powf(1.15)
-                        + 0.06 * (out_u * TAU * 1.6 - wave_phase).sin() * out_u);
+                    * (0.22
+                        * (out_u * std::f32::consts::PI * 1.85 + wave_phase * 0.30).sin()
+                        * out_u.powf(1.12)
+                        + 0.08 * (out_u * TAU * 1.75 - wave_phase).sin() * out_u);
 
-                // Radius starts tucked thin inside trunk core, swells through the buttress skirt, then tapers
+                // Knobby dorsal knuckles along exposed root body
+                let knob = if relief_mode && u > 0.22 && u < 0.82 {
+                    1.0 + 0.14 * ((u * std::f32::consts::PI * 4.5 + wave_phase).sin().max(0.0))
+                } else {
+                    1.0
+                };
                 let r = if u < 0.22 {
                     let su = u / 0.22;
                     r_peak * (0.52 + 0.48 * su * (2.0 - su))
                 } else {
                     let tu = (u - 0.22) / 0.78;
-                    (r_peak * (1.0 - 0.86 * tu.powf(0.82))).max(0.020)
+                    (r_peak * (1.0 - 0.84 * tu.powf(0.82)) * knob).max(0.020)
                 };
 
-                // Concave buttress sweep down onto ground; once on ground, bottom 35% stays buried below y = 0!
-                let flare_frac = (1.0 - (u / 0.36).min(1.0)).powf(2.35);
+                // Concave buttress sweep down onto ground; expose knobby dorsal arch then plunge -0.22 m!
+                let flare_frac = (1.0 - (u / 0.36).min(1.0)).powf(2.25);
                 let flare_y = start_h * flare_frac;
-                let tip_sink = if u > 0.74 {
-                    let su = (u - 0.74) / 0.26;
-                    -0.055 * su * su
+                let arch_knuckle = if relief_mode && u > 0.26 && u < 0.78 {
+                    let a_u = (u - 0.26) / 0.52;
+                    0.042 * (a_u * std::f32::consts::PI * 2.0 + h3 * 2.0).sin().max(0.0)
                 } else {
                     0.0
                 };
-                let ground_hug_y = r * 0.18 * (1.0 - flare_frac);
+                let tip_sink = if u > 0.68 {
+                    let su = (u - 0.68) / 0.32;
+                    let max_plunge = if relief_mode { -0.22 } else { -0.065 };
+                    max_plunge * su * su
+                } else {
+                    0.0
+                };
+                let ground_hug_y = r * 0.22 * (1.0 - flare_frac) + arch_knuckle;
                 let y = ground_y + flare_y + ground_hug_y + tip_sink;
 
                 let pos = Vec3::new(base_pos.x, y, base_pos.z)
@@ -1309,9 +1404,13 @@ impl<'a> MeshBuilder<'a> {
             let root_phase = (r_idx as f32 * GOLDEN_RATIO + h1).fract();
             self.emit_root_tube(&spine, &radii, root_res, base_r, root_phase);
 
-            // Secondary forked ground-hugging root toe on 3 of the 5 primary roots
-            if r_idx % 2 == 0 {
-                let fork_idx = 6usize;
+            // Genuine branching secondary root claws on most primary roots (plunge -0.22 m at tips)
+            if r_idx % 2 == 0 || (relief_mode && r_idx == 1) {
+                let fork_idx = if relief_mode {
+                    (steps / 2).clamp(2, steps - 2)
+                } else {
+                    6usize
+                };
                 let fork_origin = spine[fork_idx];
                 let parent_tan = (spine[fork_idx + 1] - spine[fork_idx - 1]).normalize_or_zero();
                 let parent_horiz = Vec3::new(parent_tan.x, 0.0, parent_tan.z)
@@ -1319,12 +1418,12 @@ impl<'a> MeshBuilder<'a> {
                     .unwrap_or(rad_dir);
                 let parent_side = Vec3::new(-parent_horiz.z, 0.0, parent_horiz.x);
                 let fork_sign = if h3 > 0.48 { 1.0 } else { -1.0 };
-                let fork_ang = fork_sign * (0.64 + 0.20 * h1);
+                let fork_ang = fork_sign * (0.62 + 0.22 * h1);
                 let fork_dir = (parent_horiz * fork_ang.cos() + parent_side * fork_ang.sin())
                     .normalize_or_zero();
                 let fork_perp = Vec3::new(-fork_dir.z, 0.0, fork_dir.x);
-                let fork_len = reach * (0.48 + 0.14 * h3);
-                let fork_r0 = radii[fork_idx] * 0.70;
+                let fork_len = reach * (0.48 + 0.16 * h3);
+                let fork_r0 = radii[fork_idx] * 0.72;
 
                 let f_steps = 8usize;
                 let mut f_spine = Vec::with_capacity(f_steps + 1);
@@ -1335,18 +1434,19 @@ impl<'a> MeshBuilder<'a> {
                     let f_dist = fork_len * fu;
                     let f_lat = fork_len
                         * (-fork_sign)
-                        * 0.17
+                        * 0.19
                         * (fu * std::f32::consts::PI * 1.45 + h2).sin()
                         * fu;
-                    let fr = (fork_r0 * (1.0 - 0.82 * fu.powf(0.84))).max(0.016);
-                    let f_sink = if fu > 0.70 {
-                        let su = (fu - 0.70) / 0.30;
-                        -0.050 * su * su
+                    let fr = (fork_r0 * (1.0 - 0.80 * fu.powf(0.84))).max(0.016);
+                    let f_sink = if fu > 0.62 {
+                        let su = (fu - 0.62) / 0.38;
+                        let max_plunge = if relief_mode { -0.22 } else { -0.055 };
+                        max_plunge * su * su
                     } else {
                         0.0
                     };
-                    // Ground-anchored centerline so secondary root toes never hover above y = 0
-                    let fy = ground_y + fr * 0.16 + f_sink;
+                    // Ground-anchored centerline so secondary root toes visibly arch & plunge into soil
+                    let fy = ground_y + fr * 0.20 * (1.0 - fu * 0.5) + f_sink;
                     let f_pos = Vec3::new(tucked_xz.x, fy, tucked_xz.z)
                         + fork_dir * f_dist
                         + fork_perp * f_lat;
@@ -1467,9 +1567,17 @@ impl<'a> MeshBuilder<'a> {
         }
 
         let avg_r = (radii.iter().sum::<f32>() / n_pts as f32).max(0.025);
-        // Match bark texel scale to trunk circumference so bark plates never shrink into miniature scales
-        let trunk_circum = (TAU * trunk_base_r * 0.76).max(0.55);
-        let u_span = ((avg_r * 2.5) / trunk_base_r.max(0.20)).clamp(0.28, 0.48);
+        // Match bark texel scale: exact 1.25 m world scale in world_scale_uv mode
+        let trunk_circum = if self.config.world_scale_uv {
+            1.25
+        } else {
+            (TAU * trunk_base_r * 0.76).max(0.55)
+        };
+        let u_span = if self.config.world_scale_uv {
+            (TAU * avg_r / 1.25).clamp(0.40, 1.0)
+        } else {
+            ((avg_r * 2.5) / trunk_base_r.max(0.20)).clamp(0.28, 0.48)
+        };
         let u_base = (pivot_phase * 0.50).clamp(0.0, 1.0 - u_span);
 
         let mut cum_len = 0.0_f32;
@@ -1586,6 +1694,32 @@ impl<'a> MeshBuilder<'a> {
             (base * 2 / 3).max(4)
         } else {
             base
+        }
+    }
+
+    /// Blend true displaced triangle face normals (65%) with smooth analytical collar normals (35%)
+    /// so 3D radial bark furrows, burls, knots, and knobby surface root claws catch crisp sunlight.
+    fn recompute_displaced_bark_normals(&mut self) {
+        if self.mesh.vertices.is_empty() || self.mesh.indices.is_empty() {
+            return;
+        }
+        let mut accum = vec![Vec3::ZERO; self.mesh.vertices.len()];
+        for tri in self.mesh.indices.as_chunks::<3>().0 {
+            let (i0, i1, i2) = (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+            let p0 = self.mesh.vertices[i0].position;
+            let p1 = self.mesh.vertices[i1].position;
+            let p2 = self.mesh.vertices[i2].position;
+            let fnrm = (p1 - p0).cross(p2 - p0);
+            accum[i0] += fnrm;
+            accum[i1] += fnrm;
+            accum[i2] += fnrm;
+        }
+        for (v, &fnrm) in self.mesh.vertices.iter_mut().zip(&accum) {
+            if let Some(geom) = fnrm.try_normalize() {
+                let base = v.normal.try_normalize().unwrap_or(geom);
+                let aligned = if geom.dot(base) < 0.0 { -geom } else { geom };
+                v.normal = base.lerp(aligned, 0.65).try_normalize().unwrap_or(base);
+            }
         }
     }
 

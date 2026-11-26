@@ -427,6 +427,40 @@ impl LodGenerationConfig {
         }
     }
 
+    /// Generate 2-LOD Nanite/meshlet-ready 100% opaque 3D geometric flora chain:
+    /// - LOD0 ("Hero3D", near < 85 m): 25k–55k tris of 100% opaque 3D curved leaves, twigs, blossoms & 3D displaced bark/roots.
+    /// - LOD1 ("Mid3D", mid-field 85–420 m): 6k–14k tris of 100% opaque 3D leaf clusters & limbs (zero alpha-scissor).
+    pub fn nanite_2lod() -> Self {
+        Self {
+            levels: vec![
+                LodLevelConfig {
+                    index: 0,
+                    name: "Hero3D".to_string(),
+                    target_triangles: 40_000,
+                    max_triangles: 52_000,
+                    branch_levels: 4,
+                    leaf_geometry: LeafGeometry::Polygon,
+                    leaf_reduction: 1.0,
+                    ring_resolution: [22, 12, 6, 4],
+                    screen_height: 0.16,
+                    crown_impostor: false,
+                },
+                LodLevelConfig {
+                    index: 1,
+                    name: "Mid3D".to_string(),
+                    target_triangles: 10_200,
+                    max_triangles: 13_600,
+                    branch_levels: 2,
+                    leaf_geometry: LeafGeometry::Polygon,
+                    leaf_reduction: 0.35,
+                    ring_resolution: [12, 7, 4, 3],
+                    screen_height: 0.03,
+                    crown_impostor: false,
+                },
+            ],
+        }
+    }
+
     /// Get the number of LOD levels
     pub fn level_count(&self) -> usize {
         self.levels.len()
@@ -523,7 +557,7 @@ pub fn generate_lod_meshes_with_foliage_mode(
     config: &LodGenerationConfig,
     foliage_mode: crate::opaque_foliage::FoliageRenderMode,
 ) -> LodMeshSet {
-    let is_opaque = foliage_mode == crate::opaque_foliage::FoliageRenderMode::Opaque;
+    let is_opaque = foliage_mode.is_opaque();
     // Impostor bakes rasterize into a compact distant atlas; cap temporary texture
     // resolution at 256 so 1024x1024 hero species stay instantaneous during mesh generation.
     let impostor_textures = (!is_opaque && config.levels.iter().any(|level| level.crown_impostor))
@@ -556,11 +590,40 @@ fn generate_single_lod(
     impostor_textures: Option<&TextureSet>,
     foliage_mode: crate::opaque_foliage::FoliageRenderMode,
 ) -> LodMesh {
+    let is_geo3d = foliage_mode == crate::opaque_foliage::FoliageRenderMode::Geo3d;
+    // Adapt branch depth & ring counts for dense multi-hundred-stem species (e.g. Norfolk Island Pine)
+    // in geo3d mode so LOD0 stays within 25k-55k tris and LOD1 stays within 6k-14k tris.
+    let effective_branch_levels = if is_geo3d && level.index > 0 && tree.stems.len() > 400 {
+        level.branch_levels.min(1)
+    } else if is_geo3d && level.index > 0 && tree.stems.len() > 260 {
+        level.branch_levels.min(2)
+    } else {
+        level.branch_levels
+    };
+    let effective_ring_res = if is_geo3d && tree.stems.len() > 260 {
+        if level.index == 0 {
+            [20, 10, 4, 3]
+        } else {
+            [12, 5, 3, 3]
+        }
+    } else if is_geo3d && level.index == 0 {
+        [20, 11, 5, 3]
+    } else if is_geo3d && level.index > 0 {
+        [
+            level.ring_resolution[0].min(12),
+            level.ring_resolution[1].min(6),
+            level.ring_resolution[2].min(4),
+            level.ring_resolution[3].min(3),
+        ]
+    } else {
+        level.ring_resolution
+    };
+
     // Count branches that will be included
     let branch_count = tree
         .stems
         .iter()
-        .filter(|s| s.level as u32 <= level.branch_levels)
+        .filter(|s| s.level as u32 <= effective_branch_levels)
         .count() as u32;
 
     // Build branch mesh with LOD-appropriate ring resolution
@@ -571,7 +634,7 @@ fn generate_single_lod(
         default_mesh_config.trunk_base_flare_height
     };
     let mesh_config = MeshConfig {
-        ring_resolution: level.ring_resolution,
+        ring_resolution: effective_ring_res,
         texture_v_scale: 1.0,
         pivot_painter: true,
         branch_collar_swell: 1.35,
@@ -587,7 +650,9 @@ fn generate_single_lod(
         branch_base_falloff: default_mesh_config.branch_base_falloff,
         trunk_buttress: species.trunk.buttress,
         surface_root_reach: species.trunk.surface_root_reach,
-        aerial_roots: if level.branch_levels >= 2 {
+        aerial_roots: if is_geo3d && level.index > 0 {
+            0
+        } else if effective_branch_levels >= 2 {
             species.trunk.aerial_roots
         } else {
             0
@@ -603,17 +668,49 @@ fn generate_single_lod(
             species.textures.bark_transition_height,
             species.textures.bark_transition_span,
         )),
+        world_scale_uv: is_geo3d,
+        bark_relief_strength: if is_geo3d { 1.50 } else { 1.0 },
     };
 
     // Generate branch mesh with level filtering
     let mut branch_mesh =
-        MeshBuilder::new(tree, mesh_config).build_branches_to_level(level.branch_levels);
+        MeshBuilder::new(tree, mesh_config).build_branches_to_level(effective_branch_levels);
 
     // Generate leaf mesh based on LOD settings
     let leaf_count;
     let mut impostor_atlas = None;
-    let is_opaque = foliage_mode == crate::opaque_foliage::FoliageRenderMode::Opaque;
-    let (leaf_mesh, separate_organ_mesh) = if is_opaque {
+    let mut geo3d_twigs: Option<Mesh> = None;
+    let is_opaque = foliage_mode.is_opaque();
+    let (leaf_mesh, separate_organ_mesh) = if is_geo3d {
+        if level.crown_impostor
+            || (level.leaf_geometry != LeafGeometry::None && level.leaf_reduction > 0.0)
+        {
+            let branch_tris = (branch_mesh.indices.len() / 3) as u32;
+            let min_foliage = if level.leaf_reduction >= 0.60 {
+                12_000
+            } else {
+                3_000
+            };
+            let desired = level.target_triangles.saturating_sub(branch_tris);
+            let cap = level.max_triangles.saturating_sub(branch_tris);
+            let foliage_budget = desired.clamp(min_foliage.min(cap.max(1_800)), cap.max(1_800));
+
+            let res = crate::geo3d_foliage::generate_geo3d_foliage_mesh(
+                tree,
+                species,
+                level.leaf_reduction.max(0.25),
+                foliage_budget,
+            );
+            leaf_count = res.unit_count;
+            if !res.twigs.vertices.is_empty() {
+                geo3d_twigs = Some(res.twigs);
+            }
+            (res.foliage, res.organs)
+        } else {
+            leaf_count = 0;
+            (Mesh::new(), None)
+        }
+    } else if is_opaque {
         if level.crown_impostor
             || (level.leaf_geometry != LeafGeometry::None && level.leaf_reduction > 0.0)
         {
@@ -893,6 +990,36 @@ fn generate_single_lod(
                 c = [c[0] * h_ao, c[1] * h_ao, c[2] * h_ao];
             }
             v.color = Vec4::new(c[0], c[1], c[2], 1.0);
+        }
+
+        // In geo3d mode, bake `TEXCOORD_1 = (bark_ao, height_norm)` onto bark vertices so
+        // `nanite_bark_4k.gdshader` drives root-collar soil contact darkening (`UV2.y < 0.08`)
+        // and dual-zone rough-stocking -> smooth upper eucalyptus bark transitions directly!
+        if is_geo3d {
+            let min_y = tree.bounds.min.y.min(0.0);
+            let span_y = (tree.bounds.max.y - min_y).max(0.5);
+            for v in &mut branch_mesh.vertices {
+                let height_norm = ((v.position.y - min_y) / span_y).clamp(0.0, 1.0);
+                // Recover scalar AO luminance stored on bark color relative to unoccluded bark
+                let depth_ao = (1.0 - 0.28 * v.uv2.x.clamp(0.0, 1.0)).clamp(0.55, 1.0);
+                let ground_ao = if v.position.y < 0.55 {
+                    0.58 + 0.42 * (v.position.y / 0.55).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
+                let bark_ao = (depth_ao * ground_ao).clamp(0.32, 1.0);
+                v.uv2 = Vec2::new(bark_ao, height_norm);
+            }
+            if let Some(twigs) = geo3d_twigs
+                && !twigs.vertices.is_empty()
+            {
+                let twig_mat = if species.uses_upper_bark() {
+                    MaterialType::UpperBark
+                } else {
+                    MaterialType::Bark
+                };
+                branch_mesh.merge(&twigs, twig_mat);
+            }
         }
     }
 

@@ -837,7 +837,8 @@ pub fn build_stand_library(
                                     .inflorescence
                                     .as_ref()
                                     .and_then(|i| i.roughness),
-                                opaque_foliage: foliage_mode == FoliageRenderMode::Opaque,
+                                opaque_foliage: foliage_mode.is_opaque(),
+                                double_sided_opaque_foliage: foliage_mode == FoliageRenderMode::Geo3d,
                                 metadata: Some(ExportMetadata {
                                     species_name: scaled.species.name.clone(),
                                     scientific_name: scaled.latin_name().to_string(),
@@ -1196,7 +1197,7 @@ pub fn validate_stand_package(directory: &Path) -> Result<StandValidationReport,
         )));
     }
 
-    let require_opaque = manifest.foliage_mode == FoliageRenderMode::Opaque;
+    let require_opaque = manifest.foliage_mode.is_opaque();
     let mut max_mats = manifest.shared_materials.len();
 
     // Validate plant library GLBs if present on disk

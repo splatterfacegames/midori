@@ -93,8 +93,9 @@ enum Commands {
         #[arg(long, default_value = "balanced")]
         lod_preset: LodPreset,
 
-        /// Foliage rendering mode: alpha-cutout leaf cards (`cutout`) or closed
-        /// opaque low-poly leaf-cluster geometry (`opaque`, zero alpha)
+        /// Foliage rendering mode: alpha-cutout leaf cards (`cutout`), closed
+        /// opaque low-poly leaf-cluster geometry (`opaque`, zero alpha), or 2026/2027
+        /// 100% opaque 3D individual geometric leaves/twigs/blossoms (`geo3d`, zero alpha)
         #[arg(long, default_value = "cutout")]
         foliage: FoliageModeArg,
 
@@ -362,6 +363,8 @@ enum LodPreset {
     Mobile,
     /// Minimal (2 LOD levels)
     Minimal,
+    /// 2-LOD Nanite/meshlet-ready opaque 3D flora (Hero3D 25-55k + Mid3D 6-14k tris)
+    Nanite,
     /// Use the species file's own `[lod]` section (preset or custom levels)
     Species,
 }
@@ -372,6 +375,8 @@ enum FoliageModeArg {
     Cutout,
     /// Closed low-poly opaque leaf-cluster volumes (zero alpha)
     Opaque,
+    /// 100% opaque 3D individual geometric leaves, twigs & blossoms (zero alpha)
+    Geo3d,
 }
 
 impl From<FoliageModeArg> for FoliageRenderMode {
@@ -379,6 +384,7 @@ impl From<FoliageModeArg> for FoliageRenderMode {
         match value {
             FoliageModeArg::Cutout => FoliageRenderMode::Cutout,
             FoliageModeArg::Opaque => FoliageRenderMode::Opaque,
+            FoliageModeArg::Geo3d => FoliageRenderMode::Geo3d,
         }
     }
 }
@@ -655,6 +661,7 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         LodPreset::Balanced => LodGenerationConfig::balanced(),
         LodPreset::Mobile => LodGenerationConfig::mobile(),
         LodPreset::Minimal => LodGenerationConfig::minimal(),
+        LodPreset::Nanite => LodGenerationConfig::nanite_2lod(),
         LodPreset::Species => LodGenerationConfig::from_species(&species),
     };
 
@@ -679,7 +686,8 @@ fn run_generate(options: &GenerateOptions) -> Result<(), Box<dyn std::error::Err
         pivot_painter_extras: true,
         leaf_roughness: species.canopy.roughness,
         organ_roughness: species.inflorescence.as_ref().and_then(|i| i.roughness),
-        opaque_foliage: options.foliage == FoliageRenderMode::Opaque,
+        opaque_foliage: options.foliage.is_opaque(),
+        double_sided_opaque_foliage: options.foliage == FoliageRenderMode::Geo3d,
         metadata: None,
     };
 
