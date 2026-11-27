@@ -818,8 +818,8 @@ fn append_jacaranda_trumpet_bell(
 }
 
 /// Emit soft feathery coastal Araucaria (Norfolk Island Pine) layered curved 3D needle-shoot tufts
-/// clothing each sweeping coastal bough — compact, narrow, upturned rounded-shoulder pine cords
-/// (ZERO giant sharp flat paper origami diamonds even at 0.5 m macro!).
+/// clothing each sweeping coastal branchlet — lush, overlapping, upturned rounded-shoulder pine plumes
+/// (rich dark coastal emerald volume, ZERO giant flat paper origami diamonds even at 0.5 m macro!).
 #[allow(clippy::too_many_arguments)]
 fn append_araucaria_needle_shoot(
     foliage: &mut Mesh,
@@ -832,8 +832,8 @@ fn append_araucaria_needle_shoot(
     high_detail: bool,
 ) -> u32 {
     let raw_dir = (leaf.rotation * Vec3::Y).try_normalize().unwrap_or(Vec3::X);
-    // Real Cottesloe Araucaria boughs sweep horizontally outward with lush upturned feathery cord tips
-    let horiz_dir = Vec3::new(raw_dir.x, raw_dir.y * 0.26 + 0.10, raw_dir.z)
+    // Real Cottesloe / Riverside Dr Araucaria boughs sweep horizontally outward with lush upturned feathery plumes
+    let horiz_dir = Vec3::new(raw_dir.x, raw_dir.y * 0.24 + 0.10, raw_dir.z)
         .try_normalize()
         .unwrap_or(Vec3::X);
     let side_dir = horiz_dir
@@ -842,77 +842,82 @@ fn append_araucaria_needle_shoot(
         .unwrap_or_else(|| create_basis(horiz_dir).0);
     let up_dir = side_dir.cross(horiz_dir).try_normalize().unwrap_or(Vec3::Y);
 
-    let frond_len = (leaf.scale * 0.86).clamp(0.42, 0.86);
-    // Deep coastal emerald interior -> warm sunlit sea-pine tip gradient
-    let emerald_base = srgb3_to_linear([0.13, 0.27, 0.13]);
-    let pine_tip = srgb3_to_linear([0.28, 0.47, 0.22]);
+    let frond_len = (leaf.scale * 0.90).clamp(0.46, 0.92);
+    // Deep rich coastal emerald interior -> lush sunlit sea-pine emerald tip gradient
+    let emerald_base = srgb3_to_linear([0.09, 0.22, 0.10]);
+    let pine_tip = srgb3_to_linear([0.24, 0.44, 0.19]);
 
-    // Compact layered feathery upturned curved needle-cords clothing the bough from base to tip!
-    // At LOD0: 4 paired side-swept upturned cords + 2 upturned dorsal crest cords (10 compact 6-tri
-    // rounded-shoulder shoots = 60 tris/branchlet).
-    // At LOD1: 3 broader temporally-stable clustered shoots (6 × 4 = 24 tris/branchlet).
-    let pairs: usize = if high_detail { 4 } else { 2 };
-    let lod_len_boost = if high_detail { 1.0 } else { 1.46 };
-    let lod_w_boost = if high_detail { 1.0 } else { 1.54 };
+    // Dense layered feathery upturned curved needle-plume tufts clothing the branchlet from base to tip:
+    // - LOD0: 3 paired sweeping plumes + 2 upturned dorsal crest plumes (8 × 6 = 48 tris/shoot)
+    // - LOD1: 2 paired broadened plumes + 1 dorsal crest plume (5 × 4 = 20 tris/shoot)
+    let pairs: usize = if high_detail { 3 } else { 2 };
+    let lod_len_boost = if high_detail { 1.0 } else { 1.42 };
+    let lod_w_boost = if high_detail { 1.0 } else { 1.56 };
     let mut emitted = 0u32;
 
     for p in 0..pairs {
-        // Start slightly back over the limb junction (`u = -0.08..0.88`) so feathery cords wrap limbs softly!
-        let u = -0.08 + 0.96 * ((p as f32 + 0.25) / (pairs as f32 + 0.10));
+        // Start slightly behind the limb junction (`u = -0.10..0.92`) so feathery plumes wrap branches densely!
+        let u = -0.10 + 1.02 * ((p as f32 + 0.25) / (pairs as f32 + 0.10));
         let u_pos = u.clamp(0.0, 1.0);
         let anchor = leaf.position
             + horiz_dir * (frond_len * u)
-            + up_dir * (frond_len * 0.22 * u_pos * u_pos);
-        let env = (1.0 - 0.26 * u_pos).clamp(0.68, 1.04);
-        // Compact soft feathery needle cord dimensions (16-28 cm long, 4.4-7.6 cm wide at LOD0 — NEVER giant origami diamonds!)
-        let cord_len = (0.19 + 0.08 * env) * (0.88 + 0.24 * hash_unit(seed ^ (p as u64 * 29))) * lod_len_boost;
-        let cord_w = (cord_len * 0.265 * lod_w_boost).clamp(0.044, if high_detail { 0.076 } else { 0.125 });
+            + up_dir * (frond_len * 0.20 * u_pos * u_pos);
+        let env = (1.0 - 0.20 * u_pos).clamp(0.74, 1.04);
+        // Lush compact feathery plume dimensions (24–32 cm long × 8.8–12.2 cm wide at LOD0;
+        // every 6-tri blade edge stays <= 0.23 m — soft rounded feathery tufts, zero sharp origami diamonds!)
+        let cord_len = (0.24 + 0.08 * env)
+            * (0.90 + 0.20 * hash_unit(seed ^ (p as u64 * 29)))
+            * lod_len_boost;
+        let cord_w = (cord_len * 0.365 * (lod_w_boost / lod_len_boost))
+            .clamp(0.088, if high_detail { 0.122 } else { 0.192 });
 
         for sign in [-1.0_f32, 1.0_f32] {
             let n_seed = seed ^ ((p as u64) * 97 + if sign > 0.0 { 13 } else { 37 });
             let (p_base, p_tip, thick) = palette.pick_colors(n_seed, false);
-            let col_base = lerp_rgb(p_base, emerald_base, 0.55);
-            let col_tip = lerp_rgb(p_tip, pine_tip, 0.55);
-            let jit_up = 0.26 + 0.30 * u_pos + 0.10 * hash_signed(n_seed ^ 0x41);
-            // Swept gently forward & upturned in tight overlapping feathery coastal plumes
-            let n_dir = (horiz_dir * 0.76 + side_dir * (sign * 0.50) + up_dir * jit_up)
+            let col_base = lerp_rgb(p_base, emerald_base, 0.65);
+            let col_tip = lerp_rgb(p_tip, pine_tip, 0.65);
+            let jit_up = 0.22 + 0.30 * u_pos + 0.10 * hash_signed(n_seed ^ 0x41);
+            // Swept forward & gently upturned in lush overlapping coastal herringbone plumes
+            let n_dir = (horiz_dir * 0.72 + side_dir * (sign * 0.58) + up_dir * jit_up)
                 .try_normalize()
                 .unwrap_or(horiz_dir);
-            let roll_up = (up_dir + side_dir * (sign * 0.32))
+            let roll_up = (up_dir + side_dir * (sign * 0.28))
                 .try_normalize()
                 .unwrap_or(up_dir);
             let spec = BladeShapeSpec {
                 length: cord_len,
                 max_width: cord_w,
                 sickle: 0.03 * sign,
-                arch: -0.26, // soft upturned Araucaria cord curve
-                keel: 0.50,  // rounded 3D tubular-V needle plume depth
-                upper_shoulder: 0.86, // soft rounded feathery shoot silhouette (kills sharp origami corners!)
+                arch: -0.25, // iconic upturned Araucaria cord curve
+                keel: 0.52,  // plush rounded 3D tubular-V needle plume depth
+                upper_shoulder: 0.86, // soft rounded feathery silhouette (zero sharp origami corners!)
                 serrated: false,
                 col_base,
                 col_tip,
                 thickness: thick,
-                high_detail, // 6-tri curved rounded shoot at LOD0, 4-tri stable shoot at LOD1
+                high_detail, // 6-tri curved rounded plume at LOD0, 4-tri stable plume at LOD1
             };
             append_curved_3d_leaf(foliage, anchor, n_dir, roll_up, leaf.stem_id, field, &spec);
             emitted += 1;
         }
 
-        // Upturned dorsal feathery plume cords filling the top of each Araucaria bough tier
-        if p % 2 == 0 {
+        // Upturned dorsal feathery crest plume filling the top & inner depth of each whorl tier
+        if (high_detail && p < 2) || (!high_detail && p == 0) {
             let c_seed = seed ^ ((p as u64) * 131 + 71);
             let (p_base, p_tip, thick) = palette.pick_colors(c_seed, false);
-            let col_base = lerp_rgb(p_base, emerald_base, 0.45);
-            let col_tip = lerp_rgb(p_tip, pine_tip, 0.65);
-            let crest_dir = (horiz_dir * 0.64 + up_dir * 0.76 + side_dir * (0.14 * hash_signed(c_seed ^ 0x17)))
+            let col_base = lerp_rgb(p_base, emerald_base, 0.55);
+            let col_tip = lerp_rgb(p_tip, pine_tip, 0.70);
+            let crest_dir = (horiz_dir * 0.60
+                + up_dir * 0.78
+                + side_dir * (0.18 * hash_signed(c_seed ^ 0x17)))
                 .try_normalize()
                 .unwrap_or(Vec3::Y);
             let spec = BladeShapeSpec {
-                length: cord_len * 0.92,
-                max_width: cord_w * 0.94,
+                length: cord_len * 0.96,
+                max_width: cord_w * 1.02,
                 sickle: 0.0,
                 arch: -0.22,
-                keel: 0.52,
+                keel: 0.54,
                 upper_shoulder: 0.86,
                 serrated: false,
                 col_base,
@@ -922,6 +927,137 @@ fn append_araucaria_needle_shoot(
             };
             append_curved_3d_leaf(foliage, anchor, crest_dir, side_dir, leaf.stem_id, field, &spec);
             emitted += 1;
+        }
+    }
+    emitted
+}
+
+/// Clothe every Norfolk Island Pine primary whorl bough (L1) from inner 16% near the trunk
+/// out to the sweeping upturned outer tip with heavy, lush, layered dark coastal emerald
+/// Araucaria needle-frond tiers so no see-through sky gaps or naked inner boughs remain!
+#[allow(clippy::too_many_arguments)]
+fn append_araucaria_whorl_tier_plumes(
+    foliage: &mut Mesh,
+    tree: &Tree,
+    palette: &LeafPalette,
+    field: &CrownField,
+    budget_tris: u32,
+    high_detail: bool,
+) -> u32 {
+    let l1_stems: Vec<&Stem> = tree
+        .stems
+        .iter()
+        .filter(|s| s.level == 1 && !s.segments.is_empty())
+        .collect();
+    if l1_stems.is_empty() || budget_tris == 0 {
+        return 0;
+    }
+
+    let emerald_base = srgb3_to_linear([0.09, 0.22, 0.10]);
+    let pine_tip = srgb3_to_linear([0.24, 0.44, 0.19]);
+
+    let plumes_per_station: usize = if high_detail { 6 } else { 3 };
+    let tris_per_plume: u32 = if high_detail { 6 } else { 4 };
+    let tris_per_station = plumes_per_station as u32 * tris_per_plume;
+    let total_stations = (budget_tris / tris_per_station.max(1)).max(l1_stems.len() as u32) as usize;
+    let stations_per_bough = (total_stations / l1_stems.len()).clamp(4, if high_detail { 15 } else { 10 });
+
+    let lod_len_boost = if high_detail { 1.0 } else { 1.44 };
+    let lod_w_boost = if high_detail { 1.0 } else { 1.58 };
+    let mut emitted = 0u32;
+
+    for (b_i, stem) in l1_stems.iter().enumerate() {
+        let b_seed = tree.seed ^ ((stem.id as u64 + 1).wrapping_mul(0xA076_1D64_78BD_642F));
+        for st in 0..stations_per_bough {
+            // Clothe every whorl from inner 16% near the trunk all the way to the outer upturned tip!
+            let frac = (st as f32 + 0.35) / stations_per_bough as f32;
+            let t = 0.16 + 0.83 * frac;
+            let base = stem.point_at(t);
+            let raw_dir = stem.direction_at(t).try_normalize().unwrap_or(Vec3::X);
+            let horiz = Vec3::new(raw_dir.x, raw_dir.y * 0.28 + 0.08, raw_dir.z)
+                .try_normalize()
+                .unwrap_or(raw_dir);
+            let side = horiz
+                .cross(Vec3::Y)
+                .try_normalize()
+                .unwrap_or_else(|| create_basis(horiz).0);
+            let up = side.cross(horiz).try_normalize().unwrap_or(Vec3::Y);
+            let st_seed = b_seed ^ ((st as u64 + 1).wrapping_mul(0xE703_7ED1_A0B4_28DB));
+
+            // Slightly fuller coastal emerald collar near inner/mid bough, tapering naturally at outer tip
+            let env = (1.06 - 0.18 * frac).clamp(0.82, 1.08);
+            let cord_len = (0.25 + 0.07 * env)
+                * (0.90 + 0.20 * hash_unit(st_seed ^ 0x11))
+                * lod_len_boost;
+            let cord_w = (cord_len * 0.38 * (lod_w_boost / lod_len_boost))
+                .clamp(0.094, if high_detail { 0.126 } else { 0.200 });
+
+            // Emit lush overlapping left/right sweeping horizontal flanks + dorsal upturned plumes
+            // + slight lower-flank skirt cushions so each whorl tier reads as a dense, rich plume!
+            for p_k in 0..plumes_per_station {
+                let p_seed = st_seed ^ ((p_k as u64 + 1).wrapping_mul(0x9E37_79B9));
+                let (p_base, p_tip, thick) = palette.pick_colors(p_seed, false);
+                let inner_dark = 0.84 + 0.18 * frac;
+                let col_base = mul_rgb(lerp_rgb(p_base, emerald_base, 0.70), inner_dark);
+                let col_tip = mul_rgb(lerp_rgb(p_tip, pine_tip, 0.65), inner_dark);
+
+                let (dir, roll_up, off) = match p_k {
+                    // Sweeping left & right horizontal-to-upturned coastal herringbone fans
+                    0 => (
+                        (horiz * 0.62 + side * 0.70 + up * (0.26 + 0.22 * frac)),
+                        up + side * 0.24,
+                        side * 0.06 + up * 0.02,
+                    ),
+                    1 => (
+                        (horiz * 0.62 - side * 0.70 + up * (0.26 + 0.22 * frac)),
+                        up - side * 0.24,
+                        -side * 0.06 + up * 0.02,
+                    ),
+                    // Dorsal upturned plume crest crowning the bough
+                    2 => (
+                        (horiz * 0.56 + up * 0.80 + side * (0.20 * hash_signed(p_seed ^ 0x33))),
+                        side,
+                        up * 0.05,
+                    ),
+                    // Forward-swept diagonal sub-plumes bridging between consecutive whorl stations
+                    3 => (
+                        (horiz * 0.80 + side * 0.44 + up * (0.36 + 0.18 * frac)),
+                        up + side * 0.18,
+                        horiz * 0.08 + side * 0.05 + up * 0.04,
+                    ),
+                    4 => (
+                        (horiz * 0.80 - side * 0.44 + up * (0.36 + 0.18 * frac)),
+                        up - side * 0.18,
+                        horiz * 0.08 - side * 0.05 + up * 0.04,
+                    ),
+                    // Soft lower-flank emerald cushion closing gaps beneath the whorl bough
+                    _ => {
+                        let s_sign = if (st + b_i) % 2 == 0 { 1.0 } else { -1.0 };
+                        (
+                            (horiz * 0.68 + side * (s_sign * 0.62) - up * 0.12),
+                            up + side * (s_sign * 0.32),
+                            side * (s_sign * 0.05) - up * 0.03,
+                        )
+                    }
+                };
+                let n_dir = dir.try_normalize().unwrap_or(horiz);
+                let up_h = roll_up.try_normalize().unwrap_or(up);
+                let spec = BladeShapeSpec {
+                    length: cord_len * (0.92 + 0.16 * hash_unit(p_seed ^ 0x55)),
+                    max_width: cord_w * (0.94 + 0.12 * hash_unit(p_seed ^ 0x66)),
+                    sickle: 0.03 * hash_signed(p_seed ^ 0x77),
+                    arch: -0.24,
+                    keel: 0.54,
+                    upper_shoulder: 0.86,
+                    serrated: false,
+                    col_base,
+                    col_tip,
+                    thickness: thick,
+                    high_detail,
+                };
+                append_curved_3d_leaf(foliage, base + off, n_dir, up_h, stem.id, field, &spec);
+                emitted += 1;
+            }
         }
     }
     emitted
@@ -1844,10 +1980,21 @@ pub fn generate_geo3d_foliage_mesh(
                 );
             }
         } else if is_araucaria {
-            // Norfolk Island Pine: dense, compact, softly rounded 3D curved upturned needle-shoot tufts
-            // clothing ALL 64 coastal whorls (ZERO sharp origami diamonds!).
-            let tris_per_shoot = if high_detail { 60u32 } else { 20u32 };
-            let target_shoots = ((leaf_tri_budget / tris_per_shoot).max(480) as usize).min(total_leaves);
+            // Norfolk Island Pine: heavy, lush, layered dark coastal emerald needle-frond tiers!
+            // Dedicate ~36% of foliage budget to clothing every primary L1 whorl bough from inner
+            // 16% near the trunk to outer tips + ~64% to dense overlapping L2 feathery branchlet plumes.
+            let l1_whorl_budget = (leaf_tri_budget as f32 * 0.36) as u32;
+            let l2_shoot_budget = leaf_tri_budget.saturating_sub(l1_whorl_budget);
+            unit_count += append_araucaria_whorl_tier_plumes(
+                &mut foliage,
+                tree,
+                &palette,
+                &field,
+                l1_whorl_budget,
+                high_detail,
+            );
+            let tris_per_shoot = if high_detail { 48u32 } else { 20u32 };
+            let target_shoots = ((l2_shoot_budget / tris_per_shoot).max(480) as usize).min(total_leaves);
             for i in 0..target_shoots {
                 let leaf = &tree.leaves[i * total_leaves / target_shoots.max(1)];
                 let seed = tree.seed ^ ((i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));

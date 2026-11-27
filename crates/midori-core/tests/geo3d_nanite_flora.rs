@@ -39,7 +39,7 @@ fn geo3d_emits_100_percent_opaque_3d_curved_leaves_root_claws_and_attributes() {
     let cases = [
         Geo3dCase { preset: "presets/species/perth_jacaranda.toml", state: Some("flowering"), expect_roots: true, lod0_min: 70_000, lod0_max: 115_000, lod1_min: 18_000, lod1_max: 34_000 },
         Geo3dCase { preset: "presets/species/perth_moreton_bay_fig.toml", state: None, expect_roots: true, lod0_min: 70_000, lod0_max: 115_000, lod1_min: 18_000, lod1_max: 34_000 },
-        Geo3dCase { preset: "presets/species/perth_norfolk_island_pine.toml", state: None, expect_roots: true, lod0_min: 70_000, lod0_max: 115_000, lod1_min: 18_000, lod1_max: 34_000 },
+        Geo3dCase { preset: "presets/species/perth_norfolk_island_pine.toml", state: None, expect_roots: true, lod0_min: 105_000, lod0_max: 120_000, lod1_min: 28_000, lod1_max: 35_000 },
         Geo3dCase { preset: "presets/species/perth_queensland_box.toml", state: None, expect_roots: true, lod0_min: 70_000, lod0_max: 115_000, lod1_min: 18_000, lod1_max: 34_000 },
         Geo3dCase { preset: "presets/species/wa_flooded_gum.toml", state: None, expect_roots: true, lod0_min: 70_000, lod0_max: 115_000, lod1_min: 18_000, lod1_max: 34_000 },
         Geo3dCase { preset: "presets/species/wa_grass_tree.toml", state: None, expect_roots: false, lod0_min: 8_000, lod0_max: 40_000, lod1_min: 2_500, lod1_max: 14_000 },

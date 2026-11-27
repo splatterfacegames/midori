@@ -592,8 +592,11 @@ fn generate_single_lod(
     foliage_mode: crate::opaque_foliage::FoliageRenderMode,
 ) -> LodMesh {
     let is_geo3d = foliage_mode == crate::opaque_foliage::FoliageRenderMode::Geo3d;
+    let is_geo3d_araucaria = is_geo3d
+        && species.leaves.shape == crate::species::LeafShape::Needle
+        && species.textures.leaf_card == crate::species::LeafCardLayout::Frond;
     // Adapt branch depth & ring counts for dense multi-hundred-stem species (e.g. Norfolk Island Pine)
-    // in geo3d mode so LOD0 stays within 25k-55k tris and LOD1 stays within 6k-14k tris.
+    // in geo3d mode so foliage tiers get maximum lush needle-plume density.
     let effective_branch_levels = if is_geo3d && level.index > 0 && tree.stems.len() > 400 {
         level.branch_levels.min(1)
     } else if is_geo3d && level.index > 0 && tree.stems.len() > 260 {
@@ -601,7 +604,13 @@ fn generate_single_lod(
     } else {
         level.branch_levels
     };
-    let effective_ring_res = if is_geo3d && tree.stems.len() > 260 {
+    let effective_ring_res = if is_geo3d_araucaria {
+        if level.index == 0 {
+            [16, 7, 3, 3]
+        } else {
+            [10, 4, 3, 3]
+        }
+    } else if is_geo3d && tree.stems.len() > 260 {
         if level.index == 0 {
             [20, 10, 4, 3]
         } else {
@@ -687,13 +696,22 @@ fn generate_single_lod(
             || (level.leaf_geometry != LeafGeometry::None && level.leaf_reduction > 0.0)
         {
             let branch_tris = (branch_mesh.indices.len() / 3) as u32;
+            let (target_tris, max_tris) = if is_geo3d_araucaria {
+                if level.leaf_reduction >= 0.60 {
+                    (114_000, 120_000)
+                } else {
+                    (32_500, 35_000)
+                }
+            } else {
+                (level.target_triangles, level.max_triangles)
+            };
             let min_foliage = if level.leaf_reduction >= 0.60 {
                 48_000
             } else {
                 12_000
             };
-            let desired = level.target_triangles.saturating_sub(branch_tris);
-            let cap = level.max_triangles.saturating_sub(branch_tris);
+            let desired = target_tris.saturating_sub(branch_tris);
+            let cap = max_tris.saturating_sub(branch_tris);
             let foliage_budget = desired.clamp(min_foliage.min(cap.max(4_000)), cap.max(4_000));
 
             let res = crate::geo3d_foliage::generate_geo3d_foliage_mesh(
